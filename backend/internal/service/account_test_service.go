@@ -278,9 +278,6 @@ func (s *AccountTestService) testKiroAccountConnection(c *gin.Context, account *
 		if updateErr := s.accountRepo.Update(ctx, account); updateErr != nil {
 			return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to persist refreshed Kiro token: %s", updateErr.Error()))
 		}
-		if account.Status == StatusError {
-			_ = s.accountRepo.ClearError(ctx, account.ID)
-		}
 
 		retryReq, retryErr := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("https://q.%s.amazonaws.com/generateAssistantResponse", region), bytes.NewReader(payloadBytes))
 		if retryErr != nil {
@@ -290,6 +287,9 @@ func (s *AccountTestService) testKiroAccountConnection(c *gin.Context, account *
 		resp, err = s.httpUpstream.DoWithTLS(retryReq, proxyURL, account.ID, account.Concurrency, tlsProfile)
 		if err != nil {
 			return s.sendErrorAndEnd(c, fmt.Sprintf("Kiro retry request failed: %s", err.Error()))
+		}
+		if resp.StatusCode == http.StatusOK && account.Status == StatusError {
+			_ = s.accountRepo.ClearError(ctx, account.ID)
 		}
 	}
 	defer func() { _ = resp.Body.Close() }()
