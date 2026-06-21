@@ -29,6 +29,26 @@ This directory contains files for deploying Sub2API on Linux servers.
 
 ## Docker Deployment (Recommended)
 
+### Low-Memory Server Update Rules
+
+For small production servers, do not build the frontend/backend image on the server. Build the image in CI and let the server only run/pull the final image.
+
+- Prefer immutable image tags such as `ghcr.io/<owner>/sub2api:sha-<commit>`.
+- Do not run `docker build` on low-memory production servers.
+- Do not overwrite production `.env` files during updates; keep secrets and admin credentials in place.
+- Do not recreate or replace database storage when updating the application image.
+- Pull an image only when switching to a new tag/SHA or when the image is missing locally.
+- If the same image tag is already present, restart with the existing local image instead of pulling again.
+- If direct GHCR pulls are slow or blocked, use a verified registry mirror, then retag to the expected image name before `docker compose up -d`.
+
+Example update flow:
+
+```bash
+IMAGE="ghcr.io/<owner>/sub2api:sha-<commit>"
+docker image inspect "$IMAGE" >/dev/null 2>&1 || docker pull "$IMAGE"
+docker compose up -d --no-build
+```
+
 ### Method 1: One-Click Deployment (Recommended)
 
 Use the automated preparation script for the easiest setup:

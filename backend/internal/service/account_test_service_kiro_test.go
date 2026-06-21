@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -59,4 +60,78 @@ func TestAccountTestService_TestAccountConnection_KiroUsesNativeEndpoint(t *test
 	require.Equal(t, "claude-sonnet-4.6", gjson.GetBytes(upstream.lastBody, "conversationState.currentMessage.userInputMessage.modelId").String())
 	require.Equal(t, "AI_EDITOR", gjson.GetBytes(upstream.lastBody, "conversationState.currentMessage.userInputMessage.origin").String())
 	require.Contains(t, rec.Body.String(), `"type":"test_complete"`)
+}
+
+func TestAccountTestService_TestAccountConnection_KiroRefreshesOnAuthFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	account := Account{
+		ID:          43,
+		Name:        "kiro-oauth",
+		Platform:    PlatformKiro,
+		Type:        AccountTypeOAuth,
+		Status:      StatusActive,
+		Schedulable: true,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"access_token":  "expired-token",
+			"refresh_token": "refresh-token",
+			"region":        "us-east-1",
+		},
+	}
+	repo := &kiroTestUpdateRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{account}}}
+	upstream := &httpUpstreamRecorder{responses: []*http.Response{
+		{
+			StatusCode: http.StatusUnauthorized,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(bytes.NewReader([]byte(`{"type":"error","error":{"type":"authentication_error","message":"Invalid bearer token"}}`))),
+		},
+		{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/vnd.amazon.eventstream"}},
+			Body:       io.NopCloser(bytes.NewReader([]byte("eventstream"))),
+		},
+	}}
+	originalRefresh := refreshKiroAccountTokenForTest
+	refreshKiroAccountTokenForTest = func(_ context.Context, _ *Account) (*KiroTokenInfo, error) {
+		return &KiroTokenInfo{
+			AccessToken:  "fresh-token",
+			RefreshToken: "new-refresh-token",
+			ExpiresIn:    3600,
+			ExpiresAt:    1893456000,
+			TokenType:    "Bearer",
+		}, nil
+	}
+	defer func() { refreshKiroAccountTokenForTest = originalRefresh }()
+
+	svc := &AccountTestService{
+		accountRepo:  repo,
+		httpUpstream: upstream,
+	}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/43/test", bytes.NewReader(nil))
+
+	err := svc.TestAccountConnection(c, account.ID, "claude-sonnet-4-5-20250929", "", AccountTestModeDefault)
+	require.NoError(t, err)
+
+	require.Len(t, upstream.requests, 2)
+	require.Equal(t, "Bearer expired-token", upstream.requests[0].Header.Get("Authorization"))
+	require.Equal(t, "Bearer fresh-token", upstream.requests[1].Header.Get("Authorization"))
+	require.NotNil(t, repo.updated)
+	require.Equal(t, "fresh-token", repo.updated.GetCredential("access_token"))
+	require.Equal(t, "new-refresh-token", repo.updated.GetCredential("refresh_token"))
+	require.Contains(t, rec.Body.String(), `"type":"test_complete"`)
+}
+
+type kiroTestUpdateRepo struct {
+	stubOpenAIAccountRepo
+	updated *Account
+}
+
+func (r *kiroTestUpdateRepo) Update(_ context.Context, account *Account) error {
+	copied := *account
+	r.updated = &copied
+	return nil
 }

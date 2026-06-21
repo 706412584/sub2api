@@ -39,6 +39,8 @@ const (
 	kiroNativeAmzUA    = "aws-sdk-js/1.0.36 KiroIDE-0.12.200"
 )
 
+var refreshKiroAccountTokenForTest = RefreshKiroAccountToken
+
 // TestEvent represents a SSE event for account testing
 type TestEvent struct {
 	Type     string `json:"type"`
@@ -212,7 +214,7 @@ func (s *AccountTestService) testKiroAccountConnection(c *gin.Context, account *
 
 	authToken := strings.TrimSpace(account.GetCredential("access_token"))
 	if authToken == "" {
-		tokenInfo, err := RefreshKiroAccountToken(ctx, account)
+		tokenInfo, err := refreshKiroAccountTokenForTest(ctx, account)
 		if err != nil {
 			return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to refresh Kiro token: %s", err.Error()))
 		}
@@ -259,6 +261,34 @@ func (s *AccountTestService) testKiroAccountConnection(c *gin.Context, account *
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Kiro request failed: %s", err.Error()))
 	}
+
+	if isKiroBearerAuthFailure(resp.StatusCode) {
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
+		_ = resp.Body.Close()
+
+		tokenInfo, refreshErr := refreshKiroAccountTokenForTest(ctx, account)
+		if refreshErr != nil {
+			return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to refresh Kiro token after auth failure: %s", refreshErr.Error()))
+		}
+		authToken = strings.TrimSpace(tokenInfo.AccessToken)
+		if authToken == "" {
+			return s.sendErrorAndEnd(c, "Kiro token refresh returned an empty access token")
+		}
+		account.Credentials = MergeCredentials(account.Credentials, BuildKiroAccountCredentials(tokenInfo))
+		if updateErr := s.accountRepo.Update(ctx, account); updateErr != nil {
+			return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to persist refreshed Kiro token: %s", updateErr.Error()))
+		}
+
+		retryReq, retryErr := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("https://q.%s.amazonaws.com/generateAssistantResponse", region), bytes.NewReader(payloadBytes))
+		if retryErr != nil {
+			return s.sendErrorAndEnd(c, "Failed to create Kiro retry request")
+		}
+		applyKiroNativeTestHeaders(retryReq, authToken, account.GetCredential("machine_id"))
+		resp, err = s.httpUpstream.DoWithTLS(retryReq, proxyURL, account.ID, account.Concurrency, tlsProfile)
+		if err != nil {
+			return s.sendErrorAndEnd(c, fmt.Sprintf("Kiro retry request failed: %s", err.Error()))
+		}
+	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
@@ -291,6 +321,10 @@ func normalizeKiroTestModelID(modelID string) string {
 		return "claude-sonnet-4.6"
 	}
 	return strings.TrimSpace(modelID)
+}
+
+func isKiroBearerAuthFailure(statusCode int) bool {
+	return statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden
 }
 
 func createKiroTestPayload(modelID string, prompt string, profileARN string) map[string]any {
