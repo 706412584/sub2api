@@ -285,6 +285,7 @@ const platformColorClass = computed(() => {
     case 'anthropic': return 'text-orange-700 dark:text-orange-400'
     case 'openai': return 'text-emerald-700 dark:text-emerald-400'
     case 'antigravity': return 'text-purple-700 dark:text-purple-400'
+    case 'kiro': return 'text-teal-700 dark:text-teal-400'
     default: return 'text-blue-700 dark:text-blue-400'
   }
 })

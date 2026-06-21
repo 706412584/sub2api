@@ -97,6 +97,7 @@ export default {
       claude: 'Claude',
       gemini: 'Gemini',
       antigravity: 'Antigravity',
+      kiro: 'Kiro',
       more: 'More'
     },
     // CTA section
@@ -2215,6 +2216,7 @@ export default {
         openai: 'OpenAI',
         gemini: 'Gemini',
         antigravity: 'Antigravity',
+        kiro: 'Kiro',
       },
       deleteConfirm:
         "Are you sure you want to delete '{name}'? All associated API keys will no longer belong to any group.",
@@ -3056,7 +3058,8 @@ export default {
       dataImportFile: 'Data file',
       dataImportButton: 'Start Import',
       dataImporting: 'Importing...',
-      dataImportSelectFile: 'Please select a data file',
+      dataImportSelectFile: 'Please select data files',
+      dataImportSelectedFiles: '{count} files selected',
       dataImportParseFailed: 'Failed to parse data file',
       dataImportFailed: 'Data import failed',
       dataImportResult: 'Import Result',
@@ -3078,6 +3081,13 @@ export default {
       syncMissingFields: 'Please fill base URL, username and password',
       syncResult: 'Sync Result',
       syncResultSummary: 'Created {created}, updated {updated}, skipped {skipped}, failed {failed}',
+      kiroImportTitle: 'Import Kiro Accounts',
+      kiroImportDesc: 'Import Kiro account data, supporting raw JSON arrays, Kiro Account Manager wrapped data, and enterprise external_idp JSON.',
+      kiroImportButton: 'Import Kiro Accounts',
+      kiroImportResult: 'Import Result',
+      kiroImportResultSummary: 'Total {total}, created {created}, failed {failed}',
+      kiroImportSuccess: 'Kiro accounts imported: created {created}, failed {failed}',
+      kiroImportFailed: 'Kiro account import failed',
       syncErrors: 'Errors / Skipped Details',
       syncCompleted: 'Sync completed: created {created}, updated {updated}, skipped {skipped}',
       syncCompletedWithErrors:
@@ -3123,6 +3133,7 @@ export default {
         openai: 'OpenAI',
         gemini: 'Gemini',
         antigravity: 'Antigravity',
+        kiro: 'Kiro',
       },
       types: {
         oauth: 'OAuth',

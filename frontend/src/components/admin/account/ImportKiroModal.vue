@@ -1,19 +1,14 @@
 <template>
   <BaseDialog
     :show="show"
-    :title="t('admin.accounts.dataImportTitle')"
+    :title="t('admin.accounts.kiroImportTitle')"
     width="normal"
     close-on-click-outside
     @close="handleClose"
   >
-    <form id="import-data-form" class="space-y-4" @submit.prevent="handleImport">
+    <form id="import-kiro-form" class="space-y-4" @submit.prevent="handleImport">
       <div class="text-sm text-gray-600 dark:text-dark-300">
-        {{ t('admin.accounts.dataImportHint') }}
-      </div>
-      <div
-        class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-600 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400"
-      >
-        {{ t('admin.accounts.dataImportWarning') }}
+        {{ t('admin.accounts.kiroImportDesc') }}
       </div>
 
       <div>
@@ -46,10 +41,10 @@
         class="space-y-2 rounded-xl border border-gray-200 p-4 dark:border-dark-700"
       >
         <div class="text-sm font-medium text-gray-900 dark:text-white">
-          {{ t('admin.accounts.dataImportResult') }}
+          {{ t('admin.accounts.kiroImportResult') }}
         </div>
         <div class="text-sm text-gray-700 dark:text-dark-300">
-          {{ t('admin.accounts.dataImportResultSummary', result) }}
+          {{ t('admin.accounts.kiroImportResultSummary', result) }}
         </div>
 
         <div v-if="errorItems.length" class="mt-2">
@@ -60,7 +55,7 @@
             class="mt-2 max-h-48 overflow-auto rounded-lg bg-gray-50 p-3 font-mono text-xs dark:bg-dark-800"
           >
             <div v-for="(item, idx) in errorItems" :key="idx" class="whitespace-pre-wrap">
-              {{ item.kind }} {{ item.name || item.proxy_key || '-' }} — {{ item.message }}
+              {{ item.name || '-' }} — {{ item.message }}
             </div>
           </div>
         </div>
@@ -75,10 +70,10 @@
         <button
           class="btn btn-primary"
           type="submit"
-          form="import-data-form"
+          form="import-kiro-form"
           :disabled="importing"
         >
-          {{ importing ? t('admin.accounts.dataImporting') : t('admin.accounts.dataImportButton') }}
+          {{ importing ? t('admin.accounts.dataImporting') : t('admin.accounts.kiroImportButton') }}
         </button>
       </div>
     </template>
@@ -91,7 +86,7 @@ import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import { adminAPI } from '@/api/admin'
 import { useAppStore } from '@/stores/app'
-import type { AdminDataImportResult } from '@/types'
+import type { KiroImportResult } from '@/api/admin/accounts'
 
 interface Props {
   show: boolean
@@ -110,7 +105,7 @@ const appStore = useAppStore()
 
 const importing = ref(false)
 const files = ref<File[]>([])
-const result = ref<AdminDataImportResult | null>(null)
+const result = ref<KiroImportResult | null>(null)
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const selectedFileLabel = computed(() => {
@@ -174,12 +169,10 @@ const handleImport = async () => {
 
   importing.value = true
   try {
-    const totalResult: AdminDataImportResult = {
-      account_created: 0,
-      account_failed: 0,
-      proxy_created: 0,
-      proxy_reused: 0,
-      proxy_failed: 0,
+    const totalResult: KiroImportResult = {
+      total: 0,
+      created: 0,
+      failed: 0,
       errors: []
     }
 
@@ -189,18 +182,16 @@ const handleImport = async () => {
         const text = await readFileAsText(selectedFile)
         const dataPayload = JSON.parse(text)
 
-        const res = await adminAPI.accounts.importData({
+        const res = await adminAPI.accounts.importKiroAccounts({
           data: dataPayload,
           skip_default_group_bind: true
         })
 
-        totalResult.account_created += res.account_created
-        totalResult.account_failed += res.account_failed
-        totalResult.proxy_created += res.proxy_created
-        totalResult.proxy_reused += res.proxy_reused
-        totalResult.proxy_failed += res.proxy_failed
+        totalResult.total += res.total
+        totalResult.created += res.created
+        totalResult.failed += res.failed
         totalResult.errors?.push(
-          ...(res.errors || []).map((item) => ({
+          ...(res.errors || []).map((item: { index: number; name?: string; message: string }) => ({
             ...item,
             message: `[${selectedFile.name}] ${item.message}`
           }))
@@ -208,10 +199,11 @@ const handleImport = async () => {
       } catch (error: any) {
         const message = error instanceof SyntaxError
           ? t('admin.accounts.dataImportParseFailed')
-          : error?.message || t('admin.accounts.dataImportFailed')
-        totalResult.account_failed += 1
+          : error?.message || t('admin.accounts.kiroImportFailed')
+        totalResult.total += 1
+        totalResult.failed += 1
         totalResult.errors?.push({
-          kind: 'account',
+          index: -1,
           name: selectedFile.name,
           message: `[${selectedFile.name}] ${message}`
         })
@@ -221,16 +213,14 @@ const handleImport = async () => {
     result.value = totalResult
 
     const msgParams: Record<string, unknown> = {
-      account_created: totalResult.account_created,
-      account_failed: totalResult.account_failed,
-      proxy_created: totalResult.proxy_created,
-      proxy_reused: totalResult.proxy_reused,
-      proxy_failed: totalResult.proxy_failed,
+      total: totalResult.total,
+      created: totalResult.created,
+      failed: totalResult.failed,
     }
-    if (totalResult.account_failed > 0 || totalResult.proxy_failed > 0) {
-      appStore.showError(t('admin.accounts.dataImportCompletedWithErrors', msgParams))
+    if (totalResult.failed > 0) {
+      appStore.showError(t('admin.accounts.kiroImportSuccess', msgParams))
     } else {
-      appStore.showSuccess(t('admin.accounts.dataImportSuccess', msgParams))
+      appStore.showSuccess(t('admin.accounts.kiroImportSuccess', msgParams))
       emit('imported')
     }
   } finally {

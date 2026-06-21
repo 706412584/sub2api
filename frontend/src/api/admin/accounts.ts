@@ -612,6 +612,44 @@ export async function importCodexSession(payload: CodexSessionImportRequest): Pr
   return data
 }
 
+export interface KiroImportRequest {
+  data: any
+  name?: string
+  notes?: string
+  group_ids?: number[]
+  proxy_id?: number
+  concurrency?: number
+  priority?: number
+  rate_multiplier?: number
+  load_factor?: number
+  expires_at?: number
+  auto_pause_on_expired?: boolean
+  skip_default_group_bind?: boolean
+}
+
+export interface KiroImportResult {
+  total: number
+  created: number
+  failed: number
+  items?: Array<{
+    index: number
+    name?: string
+    action: string
+    account_id?: number
+    message?: string
+  }>
+  errors?: Array<{
+    index: number
+    name?: string
+    message: string
+  }>
+}
+
+export async function importKiroAccounts(payload: KiroImportRequest): Promise<KiroImportResult> {
+  const { data } = await apiClient.post<KiroImportResult>('/admin/accounts/import/kiro', payload)
+  return data
+}
+
 /**
  * Get Antigravity default model mapping from backend
  * @returns Default model mapping (from -> to)
@@ -812,6 +850,7 @@ export const accountsAPI = {
   exportData,
   importData,
   importCodexSession,
+  importKiroAccounts,
   getAntigravityDefaultModelMapping,
   batchClearError,
   batchRefresh,
