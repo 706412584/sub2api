@@ -71,6 +71,7 @@ type kiroAccountData struct {
 	Scopes                        []string       `json:"scopes"`
 	StartURL                      string         `json:"start_url"`
 	ExpiresAt                     int64          `json:"expires_at"`
+	MachineID                     string         `json:"machine_id"`
 	SubscriptionType              string         `json:"subscription_type"`
 	SubscriptionTitle             string         `json:"subscription_title"`
 	SubscriptionRawType           string         `json:"subscription_raw_type"`
@@ -124,6 +125,7 @@ func (h *AccountHandler) ImportKiroAccounts(c *gin.Context) {
 //   - Single Kiro account object
 //   - Array of Kiro account objects
 //   - Kiro Account Manager wrapped data (with "accounts" key)
+//   - Single-account wrapped data (with "account" key)
 //   - Enterprise external_idp JSON
 func parseKiroImportData(data any) ([]kiroAccountData, error) {
 	jsonBytes, err := json.Marshal(data)
@@ -160,7 +162,7 @@ func parseKiroImportValue(value any) ([]kiroAccountData, error) {
 		if account, ok := kiroAccountFromMap(v); ok {
 			return []kiroAccountData{account}, nil
 		}
-		for _, key := range []string{"data", "items", "accounts"} {
+		for _, key := range []string{"data", "account", "accounts", "items"} {
 			if nested, ok := v[key]; ok {
 				return parseKiroImportValue(nested)
 			}
@@ -174,7 +176,7 @@ func kiroAccountFromMap(raw map[string]any) (kiroAccountData, bool) {
 	if credentials, ok := raw["credentials"].(map[string]any); ok {
 		sources = append([]map[string]any{credentials}, sources...)
 	}
-	if externalIDP, ok := raw["external_idp"].(map[string]any); ok {
+	if externalIDP, ok := readKiroRecord(raw, "external_idp", "externalIdp", "externalIDP"); ok {
 		sources = append(sources, externalIDP)
 	}
 
@@ -194,9 +196,10 @@ func kiroAccountFromMap(raw map[string]any) (kiroAccountData, bool) {
 		Scopes:        readKiroScopes(sources, "scopes", "scope"),
 		StartURL:      readKiroString(sources, "startUrl", "start_url"),
 		ExpiresAt:     readKiroInt64(sources, "expiresAt", "expires_at"),
+		MachineID:     readKiroString(sources, "machineId", "machine_id"),
 		RawData:       raw,
 	}
-	if externalIDP, ok := raw["external_idp"].(map[string]any); ok {
+	if externalIDP, ok := readKiroRecord(raw, "external_idp", "externalIdp", "externalIDP"); ok {
 		account.ExternalIDP = externalIDP
 	}
 	if account.Region == "" {
@@ -205,7 +208,7 @@ func kiroAccountFromMap(raw map[string]any) (kiroAccountData, bool) {
 	if account.AuthMethod == "" {
 		account.AuthMethod = inferKiroAuthMethod(account)
 	}
-	if subscription, ok := raw["subscription"].(map[string]any); ok {
+	if subscription, ok := readKiroRecord(raw, "subscription"); ok {
 		account.SubscriptionType = readKiroString([]map[string]any{subscription}, "type")
 		account.SubscriptionTitle = readKiroString([]map[string]any{subscription}, "title")
 		account.SubscriptionRawType = readKiroString([]map[string]any{subscription}, "rawType", "raw_type")
@@ -213,13 +216,13 @@ func kiroAccountFromMap(raw map[string]any) (kiroAccountData, bool) {
 		account.SubscriptionExpiresAt = readKiroInt64([]map[string]any{subscription}, "expiresAt", "expires_at")
 		account.SubscriptionOverageCapability = readKiroString([]map[string]any{subscription}, "overageCapability", "overage_capability")
 	}
-	if usage, ok := raw["usage"].(map[string]any); ok {
+	if usage, ok := readKiroRecord(raw, "usage", "quota", "quotaUsage", "quota_usage"); ok {
 		account.UsageCurrent = readKiroFloat64([]map[string]any{usage}, "current")
 		account.UsageLimit = readKiroFloat64([]map[string]any{usage}, "limit")
 		account.UsagePercentUsed = readKiroFloat64([]map[string]any{usage}, "percentUsed", "percent_used")
 		account.UsageBaseLimit = readKiroFloat64([]map[string]any{usage}, "baseLimit", "base_limit")
 		account.UsageNextResetDate = readKiroString([]map[string]any{usage}, "nextResetDate", "next_reset_date")
-		if resourceDetail, ok := usage["resourceDetail"].(map[string]any); ok {
+		if resourceDetail, ok := readKiroRecord(usage, "resourceDetail", "resource_detail"); ok {
 			account.UsageOverageEnabled = readKiroBool([]map[string]any{resourceDetail}, "overageEnabled", "overage_enabled")
 			account.UsageOverageCap = readKiroFloat64([]map[string]any{resourceDetail}, "overageCap", "overage_cap")
 			account.UsageOverageRate = readKiroFloat64([]map[string]any{resourceDetail}, "overageRate", "overage_rate")
@@ -230,6 +233,15 @@ func kiroAccountFromMap(raw map[string]any) (kiroAccountData, bool) {
 	}
 
 	return account, account.RefreshToken != "" || account.AccessToken != "" || account.ClientID != "" || account.ExternalIDP != nil
+}
+
+func readKiroRecord(source map[string]any, keys ...string) (map[string]any, bool) {
+	for _, key := range keys {
+		if value, ok := source[key].(map[string]any); ok {
+			return value, true
+		}
+	}
+	return nil, false
 }
 
 func readKiroString(sources []map[string]any, keys ...string) string {
@@ -449,6 +461,9 @@ func (h *AccountHandler) importKiroAccounts(ctx context.Context, req KiroImportR
 		}
 		if account.ExpiresAt > 0 {
 			credentials["expires_at"] = account.ExpiresAt
+		}
+		if account.MachineID != "" {
+			credentials["machine_id"] = account.MachineID
 		}
 		if account.ExternalIDP != nil {
 			credentials["external_idp"] = account.ExternalIDP

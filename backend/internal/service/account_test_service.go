@@ -22,6 +22,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -34,6 +35,8 @@ var sseDataPrefix = regexp.MustCompile(`^data:\s*`)
 const (
 	testClaudeAPIURL   = "https://api.anthropic.com/v1/messages?beta=true"
 	chatgptCodexAPIURL = "https://chatgpt.com/backend-api/codex/responses"
+	kiroNativeUA       = "aws-sdk-js/1.0.36 ua/2.1 os/darwin#24.6.0 lang/js md/nodejs#22.22.0 api/codewhispererstreaming#1.0.36 m/E KiroIDE-0.12.200"
+	kiroNativeAmzUA    = "aws-sdk-js/1.0.36 KiroIDE-0.12.200"
 )
 
 // TestEvent represents a SSE event for account testing
@@ -192,7 +195,159 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 		return s.routeAntigravityTest(c, account, modelID, prompt)
 	}
 
+	if account.Platform == PlatformKiro {
+		return s.testKiroAccountConnection(c, account, modelID, prompt)
+	}
+
 	return s.testClaudeAccountConnection(c, account, modelID)
+}
+
+func (s *AccountTestService) testKiroAccountConnection(c *gin.Context, account *Account, modelID string, prompt string) error {
+	ctx := c.Request.Context()
+
+	testModelID := normalizeKiroTestModelID(modelID)
+	if prompt == "" {
+		prompt = "Say hello in one word"
+	}
+
+	authToken := strings.TrimSpace(account.GetCredential("access_token"))
+	if authToken == "" {
+		tokenInfo, err := RefreshKiroAccountToken(ctx, account)
+		if err != nil {
+			return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to refresh Kiro token: %s", err.Error()))
+		}
+		authToken = strings.TrimSpace(tokenInfo.AccessToken)
+	}
+	if authToken == "" {
+		return s.sendErrorAndEnd(c, "No Kiro access token available")
+	}
+
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("X-Accel-Buffering", "no")
+	c.Writer.Flush()
+
+	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
+
+	payload := createKiroTestPayload(testModelID, prompt, account.GetCredential("profile_arn"))
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return s.sendErrorAndEnd(c, "Failed to create Kiro request payload")
+	}
+
+	region := strings.TrimSpace(account.GetCredential("region"))
+	if region == "" {
+		region = "us-east-1"
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("https://q.%s.amazonaws.com/generateAssistantResponse", region), bytes.NewReader(payloadBytes))
+	if err != nil {
+		return s.sendErrorAndEnd(c, "Failed to create Kiro request")
+	}
+	applyKiroNativeTestHeaders(req, authToken, account.GetCredential("machine_id"))
+
+	proxyURL := ""
+	if account.ProxyID != nil && account.Proxy != nil {
+		proxyURL = account.Proxy.URL()
+	}
+
+	var tlsProfile *tlsfingerprint.Profile
+	if s.tlsFPProfileService != nil {
+		tlsProfile = s.tlsFPProfileService.ResolveTLSProfile(account)
+	}
+	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, tlsProfile)
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Kiro request failed: %s", err.Error()))
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		errMsg := fmt.Sprintf("Kiro API returned %d: %s", resp.StatusCode, string(body))
+		if resp.StatusCode == http.StatusForbidden {
+			_ = s.accountRepo.SetError(ctx, account.ID, errMsg)
+		}
+		return s.sendErrorAndEnd(c, errMsg)
+	}
+
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
+	s.sendEvent(c, TestEvent{Type: "content", Text: "Kiro request accepted"})
+	s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+	return nil
+}
+
+func normalizeKiroTestModelID(modelID string) string {
+	normalized := strings.ToLower(strings.TrimSpace(modelID))
+	if normalized == "" {
+		return "claude-sonnet-4.6"
+	}
+	if strings.Contains(normalized, "opus") {
+		return "claude-opus-4.7"
+	}
+	if strings.Contains(normalized, "haiku") {
+		return "claude-haiku-4.5"
+	}
+	if strings.Contains(normalized, "sonnet") {
+		return "claude-sonnet-4.6"
+	}
+	return strings.TrimSpace(modelID)
+}
+
+func createKiroTestPayload(modelID string, prompt string, profileARN string) map[string]any {
+	payload := map[string]any{
+		"conversationState": map[string]any{
+			"chatTriggerType": "MANUAL",
+			"agentTaskType":   "vibe",
+			"currentMessage": map[string]any{
+				"userInputMessage": map[string]any{
+					"content":                 prompt,
+					"modelId":                 modelID,
+					"origin":                  "AI_EDITOR",
+					"userInputMessageContext": map[string]any{},
+				},
+			},
+			"history": []any{},
+		},
+	}
+	if strings.TrimSpace(profileARN) != "" {
+		payload["profileArn"] = strings.TrimSpace(profileARN)
+	}
+	return payload
+}
+
+func applyKiroNativeTestHeaders(req *http.Request, token string, machineID string) {
+	trimmedMachineID := trimKiroMachineID(machineID)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("User-Agent", kiroNativeUserAgent(trimmedMachineID))
+	req.Header.Set("x-amz-user-agent", kiroNativeAmzUserAgent(trimmedMachineID))
+	req.Header.Set("x-amzn-codewhisperer-optout", "true")
+	req.Header.Set("x-amzn-kiro-agent-mode", "vibe")
+	req.Header.Set("Amz-Sdk-Invocation-Id", uuid.NewString())
+	req.Header.Set("Amz-Sdk-Request", "attempt=1; max=3")
+}
+
+func kiroNativeUserAgent(machineID string) string {
+	if machineID == "" {
+		return kiroNativeUA
+	}
+	return kiroNativeUA + "-" + machineID
+}
+
+func kiroNativeAmzUserAgent(machineID string) string {
+	if machineID == "" {
+		return kiroNativeAmzUA
+	}
+	return kiroNativeAmzUA + "-" + machineID
+}
+
+func trimKiroMachineID(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if len(raw) > 64 {
+		return raw[:64]
+	}
+	return raw
 }
 
 // testClaudeAccountConnection tests an Anthropic Claude account's connection

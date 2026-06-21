@@ -262,7 +262,7 @@
                 class="flex flex-wrap items-center gap-1 pl-0.5 text-[11px] leading-4 text-slate-600 dark:text-slate-300"
                 :title="getKiroMeta(row)?.title"
               >
-                <span class="rounded bg-indigo-50 px-1.5 py-0.5 font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200">
+                <span :class="['rounded px-1.5 py-0.5 font-medium', getKiroMeta(row)?.subscriptionClass]">
                   {{ getKiroMeta(row)?.subscriptionLabel }}
                 </span>
                 <span class="font-mono">{{ getKiroMeta(row)?.quotaLabel }}</span>
@@ -1109,6 +1109,7 @@ function getAntigravityTierLabel(row: any): string | null {
 
 type KiroMeta = {
   subscriptionLabel: string
+  subscriptionClass: string
   quotaLabel: string
   overageLabel: string
   overageClass: string
@@ -1151,6 +1152,26 @@ function formatKiroAmount(value: number | null): string {
   }).format(value)
 }
 
+function getKiroSubscriptionClass(label: string): string {
+  const normalized = label.toLowerCase().replace(/\s+/g, ' ')
+  if (normalized.includes('pro max')) {
+    return 'bg-fuchsia-50 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-200'
+  }
+  if (normalized.includes('pro+') || normalized.includes('pro plus')) {
+    return 'bg-purple-50 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200'
+  }
+  if (normalized.includes('power')) {
+    return 'bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200'
+  }
+  if (normalized.includes('pro')) {
+    return 'bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200'
+  }
+  if (normalized.includes('free')) {
+    return 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+  }
+  return 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200'
+}
+
 function getKiroMeta(row: Account): KiroMeta | null {
   if (row.platform !== 'kiro') return null
   const extra = row.extra
@@ -1163,6 +1184,7 @@ function getKiroMeta(row: Account): KiroMeta | null {
     readRecordString(subscription, 'type') ||
     readRecordString(subscription, 'raw_type') ||
     'Kiro'
+  const subscriptionClass = getKiroSubscriptionClass(subscriptionLabel)
   const current = readRecordNumber(usage, 'current')
   const limit = readRecordNumber(usage, 'limit')
   const quotaLabel = limit !== null ? `${formatKiroAmount(current)}/${formatKiroAmount(limit)}` : '-'
@@ -1177,6 +1199,7 @@ function getKiroMeta(row: Account): KiroMeta | null {
 
   return {
     subscriptionLabel,
+    subscriptionClass,
     quotaLabel,
     overageLabel,
     overageClass,

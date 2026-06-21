@@ -67,6 +67,36 @@ func TestParseKiroImportDataSupportsExternalIDPEnvelope(t *testing.T) {
 	require.NotNil(t, accounts[0].ExternalIDP)
 }
 
+func TestParseKiroImportDataSupportsSingleAccountFixedKeys(t *testing.T) {
+	input := map[string]any{
+		"account": map[string]any{
+			"clientId":     "cid",
+			"clientSecret": "secret",
+			"email":        "alexander@example.com",
+			"platform":     "kiro",
+			"provider":     "BuilderId",
+			"refreshToken": "rt",
+			"region":       "us-east-1",
+			"machineId":    "abcdef123456",
+			"subscription": map[string]any{
+				"type": "Pro+",
+			},
+		},
+	}
+
+	accounts, err := parseKiroImportData(input)
+	require.NoError(t, err)
+	require.Len(t, accounts, 1)
+	require.Equal(t, "alexander@example.com", accounts[0].Email)
+	require.Equal(t, "cid", accounts[0].ClientID)
+	require.Equal(t, "secret", accounts[0].ClientSecret)
+	require.Equal(t, "rt", accounts[0].RefreshToken)
+	require.Equal(t, "BuilderId", accounts[0].Provider)
+	require.Equal(t, "idc", accounts[0].AuthMethod)
+	require.Equal(t, "abcdef123456", accounts[0].MachineID)
+	require.Equal(t, "Pro+", accounts[0].SubscriptionType)
+}
+
 func TestParseKiroImportDataPreservesSubscriptionAndUsageMetadata(t *testing.T) {
 	input := map[string]any{
 		"accounts": []any{
