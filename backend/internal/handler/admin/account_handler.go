@@ -900,6 +900,13 @@ func (h *AccountHandler) refreshSingleAccount(ctx context.Context, account *serv
 				return nil, "", fmt.Errorf("failed to clear account error: %w", clearErr)
 			}
 		}
+	} else if account.Platform == service.PlatformKiro {
+		tokenInfo, err := service.RefreshKiroAccountToken(ctx, account)
+		if err != nil {
+			return nil, "", err
+		}
+
+		newCredentials = service.MergeCredentials(account.Credentials, service.BuildKiroAccountCredentials(tokenInfo))
 	} else {
 		// Use Anthropic/Claude OAuth service to refresh token
 		tokenInfo, err := h.oauthService.RefreshAccountToken(ctx, account)

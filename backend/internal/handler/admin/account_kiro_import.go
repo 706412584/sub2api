@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/domain"
@@ -56,14 +57,20 @@ type KiroImportMessage struct {
 // kiroAccountData represents the parsed Kiro account data.
 type kiroAccountData struct {
 	Name          string         `json:"name"`
+	Email         string         `json:"email"`
+	AccessToken   string         `json:"access_token"`
 	RefreshToken  string         `json:"refresh_token"`
 	ClientID      string         `json:"client_id"`
 	ClientSecret  string         `json:"client_secret"`
+	AuthMethod    string         `json:"auth_method"`
+	Provider      string         `json:"provider"`
 	Region        string         `json:"region"`
 	ProfileArn    string         `json:"profile_arn"`
 	TokenEndpoint string         `json:"token_endpoint"`
 	IssuerURL     string         `json:"issuer_url"`
 	Scopes        []string       `json:"scopes"`
+	StartURL      string         `json:"start_url"`
+	ExpiresAt     int64          `json:"expires_at"`
 	ExternalIDP   map[string]any `json:"external_idp"`
 	RawData       map[string]any `json:"-"`
 }
@@ -105,88 +112,197 @@ func (h *AccountHandler) ImportKiroAccounts(c *gin.Context) {
 //   - Kiro Account Manager wrapped data (with "accounts" key)
 //   - Enterprise external_idp JSON
 func parseKiroImportData(data any) ([]kiroAccountData, error) {
-	// Convert to JSON bytes for parsing
 	jsonBytes, err := json.Marshal(data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal input data: %w", err)
 	}
+	var decoded any
+	if err := json.Unmarshal(jsonBytes, &decoded); err != nil {
+		return nil, fmt.Errorf("invalid JSON data: %w", err)
+	}
+	accounts, err := parseKiroImportValue(decoded)
+	if err != nil {
+		return nil, err
+	}
+	if len(accounts) == 0 {
+		return nil, fmt.Errorf("unable to parse Kiro account data from input")
+	}
+	return accounts, nil
+}
 
-	// Try to parse as a single account first
-	var singleAccount kiroAccountData
-	if err := json.Unmarshal(jsonBytes, &singleAccount); err == nil {
-		if singleAccount.RefreshToken != "" || singleAccount.ClientID != "" {
-			return []kiroAccountData{singleAccount}, nil
-		}
-	}
-
-	// Try to parse as an array of accounts
-	var accounts []kiroAccountData
-	if err := json.Unmarshal(jsonBytes, &accounts); err == nil {
-		if len(accounts) > 0 {
-			return accounts, nil
-		}
-	}
-
-	// Try to parse as Kiro Account Manager wrapped data
-	var wrappedData struct {
-		Accounts []kiroAccountData `json:"accounts"`
-	}
-	if err := json.Unmarshal(jsonBytes, &wrappedData); err == nil {
-		if len(wrappedData.Accounts) > 0 {
-			return wrappedData.Accounts, nil
-		}
-	}
-
-	// Try to parse as enterprise external_idp JSON
-	var externalIDPData struct {
-		ExternalIDP   map[string]any `json:"external_idp"`
-		RefreshToken  string         `json:"refresh_token"`
-		ClientID      string         `json:"client_id"`
-		ClientSecret  string         `json:"client_secret"`
-		Region        string         `json:"region"`
-		ProfileArn    string         `json:"profile_arn"`
-		TokenEndpoint string         `json:"token_endpoint"`
-		IssuerURL     string         `json:"issuer_url"`
-		Scopes        []string       `json:"scopes"`
-	}
-	if err := json.Unmarshal(jsonBytes, &externalIDPData); err == nil {
-		if externalIDPData.ExternalIDP != nil {
-			// This is an enterprise external_idp JSON
-			account := kiroAccountData{
-				RefreshToken:  externalIDPData.RefreshToken,
-				ClientID:      externalIDPData.ClientID,
-				ClientSecret:  externalIDPData.ClientSecret,
-				Region:        externalIDPData.Region,
-				ProfileArn:    externalIDPData.ProfileArn,
-				TokenEndpoint: externalIDPData.TokenEndpoint,
-				IssuerURL:     externalIDPData.IssuerURL,
-				Scopes:        externalIDPData.Scopes,
-				ExternalIDP:   externalIDPData.ExternalIDP,
+func parseKiroImportValue(value any) ([]kiroAccountData, error) {
+	switch v := value.(type) {
+	case []any:
+		accounts := make([]kiroAccountData, 0, len(v))
+		for _, item := range v {
+			parsed, err := parseKiroImportValue(item)
+			if err != nil {
+				return nil, err
 			}
+			accounts = append(accounts, parsed...)
+		}
+		return accounts, nil
+	case map[string]any:
+		if account, ok := kiroAccountFromMap(v); ok {
 			return []kiroAccountData{account}, nil
 		}
-	}
-
-	// Try to parse as a map and extract accounts from various keys
-	var mapData map[string]any
-	if err := json.Unmarshal(jsonBytes, &mapData); err == nil {
-		// Check for "data" key (common wrapper)
-		if dataKey, ok := mapData["data"]; ok {
-			return parseKiroImportData(dataKey)
-		}
-
-		// Check for "items" key
-		if itemsKey, ok := mapData["items"]; ok {
-			return parseKiroImportData(itemsKey)
-		}
-
-		// Check for "accounts" key (might be a different format)
-		if accountsKey, ok := mapData["accounts"]; ok {
-			return parseKiroImportData(accountsKey)
+		for _, key := range []string{"data", "items", "accounts"} {
+			if nested, ok := v[key]; ok {
+				return parseKiroImportValue(nested)
+			}
 		}
 	}
-
 	return nil, fmt.Errorf("unable to parse Kiro account data from input")
+}
+
+func kiroAccountFromMap(raw map[string]any) (kiroAccountData, bool) {
+	sources := []map[string]any{raw}
+	if credentials, ok := raw["credentials"].(map[string]any); ok {
+		sources = append([]map[string]any{credentials}, sources...)
+	}
+	if externalIDP, ok := raw["external_idp"].(map[string]any); ok {
+		sources = append(sources, externalIDP)
+	}
+
+	account := kiroAccountData{
+		Name:          readKiroString(sources, "name", "displayName", "display_name"),
+		Email:         readKiroString(sources, "email", "emailAddress", "email_address"),
+		AccessToken:   readKiroString(sources, "accessToken", "access_token"),
+		RefreshToken:  readKiroString(sources, "refreshToken", "refresh_token"),
+		ClientID:      readKiroString(sources, "clientId", "client_id"),
+		ClientSecret:  readKiroString(sources, "clientSecret", "client_secret"),
+		AuthMethod:    normalizeKiroAuthMethod(readKiroString(sources, "authMethod", "auth_method", "tokenType", "token_type")),
+		Provider:      readKiroString(sources, "provider", "idp"),
+		Region:        readKiroString(sources, "region"),
+		ProfileArn:    readKiroString(sources, "profileArn", "profile_arn"),
+		TokenEndpoint: readKiroString(sources, "tokenEndpoint", "token_endpoint"),
+		IssuerURL:     readKiroString(sources, "issuerUrl", "issuer_url"),
+		Scopes:        readKiroScopes(sources, "scopes", "scope"),
+		StartURL:      readKiroString(sources, "startUrl", "start_url"),
+		ExpiresAt:     readKiroInt64(sources, "expiresAt", "expires_at"),
+		RawData:       raw,
+	}
+	if externalIDP, ok := raw["external_idp"].(map[string]any); ok {
+		account.ExternalIDP = externalIDP
+	}
+	if account.Region == "" {
+		account.Region = "us-east-1"
+	}
+	if account.AuthMethod == "" {
+		account.AuthMethod = inferKiroAuthMethod(account)
+	}
+	if account.Provider == "" {
+		account.Provider = defaultKiroProvider(account.AuthMethod)
+	}
+
+	return account, account.RefreshToken != "" || account.AccessToken != "" || account.ClientID != "" || account.ExternalIDP != nil
+}
+
+func readKiroString(sources []map[string]any, keys ...string) string {
+	for _, source := range sources {
+		for _, key := range keys {
+			if value, ok := source[key]; ok {
+				switch v := value.(type) {
+				case string:
+					if s := strings.TrimSpace(v); s != "" {
+						return s
+					}
+				case json.Number:
+					return v.String()
+				case float64:
+					return strconv.FormatInt(int64(v), 10)
+				case int64:
+					return strconv.FormatInt(v, 10)
+				case int:
+					return strconv.Itoa(v)
+				}
+			}
+		}
+	}
+	return ""
+}
+
+func readKiroScopes(sources []map[string]any, keys ...string) []string {
+	for _, source := range sources {
+		for _, key := range keys {
+			raw, ok := source[key]
+			if !ok || raw == nil {
+				continue
+			}
+			switch v := raw.(type) {
+			case []any:
+				scopes := make([]string, 0, len(v))
+				for _, item := range v {
+					if s, ok := item.(string); ok && strings.TrimSpace(s) != "" {
+						scopes = append(scopes, strings.TrimSpace(s))
+					}
+				}
+				if len(scopes) > 0 {
+					return scopes
+				}
+			case []string:
+				scopes := make([]string, 0, len(v))
+				for _, item := range v {
+					if strings.TrimSpace(item) != "" {
+						scopes = append(scopes, strings.TrimSpace(item))
+					}
+				}
+				if len(scopes) > 0 {
+					return scopes
+				}
+			case string:
+				parts := strings.Fields(v)
+				if len(parts) > 0 {
+					return parts
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func readKiroInt64(sources []map[string]any, keys ...string) int64 {
+	value := readKiroString(sources, keys...)
+	if value == "" {
+		return 0
+	}
+	parsed, _ := strconv.ParseInt(value, 10, 64)
+	return parsed
+}
+
+func normalizeKiroAuthMethod(method string) string {
+	lower := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(method), "-", "_"))
+	switch lower {
+	case "idc", "builderid", "builder_id":
+		return "idc"
+	case "social", "google", "github":
+		return "social"
+	case "external_idp", "externalidp", "external", "enterprise":
+		return "external_idp"
+	default:
+		return lower
+	}
+}
+
+func inferKiroAuthMethod(account kiroAccountData) string {
+	if account.TokenEndpoint != "" && account.ClientID != "" {
+		return "external_idp"
+	}
+	if account.ClientID != "" && account.ClientSecret != "" {
+		return "idc"
+	}
+	return "social"
+}
+
+func defaultKiroProvider(authMethod string) string {
+	switch authMethod {
+	case "external_idp":
+		return "ExternalIdp"
+	case "idc":
+		return "BuilderId"
+	default:
+		return "Google"
+	}
 }
 
 // importKiroAccounts imports the parsed Kiro accounts into the system.
@@ -219,11 +335,20 @@ func (h *AccountHandler) importKiroAccounts(ctx context.Context, req KiroImportR
 		credentials := map[string]any{
 			"refresh_token": account.RefreshToken,
 		}
+		if account.AccessToken != "" {
+			credentials["access_token"] = account.AccessToken
+		}
 		if account.ClientID != "" {
 			credentials["client_id"] = account.ClientID
 		}
 		if account.ClientSecret != "" {
 			credentials["client_secret"] = account.ClientSecret
+		}
+		if account.AuthMethod != "" {
+			credentials["auth_method"] = account.AuthMethod
+		}
+		if account.Provider != "" {
+			credentials["provider"] = account.Provider
 		}
 		if account.Region != "" {
 			credentials["region"] = account.Region
@@ -231,23 +356,33 @@ func (h *AccountHandler) importKiroAccounts(ctx context.Context, req KiroImportR
 		if account.ProfileArn != "" {
 			credentials["profile_arn"] = account.ProfileArn
 		}
-
-		// Build extra
-		extra := map[string]any{}
 		if account.TokenEndpoint != "" {
-			extra["token_endpoint"] = account.TokenEndpoint
+			credentials["token_endpoint"] = account.TokenEndpoint
 		}
 		if account.IssuerURL != "" {
-			extra["issuer_url"] = account.IssuerURL
+			credentials["issuer_url"] = account.IssuerURL
 		}
 		if len(account.Scopes) > 0 {
-			extra["scopes"] = account.Scopes
+			credentials["scopes"] = account.Scopes
+			credentials["scope"] = strings.Join(account.Scopes, " ")
+		}
+		if account.StartURL != "" {
+			credentials["start_url"] = account.StartURL
+		}
+		if account.ExpiresAt > 0 {
+			credentials["expires_at"] = account.ExpiresAt
 		}
 		if account.ExternalIDP != nil {
-			extra["external_idp"] = account.ExternalIDP
+			credentials["external_idp"] = account.ExternalIDP
 		}
 
-		// Merge any extra from request
+		extra := map[string]any{}
+		if account.Email != "" {
+			extra["email"] = account.Email
+		}
+		if account.RawData != nil {
+			extra["kiro_import_format"] = "kiro-go-plus"
+		}
 		if req.Notes != "" {
 			extra["notes"] = req.Notes
 		}
@@ -255,15 +390,21 @@ func (h *AccountHandler) importKiroAccounts(ctx context.Context, req KiroImportR
 		// Build account name
 		accountName := account.Name
 		if accountName == "" {
-			if account.ProfileArn != "" {
-				// Extract name from profile ARN
+			if account.Email != "" {
+				accountName = account.Email
+			}
+			if accountName == "" && account.ProfileArn != "" {
 				parts := strings.Split(account.ProfileArn, "/")
 				if len(parts) > 0 {
 					accountName = parts[len(parts)-1]
 				}
 			}
 			if accountName == "" && account.ClientID != "" {
-				accountName = fmt.Sprintf("kiro-%s", account.ClientID[:8])
+				clientID := account.ClientID
+				if len(clientID) > 8 {
+					clientID = clientID[:8]
+				}
+				accountName = fmt.Sprintf("kiro-%s", clientID)
 			}
 			if accountName == "" {
 				accountName = fmt.Sprintf("kiro-account-%d", i+1)
