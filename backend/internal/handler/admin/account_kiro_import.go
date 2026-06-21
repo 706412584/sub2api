@@ -14,27 +14,27 @@ import (
 
 // KiroImportRequest represents the request body for importing Kiro accounts.
 type KiroImportRequest struct {
-	Data                any    `json:"data"`
-	Name                string `json:"name"`
-	Notes               string `json:"notes"`
-	GroupIDs            []int64 `json:"group_ids"`
-	ProxyID             *int64 `json:"proxy_id"`
-	Concurrency         *int   `json:"concurrency"`
-	Priority            *int   `json:"priority"`
-	RateMultiplier      *float64 `json:"rate_multiplier"`
-	LoadFactor          *int   `json:"load_factor"`
-	ExpiresAt           *int64 `json:"expires_at"`
-	AutoPauseOnExpired  *bool  `json:"auto_pause_on_expired"`
-	SkipDefaultGroupBind *bool `json:"skip_default_group_bind"`
+	Data                 any      `json:"data"`
+	Name                 string   `json:"name"`
+	Notes                string   `json:"notes"`
+	GroupIDs             []int64  `json:"group_ids"`
+	ProxyID              *int64   `json:"proxy_id"`
+	Concurrency          *int     `json:"concurrency"`
+	Priority             *int     `json:"priority"`
+	RateMultiplier       *float64 `json:"rate_multiplier"`
+	LoadFactor           *int     `json:"load_factor"`
+	ExpiresAt            *int64   `json:"expires_at"`
+	AutoPauseOnExpired   *bool    `json:"auto_pause_on_expired"`
+	SkipDefaultGroupBind *bool    `json:"skip_default_group_bind"`
 }
 
 // KiroImportResult represents the result of importing Kiro accounts.
 type KiroImportResult struct {
-	Total   int                  `json:"total"`
-	Created int                  `json:"created"`
-	Failed  int                  `json:"failed"`
-	Items   []KiroImportItem     `json:"items,omitempty"`
-	Errors  []KiroImportMessage  `json:"errors,omitempty"`
+	Total   int                 `json:"total"`
+	Created int                 `json:"created"`
+	Failed  int                 `json:"failed"`
+	Items   []KiroImportItem    `json:"items,omitempty"`
+	Errors  []KiroImportMessage `json:"errors,omitempty"`
 }
 
 // KiroImportItem represents a single imported Kiro account.
@@ -55,17 +55,17 @@ type KiroImportMessage struct {
 
 // kiroAccountData represents the parsed Kiro account data.
 type kiroAccountData struct {
-	Name         string         `json:"name"`
-	RefreshToken string         `json:"refresh_token"`
-	ClientID     string         `json:"client_id"`
-	ClientSecret string         `json:"client_secret"`
-	Region       string         `json:"region"`
-	ProfileArn   string         `json:"profile_arn"`
-	TokenEndpoint string        `json:"token_endpoint"`
-	IssuerURL    string         `json:"issuer_url"`
-	Scopes       []string       `json:"scopes"`
-	ExternalIDP  map[string]any `json:"external_idp"`
-	RawData      map[string]any `json:"-"`
+	Name          string         `json:"name"`
+	RefreshToken  string         `json:"refresh_token"`
+	ClientID      string         `json:"client_id"`
+	ClientSecret  string         `json:"client_secret"`
+	Region        string         `json:"region"`
+	ProfileArn    string         `json:"profile_arn"`
+	TokenEndpoint string         `json:"token_endpoint"`
+	IssuerURL     string         `json:"issuer_url"`
+	Scopes        []string       `json:"scopes"`
+	ExternalIDP   map[string]any `json:"external_idp"`
+	RawData       map[string]any `json:"-"`
 }
 
 // ImportKiroAccounts handles the import of Kiro accounts.
@@ -139,15 +139,15 @@ func parseKiroImportData(data any) ([]kiroAccountData, error) {
 
 	// Try to parse as enterprise external_idp JSON
 	var externalIDPData struct {
-		ExternalIDP map[string]any `json:"external_idp"`
-		RefreshToken string         `json:"refresh_token"`
-		ClientID     string         `json:"client_id"`
-		ClientSecret string         `json:"client_secret"`
-		Region       string         `json:"region"`
-		ProfileArn   string         `json:"profile_arn"`
-		TokenEndpoint string        `json:"token_endpoint"`
-		IssuerURL    string         `json:"issuer_url"`
-		Scopes       []string       `json:"scopes"`
+		ExternalIDP   map[string]any `json:"external_idp"`
+		RefreshToken  string         `json:"refresh_token"`
+		ClientID      string         `json:"client_id"`
+		ClientSecret  string         `json:"client_secret"`
+		Region        string         `json:"region"`
+		ProfileArn    string         `json:"profile_arn"`
+		TokenEndpoint string         `json:"token_endpoint"`
+		IssuerURL     string         `json:"issuer_url"`
+		Scopes        []string       `json:"scopes"`
 	}
 	if err := json.Unmarshal(jsonBytes, &externalIDPData); err == nil {
 		if externalIDPData.ExternalIDP != nil {
@@ -275,13 +275,13 @@ func (h *AccountHandler) importKiroAccounts(ctx context.Context, req KiroImportR
 
 		// Create the account
 		createReq := &service.CreateAccountInput{
-			Name:           accountName,
-			Platform:       domain.PlatformKiro,
-			Type:           "oauth",
-			Credentials:    credentials,
-			Extra:          extra,
-			Concurrency:    concurrency,
-			Priority:       priority,
+			Name:                 accountName,
+			Platform:             domain.PlatformKiro,
+			Type:                 "oauth",
+			Credentials:          credentials,
+			Extra:                extra,
+			Concurrency:          concurrency,
+			Priority:             priority,
 			SkipDefaultGroupBind: skipDefaultGroupBind,
 		}
 
