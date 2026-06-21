@@ -952,6 +952,14 @@ func (h *AccountHandler) refreshSingleAccount(ctx context.Context, account *serv
 	// Antigravity OAuth: 刷新成功后检查并设置 privacy_mode
 	h.adminService.EnsureAntigravityPrivacy(ctx, updatedAccount)
 
+	if account.Platform == service.PlatformKiro && account.Status == service.StatusError {
+		clearedAccount, clearErr := h.adminService.ClearAccountError(ctx, account.ID)
+		if clearErr != nil {
+			return nil, "", fmt.Errorf("failed to clear Kiro account error after refresh: %w", clearErr)
+		}
+		updatedAccount = clearedAccount
+	}
+
 	return updatedAccount, "", nil
 }
 

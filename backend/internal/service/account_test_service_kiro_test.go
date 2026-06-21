@@ -57,7 +57,7 @@ func TestAccountTestService_TestAccountConnection_KiroUsesNativeEndpoint(t *test
 	require.Contains(t, upstream.lastReq.Header.Get("User-Agent"), "KiroIDE-")
 	require.Contains(t, upstream.lastReq.Header.Get("User-Agent"), "abcdef123456")
 	require.Empty(t, upstream.lastReq.Header.Get("anthropic-version"))
-	require.Equal(t, "claude-sonnet-4.6", gjson.GetBytes(upstream.lastBody, "conversationState.currentMessage.userInputMessage.modelId").String())
+	require.Equal(t, "claude-sonnet-4.5", gjson.GetBytes(upstream.lastBody, "conversationState.currentMessage.userInputMessage.modelId").String())
 	require.Equal(t, "AI_EDITOR", gjson.GetBytes(upstream.lastBody, "conversationState.currentMessage.userInputMessage.origin").String())
 	require.Contains(t, rec.Body.String(), `"type":"test_complete"`)
 }
@@ -66,13 +66,14 @@ func TestAccountTestService_TestAccountConnection_KiroRefreshesOnAuthFailure(t *
 	gin.SetMode(gin.TestMode)
 
 	account := Account{
-		ID:          43,
-		Name:        "kiro-oauth",
-		Platform:    PlatformKiro,
-		Type:        AccountTypeOAuth,
-		Status:      StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
+		ID:           43,
+		Name:         "kiro-oauth",
+		Platform:     PlatformKiro,
+		Type:         AccountTypeOAuth,
+		Status:       StatusError,
+		ErrorMessage: "Kiro API returned 401: Invalid bearer token",
+		Schedulable:  true,
+		Concurrency:  1,
 		Credentials: map[string]any{
 			"access_token":  "expired-token",
 			"refresh_token": "refresh-token",
@@ -122,16 +123,23 @@ func TestAccountTestService_TestAccountConnection_KiroRefreshesOnAuthFailure(t *
 	require.NotNil(t, repo.updated)
 	require.Equal(t, "fresh-token", repo.updated.GetCredential("access_token"))
 	require.Equal(t, "new-refresh-token", repo.updated.GetCredential("refresh_token"))
+	require.Equal(t, 1, repo.clearErrorCalls)
 	require.Contains(t, rec.Body.String(), `"type":"test_complete"`)
 }
 
 type kiroTestUpdateRepo struct {
 	stubOpenAIAccountRepo
-	updated *Account
+	updated         *Account
+	clearErrorCalls int
 }
 
 func (r *kiroTestUpdateRepo) Update(_ context.Context, account *Account) error {
 	copied := *account
 	r.updated = &copied
+	return nil
+}
+
+func (r *kiroTestUpdateRepo) ClearError(_ context.Context, _ int64) error {
+	r.clearErrorCalls++
 	return nil
 }

@@ -278,6 +278,9 @@ func (s *AccountTestService) testKiroAccountConnection(c *gin.Context, account *
 		if updateErr := s.accountRepo.Update(ctx, account); updateErr != nil {
 			return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to persist refreshed Kiro token: %s", updateErr.Error()))
 		}
+		if account.Status == StatusError {
+			_ = s.accountRepo.ClearError(ctx, account.ID)
+		}
 
 		retryReq, retryErr := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("https://q.%s.amazonaws.com/generateAssistantResponse", region), bytes.NewReader(payloadBytes))
 		if retryErr != nil {
@@ -307,7 +310,8 @@ func (s *AccountTestService) testKiroAccountConnection(c *gin.Context, account *
 }
 
 func normalizeKiroTestModelID(modelID string) string {
-	normalized := strings.ToLower(strings.TrimSpace(modelID))
+	trimmed := strings.TrimSpace(modelID)
+	normalized := strings.ToLower(trimmed)
 	if normalized == "" {
 		return "claude-sonnet-4.6"
 	}
@@ -318,9 +322,14 @@ func normalizeKiroTestModelID(modelID string) string {
 		return "claude-haiku-4.5"
 	}
 	if strings.Contains(normalized, "sonnet") {
-		return "claude-sonnet-4.6"
+		if strings.Contains(normalized, "4.6") || strings.Contains(normalized, "4-6") {
+			return "claude-sonnet-4.6"
+		}
+		if strings.Contains(normalized, "4.5") || strings.Contains(normalized, "4-5") || strings.Contains(normalized, "20250929") {
+			return "claude-sonnet-4.5"
+		}
 	}
-	return strings.TrimSpace(modelID)
+	return trimmed
 }
 
 func isKiroBearerAuthFailure(statusCode int) bool {
