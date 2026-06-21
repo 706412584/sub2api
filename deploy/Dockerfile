@@ -16,9 +16,7 @@ ARG GOSUMDB=sum.golang.google.cn
 # -----------------------------------------------------------------------------
 # Stage 1: Frontend Builder
 # -----------------------------------------------------------------------------
-FROM ${NODE_IMAGE} AS frontend-builder
-
-WORKDIR /app/frontend
+FROM ${NODE_IMAGE} AS frontend-builder`n`nARG PNPM_VERSION`n`nWORKDIR /app/frontend
 
 ENV NODE_OPTIONS=--max-old-space-size=4096
 
