@@ -66,3 +66,53 @@ func TestParseKiroImportDataSupportsExternalIDPEnvelope(t *testing.T) {
 	require.Equal(t, []string{"openid", "profile", "offline_access"}, accounts[0].Scopes)
 	require.NotNil(t, accounts[0].ExternalIDP)
 }
+
+func TestParseKiroImportDataPreservesSubscriptionAndUsageMetadata(t *testing.T) {
+	input := map[string]any{
+		"accounts": []any{
+			map[string]any{
+				"credentials": map[string]any{
+					"accessToken":  "at",
+					"refreshToken": "rt",
+				},
+				"subscription": map[string]any{
+					"type":              "Pro",
+					"title":             "KIRO PRO",
+					"rawType":           "Q_DEVELOPER_STANDALONE_PRO",
+					"daysRemaining":     float64(10),
+					"expiresAt":         float64(1782864000000),
+					"overageCapability": "OVERAGE_CAPABLE",
+				},
+				"usage": map[string]any{
+					"current":       11003.88,
+					"limit":         float64(1000),
+					"percentUsed":   11.00388,
+					"baseLimit":     float64(1000),
+					"nextResetDate": "2026-07-01T00:00:00.000Z",
+					"resourceDetail": map[string]any{
+						"overageEnabled": true,
+						"overageCap":     float64(10000),
+						"overageRate":    0.04,
+					},
+				},
+			},
+		},
+	}
+
+	accounts, err := parseKiroImportData(input)
+	require.NoError(t, err)
+	require.Len(t, accounts, 1)
+	require.Equal(t, "Pro", accounts[0].SubscriptionType)
+	require.Equal(t, "KIRO PRO", accounts[0].SubscriptionTitle)
+	require.Equal(t, "Q_DEVELOPER_STANDALONE_PRO", accounts[0].SubscriptionRawType)
+	require.Equal(t, int64(10), accounts[0].SubscriptionDaysRemaining)
+	require.Equal(t, int64(1782864000000), accounts[0].SubscriptionExpiresAt)
+	require.Equal(t, "OVERAGE_CAPABLE", accounts[0].SubscriptionOverageCapability)
+	require.Equal(t, 11003.88, accounts[0].UsageCurrent)
+	require.Equal(t, float64(1000), accounts[0].UsageLimit)
+	require.Equal(t, 11.00388, accounts[0].UsagePercentUsed)
+	require.Equal(t, "2026-07-01T00:00:00.000Z", accounts[0].UsageNextResetDate)
+	require.True(t, accounts[0].UsageOverageEnabled)
+	require.Equal(t, float64(10000), accounts[0].UsageOverageCap)
+	require.Equal(t, 0.04, accounts[0].UsageOverageRate)
+}

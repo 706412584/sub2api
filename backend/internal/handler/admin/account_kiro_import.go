@@ -56,23 +56,37 @@ type KiroImportMessage struct {
 
 // kiroAccountData represents the parsed Kiro account data.
 type kiroAccountData struct {
-	Name          string         `json:"name"`
-	Email         string         `json:"email"`
-	AccessToken   string         `json:"access_token"`
-	RefreshToken  string         `json:"refresh_token"`
-	ClientID      string         `json:"client_id"`
-	ClientSecret  string         `json:"client_secret"`
-	AuthMethod    string         `json:"auth_method"`
-	Provider      string         `json:"provider"`
-	Region        string         `json:"region"`
-	ProfileArn    string         `json:"profile_arn"`
-	TokenEndpoint string         `json:"token_endpoint"`
-	IssuerURL     string         `json:"issuer_url"`
-	Scopes        []string       `json:"scopes"`
-	StartURL      string         `json:"start_url"`
-	ExpiresAt     int64          `json:"expires_at"`
-	ExternalIDP   map[string]any `json:"external_idp"`
-	RawData       map[string]any `json:"-"`
+	Name                          string         `json:"name"`
+	Email                         string         `json:"email"`
+	AccessToken                   string         `json:"access_token"`
+	RefreshToken                  string         `json:"refresh_token"`
+	ClientID                      string         `json:"client_id"`
+	ClientSecret                  string         `json:"client_secret"`
+	AuthMethod                    string         `json:"auth_method"`
+	Provider                      string         `json:"provider"`
+	Region                        string         `json:"region"`
+	ProfileArn                    string         `json:"profile_arn"`
+	TokenEndpoint                 string         `json:"token_endpoint"`
+	IssuerURL                     string         `json:"issuer_url"`
+	Scopes                        []string       `json:"scopes"`
+	StartURL                      string         `json:"start_url"`
+	ExpiresAt                     int64          `json:"expires_at"`
+	SubscriptionType              string         `json:"subscription_type"`
+	SubscriptionTitle             string         `json:"subscription_title"`
+	SubscriptionRawType           string         `json:"subscription_raw_type"`
+	SubscriptionDaysRemaining     int64          `json:"subscription_days_remaining"`
+	SubscriptionExpiresAt         int64          `json:"subscription_expires_at"`
+	SubscriptionOverageCapability string         `json:"subscription_overage_capability"`
+	UsageCurrent                  float64        `json:"usage_current"`
+	UsageLimit                    float64        `json:"usage_limit"`
+	UsagePercentUsed              float64        `json:"usage_percent_used"`
+	UsageBaseLimit                float64        `json:"usage_base_limit"`
+	UsageNextResetDate            string         `json:"usage_next_reset_date"`
+	UsageOverageEnabled           bool           `json:"usage_overage_enabled"`
+	UsageOverageCap               float64        `json:"usage_overage_cap"`
+	UsageOverageRate              float64        `json:"usage_overage_rate"`
+	ExternalIDP                   map[string]any `json:"external_idp"`
+	RawData                       map[string]any `json:"-"`
 }
 
 // ImportKiroAccounts handles the import of Kiro accounts.
@@ -191,6 +205,26 @@ func kiroAccountFromMap(raw map[string]any) (kiroAccountData, bool) {
 	if account.AuthMethod == "" {
 		account.AuthMethod = inferKiroAuthMethod(account)
 	}
+	if subscription, ok := raw["subscription"].(map[string]any); ok {
+		account.SubscriptionType = readKiroString([]map[string]any{subscription}, "type")
+		account.SubscriptionTitle = readKiroString([]map[string]any{subscription}, "title")
+		account.SubscriptionRawType = readKiroString([]map[string]any{subscription}, "rawType", "raw_type")
+		account.SubscriptionDaysRemaining = readKiroInt64([]map[string]any{subscription}, "daysRemaining", "days_remaining")
+		account.SubscriptionExpiresAt = readKiroInt64([]map[string]any{subscription}, "expiresAt", "expires_at")
+		account.SubscriptionOverageCapability = readKiroString([]map[string]any{subscription}, "overageCapability", "overage_capability")
+	}
+	if usage, ok := raw["usage"].(map[string]any); ok {
+		account.UsageCurrent = readKiroFloat64([]map[string]any{usage}, "current")
+		account.UsageLimit = readKiroFloat64([]map[string]any{usage}, "limit")
+		account.UsagePercentUsed = readKiroFloat64([]map[string]any{usage}, "percentUsed", "percent_used")
+		account.UsageBaseLimit = readKiroFloat64([]map[string]any{usage}, "baseLimit", "base_limit")
+		account.UsageNextResetDate = readKiroString([]map[string]any{usage}, "nextResetDate", "next_reset_date")
+		if resourceDetail, ok := usage["resourceDetail"].(map[string]any); ok {
+			account.UsageOverageEnabled = readKiroBool([]map[string]any{resourceDetail}, "overageEnabled", "overage_enabled")
+			account.UsageOverageCap = readKiroFloat64([]map[string]any{resourceDetail}, "overageCap", "overage_cap")
+			account.UsageOverageRate = readKiroFloat64([]map[string]any{resourceDetail}, "overageRate", "overage_rate")
+		}
+	}
 	if account.Provider == "" {
 		account.Provider = defaultKiroProvider(account.AuthMethod)
 	}
@@ -268,6 +302,50 @@ func readKiroInt64(sources []map[string]any, keys ...string) int64 {
 	}
 	parsed, _ := strconv.ParseInt(value, 10, 64)
 	return parsed
+}
+
+func readKiroFloat64(sources []map[string]any, keys ...string) float64 {
+	for _, source := range sources {
+		for _, key := range keys {
+			if value, ok := source[key]; ok {
+				switch v := value.(type) {
+				case float64:
+					return v
+				case int64:
+					return float64(v)
+				case int:
+					return float64(v)
+				case json.Number:
+					if f, err := v.Float64(); err == nil {
+						return f
+					}
+				case string:
+					if f, err := strconv.ParseFloat(strings.TrimSpace(v), 64); err == nil {
+						return f
+					}
+				}
+			}
+		}
+	}
+	return 0
+}
+
+func readKiroBool(sources []map[string]any, keys ...string) bool {
+	for _, source := range sources {
+		for _, key := range keys {
+			if value, ok := source[key]; ok {
+				switch v := value.(type) {
+				case bool:
+					return v
+				case string:
+					if b, err := strconv.ParseBool(strings.TrimSpace(v)); err == nil {
+						return b
+					}
+				}
+			}
+		}
+	}
+	return false
 }
 
 func normalizeKiroAuthMethod(method string) string {
@@ -382,6 +460,28 @@ func (h *AccountHandler) importKiroAccounts(ctx context.Context, req KiroImportR
 		}
 		if account.RawData != nil {
 			extra["kiro_import_format"] = "kiro-go-plus"
+		}
+		if account.SubscriptionType != "" || account.SubscriptionTitle != "" || account.SubscriptionRawType != "" {
+			extra["kiro_subscription"] = map[string]any{
+				"type":               account.SubscriptionType,
+				"title":              account.SubscriptionTitle,
+				"raw_type":           account.SubscriptionRawType,
+				"days_remaining":     account.SubscriptionDaysRemaining,
+				"expires_at":         account.SubscriptionExpiresAt,
+				"overage_capability": account.SubscriptionOverageCapability,
+			}
+		}
+		if account.UsageLimit > 0 || account.UsageCurrent > 0 || account.UsageOverageCap > 0 {
+			extra["kiro_usage"] = map[string]any{
+				"current":         account.UsageCurrent,
+				"limit":           account.UsageLimit,
+				"percent_used":    account.UsagePercentUsed,
+				"base_limit":      account.UsageBaseLimit,
+				"next_reset_date": account.UsageNextResetDate,
+				"overage_enabled": account.UsageOverageEnabled,
+				"overage_cap":     account.UsageOverageCap,
+				"overage_rate":    account.UsageOverageRate,
+			}
 		}
 		if req.Notes != "" {
 			extra["notes"] = req.Notes
