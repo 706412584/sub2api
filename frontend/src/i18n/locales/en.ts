@@ -3088,6 +3088,10 @@ export default {
       kiroImportResultSummary: 'Total {total}, created {created}, failed {failed}',
       kiroImportSuccess: 'Kiro accounts imported: created {created}, failed {failed}',
       kiroImportFailed: 'Kiro account import failed',
+      kiroImportPasteLabel: 'Or paste JSON',
+      kiroImportPastePlaceholder: 'Paste a single account, an array, or a Kiro Account Manager export...',
+      kiroImportPasteEmpty: 'Paste at least one JSON object before importing',
+      kiroImportSourceHint: 'Choose a file, or paste JSON below — both are accepted.',
       syncErrors: 'Errors / Skipped Details',
       syncCompleted: 'Sync completed: created {created}, updated {updated}, skipped {skipped}',
       syncCompletedWithErrors:
