@@ -59,6 +59,7 @@ func TestAccountTestService_TestAccountConnection_KiroUsesNativeEndpoint(t *test
 	require.Empty(t, upstream.lastReq.Header.Get("anthropic-version"))
 	require.Equal(t, "claude-sonnet-4.5", gjson.GetBytes(upstream.lastBody, "conversationState.currentMessage.userInputMessage.modelId").String())
 	require.Equal(t, "AI_EDITOR", gjson.GetBytes(upstream.lastBody, "conversationState.currentMessage.userInputMessage.origin").String())
+	require.Equal(t, "arn:aws:codewhisperer:us-east-1:699475941385:profile/EHGA3GRVQMUK", gjson.GetBytes(upstream.lastBody, "profileArn").String())
 	require.Contains(t, rec.Body.String(), `"type":"test_complete"`)
 }
 
@@ -142,4 +143,29 @@ func (r *kiroTestUpdateRepo) Update(_ context.Context, account *Account) error {
 func (r *kiroTestUpdateRepo) ClearError(_ context.Context, _ int64) error {
 	r.clearErrorCalls++
 	return nil
+}
+
+func TestResolveKiroProfileArn(t *testing.T) {
+	t.Run("explicit profile_arn wins", func(t *testing.T) {
+		acct := &Account{Credentials: map[string]any{
+			"profile_arn": "arn:aws:codewhisperer:eu-west-1:111:profile/custom",
+			"region":      "us-east-1",
+		}}
+		require.Equal(t, "arn:aws:codewhisperer:eu-west-1:111:profile/custom", resolveKiroProfileArn(acct))
+	})
+
+	t.Run("falls back to public default for known region", func(t *testing.T) {
+		acct := &Account{Credentials: map[string]any{"region": "eu-central-1"}}
+		require.Equal(t, "arn:aws:codewhisperer:eu-central-1:699475941385:profile/EHGA3GRVQMUK", resolveKiroProfileArn(acct))
+	})
+
+	t.Run("unknown region falls back to us-east-1 default", func(t *testing.T) {
+		acct := &Account{Credentials: map[string]any{"region": "ap-southeast-2"}}
+		require.Equal(t, "arn:aws:codewhisperer:us-east-1:699475941385:profile/EHGA3GRVQMUK", resolveKiroProfileArn(acct))
+	})
+
+	t.Run("missing region falls back to us-east-1 default", func(t *testing.T) {
+		acct := &Account{Credentials: map[string]any{}}
+		require.Equal(t, "arn:aws:codewhisperer:us-east-1:699475941385:profile/EHGA3GRVQMUK", resolveKiroProfileArn(acct))
+	})
 }

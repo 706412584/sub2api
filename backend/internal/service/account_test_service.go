@@ -232,7 +232,7 @@ func (s *AccountTestService) testKiroAccountConnection(c *gin.Context, account *
 
 	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
 
-	payload := createKiroTestPayload(testModelID, prompt, account.GetCredential("profile_arn"))
+	payload := createKiroTestPayload(testModelID, prompt, resolveKiroProfileArn(account))
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return s.sendErrorAndEnd(c, "Failed to create Kiro request payload")
@@ -356,6 +356,40 @@ func createKiroTestPayload(modelID string, prompt string, profileARN string) map
 		payload["profileArn"] = strings.TrimSpace(profileARN)
 	}
 	return payload
+}
+
+// kiroDefaultProfileArnByRegion is the publicly known Amazon Q Developer
+// "free/Pro" profile ARN keyed by AWS region. The Amazon Q CLI ships these
+// values hard-coded so that BuilderID / IdC / Social accounts (which are not
+// associated with a customer-owned profile) can still call the
+// generateAssistantResponse endpoint, which requires profileArn in the body.
+var kiroDefaultProfileArnByRegion = map[string]string{
+	"us-east-1":      "arn:aws:codewhisperer:us-east-1:699475941385:profile/EHGA3GRVQMUK",
+	"eu-central-1":   "arn:aws:codewhisperer:eu-central-1:699475941385:profile/EHGA3GRVQMUK",
+	"ap-northeast-1": "arn:aws:codewhisperer:ap-northeast-1:699475941385:profile/EHGA3GRVQMUK",
+}
+
+// resolveKiroProfileArn returns the profile ARN to use when calling the Kiro
+// upstream. Custom-provisioned ARNs stored on the account take precedence; for
+// accounts that do not carry one (BuilderID / IdC / Social imports) it falls
+// back to the publicly known default ARN for the account's region, defaulting
+// to us-east-1 when the region is missing or unknown.
+func resolveKiroProfileArn(account *Account) string {
+	if account != nil {
+		if existing := strings.TrimSpace(account.GetCredential("profile_arn")); existing != "" {
+			return existing
+		}
+	}
+	region := "us-east-1"
+	if account != nil {
+		if r := strings.TrimSpace(account.GetCredential("region")); r != "" {
+			region = r
+		}
+	}
+	if arn, ok := kiroDefaultProfileArnByRegion[region]; ok {
+		return arn
+	}
+	return kiroDefaultProfileArnByRegion["us-east-1"]
 }
 
 func applyKiroNativeTestHeaders(req *http.Request, token string, machineID string) {

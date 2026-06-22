@@ -10,6 +10,9 @@
       <div class="text-sm text-gray-600 dark:text-dark-300">
         {{ t('admin.accounts.kiroImportDesc') }}
       </div>
+      <div class="text-xs text-gray-500 dark:text-dark-400">
+        {{ t('admin.accounts.kiroImportSourceHint') }}
+      </div>
 
       <div>
         <label class="input-label">{{ t('admin.accounts.dataImportFile') }}</label>
@@ -33,6 +36,17 @@
           accept="application/json,.json"
           multiple
           @change="handleFileChange"
+        />
+      </div>
+
+      <div>
+        <label class="input-label">{{ t('admin.accounts.kiroImportPasteLabel') }}</label>
+        <textarea
+          v-model="pastedText"
+          rows="6"
+          class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 font-mono text-xs text-gray-800 dark:border-dark-600 dark:bg-dark-800 dark:text-dark-100"
+          :placeholder="t('admin.accounts.kiroImportPastePlaceholder')"
+          spellcheck="false"
         />
       </div>
 
@@ -105,6 +119,7 @@ const appStore = useAppStore()
 
 const importing = ref(false)
 const files = ref<File[]>([])
+const pastedText = ref('')
 const result = ref<KiroImportResult | null>(null)
 
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -121,6 +136,7 @@ watch(
   (open) => {
     if (open) {
       files.value = []
+      pastedText.value = ''
       result.value = null
       if (fileInput.value) {
         fileInput.value.value = ''
@@ -162,8 +178,9 @@ const readFileAsText = async (sourceFile: File): Promise<string> => {
 }
 
 const handleImport = async () => {
-  if (files.value.length === 0) {
-    appStore.showError(t('admin.accounts.dataImportSelectFile'))
+  const trimmedPaste = pastedText.value.trim()
+  if (files.value.length === 0 && !trimmedPaste) {
+    appStore.showError(t('admin.accounts.kiroImportPasteEmpty'))
     return
   }
 
@@ -176,10 +193,21 @@ const handleImport = async () => {
       errors: []
     }
 
-    const selectedFiles = files.value
-    for (const selectedFile of selectedFiles) {
+    type ImportSource = { label: string; getText: () => Promise<string> }
+    const sources: ImportSource[] = files.value.map((file) => ({
+      label: file.name,
+      getText: () => readFileAsText(file)
+    }))
+    if (trimmedPaste) {
+      sources.push({
+        label: t('admin.accounts.kiroImportPasteLabel'),
+        getText: async () => trimmedPaste
+      })
+    }
+
+    for (const source of sources) {
       try {
-        const text = await readFileAsText(selectedFile)
+        const text = await source.getText()
         const dataPayload = JSON.parse(text)
 
         const res = await adminAPI.accounts.importKiroAccounts({
@@ -193,7 +221,7 @@ const handleImport = async () => {
         totalResult.errors?.push(
           ...(res.errors || []).map((item: { index: number; name?: string; message: string }) => ({
             ...item,
-            message: `[${selectedFile.name}] ${item.message}`
+            message: `[${source.label}] ${item.message}`
           }))
         )
       } catch (error: any) {
@@ -204,8 +232,8 @@ const handleImport = async () => {
         totalResult.failed += 1
         totalResult.errors?.push({
           index: -1,
-          name: selectedFile.name,
-          message: `[${selectedFile.name}] ${message}`
+          name: source.label,
+          message: `[${source.label}] ${message}`
         })
       }
     }
