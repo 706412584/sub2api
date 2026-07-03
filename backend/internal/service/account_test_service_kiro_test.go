@@ -152,6 +152,16 @@ func (r *kiroTestUpdateRepo) ClearError(_ context.Context, _ int64) error {
 	return nil
 }
 
+func TestRedactKiroDiagnosticBody(t *testing.T) {
+	body := []byte(`{"message":"Bearer aoaSECRET123 is invalid","access_token":"aoaTOKEN","refreshToken":"aorTOKEN","authorization":"Bearer hidden"}`)
+	preview := redactKiroDiagnosticBody(body)
+	require.NotContains(t, preview, "aoaSECRET123")
+	require.NotContains(t, preview, "aoaTOKEN")
+	require.NotContains(t, preview, "aorTOKEN")
+	require.NotContains(t, preview, "Bearer hidden")
+	require.Contains(t, preview, "[REDACTED]")
+}
+
 func TestKiroRuntimeGenerateAssistantResponseURL(t *testing.T) {
 	require.Equal(t, "https://runtime.us-east-1.kiro.dev/generateAssistantResponse", kiroRuntimeGenerateAssistantResponseURL("us-east-1"))
 	require.Equal(t, "https://runtime.eu-central-1.kiro.dev/generateAssistantResponse", kiroRuntimeGenerateAssistantResponseURL("eu-central-1"))

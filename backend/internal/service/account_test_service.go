@@ -233,7 +233,8 @@ func (s *AccountTestService) testKiroAccountConnection(c *gin.Context, account *
 
 	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
 
-	payload := createKiroTestPayload(testModelID, prompt, resolveKiroProfileArn(account))
+	profileARN := resolveKiroProfileArn(account)
+	payload := createKiroTestPayload(testModelID, prompt, profileARN)
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return s.sendErrorAndEnd(c, "Failed to create Kiro request payload")
@@ -249,6 +250,7 @@ func (s *AccountTestService) testKiroAccountConnection(c *gin.Context, account *
 	}
 	applyKiroNativeTestHeaders(req, authToken, account.GetCredential("machine_id"))
 	applyKiroAuthMethodTestHeaders(req, authMethod)
+	logKiroTestAttempt(account, req, authMethod, region, profileARN, "initial", 0, nil, false)
 
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {
@@ -259,12 +261,14 @@ func (s *AccountTestService) testKiroAccountConnection(c *gin.Context, account *
 	if s.tlsFPProfileService != nil {
 		tlsProfile = s.tlsFPProfileService.ResolveTLSProfile(account)
 	}
-	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, tlsProfile)
+	activeReq := req
+	resp, err := s.httpUpstream.DoWithTLS(activeReq, proxyURL, account.ID, account.Concurrency, tlsProfile)
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Kiro request failed: %s", err.Error()))
 	}
 
 	if isKiroBearerAuthFailure(resp.StatusCode) {
+		logKiroTestAttempt(account, req, authMethod, region, profileARN, "initial_auth_failure", resp.StatusCode, nil, false)
 		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
 		_ = resp.Body.Close()
 
@@ -287,7 +291,9 @@ func (s *AccountTestService) testKiroAccountConnection(c *gin.Context, account *
 		}
 		applyKiroNativeTestHeaders(retryReq, authToken, account.GetCredential("machine_id"))
 		applyKiroAuthMethodTestHeaders(retryReq, authMethod)
-		resp, err = s.httpUpstream.DoWithTLS(retryReq, proxyURL, account.ID, account.Concurrency, tlsProfile)
+		logKiroTestAttempt(account, retryReq, authMethod, region, profileARN, "retry_after_refresh", 0, nil, true)
+		activeReq = retryReq
+		resp, err = s.httpUpstream.DoWithTLS(activeReq, proxyURL, account.ID, account.Concurrency, tlsProfile)
 		if err != nil {
 			return s.sendErrorAndEnd(c, fmt.Sprintf("Kiro retry request failed: %s", err.Error()))
 		}
@@ -299,6 +305,7 @@ func (s *AccountTestService) testKiroAccountConnection(c *gin.Context, account *
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
+		logKiroTestAttempt(account, activeReq, authMethod, region, profileARN, "final_error", resp.StatusCode, body, activeReq != req)
 		errMsg := fmt.Sprintf("Kiro API returned %d: %s", resp.StatusCode, string(body))
 		if resp.StatusCode == http.StatusForbidden {
 			_ = s.accountRepo.SetError(ctx, account.ID, errMsg)
@@ -427,6 +434,56 @@ func applyKiroAuthMethodTestHeaders(req *http.Request, authMethod string) {
 	if strings.EqualFold(strings.TrimSpace(authMethod), "external_idp") {
 		req.Header.Set("TokenType", "EXTERNAL_IDP")
 	}
+}
+
+func logKiroTestAttempt(account *Account, req *http.Request, authMethod string, region string, profileARN string, attempt string, statusCode int, body []byte, refreshed bool) {
+	accountID := int64(0)
+	if account != nil {
+		accountID = account.ID
+	}
+	endpointHost := ""
+	endpointPath := ""
+	if req != nil && req.URL != nil {
+		endpointHost = req.URL.Host
+		endpointPath = req.URL.Path
+	}
+	log.Printf(
+		"Kiro test diagnostic: account_id=%d attempt=%s status=%d refreshed=%t auth_method=%q token_type_header_present=%t region=%q endpoint_host=%q endpoint_path=%q profile_arn_present=%t response_body_len=%d response_body_preview=%q",
+		accountID,
+		attempt,
+		statusCode,
+		refreshed,
+		strings.TrimSpace(authMethod),
+		req != nil && req.Header.Get("TokenType") != "",
+		strings.TrimSpace(region),
+		endpointHost,
+		endpointPath,
+		strings.TrimSpace(profileARN) != "",
+		len(body),
+		redactKiroDiagnosticBody(body),
+	)
+}
+
+func redactKiroDiagnosticBody(body []byte) string {
+	preview := string(body)
+	if len(preview) > 512 {
+		preview = preview[:512]
+	}
+	replacers := []struct {
+		pattern *regexp.Regexp
+		repl    string
+	}{
+		{regexp.MustCompile(`(?i)bearer\s+[A-Za-z0-9._~+/-]+=*`), "Bearer [REDACTED]"},
+		{regexp.MustCompile(`(?i)("access[_-]?token"\s*:\s*")[^"]+`), `$1[REDACTED]`},
+		{regexp.MustCompile(`(?i)("accessToken"\s*:\s*")[^"]+`), `$1[REDACTED]`},
+		{regexp.MustCompile(`(?i)("refresh[_-]?token"\s*:\s*")[^"]+`), `$1[REDACTED]`},
+		{regexp.MustCompile(`(?i)("refreshToken"\s*:\s*")[^"]+`), `$1[REDACTED]`},
+		{regexp.MustCompile(`(?i)("authorization"\s*:\s*")[^"]+`), `$1[REDACTED]`},
+	}
+	for _, replacer := range replacers {
+		preview = replacer.pattern.ReplaceAllString(preview, replacer.repl)
+	}
+	return preview
 }
 
 func kiroNativeUserAgent(machineID string) string {

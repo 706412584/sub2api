@@ -31,8 +31,12 @@ func ProvidePricingService(cfg *config.Config, remoteClient PricingRemoteClient)
 }
 
 // ProvideUpdateService creates UpdateService with BuildInfo
-func ProvideUpdateService(cache UpdateCache, githubClient GitHubReleaseClient, buildInfo BuildInfo) *UpdateService {
-	return NewUpdateService(cache, githubClient, buildInfo.Version, buildInfo.BuildType)
+func ProvideUpdateService(cache UpdateCache, githubClient GitHubReleaseClient, githubClientFactory GitHubReleaseClientFactory, settingRepo SettingRepository, cfg *config.Config, buildInfo BuildInfo) *UpdateService {
+	defaultProxyURL := ""
+	if cfg != nil {
+		defaultProxyURL = cfg.Update.ProxyURL
+	}
+	return NewUpdateServiceWithSettings(cache, githubClient, githubClientFactory, settingRepo, defaultProxyURL, buildInfo.Version, buildInfo.BuildType)
 }
 
 // ProvideEmailQueueService creates EmailQueueService with default worker count

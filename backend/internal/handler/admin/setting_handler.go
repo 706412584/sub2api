@@ -215,6 +215,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		SiteLogo:                               settings.SiteLogo,
 		SiteSubtitle:                           settings.SiteSubtitle,
 		APIBaseURL:                             settings.APIBaseURL,
+		UpdateProxyURL:                         settings.UpdateProxyURL,
 		ContactInfo:                            settings.ContactInfo,
 		DocURL:                                 settings.DocURL,
 		HomeContent:                            settings.HomeContent,
@@ -501,6 +502,7 @@ type UpdateSettingsRequest struct {
 	SiteLogo                    string                `json:"site_logo"`
 	SiteSubtitle                string                `json:"site_subtitle"`
 	APIBaseURL                  string                `json:"api_base_url"`
+	UpdateProxyURL              string                `json:"update_proxy_url"`
 	ContactInfo                 string                `json:"contact_info"`
 	DocURL                      string                `json:"doc_url"`
 	HomeContent                 string                `json:"home_content"`
@@ -1584,6 +1586,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		SiteLogo:                               req.SiteLogo,
 		SiteSubtitle:                           req.SiteSubtitle,
 		APIBaseURL:                             req.APIBaseURL,
+		UpdateProxyURL:                         req.UpdateProxyURL,
 		ContactInfo:                            req.ContactInfo,
 		DocURL:                                 req.DocURL,
 		HomeContent:                            req.HomeContent,
