@@ -352,10 +352,10 @@ func kiroRuntimeGenerateAssistantResponseURL(region string) string {
 func createKiroTestPayload(modelID string, prompt string, profileARN string) map[string]any {
 	payload := map[string]any{
 		"conversationState": map[string]any{
-			"conversationId":       uuid.NewString(),
-			"agentContinuationId":  uuid.NewString(),
-			"chatTriggerType":      "MANUAL",
-			"agentTaskType":        "vibe",
+			"conversationId":      uuid.NewString(),
+			"agentContinuationId": uuid.NewString(),
+			"chatTriggerType":     "MANUAL",
+			"agentTaskType":       "vibe",
 			"currentMessage": map[string]any{
 				"userInputMessage": map[string]any{
 					"content":                 prompt,
