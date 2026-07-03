@@ -212,6 +212,7 @@ func (s *AccountTestService) testKiroAccountConnection(c *gin.Context, account *
 		prompt = "Say hello in one word"
 	}
 
+	authMethod := account.GetCredential("auth_method")
 	authToken := strings.TrimSpace(account.GetCredential("access_token"))
 	if authToken == "" {
 		tokenInfo, err := refreshKiroAccountTokenForTest(ctx, account)
@@ -242,11 +243,12 @@ func (s *AccountTestService) testKiroAccountConnection(c *gin.Context, account *
 	if region == "" {
 		region = "us-east-1"
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("https://q.%s.amazonaws.com/generateAssistantResponse", region), bytes.NewReader(payloadBytes))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, kiroRuntimeGenerateAssistantResponseURL(region), bytes.NewReader(payloadBytes))
 	if err != nil {
 		return s.sendErrorAndEnd(c, "Failed to create Kiro request")
 	}
 	applyKiroNativeTestHeaders(req, authToken, account.GetCredential("machine_id"))
+	applyKiroAuthMethodTestHeaders(req, authMethod)
 
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {
@@ -279,11 +281,12 @@ func (s *AccountTestService) testKiroAccountConnection(c *gin.Context, account *
 			return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to persist refreshed Kiro token: %s", updateErr.Error()))
 		}
 
-		retryReq, retryErr := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("https://q.%s.amazonaws.com/generateAssistantResponse", region), bytes.NewReader(payloadBytes))
+		retryReq, retryErr := http.NewRequestWithContext(ctx, http.MethodPost, kiroRuntimeGenerateAssistantResponseURL(region), bytes.NewReader(payloadBytes))
 		if retryErr != nil {
 			return s.sendErrorAndEnd(c, "Failed to create Kiro retry request")
 		}
 		applyKiroNativeTestHeaders(retryReq, authToken, account.GetCredential("machine_id"))
+		applyKiroAuthMethodTestHeaders(retryReq, authMethod)
 		resp, err = s.httpUpstream.DoWithTLS(retryReq, proxyURL, account.ID, account.Concurrency, tlsProfile)
 		if err != nil {
 			return s.sendErrorAndEnd(c, fmt.Sprintf("Kiro retry request failed: %s", err.Error()))
@@ -336,16 +339,31 @@ func isKiroBearerAuthFailure(statusCode int) bool {
 	return statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden
 }
 
+func kiroRuntimeGenerateAssistantResponseURL(region string) string {
+	region = strings.TrimSpace(region)
+	switch region {
+	case "us-east-1", "eu-central-1":
+		return fmt.Sprintf("https://runtime.%s.kiro.dev/generateAssistantResponse", region)
+	default:
+		return "https://runtime.us-east-1.kiro.dev/generateAssistantResponse"
+	}
+}
+
 func createKiroTestPayload(modelID string, prompt string, profileARN string) map[string]any {
 	payload := map[string]any{
 		"conversationState": map[string]any{
-			"chatTriggerType": "MANUAL",
-			"agentTaskType":   "vibe",
+			"conversationId":       uuid.NewString(),
+			"agentContinuationId":  uuid.NewString(),
+			"chatTriggerType":      "MANUAL",
+			"agentTaskType":        "vibe",
 			"currentMessage": map[string]any{
 				"userInputMessage": map[string]any{
 					"content":                 prompt,
 					"modelId":                 modelID,
 					"origin":                  "AI_EDITOR",
+					"images":                  []any{},
+					"documents":               []any{},
+					"tools":                   []any{},
 					"userInputMessageContext": map[string]any{},
 				},
 			},
@@ -403,6 +421,12 @@ func applyKiroNativeTestHeaders(req *http.Request, token string, machineID strin
 	req.Header.Set("x-amzn-kiro-agent-mode", "vibe")
 	req.Header.Set("Amz-Sdk-Invocation-Id", uuid.NewString())
 	req.Header.Set("Amz-Sdk-Request", "attempt=1; max=3")
+}
+
+func applyKiroAuthMethodTestHeaders(req *http.Request, authMethod string) {
+	if strings.EqualFold(strings.TrimSpace(authMethod), "external_idp") {
+		req.Header.Set("TokenType", "EXTERNAL_IDP")
+	}
 }
 
 func kiroNativeUserAgent(machineID string) string {

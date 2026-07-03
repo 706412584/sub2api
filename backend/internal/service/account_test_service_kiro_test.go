@@ -26,6 +26,7 @@ func TestAccountTestService_TestAccountConnection_KiroUsesNativeEndpoint(t *test
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token": "kiro-access-token",
+			"auth_method":  "external_idp",
 			"region":       "us-east-1",
 			"machine_id":   "abcdef123456",
 		},
@@ -48,17 +49,23 @@ func TestAccountTestService_TestAccountConnection_KiroUsesNativeEndpoint(t *test
 	err := svc.TestAccountConnection(c, account.ID, "claude-sonnet-4-5-20250929", "", AccountTestModeDefault)
 	require.NoError(t, err)
 
-	require.Equal(t, "https://q.us-east-1.amazonaws.com/generateAssistantResponse", upstream.lastReq.URL.String())
+	require.Equal(t, "https://runtime.us-east-1.kiro.dev/generateAssistantResponse", upstream.lastReq.URL.String())
 	require.Equal(t, "Bearer kiro-access-token", upstream.lastReq.Header.Get("Authorization"))
 	require.Equal(t, "application/json", upstream.lastReq.Header.Get("Content-Type"))
 	require.Equal(t, "vibe", upstream.lastReq.Header.Get("x-amzn-kiro-agent-mode"))
 	require.Equal(t, "true", upstream.lastReq.Header.Get("x-amzn-codewhisperer-optout"))
+	require.Equal(t, "EXTERNAL_IDP", upstream.lastReq.Header.Get("TokenType"))
 	require.NotEmpty(t, upstream.lastReq.Header.Get("Amz-Sdk-Invocation-Id"))
 	require.Contains(t, upstream.lastReq.Header.Get("User-Agent"), "KiroIDE-")
 	require.Contains(t, upstream.lastReq.Header.Get("User-Agent"), "abcdef123456")
 	require.Empty(t, upstream.lastReq.Header.Get("anthropic-version"))
 	require.Equal(t, "claude-sonnet-4.5", gjson.GetBytes(upstream.lastBody, "conversationState.currentMessage.userInputMessage.modelId").String())
 	require.Equal(t, "AI_EDITOR", gjson.GetBytes(upstream.lastBody, "conversationState.currentMessage.userInputMessage.origin").String())
+	require.NotEmpty(t, gjson.GetBytes(upstream.lastBody, "conversationState.conversationId").String())
+	require.NotEmpty(t, gjson.GetBytes(upstream.lastBody, "conversationState.agentContinuationId").String())
+	require.True(t, gjson.GetBytes(upstream.lastBody, "conversationState.currentMessage.userInputMessage.images").IsArray())
+	require.True(t, gjson.GetBytes(upstream.lastBody, "conversationState.currentMessage.userInputMessage.documents").IsArray())
+	require.True(t, gjson.GetBytes(upstream.lastBody, "conversationState.currentMessage.userInputMessage.tools").IsArray())
 	require.Equal(t, "arn:aws:codewhisperer:us-east-1:699475941385:profile/EHGA3GRVQMUK", gjson.GetBytes(upstream.lastBody, "profileArn").String())
 	require.Contains(t, rec.Body.String(), `"type":"test_complete"`)
 }
@@ -143,6 +150,13 @@ func (r *kiroTestUpdateRepo) Update(_ context.Context, account *Account) error {
 func (r *kiroTestUpdateRepo) ClearError(_ context.Context, _ int64) error {
 	r.clearErrorCalls++
 	return nil
+}
+
+func TestKiroRuntimeGenerateAssistantResponseURL(t *testing.T) {
+	require.Equal(t, "https://runtime.us-east-1.kiro.dev/generateAssistantResponse", kiroRuntimeGenerateAssistantResponseURL("us-east-1"))
+	require.Equal(t, "https://runtime.eu-central-1.kiro.dev/generateAssistantResponse", kiroRuntimeGenerateAssistantResponseURL("eu-central-1"))
+	require.Equal(t, "https://runtime.us-east-1.kiro.dev/generateAssistantResponse", kiroRuntimeGenerateAssistantResponseURL("ap-northeast-1"))
+	require.Equal(t, "https://runtime.us-east-1.kiro.dev/generateAssistantResponse", kiroRuntimeGenerateAssistantResponseURL(""))
 }
 
 func TestResolveKiroProfileArn(t *testing.T) {
