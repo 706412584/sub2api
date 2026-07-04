@@ -1398,7 +1398,7 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 		return nil, fmt.Errorf("unmarshal config error: %w", err)
 	}
 	if cfg.Gateway.OpenAIScheduler.StickyEscapeTTFTMs == 0 {
-		cfg.Gateway.OpenAIScheduler.StickyEscapeTTFTMs = 15000
+		cfg.Gateway.OpenAIScheduler.StickyEscapeTTFTMs = 10000
 	}
 	if cfg.Gateway.OpenAIScheduler.StickyEscapeErrorRate == 0 {
 		cfg.Gateway.OpenAIScheduler.StickyEscapeErrorRate = 0.5
@@ -1858,7 +1858,7 @@ func setDefaults() {
 	viper.SetDefault("gateway.openai_ws.retry_jitter_ratio", 0.2)
 	viper.SetDefault("gateway.openai_ws.retry_total_budget_ms", 5000)
 	viper.SetDefault("gateway.openai_ws.payload_log_sample_rate", 0.2)
-	viper.SetDefault("gateway.openai_ws.lb_top_k", 7)
+	viper.SetDefault("gateway.openai_ws.lb_top_k", 4)
 	viper.SetDefault("gateway.openai_ws.sticky_session_ttl_seconds", 3600)
 	viper.SetDefault("gateway.openai_ws.session_hash_read_old_fallback", true)
 	viper.SetDefault("gateway.openai_ws.session_hash_dual_write_old", true)
@@ -1869,7 +1869,7 @@ func setDefaults() {
 	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.load", 1.0)
 	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.queue", 0.7)
 	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.error_rate", 0.8)
-	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.ttft", 0.5)
+	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.ttft", 1.2)
 	// OpenAI HTTP upstream protocol strategy
 	viper.SetDefault("gateway.openai_http2.enabled", true)
 	viper.SetDefault("gateway.openai_http2.allow_proxy_fallback_to_http1", true)
