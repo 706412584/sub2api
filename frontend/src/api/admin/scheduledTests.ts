@@ -8,7 +8,9 @@ import type {
   ScheduledTestPlan,
   ScheduledTestResult,
   CreateScheduledTestPlanRequest,
-  UpdateScheduledTestPlanRequest
+  UpdateScheduledTestPlanRequest,
+  BatchUpsertScheduledTestPlansRequest,
+  BatchUpsertScheduledTestPlansResponse
 } from '@/types'
 
 /**
@@ -74,12 +76,23 @@ export async function listResults(planId: number, limit?: number): Promise<Sched
   return data ?? []
 }
 
+export async function batchUpsert(
+  req: BatchUpsertScheduledTestPlansRequest
+): Promise<BatchUpsertScheduledTestPlansResponse> {
+  const { data } = await apiClient.post<BatchUpsertScheduledTestPlansResponse>(
+    '/admin/scheduled-test-plans/batch',
+    req
+  )
+  return data
+}
+
 export const scheduledTestsAPI = {
   listByAccount,
   create,
   update,
   delete: deletePlan,
-  listResults
+  listResults,
+  batchUpsert
 }
 
 export default scheduledTestsAPI

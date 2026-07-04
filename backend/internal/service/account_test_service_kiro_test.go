@@ -162,6 +162,12 @@ func TestRedactKiroDiagnosticBody(t *testing.T) {
 	require.Contains(t, preview, "[REDACTED]")
 }
 
+func TestRedactKiroDiagnosticURLHost(t *testing.T) {
+	require.Equal(t, "oidc.us-east-1.amazonaws.com", redactKiroDiagnosticURLHost("https://oidc.us-east-1.amazonaws.com/token?client_secret=hidden"))
+	require.Equal(t, "invalid", redactKiroDiagnosticURLHost("://bad-url"))
+	require.Empty(t, redactKiroDiagnosticURLHost(""))
+}
+
 func TestKiroRuntimeGenerateAssistantResponseURL(t *testing.T) {
 	require.Equal(t, "https://runtime.us-east-1.kiro.dev/generateAssistantResponse", kiroRuntimeGenerateAssistantResponseURL("us-east-1"))
 	require.Equal(t, "https://runtime.eu-central-1.kiro.dev/generateAssistantResponse", kiroRuntimeGenerateAssistantResponseURL("eu-central-1"))

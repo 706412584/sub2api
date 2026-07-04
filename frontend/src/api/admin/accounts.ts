@@ -697,6 +697,30 @@ export interface BatchOperationResult {
   warnings?: Array<{ account_id: number; warning: string }>
 }
 
+
+export interface BatchTestAccountsRequest {
+  account_ids: number[]
+  model_id: string
+  prompt?: string
+  mode?: string
+}
+
+export interface BatchTestAccountItem {
+  account_id: number
+  name: string
+  success: boolean
+  status: string
+  latency_ms: number
+  error: string
+}
+
+export interface BatchTestAccountsResponse {
+  total: number
+  success: number
+  failed: number
+  items: BatchTestAccountItem[]
+}
+
 /**
  * Revert account proxy to original before fallback
  * @param id - Account ID
@@ -729,6 +753,18 @@ export async function batchRefresh(accountIds: number[]): Promise<BatchOperation
     account_ids: accountIds,
   }, {
     timeout: 120000  // 120s timeout for large batch refreshes
+  })
+  return data
+}
+
+/**
+ * Batch test account connectivity
+ * @param request - Batch account test request
+ * @returns Batch account test result
+ */
+export async function batchTestAccounts(request: BatchTestAccountsRequest): Promise<BatchTestAccountsResponse> {
+  const { data } = await apiClient.post<BatchTestAccountsResponse>('/admin/accounts/batch-test', request, {
+    timeout: 180000
   })
   return data
 }
@@ -854,6 +890,7 @@ export const accountsAPI = {
   getAntigravityDefaultModelMapping,
   batchClearError,
   batchRefresh,
+  batchTestAccounts,
   setPrivacy,
   revertProxyFallback,
   queryOpenAIQuota,

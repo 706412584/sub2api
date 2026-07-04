@@ -1924,6 +1924,29 @@ export interface UpdateScheduledTestPlanRequest {
   auto_recover?: boolean
 }
 
+export interface BatchUpsertScheduledTestPlansRequest {
+  account_ids: number[]
+  model_id: string
+  cron_expression: string
+  enabled?: boolean
+  max_results?: number
+  auto_recover?: boolean
+}
+
+export interface BatchUpsertScheduledTestPlansItem {
+  account_id: number
+  action: 'created' | 'updated' | 'failed'
+  plan?: ScheduledTestPlan
+  error?: string
+}
+
+export interface BatchUpsertScheduledTestPlansResponse {
+  created: number
+  updated: number
+  failed: number
+  items: BatchUpsertScheduledTestPlansItem[]
+}
+
 // Payment types
 export type { SubscriptionPlan, PaymentOrder, CheckoutInfoResponse } from './payment'
 

@@ -703,6 +703,32 @@ type TestAccountRequest struct {
 	Mode    string `json:"mode"`
 }
 
+// BatchTestAccountsRequest represents the request body for batch testing accounts.
+type BatchTestAccountsRequest struct {
+	AccountIDs []int64 `json:"account_ids"`
+	ModelID    string  `json:"model_id"`
+	Prompt     string  `json:"prompt"`
+	Mode       string  `json:"mode"`
+}
+
+// BatchTestAccountItem represents a single account test result in a batch response.
+type BatchTestAccountItem struct {
+	AccountID int64  `json:"account_id"`
+	Name      string `json:"name"`
+	Success   bool   `json:"success"`
+	Status    string `json:"status"`
+	LatencyMs int64  `json:"latency_ms"`
+	Error     string `json:"error"`
+}
+
+// BatchTestAccountsResponse represents the response body for batch account testing.
+type BatchTestAccountsResponse struct {
+	Total   int                    `json:"total"`
+	Success int                    `json:"success"`
+	Failed  int                    `json:"failed"`
+	Items   []BatchTestAccountItem `json:"items"`
+}
+
 type SyncFromCRSRequest struct {
 	BaseURL            string   `json:"base_url" binding:"required"`
 	Username           string   `json:"username" binding:"required"`
@@ -741,6 +767,115 @@ func (h *AccountHandler) Test(c *gin.Context) {
 			_ = c.Error(err)
 		}
 	}
+}
+
+// BatchTestAccounts handles batch testing accounts.
+// POST /api/v1/admin/accounts/batch-test
+func (h *AccountHandler) BatchTestAccounts(c *gin.Context) {
+	var req BatchTestAccountsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if len(req.AccountIDs) == 0 {
+		response.BadRequest(c, "account_ids is required")
+		return
+	}
+	if h.accountTestService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Account test service unavailable")
+		return
+	}
+
+	ctx := c.Request.Context()
+	accounts, err := h.adminService.GetAccountsByIDs(ctx, req.AccountIDs)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	accountByID := make(map[int64]*service.Account, len(accounts))
+	for _, account := range accounts {
+		if account != nil {
+			accountByID[account.ID] = account
+		}
+	}
+
+	items := make([]BatchTestAccountItem, len(req.AccountIDs))
+	var mu sync.Mutex
+	var successCount, failedCount int
+
+	markItem := func(idx int, item BatchTestAccountItem) {
+		mu.Lock()
+		items[idx] = item
+		if item.Success {
+			successCount++
+		} else {
+			failedCount++
+		}
+		mu.Unlock()
+	}
+
+	const maxConcurrency = 5
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(maxConcurrency)
+
+	for i, id := range req.AccountIDs {
+		idx := i
+		accountID := id
+		account := accountByID[accountID]
+		if account == nil {
+			markItem(idx, BatchTestAccountItem{
+				AccountID: accountID,
+				Success:   false,
+				Status:    "failed",
+				Error:     "account not found",
+			})
+			continue
+		}
+
+		g.Go(func() error {
+			item := BatchTestAccountItem{
+				AccountID: account.ID,
+				Name:      account.Name,
+				Success:   false,
+				Status:    "failed",
+			}
+
+			result, err := h.accountTestService.RunTestBackground(gctx, account.ID, req.ModelID)
+			if result != nil {
+				item.Status = result.Status
+				item.LatencyMs = result.LatencyMs
+				item.Error = result.ErrorMessage
+			}
+			if err != nil {
+				item.Error = err.Error()
+			} else if result != nil && result.Status == "success" {
+				item.Success = true
+				if h.rateLimitService != nil {
+					if _, recoverErr := h.rateLimitService.RecoverAccountAfterSuccessfulTest(gctx, account.ID); recoverErr != nil {
+						slog.Warn("batch_test_account_recover_failed", "account_id", account.ID, "err", recoverErr)
+					}
+				}
+			} else if item.Error == "" {
+				item.Error = "account test failed"
+			}
+
+			markItem(idx, item)
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, BatchTestAccountsResponse{
+		Total:   len(req.AccountIDs),
+		Success: successCount,
+		Failed:  failedCount,
+		Items:   items,
+	})
 }
 
 // RecoverState handles unified recovery of recoverable account runtime state.

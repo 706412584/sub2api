@@ -36,6 +36,15 @@ type updateScheduledTestPlanRequest struct {
 	AutoRecover    *bool  `json:"auto_recover"`
 }
 
+type batchUpsertScheduledTestPlansRequest struct {
+	AccountIDs     []int64 `json:"account_ids" binding:"required"`
+	ModelID        string  `json:"model_id" binding:"required"`
+	CronExpression string  `json:"cron_expression" binding:"required"`
+	Enabled        *bool   `json:"enabled"`
+	MaxResults     int     `json:"max_results"`
+	AutoRecover    *bool   `json:"auto_recover"`
+}
+
 // ListByAccount GET /admin/accounts/:id/scheduled-test-plans
 func (h *ScheduledTestHandler) ListByAccount(c *gin.Context) {
 	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
@@ -80,6 +89,25 @@ func (h *ScheduledTestHandler) Create(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, created)
+}
+
+// BatchUpsert POST /admin/scheduled-test-plans/batch
+func (h *ScheduledTestHandler) BatchUpsert(c *gin.Context) {
+	var req batchUpsertScheduledTestPlansRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	result := h.scheduledTestSvc.BatchUpsertPlans(c.Request.Context(), service.BatchUpsertScheduledTestPlanRequest{
+		AccountIDs:     req.AccountIDs,
+		ModelID:        req.ModelID,
+		CronExpression: req.CronExpression,
+		Enabled:        req.Enabled,
+		MaxResults:     req.MaxResults,
+		AutoRecover:    req.AutoRecover,
+	})
+	c.JSON(http.StatusOK, result)
 }
 
 // Update PUT /admin/scheduled-test-plans/:id

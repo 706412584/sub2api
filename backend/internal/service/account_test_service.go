@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -313,6 +314,7 @@ func (s *AccountTestService) testKiroAccountConnection(c *gin.Context, account *
 		return s.sendErrorAndEnd(c, errMsg)
 	}
 
+	logKiroTestAttempt(account, activeReq, authMethod, region, profileARN, "success", resp.StatusCode, nil, activeReq != req)
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
 	s.sendEvent(c, TestEvent{Type: "content", Text: "Kiro request accepted"})
 	s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
@@ -438,8 +440,28 @@ func applyKiroAuthMethodTestHeaders(req *http.Request, authMethod string) {
 
 func logKiroTestAttempt(account *Account, req *http.Request, authMethod string, region string, profileARN string, attempt string, statusCode int, body []byte, refreshed bool) {
 	accountID := int64(0)
+	accountName := ""
+	provider := ""
+	clientIDPresent := false
+	clientSecretPresent := false
+	tokenEndpointHost := ""
+	scopePresent := false
+	expiresAt := ""
+	accessTokenLen := 0
+	refreshTokenLen := 0
+	machineIDPresent := false
 	if account != nil {
 		accountID = account.ID
+		accountName = account.Name
+		provider = strings.TrimSpace(account.GetCredential("provider"))
+		clientIDPresent = strings.TrimSpace(account.GetCredential("client_id")) != ""
+		clientSecretPresent = strings.TrimSpace(account.GetCredential("client_secret")) != ""
+		tokenEndpointHost = redactKiroDiagnosticURLHost(account.GetCredential("token_endpoint"))
+		scopePresent = strings.TrimSpace(account.GetCredential("scope")) != "" || strings.TrimSpace(account.GetCredential("scopes")) != ""
+		expiresAt = strings.TrimSpace(account.GetCredential("expires_at"))
+		accessTokenLen = len(strings.TrimSpace(account.GetCredential("access_token")))
+		refreshTokenLen = len(strings.TrimSpace(account.GetCredential("refresh_token")))
+		machineIDPresent = strings.TrimSpace(account.GetCredential("machine_id")) != ""
 	}
 	endpointHost := ""
 	endpointPath := ""
@@ -448,20 +470,42 @@ func logKiroTestAttempt(account *Account, req *http.Request, authMethod string, 
 		endpointPath = req.URL.Path
 	}
 	log.Printf(
-		"Kiro test diagnostic: account_id=%d attempt=%s status=%d refreshed=%t auth_method=%q token_type_header_present=%t region=%q endpoint_host=%q endpoint_path=%q profile_arn_present=%t response_body_len=%d response_body_preview=%q",
+		"Kiro test diagnostic: account_id=%d account_name=%q attempt=%s status=%d refreshed=%t auth_method=%q provider=%q token_type_header_present=%t region=%q endpoint_host=%q endpoint_path=%q profile_arn_present=%t client_id_present=%t client_secret_present=%t token_endpoint_host=%q scope_present=%t expires_at=%q access_token_len=%d refresh_token_len=%d machine_id_present=%t response_body_len=%d response_body_preview=%q",
 		accountID,
+		accountName,
 		attempt,
 		statusCode,
 		refreshed,
 		strings.TrimSpace(authMethod),
+		provider,
 		req != nil && req.Header.Get("TokenType") != "",
 		strings.TrimSpace(region),
 		endpointHost,
 		endpointPath,
 		strings.TrimSpace(profileARN) != "",
+		clientIDPresent,
+		clientSecretPresent,
+		tokenEndpointHost,
+		scopePresent,
+		expiresAt,
+		accessTokenLen,
+		refreshTokenLen,
+		machineIDPresent,
 		len(body),
 		redactKiroDiagnosticBody(body),
 	)
+}
+
+func redactKiroDiagnosticURLHost(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Host == "" {
+		return "invalid"
+	}
+	return parsed.Hostname()
 }
 
 func redactKiroDiagnosticBody(body []byte) string {

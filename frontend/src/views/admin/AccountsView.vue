@@ -183,6 +183,8 @@
           @delete="handleBulkDelete"
           @reset-status="handleBulkResetStatus"
           @refresh-token="handleBulkRefreshToken"
+          @batch-test="openBatchTest"
+          @batch-scheduled-test="openBatchScheduledTest"
           @edit-selected="openBulkEditSelected"
           @edit-filtered="openBulkEditFiltered"
           @clear="clearSelection"
@@ -388,6 +390,8 @@
     <EditAccountModal :show="showEdit" :account="edAcc" :proxies="proxies" :groups="groups" @close="showEdit = false" @updated="handleAccountUpdated" />
     <ReAuthAccountModal :show="showReAuth" :account="reAuthAcc" @close="closeReAuthModal" @reauthorized="handleAccountUpdated" />
     <AccountTestModal :show="showTest" :account="testingAcc" @close="closeTestModal" />
+    <AccountBatchTestModal v-model:visible="showBatchTest" :account-ids="selIds" :accounts="selectedAccounts" @close="showBatchTest = false" @completed="handleBatchTestCompleted" />
+    <AccountBatchScheduledTestModal v-model:visible="showBatchScheduledTest" :account-ids="selIds" :accounts="selectedAccounts" @close="showBatchScheduledTest = false" @completed="handleBatchScheduledTestCompleted" />
     <AccountStatsModal :show="showStats" :account="statsAcc" @close="closeStatsModal" />
     <ScheduledTestsPanel :show="showSchedulePanel" :account-id="scheduleAcc?.id ?? null" :model-options="scheduleModelOptions" @close="closeSchedulePanel" />
     <AccountActionMenu :show="menu.show" :account="menu.acc" :position="menu.pos" @close="menu.show = false" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @reauth="handleReAuth" @refresh-token="handleRefresh" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" />
@@ -443,6 +447,8 @@ import ImportDataModal from '@/components/admin/account/ImportDataModal.vue'
 import ImportKiroModal from '@/components/admin/account/ImportKiroModal.vue'
 import ReAuthAccountModal from '@/components/admin/account/ReAuthAccountModal.vue'
 import AccountTestModal from '@/components/admin/account/AccountTestModal.vue'
+import AccountBatchTestModal from '@/components/admin/account/AccountBatchTestModal.vue'
+import AccountBatchScheduledTestModal from '@/components/admin/account/AccountBatchScheduledTestModal.vue'
 import AccountStatsModal from '@/components/admin/account/AccountStatsModal.vue'
 import ScheduledTestsPanel from '@/components/admin/account/ScheduledTestsPanel.vue'
 import type { SelectOption } from '@/components/common/Select.vue'
@@ -507,6 +513,7 @@ const selTypes = computed<AccountType[]>(() => {
   )
   return [...types]
 })
+const selectedAccounts = computed<Account[]>(() => accounts.value.filter(account => isSelected(account.id)))
 const showCreate = ref(false)
 const showEdit = ref(false)
 const showSync = ref(false)
@@ -520,6 +527,8 @@ const showTempUnsched = ref(false)
 const showDeleteDialog = ref(false)
 const showReAuth = ref(false)
 const showTest = ref(false)
+const showBatchTest = ref(false)
+const showBatchScheduledTest = ref(false)
 const showStats = ref(false)
 const showErrorPassthrough = ref(false)
 const showTLSFingerprintProfiles = ref(false)
@@ -1400,6 +1409,20 @@ const handleBulkRefreshToken = async () => {
     console.error('Failed to bulk refresh token:', error)
     appStore.showError(String(error))
   }
+}
+const openBatchTest = () => {
+  if (selIds.value.length === 0) return
+  showBatchTest.value = true
+}
+const handleBatchTestCompleted = () => {
+  reload()
+}
+const openBatchScheduledTest = () => {
+  if (selIds.value.length === 0) return
+  showBatchScheduledTest.value = true
+}
+const handleBatchScheduledTestCompleted = () => {
+  reload()
 }
 const updateSchedulableInList = (accountIds: number[], schedulable: boolean) => {
   if (accountIds.length === 0) return
