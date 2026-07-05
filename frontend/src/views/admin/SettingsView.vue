@@ -3287,7 +3287,7 @@
                       </tr>
                     </thead>
                     <tbody class="space-y-2">
-                      <tr v-for="p in (['anthropic', 'openai', 'gemini', 'antigravity'] as const)" :key="p" class="align-top">
+                      <tr v-for="p in (['anthropic', 'openai', 'gemini', 'antigravity', 'kiro'] as const)" :key="p" class="align-top">
                         <td class="pr-4 py-1">
                           <span class="font-mono text-xs text-gray-700 dark:text-gray-300">{{ p }}</span>
                         </td>
@@ -3622,7 +3622,7 @@
                             </tr>
                           </thead>
                           <tbody>
-                            <tr v-for="p in (['anthropic', 'openai', 'gemini', 'antigravity'] as const)" :key="`${authSource.source}-pq-${p}`" class="align-top">
+                            <tr v-for="p in (['anthropic', 'openai', 'gemini', 'antigravity', 'kiro'] as const)" :key="`${authSource.source}-pq-${p}`" class="align-top">
                               <td class="pr-4 py-1">
                                 <span class="font-mono text-xs text-gray-700 dark:text-gray-300">{{ p }}</span>
                               </td>
@@ -4743,6 +4743,26 @@
                 />
                 <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
                   {{ t("admin.settings.site.apiBaseUrlHint") }}
+                </p>
+              </div>
+
+              <!-- Update Proxy URL -->
+              <div>
+                <label
+                  class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                >
+                  {{ t("admin.settings.site.updateProxyUrl") }}
+                </label>
+                <input
+                  v-model="form.update_proxy_url"
+                  type="text"
+                  class="input font-mono text-sm"
+                  :placeholder="
+                    t('admin.settings.site.updateProxyUrlPlaceholder')
+                  "
+                />
+                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.site.updateProxyUrlHint") }}
                 </p>
               </div>
 
@@ -7666,6 +7686,7 @@ const form = reactive<SettingsForm>({
   site_logo: "",
   site_subtitle: "Subscription to API Conversion Platform",
   api_base_url: "",
+  update_proxy_url: "",
   contact_info: "",
   doc_url: "",
   home_content: "",
@@ -8832,6 +8853,7 @@ async function saveSettings() {
       site_logo: form.site_logo,
       site_subtitle: form.site_subtitle,
       api_base_url: form.api_base_url,
+      update_proxy_url: form.update_proxy_url,
       contact_info: form.contact_info,
       doc_url: form.doc_url,
       home_content: form.home_content,

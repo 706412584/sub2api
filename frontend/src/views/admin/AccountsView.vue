@@ -183,6 +183,8 @@
           @delete="handleBulkDelete"
           @reset-status="handleBulkResetStatus"
           @refresh-token="handleBulkRefreshToken"
+          @batch-test="openBatchTest"
+          @batch-scheduled-test="openBatchScheduledTest"
           @edit-selected="openBulkEditSelected"
           @edit-filtered="openBulkEditFiltered"
           @clear="clearSelection"
@@ -256,6 +258,19 @@
               >
                 <span :class="['h-1.5 w-1.5 rounded-full', getOpenAICompactMeta(row)?.dotClass]" />
                 <span>{{ getOpenAICompactMeta(row)?.label }}</span>
+              </div>
+              <div
+                v-if="getKiroMeta(row)"
+                class="flex flex-wrap items-center gap-1 pl-0.5 text-[11px] leading-4 text-slate-600 dark:text-slate-300"
+                :title="getKiroMeta(row)?.title"
+              >
+                <span :class="['rounded px-1.5 py-0.5 font-medium', getKiroMeta(row)?.subscriptionClass]">
+                  {{ getKiroMeta(row)?.subscriptionLabel }}
+                </span>
+                <span class="font-mono">{{ getKiroMeta(row)?.quotaLabel }}</span>
+                <span :class="['rounded px-1.5 py-0.5 font-medium', getKiroMeta(row)?.overageClass]">
+                  {{ getKiroMeta(row)?.overageLabel }}
+                </span>
               </div>
             </div>
           </template>
@@ -375,6 +390,8 @@
     <EditAccountModal :show="showEdit" :account="edAcc" :proxies="proxies" :groups="groups" @close="showEdit = false" @updated="handleAccountUpdated" />
     <ReAuthAccountModal :show="showReAuth" :account="reAuthAcc" @close="closeReAuthModal" @reauthorized="handleAccountUpdated" />
     <AccountTestModal :show="showTest" :account="testingAcc" @close="closeTestModal" />
+    <AccountBatchTestModal v-model:visible="showBatchTest" :account-ids="selIds" :accounts="selectedAccounts" @close="showBatchTest = false" @completed="handleBatchTestCompleted" />
+    <AccountBatchScheduledTestModal v-model:visible="showBatchScheduledTest" :account-ids="selIds" :accounts="selectedAccounts" @close="showBatchScheduledTest = false" @completed="handleBatchScheduledTestCompleted" />
     <AccountStatsModal :show="showStats" :account="statsAcc" @close="closeStatsModal" />
     <ScheduledTestsPanel :show="showSchedulePanel" :account-id="scheduleAcc?.id ?? null" :model-options="scheduleModelOptions" @close="closeSchedulePanel" />
     <AccountActionMenu :show="menu.show" :account="menu.acc" :position="menu.pos" @close="menu.show = false" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @reauth="handleReAuth" @refresh-token="handleRefresh" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" />
@@ -430,6 +447,8 @@ import ImportDataModal from '@/components/admin/account/ImportDataModal.vue'
 import ImportKiroModal from '@/components/admin/account/ImportKiroModal.vue'
 import ReAuthAccountModal from '@/components/admin/account/ReAuthAccountModal.vue'
 import AccountTestModal from '@/components/admin/account/AccountTestModal.vue'
+import AccountBatchTestModal from '@/components/admin/account/AccountBatchTestModal.vue'
+import AccountBatchScheduledTestModal from '@/components/admin/account/AccountBatchScheduledTestModal.vue'
 import AccountStatsModal from '@/components/admin/account/AccountStatsModal.vue'
 import ScheduledTestsPanel from '@/components/admin/account/ScheduledTestsPanel.vue'
 import type { SelectOption } from '@/components/common/Select.vue'
@@ -494,6 +513,7 @@ const selTypes = computed<AccountType[]>(() => {
   )
   return [...types]
 })
+const selectedAccounts = computed<Account[]>(() => accounts.value.filter(account => isSelected(account.id)))
 const showCreate = ref(false)
 const showEdit = ref(false)
 const showSync = ref(false)
@@ -507,6 +527,8 @@ const showTempUnsched = ref(false)
 const showDeleteDialog = ref(false)
 const showReAuth = ref(false)
 const showTest = ref(false)
+const showBatchTest = ref(false)
+const showBatchScheduledTest = ref(false)
 const showStats = ref(false)
 const showErrorPassthrough = ref(false)
 const showTLSFingerprintProfiles = ref(false)
@@ -1093,6 +1115,114 @@ function getAntigravityTierLabel(row: any): string | null {
   }
 }
 
+
+type KiroMeta = {
+  subscriptionLabel: string
+  subscriptionClass: string
+  quotaLabel: string
+  overageLabel: string
+  overageClass: string
+  title: string
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function readRecordString(record: Record<string, unknown> | null, key: string): string {
+  const value = record?.[key]
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function readRecordNumber(record: Record<string, unknown> | null, key: string): number | null {
+  const value = record?.[key]
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+function readRecordBool(record: Record<string, unknown> | null, key: string): boolean | null {
+  const value = record?.[key]
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'string') {
+    if (value.toLowerCase() === 'true') return true
+    if (value.toLowerCase() === 'false') return false
+  }
+  return null
+}
+
+function formatKiroAmount(value: number | null): string {
+  if (value === null) return '-'
+  return new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: value >= 100 ? 0 : 2
+  }).format(value)
+}
+
+function getKiroSubscriptionClass(label: string): string {
+  const normalized = label.toLowerCase().replace(/\s+/g, ' ')
+  if (normalized.includes('pro max')) {
+    return 'bg-fuchsia-50 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-200'
+  }
+  if (normalized.includes('pro+') || normalized.includes('pro plus')) {
+    return 'bg-purple-50 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200'
+  }
+  if (normalized.includes('power')) {
+    return 'bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200'
+  }
+  if (normalized.includes('pro')) {
+    return 'bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200'
+  }
+  if (normalized.includes('free')) {
+    return 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+  }
+  return 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200'
+}
+
+function getKiroMeta(row: Account): KiroMeta | null {
+  if (row.platform !== 'kiro') return null
+  const extra = row.extra
+  const subscription = isRecord(extra?.kiro_subscription) ? extra.kiro_subscription : null
+  const usage = isRecord(extra?.kiro_usage) ? extra.kiro_usage : null
+  if (!subscription && !usage) return null
+
+  const subscriptionLabel =
+    readRecordString(subscription, 'title') ||
+    readRecordString(subscription, 'type') ||
+    readRecordString(subscription, 'raw_type') ||
+    'Kiro'
+  const subscriptionClass = getKiroSubscriptionClass(subscriptionLabel)
+  const current = readRecordNumber(usage, 'current')
+  const limit = readRecordNumber(usage, 'limit')
+  const quotaLabel = limit !== null ? `${formatKiroAmount(current)}/${formatKiroAmount(limit)}` : '-'
+  const overageEnabled = readRecordBool(usage, 'overage_enabled') === true
+  const overageLabel = overageEnabled ? '超额已开' : '超额未开'
+  const overageClass = overageEnabled
+    ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200'
+    : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+  const overageCap = readRecordNumber(usage, 'overage_cap')
+  const overageCapability = readRecordString(subscription, 'overage_capability')
+  const resetDate = readRecordString(usage, 'next_reset_date')
+
+  return {
+    subscriptionLabel,
+    subscriptionClass,
+    quotaLabel,
+    overageLabel,
+    overageClass,
+    title: [
+      `订阅: ${subscriptionLabel}`,
+      `额度: ${quotaLabel}`,
+      `超额: ${overageEnabled ? '已开启' : '未开启'}`,
+      overageCap !== null ? `超额上限: ${formatKiroAmount(overageCap)}` : '',
+      overageCapability ? `超额能力: ${overageCapability}` : '',
+      resetDate ? `重置: ${resetDate}` : ''
+    ].filter(Boolean).join(' | ')
+  }
+}
+
 type OpenAICompactBadgeState = 'active' | 'blocked' | 'auto'
 
 function getOpenAICompactState(row: any): OpenAICompactBadgeState | null {
@@ -1279,6 +1409,20 @@ const handleBulkRefreshToken = async () => {
     console.error('Failed to bulk refresh token:', error)
     appStore.showError(String(error))
   }
+}
+const openBatchTest = () => {
+  if (selIds.value.length === 0) return
+  showBatchTest.value = true
+}
+const handleBatchTestCompleted = () => {
+  reload()
+}
+const openBatchScheduledTest = () => {
+  if (selIds.value.length === 0) return
+  showBatchScheduledTest.value = true
+}
+const handleBatchScheduledTestCompleted = () => {
+  reload()
 }
 const updateSchedulableInList = (accountIds: number[], schedulable: boolean) => {
   if (accountIds.length === 0) return

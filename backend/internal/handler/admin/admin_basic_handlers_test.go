@@ -214,6 +214,34 @@ func TestGroupHandlerEndpoints(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 }
 
+func TestGroupHandlerAcceptsKiroPlatform(t *testing.T) {
+	router, _ := setupAdminRouter()
+
+	body, err := json.Marshal(map[string]any{
+		"name":              "kiro-group",
+		"platform":          "kiro",
+		"subscription_type": "standard",
+	})
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/groups", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NotContains(t, rec.Body.String(), "oneof")
+
+	body, err = json.Marshal(map[string]any{"platform": "kiro"})
+	require.NoError(t, err)
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPut, "/api/v1/admin/groups/2", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NotContains(t, rec.Body.String(), "oneof")
+}
+
 func TestProxyHandlerEndpoints(t *testing.T) {
 	router, _ := setupAdminRouter()
 

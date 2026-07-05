@@ -113,8 +113,8 @@ func TestLoadDefaultOpenAIWSConfig(t *testing.T) {
 	if !cfg.Gateway.OpenAIScheduler.StickyEscapeEnabled {
 		t.Fatalf("Gateway.OpenAIScheduler.StickyEscapeEnabled = false, want true")
 	}
-	if cfg.Gateway.OpenAIScheduler.StickyEscapeTTFTMs != 15000 {
-		t.Fatalf("Gateway.OpenAIScheduler.StickyEscapeTTFTMs = %d, want 15000", cfg.Gateway.OpenAIScheduler.StickyEscapeTTFTMs)
+	if cfg.Gateway.OpenAIScheduler.StickyEscapeTTFTMs != 10000 {
+		t.Fatalf("Gateway.OpenAIScheduler.StickyEscapeTTFTMs = %d, want 10000", cfg.Gateway.OpenAIScheduler.StickyEscapeTTFTMs)
 	}
 	if cfg.Gateway.OpenAIScheduler.StickyEscapeErrorRate != 0.5 {
 		t.Fatalf("Gateway.OpenAIScheduler.StickyEscapeErrorRate = %v, want 0.5", cfg.Gateway.OpenAIScheduler.StickyEscapeErrorRate)

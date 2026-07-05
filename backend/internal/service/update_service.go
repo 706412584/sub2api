@@ -51,12 +51,17 @@ type GitHubReleaseClient interface {
 	FetchChecksumFile(ctx context.Context, url string) ([]byte, error)
 }
 
+type GitHubReleaseClientFactory func(proxyURL string) GitHubReleaseClient
+
 // UpdateService handles software updates
 type UpdateService struct {
-	cache          UpdateCache
-	githubClient   GitHubReleaseClient
-	currentVersion string
-	buildType      string // "source" for manual builds, "release" for CI builds
+	cache               UpdateCache
+	githubClient        GitHubReleaseClient
+	githubClientFactory GitHubReleaseClientFactory
+	settingRepo         SettingRepository
+	defaultProxyURL     string
+	currentVersion      string
+	buildType           string // "source" for manual builds, "release" for CI builds
 }
 
 // NewUpdateService creates a new UpdateService
@@ -66,6 +71,18 @@ func NewUpdateService(cache UpdateCache, githubClient GitHubReleaseClient, versi
 		githubClient:   githubClient,
 		currentVersion: version,
 		buildType:      buildType,
+	}
+}
+
+func NewUpdateServiceWithSettings(cache UpdateCache, githubClient GitHubReleaseClient, githubClientFactory GitHubReleaseClientFactory, settingRepo SettingRepository, defaultProxyURL string, version, buildType string) *UpdateService {
+	return &UpdateService{
+		cache:               cache,
+		githubClient:        githubClient,
+		githubClientFactory: githubClientFactory,
+		settingRepo:         settingRepo,
+		defaultProxyURL:     strings.TrimSpace(defaultProxyURL),
+		currentVersion:      version,
+		buildType:           buildType,
 	}
 }
 
@@ -279,8 +296,29 @@ func (s *UpdateService) Rollback() error {
 	return nil
 }
 
+func (s *UpdateService) githubClientForRequest(ctx context.Context) GitHubReleaseClient {
+	if s == nil {
+		return nil
+	}
+	client := s.githubClient
+	if s.githubClientFactory == nil || s.settingRepo == nil {
+		return client
+	}
+	proxyURL := strings.TrimSpace(s.defaultProxyURL)
+	if value, err := s.settingRepo.GetValue(ctx, SettingKeyUpdateProxyURL); err == nil {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			proxyURL = trimmed
+		}
+	}
+	if proxyURL == strings.TrimSpace(s.defaultProxyURL) {
+		return client
+	}
+	return s.githubClientFactory(proxyURL)
+}
+
 func (s *UpdateService) fetchLatestRelease(ctx context.Context) (*UpdateInfo, error) {
-	release, err := s.githubClient.FetchLatestRelease(ctx, githubRepo)
+	client := s.githubClientForRequest(ctx)
+	release, err := client.FetchLatestRelease(ctx, githubRepo)
 	if err != nil {
 		return nil, err
 	}
@@ -313,7 +351,7 @@ func (s *UpdateService) fetchLatestRelease(ctx context.Context) (*UpdateInfo, er
 }
 
 func (s *UpdateService) downloadFile(ctx context.Context, downloadURL, dest string) error {
-	return s.githubClient.DownloadFile(ctx, downloadURL, dest, maxDownloadSize)
+	return s.githubClientForRequest(ctx).DownloadFile(ctx, downloadURL, dest, maxDownloadSize)
 }
 
 func (s *UpdateService) getArchiveName() string {
@@ -350,7 +388,7 @@ func validateDownloadURL(rawURL string) error {
 
 func (s *UpdateService) verifyChecksum(ctx context.Context, filePath, checksumURL string) error {
 	// Download checksums file
-	checksumData, err := s.githubClient.FetchChecksumFile(ctx, checksumURL)
+	checksumData, err := s.githubClientForRequest(ctx).FetchChecksumFile(ctx, checksumURL)
 	if err != nil {
 		return fmt.Errorf("failed to download checksums: %w", err)
 	}

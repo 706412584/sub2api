@@ -138,3 +138,12 @@ docs/*
 frontend/coverage/
 aicodex
 output/
+
+# Devin temp/work artifacts
+.codegraph/
+ERR
+*.patch
+*.patch.b64
+pr_body*.md
+sqlite_mcp_server.db
+pr_body*.md.b64

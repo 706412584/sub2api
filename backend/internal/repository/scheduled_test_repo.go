@@ -35,6 +35,16 @@ func (r *scheduledTestPlanRepository) GetByID(ctx context.Context, id int64) (*s
 	return scanPlan(row)
 }
 
+func (r *scheduledTestPlanRepository) GetByAccountIDAndModelID(ctx context.Context, accountID int64, modelID string) (*service.ScheduledTestPlan, error) {
+	row := r.db.QueryRowContext(ctx, `
+		SELECT id, account_id, model_id, cron_expression, enabled, max_results, auto_recover, last_run_at, next_run_at, created_at, updated_at
+		FROM scheduled_test_plans WHERE account_id = $1 AND model_id = $2
+		ORDER BY created_at DESC
+		LIMIT 1
+	`, accountID, modelID)
+	return scanPlan(row)
+}
+
 func (r *scheduledTestPlanRepository) ListByAccountID(ctx context.Context, accountID int64) ([]*service.ScheduledTestPlan, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, account_id, model_id, cron_expression, enabled, max_results, auto_recover, last_run_at, next_run_at, created_at, updated_at

@@ -1886,6 +1886,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeySiteLogo] = settings.SiteLogo
 	updates[SettingKeySiteSubtitle] = settings.SiteSubtitle
 	updates[SettingKeyAPIBaseURL] = settings.APIBaseURL
+	updates[SettingKeyUpdateProxyURL] = strings.TrimSpace(settings.UpdateProxyURL)
 	updates[SettingKeyContactInfo] = settings.ContactInfo
 	updates[SettingKeyDocURL] = settings.DocURL
 	updates[SettingKeyHomeContent] = settings.HomeContent
@@ -2959,6 +2960,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingPaymentVisibleMethodWxpayEnabled:      "false",
 		openAIAdvancedSchedulerSettingKey:            "false",
 
+		SettingKeyUpdateProxyURL:              "",
 		SettingKeyAllowUserViewErrorRequests: "false",
 	}
 

@@ -1275,7 +1275,9 @@ const handleDataImported = () => {
   loadProxies()
 }
 
-// Parse proxy URL: protocol://user:pass@host:port or protocol://host:port
+// Parse proxy URL:
+// - Standard: protocol://user:pass@host:port or protocol://host:port
+// - Provider variant: protocol://host:port:user:pass
 const parseProxyUrl = (
   line: string
 ): {
@@ -1288,23 +1290,43 @@ const parseProxyUrl = (
   const trimmed = line.trim()
   if (!trimmed) return null
 
-  // Regex to parse proxy URL (supports http, https, socks5, socks5h)
-  const regex = /^(https?|socks5h?):\/\/(?:([^:@]+):([^@]+)@)?([^:]+):(\d+)$/i
-  const match = trimmed.match(regex)
+  const standardMatch = trimmed.match(
+    /^(https?|socks5h?):\/\/(?:([^:@]+):([^@]+)@)?([^:]+):(\d+)$/i
+  )
+  const providerMatch = trimmed.match(
+    /^(https?|socks5h?):\/\/([^:]+):(\d+):([^:]+):(.+)$/i
+  )
+
+  const match = standardMatch
+    ? {
+        protocol: standardMatch[1],
+        username: standardMatch[2] || '',
+        password: standardMatch[3] || '',
+        host: standardMatch[4],
+        port: standardMatch[5]
+      }
+    : providerMatch
+      ? {
+          protocol: providerMatch[1],
+          host: providerMatch[2],
+          port: providerMatch[3],
+          username: providerMatch[4],
+          password: providerMatch[5]
+        }
+      : null
 
   if (!match) return null
 
-  const [, protocol, username, password, host, port] = match
-  const portNum = parseInt(port, 10)
+  const portNum = parseInt(match.port, 10)
 
   if (portNum < 1 || portNum > 65535) return null
 
   return {
-    protocol: protocol.toLowerCase() as ProxyProtocol,
-    host: host.trim(),
+    protocol: match.protocol.toLowerCase() as ProxyProtocol,
+    host: match.host.trim(),
     port: portNum,
-    username: username?.trim() || '',
-    password: password?.trim() || ''
+    username: match.username.trim(),
+    password: match.password.trim()
   }
 }
 

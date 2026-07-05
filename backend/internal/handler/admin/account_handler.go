@@ -703,6 +703,45 @@ type TestAccountRequest struct {
 	Mode    string `json:"mode"`
 }
 
+// BatchTestAccountsRequest represents the request body for batch testing accounts.
+type BatchTestAccountsRequest struct {
+	AccountIDs []int64 `json:"account_ids"`
+	ModelID    string  `json:"model_id"`
+	Prompt     string  `json:"prompt"`
+	Mode       string  `json:"mode"`
+}
+
+// BatchTestAccountItem represents a single account test result in a batch response.
+type BatchTestAccountItem struct {
+	AccountID int64  `json:"account_id"`
+	Name      string `json:"name"`
+	Success   bool   `json:"success"`
+	Status    string `json:"status"`
+	LatencyMs int64  `json:"latency_ms"`
+	Error     string `json:"error"`
+}
+
+// BatchTestAccountsResponse represents the response body for batch account testing.
+type BatchTestAccountsResponse struct {
+	Total   int                    `json:"total"`
+	Success int                    `json:"success"`
+	Failed  int                    `json:"failed"`
+	Items   []BatchTestAccountItem `json:"items"`
+}
+
+type batchTestAccountStartEvent struct {
+	AccountID int64  `json:"account_id"`
+	Name      string `json:"name"`
+	Index     int    `json:"index"`
+	Total     int    `json:"total"`
+}
+
+type batchTestAccountResultEvent struct {
+	BatchTestAccountItem
+	Index int `json:"index"`
+	Total int `json:"total"`
+}
+
 type SyncFromCRSRequest struct {
 	BaseURL            string   `json:"base_url" binding:"required"`
 	Username           string   `json:"username" binding:"required"`
@@ -741,6 +780,248 @@ func (h *AccountHandler) Test(c *gin.Context) {
 			_ = c.Error(err)
 		}
 	}
+}
+
+// BatchTestAccounts handles batch testing accounts.
+// POST /api/v1/admin/accounts/batch-test
+func (h *AccountHandler) sendBatchTestStreamEvent(c *gin.Context, eventType string, data any) bool {
+	eventJSON, err := json.Marshal(data)
+	if err != nil {
+		log.Printf("failed to marshal batch test SSE event %s: %v", eventType, err)
+		return false
+	}
+	if _, err := fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", eventType, eventJSON); err != nil {
+		log.Printf("failed to write batch test SSE event %s: %v", eventType, err)
+		return false
+	}
+	c.Writer.Flush()
+	return true
+}
+
+func (h *AccountHandler) buildBatchTestAccountItem(ctx context.Context, account *service.Account, modelID string) BatchTestAccountItem {
+	runOnce := func() BatchTestAccountItem {
+		item := BatchTestAccountItem{
+			AccountID: account.ID,
+			Name:      account.Name,
+			Success:   false,
+			Status:    "failed",
+		}
+
+		result, err := h.accountTestService.RunTestBackground(ctx, account.ID, modelID)
+		if result != nil {
+			item.Status = result.Status
+			item.LatencyMs = result.LatencyMs
+			item.Error = result.ErrorMessage
+		}
+		if err != nil {
+			item.Error = err.Error()
+		} else if result != nil && result.Status == "success" {
+			item.Success = true
+			if h.rateLimitService != nil {
+				if _, recoverErr := h.rateLimitService.RecoverAccountAfterSuccessfulTest(ctx, account.ID); recoverErr != nil {
+					slog.Warn("batch_test_account_recover_failed", "account_id", account.ID, "err", recoverErr)
+				}
+			}
+		} else if item.Error == "" {
+			item.Error = "account test failed"
+		}
+
+		return item
+	}
+
+	item := runOnce()
+	if item.Success {
+		return item
+	}
+
+	item = runOnce()
+	if !item.Success {
+		if err := h.adminService.SetAccountError(ctx, account.ID, item.Error); err != nil {
+			slog.Warn("batch_test_account_mark_error_failed", "account_id", account.ID, "err", err)
+		}
+	}
+	return item
+}
+
+func (h *AccountHandler) BatchTestAccounts(c *gin.Context) {
+	var req BatchTestAccountsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if len(req.AccountIDs) == 0 {
+		response.BadRequest(c, "account_ids is required")
+		return
+	}
+	if h.accountTestService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Account test service unavailable")
+		return
+	}
+
+	ctx := c.Request.Context()
+	accounts, err := h.adminService.GetAccountsByIDs(ctx, req.AccountIDs)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	accountByID := make(map[int64]*service.Account, len(accounts))
+	for _, account := range accounts {
+		if account != nil {
+			accountByID[account.ID] = account
+		}
+	}
+
+	items := make([]BatchTestAccountItem, len(req.AccountIDs))
+	var mu sync.Mutex
+	var successCount, failedCount int
+
+	markItem := func(idx int, item BatchTestAccountItem) {
+		mu.Lock()
+		items[idx] = item
+		if item.Success {
+			successCount++
+		} else {
+			failedCount++
+		}
+		mu.Unlock()
+	}
+
+	const maxConcurrency = 5
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(maxConcurrency)
+
+	for i, id := range req.AccountIDs {
+		idx := i
+		accountID := id
+		account := accountByID[accountID]
+		if account == nil {
+			markItem(idx, BatchTestAccountItem{
+				AccountID: accountID,
+				Success:   false,
+				Status:    "failed",
+				Error:     "account not found",
+			})
+			continue
+		}
+
+		g.Go(func() error {
+			markItem(idx, h.buildBatchTestAccountItem(gctx, account, req.ModelID))
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, BatchTestAccountsResponse{
+		Total:   len(req.AccountIDs),
+		Success: successCount,
+		Failed:  failedCount,
+		Items:   items,
+	})
+}
+
+// BatchTestAccountsStream handles batch testing accounts with SSE progress streaming.
+// POST /api/v1/admin/accounts/batch-test/stream
+func (h *AccountHandler) BatchTestAccountsStream(c *gin.Context) {
+	var req BatchTestAccountsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if len(req.AccountIDs) == 0 {
+		response.BadRequest(c, "account_ids is required")
+		return
+	}
+	if h.accountTestService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Account test service unavailable")
+		return
+	}
+
+	ctx := c.Request.Context()
+	accounts, err := h.adminService.GetAccountsByIDs(ctx, req.AccountIDs)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	accountByID := make(map[int64]*service.Account, len(accounts))
+	for _, account := range accounts {
+		if account != nil {
+			accountByID[account.ID] = account
+		}
+	}
+
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("X-Accel-Buffering", "no")
+	c.Writer.Flush()
+
+	total := len(req.AccountIDs)
+	items := make([]BatchTestAccountItem, 0, total)
+	successCount := 0
+	failedCount := 0
+
+	slog.Info("batch_account_test_stream_start", "total", total, "model_id", req.ModelID, "mode", req.Mode)
+
+	if !h.sendBatchTestStreamEvent(c, "batch_start", gin.H{"total": total}) {
+		return
+	}
+
+	for idx, accountID := range req.AccountIDs {
+		index := idx + 1
+		account := accountByID[accountID]
+		if account == nil {
+			item := BatchTestAccountItem{
+				AccountID: accountID,
+				Success:   false,
+				Status:    "failed",
+				Error:     "account not found",
+			}
+			items = append(items, item)
+			failedCount++
+
+			if !h.sendBatchTestStreamEvent(c, "account_result", batchTestAccountResultEvent{BatchTestAccountItem: item, Index: index, Total: total}) {
+				return
+			}
+			if !h.sendBatchTestStreamEvent(c, "progress", gin.H{"total": total, "completed": len(items), "success": successCount, "failed": failedCount}) {
+				return
+			}
+			continue
+		}
+
+		slog.Info("batch_account_test_stream_account_start", "account_id", account.ID, "account_name", account.Name, "index", index, "total", total)
+		if !h.sendBatchTestStreamEvent(c, "account_start", batchTestAccountStartEvent{AccountID: account.ID, Name: account.Name, Index: index, Total: total}) {
+			return
+		}
+
+		item := h.buildBatchTestAccountItem(ctx, account, req.ModelID)
+		items = append(items, item)
+		if item.Success {
+			successCount++
+		} else {
+			failedCount++
+		}
+		slog.Info("batch_account_test_stream_account_result", "account_id", item.AccountID, "success", item.Success, "status", item.Status, "latency_ms", item.LatencyMs, "index", index, "total", total)
+
+		if !h.sendBatchTestStreamEvent(c, "account_result", batchTestAccountResultEvent{BatchTestAccountItem: item, Index: index, Total: total}) {
+			return
+		}
+		if !h.sendBatchTestStreamEvent(c, "progress", gin.H{"total": total, "completed": len(items), "success": successCount, "failed": failedCount}) {
+			return
+		}
+	}
+
+	h.sendBatchTestStreamEvent(c, "batch_complete", BatchTestAccountsResponse{
+		Total:   total,
+		Success: successCount,
+		Failed:  failedCount,
+		Items:   items,
+	})
 }
 
 // RecoverState handles unified recovery of recoverable account runtime state.
@@ -900,6 +1181,13 @@ func (h *AccountHandler) refreshSingleAccount(ctx context.Context, account *serv
 				return nil, "", fmt.Errorf("failed to clear account error: %w", clearErr)
 			}
 		}
+	} else if account.Platform == service.PlatformKiro {
+		tokenInfo, err := service.RefreshKiroAccountToken(ctx, account)
+		if err != nil {
+			return nil, "", err
+		}
+
+		newCredentials = service.MergeCredentials(account.Credentials, service.BuildKiroAccountCredentials(tokenInfo))
 	} else {
 		// Use Anthropic/Claude OAuth service to refresh token
 		tokenInfo, err := h.oauthService.RefreshAccountToken(ctx, account)
@@ -944,6 +1232,14 @@ func (h *AccountHandler) refreshSingleAccount(ctx context.Context, account *serv
 	h.adminService.EnsureOpenAIPrivacy(ctx, updatedAccount)
 	// Antigravity OAuth: 刷新成功后检查并设置 privacy_mode
 	h.adminService.EnsureAntigravityPrivacy(ctx, updatedAccount)
+
+	if account.Platform == service.PlatformKiro && account.Status == service.StatusError {
+		clearedAccount, clearErr := h.adminService.ClearAccountError(ctx, account.ID)
+		if clearErr != nil {
+			return nil, "", fmt.Errorf("failed to clear Kiro account error after refresh: %w", clearErr)
+		}
+		updatedAccount = clearedAccount
+	}
 
 	return updatedAccount, "", nil
 }

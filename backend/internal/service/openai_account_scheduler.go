@@ -1373,7 +1373,7 @@ func (s *OpenAIGatewayService) openAIWSLBTopK() int {
 	if s != nil && s.cfg != nil && s.cfg.Gateway.OpenAIWS.LBTopK > 0 {
 		return s.cfg.Gateway.OpenAIWS.LBTopK
 	}
-	return 7
+	return 4
 }
 
 func (s *OpenAIGatewayService) openAIStickyEscapeConfig() openAIStickyEscapeConfig {
@@ -1385,7 +1385,7 @@ func (s *OpenAIGatewayService) openAIStickyEscapeConfig() openAIStickyEscapeConf
 		}
 		ttftMs := float64(cfg.StickyEscapeTTFTMs)
 		if ttftMs <= 0 {
-			ttftMs = 15000
+			ttftMs = 10000
 		}
 		errorRate := cfg.StickyEscapeErrorRate
 		if errorRate < 0 || errorRate > 1 {
@@ -1402,7 +1402,7 @@ func (s *OpenAIGatewayService) openAIStickyEscapeConfig() openAIStickyEscapeConf
 	}
 	return openAIStickyEscapeConfig{
 		enabled:   true,
-		ttftMs:    15000,
+		ttftMs:    10000,
 		errorRate: 0.5,
 	}
 }
@@ -1422,7 +1422,7 @@ func (s *OpenAIGatewayService) openAIWSSchedulerWeights() GatewayOpenAIWSSchedul
 		Load:      1.0,
 		Queue:     0.7,
 		ErrorRate: 0.8,
-		TTFT:      0.5,
+		TTFT:      1.2,
 	}
 }
 

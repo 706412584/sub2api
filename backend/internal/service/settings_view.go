@@ -131,6 +131,7 @@ type SystemSettings struct {
 	SiteLogo                    string
 	SiteSubtitle                string
 	APIBaseURL                  string
+	UpdateProxyURL              string
 	ContactInfo                 string
 	DocURL                      string
 	HomeContent                 string
