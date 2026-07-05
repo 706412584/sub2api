@@ -58,6 +58,20 @@
           <div class="text-sm font-semibold text-gray-900 dark:text-gray-100">
             {{ t('admin.accounts.batchTest.summary', { success: result.success, failed: result.failed }) }}
           </div>
+          <div class="mt-2 grid gap-2 text-xs text-gray-600 dark:text-gray-300 sm:grid-cols-2">
+            <div>
+              {{ t('admin.accounts.batchTest.progress', { completed: progress.completed, total: progress.total }) }}
+            </div>
+            <div v-if="currentAccountName">
+              {{ t('admin.accounts.batchTest.current', { name: currentAccountName }) }}
+            </div>
+          </div>
+          <div class="mt-2 h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
+            <div
+              class="h-full rounded-full bg-blue-500 transition-all duration-200"
+              :style="{ width: `${progressPercent}%` }"
+            />
+          </div>
         </div>
 
         <div class="max-h-80 overflow-y-auto rounded-lg border border-gray-200 dark:border-dark-500">
@@ -119,7 +133,7 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
 import { adminAPI } from '@/api/admin'
 import type { Account, ClaudeModel } from '@/types'
-import type { BatchTestAccountsResponse } from '@/api/admin/accounts'
+import type { BatchTestAccountItem, BatchTestAccountsResponse } from '@/api/admin/accounts'
 
 const props = defineProps<{
   visible: boolean
@@ -141,12 +155,19 @@ const loadingModels = ref(false)
 const modelLoadError = ref('')
 const testing = ref(false)
 const result = ref<BatchTestAccountsResponse | null>(null)
+const currentAccountName = ref('')
+const progress = ref({ total: 0, completed: 0, success: 0, failed: 0 })
 const testMode = ref<'default' | 'compact'>('default')
+let abortController: AbortController | null = null
 const prioritizedGeminiModels = ['gemini-3.1-flash-image', 'gemini-2.5-flash-image', 'gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3-flash-preview', 'gemini-3-pro-preview', 'gemini-2.0-flash']
 
 const firstAccount = computed(() => props.accounts[0] ?? null)
 const isOpenAISelection = computed(() => props.accounts.some(account => account.platform === 'openai'))
 const failedIds = computed(() => result.value?.items.filter(item => !item.success).map(item => item.account_id) ?? [])
+const progressPercent = computed(() => {
+  if (!progress.value.total) return 0
+  return Math.min(100, Math.round((progress.value.completed / progress.value.total) * 100))
+})
 const openAITestModeOptions = computed(() => [
   { value: 'default', label: t('admin.accounts.openai.testModeDefault') },
   { value: 'compact', label: t('admin.accounts.openai.testModeCompact') }
@@ -194,9 +215,15 @@ watch(
   () => props.visible,
   async (visible) => {
     if (visible) {
+      abortStream()
       result.value = null
+      currentAccountName.value = ''
+      progress.value = { total: 0, completed: 0, success: 0, failed: 0 }
       testMode.value = 'default'
       await loadAvailableModels()
+    } else {
+      abortStream()
+      testing.value = false
     }
   }
 )
@@ -205,26 +232,193 @@ watch(
   () => props.accountIds,
   () => {
     if (props.visible) {
+      abortStream()
       result.value = null
+      currentAccountName.value = ''
+      progress.value = { total: 0, completed: 0, success: 0, failed: 0 }
+      testing.value = false
     }
   }
 )
 
-const startTest = async (ids: number[]) => {
-  if (testing.value || !selectedModelId.value || ids.length === 0) return
-  testing.value = true
+type BatchTestSSEEvent =
+  | { type: 'batch_start'; total: number }
+  | { type: 'account_start'; account_id: number; name?: string; index: number; total: number }
+  | (BatchTestAccountItem & { type: 'account_result'; index: number; total: number })
+  | { type: 'progress'; total: number; completed: number; success: number; failed: number }
+  | (BatchTestAccountsResponse & { type: 'batch_complete' })
+  | { type: 'error'; error: string }
+
+const resetStreamState = (total: number) => {
+  result.value = { total, success: 0, failed: 0, items: [] }
+  progress.value = { total, completed: 0, success: 0, failed: 0 }
+  currentAccountName.value = ''
+  modelLoadError.value = ''
+}
+
+const abortStream = () => {
+  if (abortController) {
+    abortController.abort()
+    abortController = null
+  }
+}
+
+const upsertResultItem = (item: BatchTestAccountItem) => {
+  if (!result.value) {
+    result.value = { total: progress.value.total || 0, success: 0, failed: 0, items: [] }
+  }
+
+  const items = [...result.value.items]
+  const index = items.findIndex(existing => existing.account_id === item.account_id)
+  if (index >= 0) {
+    items[index] = item
+  } else {
+    items.push(item)
+  }
+
+  const success = items.filter(existing => existing.success).length
+  const failed = items.filter(existing => !existing.success).length
+  result.value = {
+    total: progress.value.total || result.value.total || items.length,
+    success,
+    failed,
+    items
+  }
+  progress.value = {
+    total: result.value.total,
+    completed: Math.max(progress.value.completed, items.length),
+    success,
+    failed
+  }
+}
+
+const handleStreamEvent = (event: BatchTestSSEEvent) => {
+  switch (event.type) {
+    case 'batch_start':
+      resetStreamState(event.total)
+      break
+    case 'account_start':
+      currentAccountName.value = event.name || `#${event.account_id}`
+      progress.value.total = event.total
+      break
+    case 'account_result':
+      upsertResultItem({
+        account_id: event.account_id,
+        name: event.name || `#${event.account_id}`,
+        success: event.success,
+        status: event.status,
+        latency_ms: event.latency_ms,
+        error: event.error
+      })
+      progress.value.total = event.total
+      progress.value.completed = Math.max(progress.value.completed, event.index)
+      break
+    case 'progress':
+      progress.value = {
+        total: event.total,
+        completed: event.completed,
+        success: event.success,
+        failed: event.failed
+      }
+      if (result.value) {
+        result.value = {
+          ...result.value,
+          total: event.total,
+          success: event.success,
+          failed: event.failed
+        }
+      }
+      break
+    case 'batch_complete':
+      result.value = {
+        total: event.total,
+        success: event.success,
+        failed: event.failed,
+        items: event.items
+      }
+      progress.value = {
+        total: event.total,
+        completed: event.total,
+        success: event.success,
+        failed: event.failed
+      }
+      currentAccountName.value = ''
+      emit('completed')
+      break
+    case 'error':
+      modelLoadError.value = event.error
+      break
+  }
+}
+
+const processSSELine = (line: string) => {
+  if (!line.startsWith('data:')) return
+
+  const jsonStr = line.slice(5).trim()
+  if (!jsonStr) return
+
   try {
-    result.value = await adminAPI.accounts.batchTestAccounts({
-      account_ids: ids,
-      model_id: selectedModelId.value,
-      mode: isOpenAISelection.value ? testMode.value : undefined
-    })
-    emit('completed')
+    handleStreamEvent(JSON.parse(jsonStr) as BatchTestSSEEvent)
   } catch (error) {
+    console.error('Failed to parse batch test SSE event:', error)
+  }
+}
+
+const startTest = async (ids: number[]) => {
+  if (!selectedModelId.value || ids.length === 0) return
+  abortStream()
+  resetStreamState(ids.length)
+  testing.value = true
+  abortController = new AbortController()
+
+  try {
+    const response = await fetch('/api/v1/admin/accounts/batch-test/stream', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        account_ids: ids,
+        model_id: selectedModelId.value,
+        mode: isOpenAISelection.value ? testMode.value : undefined
+      }),
+      signal: abortController.signal
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const reader = response.body?.getReader()
+    if (!reader) {
+      throw new Error('No response body')
+    }
+
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+      lines.forEach(processSSELine)
+    }
+
+    buffer += decoder.decode()
+    buffer.split('\n').forEach(processSSELine)
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      return
+    }
     console.error('Failed to batch test accounts:', error)
-    modelLoadError.value = String(error)
+    modelLoadError.value = error instanceof Error ? error.message : String(error)
   } finally {
     testing.value = false
+    abortController = null
   }
 }
 
@@ -234,6 +428,7 @@ const formatLatency = (latency: number) => {
 }
 
 const handleClose = () => {
+  abortStream()
   emit('update:visible', false)
   emit('close')
 }

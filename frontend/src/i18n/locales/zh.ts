@@ -3513,6 +3513,8 @@ export default {
         error: '错误',
         normal: '正常',
         abnormal: '异常',
+        progress: '进度：{completed}/{total}',
+        current: '当前：{name}',
         loadModelsFailed: '加载可用模型失败'
       },
       batchScheduledTest: {

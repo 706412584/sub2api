@@ -729,6 +729,19 @@ type BatchTestAccountsResponse struct {
 	Items   []BatchTestAccountItem `json:"items"`
 }
 
+type batchTestAccountStartEvent struct {
+	AccountID int64  `json:"account_id"`
+	Name      string `json:"name"`
+	Index     int    `json:"index"`
+	Total     int    `json:"total"`
+}
+
+type batchTestAccountResultEvent struct {
+	BatchTestAccountItem
+	Index int `json:"index"`
+	Total int `json:"total"`
+}
+
 type SyncFromCRSRequest struct {
 	BaseURL            string   `json:"base_url" binding:"required"`
 	Username           string   `json:"username" binding:"required"`
@@ -771,6 +784,50 @@ func (h *AccountHandler) Test(c *gin.Context) {
 
 // BatchTestAccounts handles batch testing accounts.
 // POST /api/v1/admin/accounts/batch-test
+func (h *AccountHandler) sendBatchTestStreamEvent(c *gin.Context, eventType string, data any) bool {
+	eventJSON, err := json.Marshal(data)
+	if err != nil {
+		log.Printf("failed to marshal batch test SSE event %s: %v", eventType, err)
+		return false
+	}
+	if _, err := fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", eventType, eventJSON); err != nil {
+		log.Printf("failed to write batch test SSE event %s: %v", eventType, err)
+		return false
+	}
+	c.Writer.Flush()
+	return true
+}
+
+func (h *AccountHandler) buildBatchTestAccountItem(ctx context.Context, account *service.Account, modelID string) BatchTestAccountItem {
+	item := BatchTestAccountItem{
+		AccountID: account.ID,
+		Name:      account.Name,
+		Success:   false,
+		Status:    "failed",
+	}
+
+	result, err := h.accountTestService.RunTestBackground(ctx, account.ID, modelID)
+	if result != nil {
+		item.Status = result.Status
+		item.LatencyMs = result.LatencyMs
+		item.Error = result.ErrorMessage
+	}
+	if err != nil {
+		item.Error = err.Error()
+	} else if result != nil && result.Status == "success" {
+		item.Success = true
+		if h.rateLimitService != nil {
+			if _, recoverErr := h.rateLimitService.RecoverAccountAfterSuccessfulTest(ctx, account.ID); recoverErr != nil {
+				slog.Warn("batch_test_account_recover_failed", "account_id", account.ID, "err", recoverErr)
+			}
+		}
+	} else if item.Error == "" {
+		item.Error = "account test failed"
+	}
+
+	return item
+}
+
 func (h *AccountHandler) BatchTestAccounts(c *gin.Context) {
 	var req BatchTestAccountsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -834,33 +891,7 @@ func (h *AccountHandler) BatchTestAccounts(c *gin.Context) {
 		}
 
 		g.Go(func() error {
-			item := BatchTestAccountItem{
-				AccountID: account.ID,
-				Name:      account.Name,
-				Success:   false,
-				Status:    "failed",
-			}
-
-			result, err := h.accountTestService.RunTestBackground(gctx, account.ID, req.ModelID)
-			if result != nil {
-				item.Status = result.Status
-				item.LatencyMs = result.LatencyMs
-				item.Error = result.ErrorMessage
-			}
-			if err != nil {
-				item.Error = err.Error()
-			} else if result != nil && result.Status == "success" {
-				item.Success = true
-				if h.rateLimitService != nil {
-					if _, recoverErr := h.rateLimitService.RecoverAccountAfterSuccessfulTest(gctx, account.ID); recoverErr != nil {
-						slog.Warn("batch_test_account_recover_failed", "account_id", account.ID, "err", recoverErr)
-					}
-				}
-			} else if item.Error == "" {
-				item.Error = "account test failed"
-			}
-
-			markItem(idx, item)
+			markItem(idx, h.buildBatchTestAccountItem(gctx, account, req.ModelID))
 			return nil
 		})
 	}
@@ -872,6 +903,102 @@ func (h *AccountHandler) BatchTestAccounts(c *gin.Context) {
 
 	response.Success(c, BatchTestAccountsResponse{
 		Total:   len(req.AccountIDs),
+		Success: successCount,
+		Failed:  failedCount,
+		Items:   items,
+	})
+}
+
+// BatchTestAccountsStream handles batch testing accounts with SSE progress streaming.
+// POST /api/v1/admin/accounts/batch-test/stream
+func (h *AccountHandler) BatchTestAccountsStream(c *gin.Context) {
+	var req BatchTestAccountsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if len(req.AccountIDs) == 0 {
+		response.BadRequest(c, "account_ids is required")
+		return
+	}
+	if h.accountTestService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Account test service unavailable")
+		return
+	}
+
+	ctx := c.Request.Context()
+	accounts, err := h.adminService.GetAccountsByIDs(ctx, req.AccountIDs)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	accountByID := make(map[int64]*service.Account, len(accounts))
+	for _, account := range accounts {
+		if account != nil {
+			accountByID[account.ID] = account
+		}
+	}
+
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("X-Accel-Buffering", "no")
+	c.Writer.Flush()
+
+	total := len(req.AccountIDs)
+	items := make([]BatchTestAccountItem, 0, total)
+	successCount := 0
+	failedCount := 0
+
+	if !h.sendBatchTestStreamEvent(c, "batch_start", gin.H{"total": total}) {
+		return
+	}
+
+	for idx, accountID := range req.AccountIDs {
+		index := idx + 1
+		account := accountByID[accountID]
+		if account == nil {
+			item := BatchTestAccountItem{
+				AccountID: accountID,
+				Success:   false,
+				Status:    "failed",
+				Error:     "account not found",
+			}
+			items = append(items, item)
+			failedCount++
+
+			if !h.sendBatchTestStreamEvent(c, "account_result", batchTestAccountResultEvent{BatchTestAccountItem: item, Index: index, Total: total}) {
+				return
+			}
+			if !h.sendBatchTestStreamEvent(c, "progress", gin.H{"total": total, "completed": len(items), "success": successCount, "failed": failedCount}) {
+				return
+			}
+			continue
+		}
+
+		if !h.sendBatchTestStreamEvent(c, "account_start", batchTestAccountStartEvent{AccountID: account.ID, Name: account.Name, Index: index, Total: total}) {
+			return
+		}
+
+		item := h.buildBatchTestAccountItem(ctx, account, req.ModelID)
+		items = append(items, item)
+		if item.Success {
+			successCount++
+		} else {
+			failedCount++
+		}
+
+		if !h.sendBatchTestStreamEvent(c, "account_result", batchTestAccountResultEvent{BatchTestAccountItem: item, Index: index, Total: total}) {
+			return
+		}
+		if !h.sendBatchTestStreamEvent(c, "progress", gin.H{"total": total, "completed": len(items), "success": successCount, "failed": failedCount}) {
+			return
+		}
+	}
+
+	h.sendBatchTestStreamEvent(c, "batch_complete", BatchTestAccountsResponse{
+		Total:   total,
 		Success: successCount,
 		Failed:  failedCount,
 		Items:   items,

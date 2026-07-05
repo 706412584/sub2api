@@ -3355,6 +3355,8 @@ export default {
         error: 'Error',
         normal: 'Normal',
         abnormal: 'Abnormal',
+        progress: 'Progress: {completed}/{total}',
+        current: 'Current: {name}',
         loadModelsFailed: 'Failed to load available models'
       },
       batchScheduledTest: {
