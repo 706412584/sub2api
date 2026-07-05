@@ -3515,6 +3515,7 @@ export default {
         abnormal: '异常',
         progress: '已完成：{completed}/{total}',
         current: '正在测试第 {index}/{total} 个：{name}',
+        waitingForProgress: '已开始测活，等待服务端返回进度...',
         loadModelsFailed: '加载可用模型失败'
       },
       batchScheduledTest: {

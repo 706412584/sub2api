@@ -65,6 +65,9 @@
             <div v-if="currentAccountName">
               {{ t('admin.accounts.batchTest.current', { index: currentAccountIndex, total: progress.total, name: currentAccountName }) }}
             </div>
+            <div v-else-if="streamStatusMessage">
+              {{ streamStatusMessage }}
+            </div>
           </div>
           <div class="mt-2 h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
             <div
@@ -157,6 +160,7 @@ const testing = ref(false)
 const result = ref<BatchTestAccountsResponse | null>(null)
 const currentAccountName = ref('')
 const currentAccountIndex = ref(0)
+const streamStatusMessage = ref('')
 const progress = ref({ total: 0, completed: 0, success: 0, failed: 0 })
 const testMode = ref<'default' | 'compact'>('default')
 let abortController: AbortController | null = null
@@ -220,6 +224,7 @@ watch(
       result.value = null
       currentAccountName.value = ''
       currentAccountIndex.value = 0
+      streamStatusMessage.value = ''
       progress.value = { total: 0, completed: 0, success: 0, failed: 0 }
       testMode.value = 'default'
       await loadAvailableModels()
@@ -238,6 +243,7 @@ watch(
       result.value = null
       currentAccountName.value = ''
       currentAccountIndex.value = 0
+      streamStatusMessage.value = ''
       progress.value = { total: 0, completed: 0, success: 0, failed: 0 }
       testing.value = false
     }
@@ -297,6 +303,7 @@ const upsertResultItem = (item: BatchTestAccountItem) => {
 }
 
 const handleStreamEvent = (event: BatchTestSSEEvent) => {
+  streamStatusMessage.value = ''
   switch (event.type) {
     case 'batch_start':
       resetStreamState(event.total)
@@ -374,6 +381,7 @@ const startTest = async (ids: number[]) => {
   if (!selectedModelId.value || ids.length === 0) return
   abortStream()
   resetStreamState(ids.length)
+  streamStatusMessage.value = t('admin.accounts.batchTest.waitingForProgress')
   testing.value = true
   abortController = new AbortController()
 
