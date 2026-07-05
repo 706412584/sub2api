@@ -834,7 +834,13 @@ func (h *AccountHandler) buildBatchTestAccountItem(ctx context.Context, account 
 		return item
 	}
 
-	return runOnce()
+	item = runOnce()
+	if !item.Success {
+		if err := h.adminService.SetAccountError(ctx, account.ID, item.Error); err != nil {
+			slog.Warn("batch_test_account_mark_error_failed", "account_id", account.ID, "err", err)
+		}
+	}
+	return item
 }
 
 func (h *AccountHandler) BatchTestAccounts(c *gin.Context) {

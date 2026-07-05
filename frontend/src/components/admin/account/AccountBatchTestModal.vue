@@ -111,15 +111,23 @@
         </button>
         <button
           v-if="failedIds.length > 0"
+          class="btn btn-danger"
+          :disabled="testing || deletingFailed"
+          @click="deleteFailedAccounts"
+        >
+          {{ deletingFailed ? t('admin.accounts.batchTest.deletingFailed') : t('admin.accounts.batchTest.deleteFailed') }}
+        </button>
+        <button
+          v-if="failedIds.length > 0"
           class="btn btn-warning"
-          :disabled="testing || !selectedModelId"
+          :disabled="testing || deletingFailed || !selectedModelId"
           @click="startTest(failedIds)"
         >
           {{ testing ? t('admin.accounts.batchTest.testing') : t('admin.accounts.batchTest.retryFailed') }}
         </button>
         <button
           class="btn btn-primary"
-          :disabled="testing || loadingModels || !selectedModelId || accountIds.length === 0"
+          :disabled="testing || deletingFailed || loadingModels || !selectedModelId || accountIds.length === 0"
           @click="startTest(accountIds)"
         >
           {{ testing ? t('admin.accounts.batchTest.testing') : t('admin.accounts.batchTest.start') }}
@@ -157,6 +165,7 @@ const selectedModelId = ref('')
 const loadingModels = ref(false)
 const modelLoadError = ref('')
 const testing = ref(false)
+const deletingFailed = ref(false)
 const result = ref<BatchTestAccountsResponse | null>(null)
 const currentAccountName = ref('')
 const currentAccountIndex = ref(0)
@@ -390,6 +399,38 @@ const startTest = async (ids: number[]) => {
   } finally {
     testing.value = false
     streamStatusMessage.value = ''
+  }
+}
+
+const deleteFailedAccounts = async () => {
+  const ids = failedIds.value
+  if (ids.length === 0) return
+  if (!window.confirm(t('admin.accounts.batchTest.deleteFailedConfirm', { count: ids.length }))) return
+
+  deletingFailed.value = true
+  try {
+    await Promise.all(ids.map(id => adminAPI.accounts.delete(id)))
+    if (result.value) {
+      const items = result.value.items.filter(item => item.success)
+      result.value = {
+        total: items.length,
+        success: items.length,
+        failed: 0,
+        items
+      }
+      progress.value = {
+        total: items.length,
+        completed: items.length,
+        success: items.length,
+        failed: 0
+      }
+    }
+    emit('completed')
+  } catch (error) {
+    console.error('Failed to delete failed accounts:', error)
+    modelLoadError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    deletingFailed.value = false
   }
 }
 
