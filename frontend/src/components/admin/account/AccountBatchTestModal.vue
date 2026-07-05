@@ -77,20 +77,40 @@
           </div>
         </div>
 
-        <div v-if="failedIds.length > 0" class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-red-200 bg-red-50 p-2 text-xs dark:border-red-900/60 dark:bg-red-950/20">
-          <div class="text-red-700 dark:text-red-300">
-            {{ t('admin.accounts.batchTest.selectedFailedCount', { selected: selectedFailedCount, total: failedIds.length }) }}
+        <div v-if="failedIds.length > 0" class="space-y-2 rounded-lg border border-red-200 bg-red-50 p-2 text-xs dark:border-red-900/60 dark:bg-red-950/20">
+          <div class="flex flex-wrap items-center gap-2">
+            <button
+              v-for="filter in failureFilters"
+              :key="filter.key"
+              type="button"
+              class="rounded-full border px-2.5 py-1 transition"
+              :class="selectedFailureFilter === filter.key
+                ? 'border-red-500 bg-red-600 text-white dark:border-red-400 dark:bg-red-500'
+                : 'border-red-200 bg-white text-red-700 hover:bg-red-100 dark:border-red-900 dark:bg-dark-800 dark:text-red-300 dark:hover:bg-red-950/40'"
+              :disabled="testing || deletingFailed"
+              @click="selectedFailureFilter = filter.key"
+            >
+              {{ filter.label }}
+            </button>
           </div>
-          <div class="flex flex-wrap gap-2">
-            <button class="btn btn-secondary btn-sm" :disabled="testing || deletingFailed" @click="selectAllFailed">
-              {{ t('admin.accounts.batchTest.selectAllFailed') }}
-            </button>
-            <button class="btn btn-secondary btn-sm" :disabled="testing || deletingFailed" @click="invertFailedSelection">
-              {{ t('admin.accounts.batchTest.invertFailedSelection') }}
-            </button>
-            <button class="btn btn-danger btn-sm" :disabled="testing || deletingFailed || selectedFailedCount === 0" @click="deleteSelectedFailedAccounts">
-              {{ deletingFailed ? t('admin.accounts.batchTest.deletingFailed') : t('admin.accounts.batchTest.deleteSelectedFailed') }}
-            </button>
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="text-red-700 dark:text-red-300">
+              {{ t('admin.accounts.batchTest.selectedFailedCount', { selected: selectedFailedCount, total: filteredFailedIds.length }) }}
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button class="btn btn-secondary btn-sm" :disabled="testing || deletingFailed || filteredFailedIds.length === 0" @click="selectFilteredFailed">
+                {{ t('admin.accounts.batchTest.selectFilteredFailed') }}
+              </button>
+              <button class="btn btn-secondary btn-sm" :disabled="testing || deletingFailed" @click="selectAllFailed">
+                {{ t('admin.accounts.batchTest.selectAllFailed') }}
+              </button>
+              <button class="btn btn-secondary btn-sm" :disabled="testing || deletingFailed" @click="invertFailedSelection">
+                {{ t('admin.accounts.batchTest.invertFailedSelection') }}
+              </button>
+              <button class="btn btn-danger btn-sm" :disabled="testing || deletingFailed || selectedFailedCount === 0" @click="deleteSelectedFailedAccounts">
+                {{ deletingFailed ? t('admin.accounts.batchTest.deletingFailed') : t('admin.accounts.batchTest.deleteSelectedFailed') }}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -106,7 +126,7 @@
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100 bg-white dark:divide-dark-600 dark:bg-dark-800">
-              <tr v-for="item in result.items" :key="item.account_id">
+              <tr v-for="item in visibleResultItems" :key="item.account_id">
                 <td class="px-3 py-2">
                   <input
                     v-if="!item.success"
@@ -196,6 +216,7 @@ const modelLoadError = ref('')
 const testing = ref(false)
 const deletingFailed = ref(false)
 const selectedFailedIds = ref<number[]>([])
+const selectedFailureFilter = ref('all')
 const result = ref<BatchTestAccountsResponse | null>(null)
 const currentAccountName = ref('')
 const currentAccountIndex = ref(0)
@@ -207,9 +228,31 @@ const prioritizedGeminiModels = ['gemini-3.1-flash-image', 'gemini-2.5-flash-ima
 
 const firstAccount = computed(() => props.accounts[0] ?? null)
 const isOpenAISelection = computed(() => props.accounts.some(account => account.platform === 'openai'))
-const failedIds = computed(() => result.value?.items.filter(item => !item.success).map(item => item.account_id) ?? [])
+const failedItems = computed(() => result.value?.items.filter(item => !item.success) ?? [])
+const failedIds = computed(() => failedItems.value.map(item => item.account_id))
 const selectedFailedIdSet = computed(() => new Set(selectedFailedIds.value))
 const selectedFailedCount = computed(() => selectedFailedIds.value.length)
+const failureKey = (item: BatchTestAccountItem) => item.error?.match(/\b(\d{3})\b/)?.[1] ?? (item.status || 'failed')
+const failureFilters = computed(() => {
+  const counts = new Map<string, number>()
+  failedItems.value.forEach(item => counts.set(failureKey(item), (counts.get(failureKey(item)) ?? 0) + 1))
+  return [
+    { key: 'all', label: t('admin.accounts.batchTest.allFailedTab', { count: failedIds.value.length }) },
+    ...Array.from(counts.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([key, count]) => ({
+      key,
+      label: t('admin.accounts.batchTest.failureTab', { code: key, count })
+    }))
+  ]
+})
+const visibleResultItems = computed(() => {
+  if (!result.value) return []
+  if (selectedFailureFilter.value === 'all') return result.value.items
+  return result.value.items.filter(item => !item.success && failureKey(item) === selectedFailureFilter.value)
+})
+const filteredFailedIds = computed(() => {
+  if (selectedFailureFilter.value === 'all') return failedIds.value
+  return failedItems.value.filter(item => failureKey(item) === selectedFailureFilter.value).map(item => item.account_id)
+})
 const progressPercent = computed(() => {
   if (!progress.value.total) return 0
   return Math.min(100, Math.round((progress.value.completed / progress.value.total) * 100))
@@ -264,6 +307,7 @@ watch(
       abortStream()
       result.value = null
       selectedFailedIds.value = []
+      selectedFailureFilter.value = 'all'
       currentAccountName.value = ''
       currentAccountIndex.value = 0
       streamStatusMessage.value = ''
@@ -284,6 +328,7 @@ watch(
       abortStream()
       result.value = null
       selectedFailedIds.value = []
+      selectedFailureFilter.value = 'all'
       currentAccountName.value = ''
       currentAccountIndex.value = 0
       streamStatusMessage.value = ''
@@ -304,6 +349,7 @@ type BatchTestSSEEvent =
 const resetStreamState = (total: number) => {
   result.value = { total, success: 0, failed: 0, items: [] }
   selectedFailedIds.value = []
+  selectedFailureFilter.value = 'all'
   progress.value = { total, completed: 0, success: 0, failed: 0 }
   currentAccountName.value = ''
   currentAccountIndex.value = 0
@@ -442,6 +488,10 @@ const toggleFailedSelection = (id: number) => {
   selectedFailedIds.value = selectedFailedIdSet.value.has(id)
     ? selectedFailedIds.value.filter(selectedId => selectedId !== id)
     : [...selectedFailedIds.value, id]
+}
+
+const selectFilteredFailed = () => {
+  selectedFailedIds.value = [...filteredFailedIds.value]
 }
 
 const selectAllFailed = () => {
