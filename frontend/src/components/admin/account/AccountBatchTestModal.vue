@@ -364,75 +364,32 @@ const handleStreamEvent = (event: BatchTestSSEEvent) => {
   }
 }
 
-const processSSELine = (line: string) => {
-  if (!line.startsWith('data:')) return
-
-  const jsonStr = line.slice(5).trim()
-  if (!jsonStr) return
-
-  try {
-    handleStreamEvent(JSON.parse(jsonStr) as BatchTestSSEEvent)
-  } catch (error) {
-    console.error('Failed to parse batch test SSE event:', error)
-  }
-}
-
 const startTest = async (ids: number[]) => {
   if (!selectedModelId.value || ids.length === 0) return
   abortStream()
   resetStreamState(ids.length)
   streamStatusMessage.value = t('admin.accounts.batchTest.waitingForProgress')
   testing.value = true
-  abortController = new AbortController()
 
   try {
-    const response = await fetch('/api/v1/admin/accounts/batch-test/stream', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        account_ids: ids,
-        model_id: selectedModelId.value,
-        mode: isOpenAISelection.value ? testMode.value : undefined
-      }),
-      signal: abortController.signal
+    const response = await adminAPI.accounts.batchTestAccounts({
+      account_ids: ids,
+      model_id: selectedModelId.value,
+      mode: isOpenAISelection.value ? testMode.value : undefined
     })
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-
-    const reader = response.body?.getReader()
-    if (!reader) {
-      throw new Error('No response body')
-    }
-
-    const decoder = new TextDecoder()
-    let buffer = ''
-
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || ''
-      lines.forEach(processSSELine)
-    }
-
-    buffer += decoder.decode()
-    buffer.split('\n').forEach(processSSELine)
+    handleStreamEvent({
+      type: 'batch_complete',
+      total: response.total,
+      success: response.success,
+      failed: response.failed,
+      items: response.items
+    })
   } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      return
-    }
     console.error('Failed to batch test accounts:', error)
     modelLoadError.value = error instanceof Error ? error.message : String(error)
   } finally {
     testing.value = false
-    abortController = null
+    streamStatusMessage.value = ''
   }
 }
 
