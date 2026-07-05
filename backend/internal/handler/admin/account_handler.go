@@ -799,33 +799,42 @@ func (h *AccountHandler) sendBatchTestStreamEvent(c *gin.Context, eventType stri
 }
 
 func (h *AccountHandler) buildBatchTestAccountItem(ctx context.Context, account *service.Account, modelID string) BatchTestAccountItem {
-	item := BatchTestAccountItem{
-		AccountID: account.ID,
-		Name:      account.Name,
-		Success:   false,
-		Status:    "failed",
-	}
-
-	result, err := h.accountTestService.RunTestBackground(ctx, account.ID, modelID)
-	if result != nil {
-		item.Status = result.Status
-		item.LatencyMs = result.LatencyMs
-		item.Error = result.ErrorMessage
-	}
-	if err != nil {
-		item.Error = err.Error()
-	} else if result != nil && result.Status == "success" {
-		item.Success = true
-		if h.rateLimitService != nil {
-			if _, recoverErr := h.rateLimitService.RecoverAccountAfterSuccessfulTest(ctx, account.ID); recoverErr != nil {
-				slog.Warn("batch_test_account_recover_failed", "account_id", account.ID, "err", recoverErr)
-			}
+	runOnce := func() BatchTestAccountItem {
+		item := BatchTestAccountItem{
+			AccountID: account.ID,
+			Name:      account.Name,
+			Success:   false,
+			Status:    "failed",
 		}
-	} else if item.Error == "" {
-		item.Error = "account test failed"
+
+		result, err := h.accountTestService.RunTestBackground(ctx, account.ID, modelID)
+		if result != nil {
+			item.Status = result.Status
+			item.LatencyMs = result.LatencyMs
+			item.Error = result.ErrorMessage
+		}
+		if err != nil {
+			item.Error = err.Error()
+		} else if result != nil && result.Status == "success" {
+			item.Success = true
+			if h.rateLimitService != nil {
+				if _, recoverErr := h.rateLimitService.RecoverAccountAfterSuccessfulTest(ctx, account.ID); recoverErr != nil {
+					slog.Warn("batch_test_account_recover_failed", "account_id", account.ID, "err", recoverErr)
+				}
+			}
+		} else if item.Error == "" {
+			item.Error = "account test failed"
+		}
+
+		return item
 	}
 
-	return item
+	item := runOnce()
+	if item.Success {
+		return item
+	}
+
+	return runOnce()
 }
 
 func (h *AccountHandler) BatchTestAccounts(c *gin.Context) {
