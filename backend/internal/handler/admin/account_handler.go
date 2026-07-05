@@ -951,6 +951,8 @@ func (h *AccountHandler) BatchTestAccountsStream(c *gin.Context) {
 	successCount := 0
 	failedCount := 0
 
+	slog.Info("batch_account_test_stream_start", "total", total, "model_id", req.ModelID, "mode", req.Mode)
+
 	if !h.sendBatchTestStreamEvent(c, "batch_start", gin.H{"total": total}) {
 		return
 	}
@@ -977,6 +979,7 @@ func (h *AccountHandler) BatchTestAccountsStream(c *gin.Context) {
 			continue
 		}
 
+		slog.Info("batch_account_test_stream_account_start", "account_id", account.ID, "account_name", account.Name, "index", index, "total", total)
 		if !h.sendBatchTestStreamEvent(c, "account_start", batchTestAccountStartEvent{AccountID: account.ID, Name: account.Name, Index: index, Total: total}) {
 			return
 		}
@@ -988,6 +991,7 @@ func (h *AccountHandler) BatchTestAccountsStream(c *gin.Context) {
 		} else {
 			failedCount++
 		}
+		slog.Info("batch_account_test_stream_account_result", "account_id", item.AccountID, "success", item.Success, "status", item.Status, "latency_ms", item.LatencyMs, "index", index, "total", total)
 
 		if !h.sendBatchTestStreamEvent(c, "account_result", batchTestAccountResultEvent{BatchTestAccountItem: item, Index: index, Total: total}) {
 			return

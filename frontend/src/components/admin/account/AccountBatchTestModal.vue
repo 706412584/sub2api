@@ -63,7 +63,7 @@
               {{ t('admin.accounts.batchTest.progress', { completed: progress.completed, total: progress.total }) }}
             </div>
             <div v-if="currentAccountName">
-              {{ t('admin.accounts.batchTest.current', { name: currentAccountName }) }}
+              {{ t('admin.accounts.batchTest.current', { index: currentAccountIndex, total: progress.total, name: currentAccountName }) }}
             </div>
           </div>
           <div class="mt-2 h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
@@ -156,6 +156,7 @@ const modelLoadError = ref('')
 const testing = ref(false)
 const result = ref<BatchTestAccountsResponse | null>(null)
 const currentAccountName = ref('')
+const currentAccountIndex = ref(0)
 const progress = ref({ total: 0, completed: 0, success: 0, failed: 0 })
 const testMode = ref<'default' | 'compact'>('default')
 let abortController: AbortController | null = null
@@ -218,6 +219,7 @@ watch(
       abortStream()
       result.value = null
       currentAccountName.value = ''
+      currentAccountIndex.value = 0
       progress.value = { total: 0, completed: 0, success: 0, failed: 0 }
       testMode.value = 'default'
       await loadAvailableModels()
@@ -235,6 +237,7 @@ watch(
       abortStream()
       result.value = null
       currentAccountName.value = ''
+      currentAccountIndex.value = 0
       progress.value = { total: 0, completed: 0, success: 0, failed: 0 }
       testing.value = false
     }
@@ -253,6 +256,7 @@ const resetStreamState = (total: number) => {
   result.value = { total, success: 0, failed: 0, items: [] }
   progress.value = { total, completed: 0, success: 0, failed: 0 }
   currentAccountName.value = ''
+  currentAccountIndex.value = 0
   modelLoadError.value = ''
 }
 
@@ -299,6 +303,7 @@ const handleStreamEvent = (event: BatchTestSSEEvent) => {
       break
     case 'account_start':
       currentAccountName.value = event.name || `#${event.account_id}`
+      currentAccountIndex.value = event.index
       progress.value.total = event.total
       break
     case 'account_result':
@@ -343,6 +348,7 @@ const handleStreamEvent = (event: BatchTestSSEEvent) => {
         failed: event.failed
       }
       currentAccountName.value = ''
+      currentAccountIndex.value = 0
       emit('completed')
       break
     case 'error':
