@@ -2960,7 +2960,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingPaymentVisibleMethodWxpayEnabled:      "false",
 		openAIAdvancedSchedulerSettingKey:            "false",
 
-		SettingKeyUpdateProxyURL:              "",
+		SettingKeyUpdateProxyURL:             "",
 		SettingKeyAllowUserViewErrorRequests: "false",
 	}
 
