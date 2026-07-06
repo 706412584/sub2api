@@ -504,15 +504,23 @@ const invertFailedSelection = () => {
 }
 
 const deleteFailedAccounts = async (ids: number[]) => {
-  if (ids.length === 0) return
-  if (!window.confirm(t('admin.accounts.batchTest.deleteFailedConfirm', { count: ids.length }))) return
+  const targetIds = [...new Set(ids)]
+  if (targetIds.length === 0) return
+  if (!window.confirm(t('admin.accounts.batchTest.deleteFailedConfirm', { count: targetIds.length }))) return
 
   deletingFailed.value = true
   try {
-    await Promise.all(ids.map(id => adminAPI.accounts.delete(id)))
-    if (result.value) {
-      const deleted = new Set(ids)
-      const items = result.value.items.filter(item => !deleted.has(item.account_id))
+    const settled = await Promise.allSettled(targetIds.map(id => adminAPI.accounts.delete(id)))
+    const removableIds = targetIds.filter((_, index) => {
+      const outcome = settled[index]
+      if (outcome.status === 'fulfilled') return true
+      const message = outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason)
+      return message.toLowerCase().includes('account not found')
+    })
+
+    if (result.value && removableIds.length > 0) {
+      const removed = new Set(removableIds)
+      const items = result.value.items.filter(item => !removed.has(item.account_id))
       const success = items.filter(item => item.success).length
       const failed = items.filter(item => !item.success).length
       result.value = {
@@ -527,7 +535,16 @@ const deleteFailedAccounts = async (ids: number[]) => {
         success,
         failed
       }
-      selectedFailedIds.value = selectedFailedIds.value.filter(id => !deleted.has(id))
+      selectedFailedIds.value = selectedFailedIds.value.filter(id => !removed.has(id) && failedIds.value.includes(id))
+      if (!failedIds.value.length || !failureFilters.value.some(filter => filter.key === selectedFailureFilter.value)) {
+        selectedFailureFilter.value = 'all'
+      }
+    }
+
+    const failedDelete = settled.find(outcome => outcome.status === 'rejected')
+    if (failedDelete && removableIds.length !== targetIds.length) {
+      const reason = failedDelete.reason instanceof Error ? failedDelete.reason.message : String(failedDelete.reason)
+      modelLoadError.value = reason
     }
     emit('completed')
   } catch (error) {
@@ -538,7 +555,7 @@ const deleteFailedAccounts = async (ids: number[]) => {
   }
 }
 
-const deleteSelectedFailedAccounts = () => deleteFailedAccounts(selectedFailedIds.value)
+const deleteSelectedFailedAccounts = () => deleteFailedAccounts([...selectedFailedIds.value])
 
 const formatLatency = (latency: number) => {
   if (!latency || latency < 0) return '-'
