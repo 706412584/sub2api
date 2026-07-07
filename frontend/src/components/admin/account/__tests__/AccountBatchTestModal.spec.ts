@@ -61,6 +61,11 @@ function mountModal() {
   })
 }
 
+const clickStart = async (wrapper: ReturnType<typeof mountModal>) => {
+  await wrapper.findAll('button').find(button => button.text() === 'admin.accounts.batchTest.start')!.trigger('click')
+  await flushPromises()
+}
+
 describe('AccountBatchTestModal', () => {
   beforeEach(() => {
     getAvailableModels.mockResolvedValue([{ id: 'gpt-5.5', display_name: 'GPT 5.5' }])
@@ -84,13 +89,24 @@ describe('AccountBatchTestModal', () => {
     vi.restoreAllMocks()
   })
 
+  it('测活完成后保留结果，不触发父级刷新', async () => {
+    const wrapper = mountModal()
+    await wrapper.setProps({ visible: true })
+    await flushPromises()
+
+    await clickStart(wrapper)
+
+    expect(wrapper.text()).toContain('A678')
+    expect(wrapper.text()).toContain('A719')
+    expect(wrapper.emitted('completed')).toBeUndefined()
+  })
+
   it('删除选中异常后清空结果和选中状态，account not found 也从结果移除', async () => {
     const wrapper = mountModal()
     await wrapper.setProps({ visible: true })
     await flushPromises()
 
-    await wrapper.findAll('button').find(button => button.text() === 'admin.accounts.batchTest.start')!.trigger('click')
-    await flushPromises()
+    await clickStart(wrapper)
 
     expect(wrapper.text()).toContain('A678')
     expect(wrapper.text()).toContain('A719')

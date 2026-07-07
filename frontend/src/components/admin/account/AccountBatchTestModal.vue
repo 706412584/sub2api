@@ -446,7 +446,6 @@ const handleStreamEvent = (event: BatchTestSSEEvent) => {
       }
       currentAccountName.value = ''
       currentAccountIndex.value = 0
-      emit('completed')
       break
     case 'error':
       modelLoadError.value = event.error
