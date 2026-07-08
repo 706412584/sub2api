@@ -3170,7 +3170,8 @@ export default {
         kiro: 'Kiro',
         grok: 'Grok',
       },
-      grokComingSoon: 'Grok platform scaffolding is in place. Account creation, OAuth, and proxy forwarding will be enabled in later phases.',
+      grokComingSoon: 'Create Grok accounts from the account tools menu via “Grok Manual Token”. The generic account modal does not host the Grok authorization flow yet.',
+      grokUseTokenEntry: 'Use Grok Manual Token entry',
       types: {
         oauth: 'OAuth',
         chatgptOauth: 'ChatGPT OAuth',

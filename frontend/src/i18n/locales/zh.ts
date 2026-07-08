@@ -3358,7 +3358,8 @@ export default {
         kiro: 'Kiro',
         grok: 'Grok',
       },
-      grokComingSoon: 'Grok 平台骨架已接入，账号创建、OAuth 与代理转发将在后续阶段开放。',
+      grokComingSoon: 'Grok 账号请通过账号页工具菜单中的“Grok 手动 Token”入口创建；通用添加账号弹窗暂不承载 Grok 授权流程。',
+      grokUseTokenEntry: '请使用 Grok 手动 Token 入口',
       types: {
         oauth: 'OAuth',
         chatgptOauth: 'ChatGPT OAuth',

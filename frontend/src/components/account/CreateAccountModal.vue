@@ -6,7 +6,7 @@
     @close="handleClose"
   >
     <!-- Step Indicator for OAuth accounts -->
-    <div v-if="isOAuthFlow" class="mb-6 flex items-center justify-center">
+    <div v-if="isOAuthFlow && form.platform !== 'grok'" class="mb-6 flex items-center justify-center">
       <div class="flex items-center space-x-4">
         <div class="flex items-center">
           <div
@@ -2933,11 +2933,13 @@
             ></path>
           </svg>
           {{
-            isOAuthFlow
-              ? t('common.next')
-              : submitting
-                ? t('admin.accounts.creating')
-                : t('common.create')
+            form.platform === 'grok'
+              ? t('admin.accounts.grokUseTokenEntry')
+              : isOAuthFlow
+                ? t('common.next')
+                : submitting
+                  ? t('admin.accounts.creating')
+                  : t('common.create')
           }}
         </button>
       </div>
