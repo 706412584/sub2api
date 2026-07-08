@@ -6,6 +6,35 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestAccount_OpenAICompatibleHelpers(t *testing.T) {
+	t.Run("Grok OAuth uses api_base_url and access_token", func(t *testing.T) {
+		account := &Account{
+			Platform: PlatformGrok,
+			Type:     AccountTypeOAuth,
+			Credentials: map[string]any{
+				"api_base_url": "https://api.x.ai/v1",
+				"access_token": "grok-access-token",
+			},
+		}
+
+		require.False(t, account.IsOpenAI())
+		require.True(t, account.IsOpenAICompatible())
+		require.Equal(t, "https://api.x.ai/v1", account.GetOpenAICompatibleBaseURL())
+		require.Equal(t, "grok-access-token", account.GetOpenAICompatibleBearerToken())
+	})
+
+	t.Run("Grok OAuth defaults base URL", func(t *testing.T) {
+		account := &Account{
+			Platform:    PlatformGrok,
+			Type:        AccountTypeOAuth,
+			Credentials: map[string]any{"access_token": "grok-access-token"},
+		}
+
+		require.Equal(t, "https://api.x.ai/v1", account.GetOpenAICompatibleBaseURL())
+		require.Equal(t, "grok-access-token", account.GetOpenAICompatibleBearerToken())
+	})
+}
+
 func TestAccount_IsOpenAIPassthroughEnabled(t *testing.T) {
 	t.Run("新字段开启", func(t *testing.T) {
 		account := &Account{

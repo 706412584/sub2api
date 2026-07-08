@@ -72,6 +72,7 @@ type OpenAIEndpointCapability string
 
 const (
 	OpenAIEndpointCapabilityChatCompletions OpenAIEndpointCapability = "chat_completions"
+	OpenAIEndpointCapabilityResponses       OpenAIEndpointCapability = "responses"
 	OpenAIEndpointCapabilityEmbeddings      OpenAIEndpointCapability = "embeddings"
 )
 
@@ -1064,6 +1065,37 @@ func (a *Account) IsOpenAIApiKey() bool {
 	return a.IsOpenAI() && a.Type == AccountTypeAPIKey
 }
 
+func (a *Account) IsOpenAICompatible() bool {
+	return a != nil && (a.IsOpenAI() || a.Platform == PlatformGrok)
+}
+
+func (a *Account) GetOpenAICompatibleBaseURL() string {
+	if a == nil {
+		return ""
+	}
+	if a.Platform == PlatformGrok {
+		baseURL := a.GetCredential("api_base_url")
+		if baseURL != "" {
+			return baseURL
+		}
+		return "https://api.x.ai/v1"
+	}
+	return a.GetOpenAIBaseURL()
+}
+
+func (a *Account) GetOpenAICompatibleBearerToken() string {
+	if a == nil {
+		return ""
+	}
+	if a.Platform == PlatformGrok {
+		return a.GetCredential("access_token")
+	}
+	if a.Type == AccountTypeAPIKey {
+		return a.GetOpenAIApiKey()
+	}
+	return a.GetOpenAIAccessToken()
+}
+
 func (a *Account) GetOpenAIBaseURL() string {
 	if !a.IsOpenAI() {
 		return ""
@@ -1140,11 +1172,23 @@ func (a *Account) SupportsOpenAIEndpointCapability(capability OpenAIEndpointCapa
 	if capability == "" {
 		return true
 	}
-	if !a.IsOpenAI() {
+	if !a.IsOpenAICompatible() {
 		return false
 	}
+	if a.Platform == PlatformGrok {
+		switch capability {
+		case OpenAIEndpointCapabilityChatCompletions, OpenAIEndpointCapabilityResponses:
+		default:
+			return false
+		}
+		configured, found := a.openAIEndpointCapabilitySet()
+		if !found {
+			return true
+		}
+		return configured[string(capability)]
+	}
 	switch capability {
-	case OpenAIEndpointCapabilityChatCompletions:
+	case OpenAIEndpointCapabilityChatCompletions, OpenAIEndpointCapabilityResponses:
 	case OpenAIEndpointCapabilityEmbeddings:
 		if a.Type != AccountTypeAPIKey {
 			return false

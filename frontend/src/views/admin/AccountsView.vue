@@ -104,6 +104,18 @@
                       </span>
                       <span class="flex-1 text-left">{{ t('admin.accounts.kiroImportButton') }}</span>
                     </button>
+                    <button class="account-tools-menu-item" @click="openKiroBrowserLogin">
+                      <span class="account-tools-menu-icon bg-cyan-50 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-300">
+                        <Icon name="key" size="sm" />
+                      </span>
+                      <span class="flex-1 text-left">{{ t('admin.accounts.kiroLoginButton') }}</span>
+                    </button>
+                    <button class="account-tools-menu-item" @click="openGrokTokenCreate">
+                      <span class="account-tools-menu-icon bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                        <Icon name="key" size="sm" />
+                      </span>
+                      <span class="flex-1 text-left">{{ t('admin.accounts.grokTokenButton') }}</span>
+                    </button>
                     <button class="account-tools-menu-item" @click="openExportDataDialogFromMenu">
                       <span class="account-tools-menu-icon bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-300">
                         <Icon name="download" size="sm" />
@@ -398,6 +410,8 @@
     <SyncFromCrsModal :show="showSync" @close="showSync = false" @synced="reload" />
     <ImportDataModal :show="showImportData" @close="showImportData = false" @imported="handleDataImported" />
     <ImportKiroModal :show="showKiroImport" @close="showKiroImport = false" @imported="handleKiroImported" />
+    <KiroBrowserLoginModal :show="showKiroBrowserLogin" @close="showKiroBrowserLogin = false" @created="handleKiroBrowserLoginCreated" />
+    <GrokTokenCreateModal :show="showGrokTokenCreate" @close="showGrokTokenCreate = false" @created="handleGrokTokenCreated" />
     <BulkEditAccountModal
       :show="showBulkEdit"
       :account-ids="selIds"
@@ -445,6 +459,8 @@ import AccountBulkActionsBar from '@/components/admin/account/AccountBulkActions
 import AccountActionMenu from '@/components/admin/account/AccountActionMenu.vue'
 import ImportDataModal from '@/components/admin/account/ImportDataModal.vue'
 import ImportKiroModal from '@/components/admin/account/ImportKiroModal.vue'
+import KiroBrowserLoginModal from '@/components/admin/account/KiroBrowserLoginModal.vue'
+import GrokTokenCreateModal from '@/components/admin/account/GrokTokenCreateModal.vue'
 import ReAuthAccountModal from '@/components/admin/account/ReAuthAccountModal.vue'
 import AccountTestModal from '@/components/admin/account/AccountTestModal.vue'
 import AccountBatchTestModal from '@/components/admin/account/AccountBatchTestModal.vue'
@@ -519,6 +535,8 @@ const showEdit = ref(false)
 const showSync = ref(false)
 const showImportData = ref(false)
 const showKiroImport = ref(false)
+const showKiroBrowserLogin = ref(false)
+const showGrokTokenCreate = ref(false)
 const showExportDataDialog = ref(false)
 const includeProxyOnExport = ref(true)
 const showBulkEdit = ref(false)
@@ -903,6 +921,8 @@ const isAnyModalOpen = computed(() => {
     showSync.value ||
     showImportData.value ||
     showKiroImport.value ||
+    showKiroBrowserLogin.value ||
+    showGrokTokenCreate.value ||
     showExportDataDialog.value ||
     showBulkEdit.value ||
     showTempUnsched.value ||
@@ -1040,6 +1060,16 @@ const openImportData = () => {
 const openKiroImport = () => {
   closeAccountToolsDropdown()
   showKiroImport.value = true
+}
+
+const openKiroBrowserLogin = () => {
+  closeAccountToolsDropdown()
+  showKiroBrowserLogin.value = true
+}
+
+const openGrokTokenCreate = () => {
+  closeAccountToolsDropdown()
+  showGrokTokenCreate.value = true
 }
 
 const openExportDataDialogFromMenu = () => {
@@ -1579,6 +1609,8 @@ const handleBulkUpdated = () => {
 }
 const handleDataImported = () => { showImportData.value = false; reload() }
 const handleKiroImported = () => { showKiroImport.value = false; reload() }
+const handleKiroBrowserLoginCreated = () => { showKiroBrowserLogin.value = false; reload() }
+const handleGrokTokenCreated = () => { showGrokTokenCreate.value = false; reload() }
 const ACCOUNT_UNGROUPED_GROUP_QUERY_VALUE = 'ungrouped'
 const ACCOUNT_PRIVACY_MODE_UNSET_QUERY_VALUE = '__unset__'
 const buildAccountQueryFilters = () => ({

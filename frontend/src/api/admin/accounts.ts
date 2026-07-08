@@ -650,6 +650,127 @@ export async function importKiroAccounts(payload: KiroImportRequest): Promise<Ki
   return data
 }
 
+export interface KiroOAuthNormalizeResponse {
+  name: string
+  credentials: Record<string, unknown>
+  extra: Record<string, unknown>
+}
+
+export interface GrokOAuthRequest {
+  data: any
+  name?: string
+  notes?: string
+  group_ids?: number[]
+  proxy_id?: number
+  concurrency?: number
+  priority?: number
+  rate_multiplier?: number
+  load_factor?: number
+  expires_at?: number
+  auto_pause_on_expired?: boolean
+  skip_default_group_bind?: boolean
+  confirm_mixed_channel_risk?: boolean
+}
+
+export interface GrokOAuthNormalizeResponse {
+  name: string
+  credentials: Record<string, unknown>
+  extra: Record<string, unknown>
+}
+
+export interface GrokGenerateAuthUrlRequest {
+  proxy_id?: number
+  redirect_uri?: string
+}
+
+export interface GrokAuthUrlResponse {
+  auth_url: string
+  session_id: string
+  state: string
+}
+
+export interface GrokExchangeCodeRequest {
+  session_id: string
+  code: string
+  state: string
+  redirect_uri?: string
+  proxy_id?: number
+}
+
+export interface GrokTokenInfo {
+  access_token: string
+  refresh_token?: string
+  id_token?: string
+  token_type?: string
+  client_id?: string
+  token_endpoint?: string
+  api_base_url?: string
+  expires_in?: number
+  expires_at?: number
+  scope?: string
+  scopes?: string[]
+  email?: string
+  sub?: string
+  name?: string
+}
+
+export interface GrokCreateFromOAuthRequest extends GrokExchangeCodeRequest {
+  name?: string
+  notes?: string
+  group_ids?: number[]
+  concurrency?: number
+  priority?: number
+  rate_multiplier?: number
+  load_factor?: number
+  expires_at?: number
+  auto_pause_on_expired?: boolean
+  skip_default_group_bind?: boolean
+  confirm_mixed_channel_risk?: boolean
+}
+
+export async function normalizeKiroOAuthCredentials(payload: { data: any }): Promise<KiroOAuthNormalizeResponse> {
+  const { data } = await apiClient.post<KiroOAuthNormalizeResponse>('/admin/kiro/oauth/normalize', payload)
+  return data
+}
+
+export async function createKiroOAuthAccount(payload: KiroImportRequest): Promise<Account> {
+  const { data } = await apiClient.post<Account>('/admin/kiro/oauth/create-account', payload)
+  return data
+}
+
+export async function normalizeGrokOAuthCredentials(payload: { data: any }): Promise<GrokOAuthNormalizeResponse> {
+  const { data } = await apiClient.post<GrokOAuthNormalizeResponse>('/admin/grok/oauth/normalize', payload)
+  return data
+}
+
+export async function createGrokOAuthAccount(payload: GrokOAuthRequest): Promise<Account> {
+  const { data } = await apiClient.post<Account>('/admin/grok/oauth/create-account', payload)
+  return data
+}
+
+export async function generateGrokAuthUrl(payload: GrokGenerateAuthUrlRequest): Promise<GrokAuthUrlResponse> {
+  const { data } = await apiClient.post<GrokAuthUrlResponse>('/admin/grok/oauth/generate-auth-url', payload)
+  return data
+}
+
+export async function exchangeGrokCode(payload: GrokExchangeCodeRequest): Promise<GrokTokenInfo> {
+  const { data } = await apiClient.post<GrokTokenInfo>('/admin/grok/oauth/exchange-code', payload)
+  return data
+}
+
+export async function refreshGrokToken(payload: {
+  refresh_token: string
+  proxy_id?: number
+}): Promise<GrokTokenInfo> {
+  const { data } = await apiClient.post<GrokTokenInfo>('/admin/grok/oauth/refresh-token', payload)
+  return data
+}
+
+export async function createGrokAccountFromOAuth(payload: GrokCreateFromOAuthRequest): Promise<Account> {
+  const { data } = await apiClient.post<Account>('/admin/grok/oauth/create-from-oauth', payload)
+  return data
+}
+
 /**
  * Get Antigravity default model mapping from backend
  * @returns Default model mapping (from -> to)
@@ -887,6 +1008,14 @@ export const accountsAPI = {
   importData,
   importCodexSession,
   importKiroAccounts,
+  normalizeKiroOAuthCredentials,
+  createKiroOAuthAccount,
+  normalizeGrokOAuthCredentials,
+  createGrokOAuthAccount,
+  generateGrokAuthUrl,
+  exchangeGrokCode,
+  refreshGrokToken,
+  createGrokAccountFromOAuth,
   getAntigravityDefaultModelMapping,
   batchClearError,
   batchRefresh,

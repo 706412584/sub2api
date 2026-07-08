@@ -147,7 +147,26 @@
             <Icon name="cloud" size="sm" />
             Antigravity
           </button>
+          <button
+            type="button"
+            @click="form.platform = 'grok'"
+            :class="[
+              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              form.platform === 'grok'
+                ? 'bg-white text-slate-700 shadow-sm dark:bg-dark-600 dark:text-slate-300'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+            ]"
+          >
+            <PlatformIcon platform="grok" size="sm" />
+            Grok
+          </button>
         </div>
+        <p
+          v-if="form.platform === 'grok'"
+          class="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:bg-slate-900/20 dark:text-slate-300"
+        >
+          {{ t('admin.accounts.grokComingSoon') }}
+        </p>
       </div>
 
       <!-- Account Type Selection (Anthropic) -->
@@ -2889,7 +2908,7 @@
         <button
           type="submit"
           form="create-account-form"
-          :disabled="submitting"
+          :disabled="submitting || form.platform === 'grok'"
           class="btn btn-primary"
           data-tour="account-form-submit"
         >
@@ -3232,6 +3251,7 @@ import type {
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select from '@/components/common/Select.vue'
+import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import Icon from '@/components/icons/Icon.vue'
 import ProxySelector from '@/components/common/ProxySelector.vue'
 import ProxyAdBanner from '@/components/common/ProxyAdBanner.vue'
