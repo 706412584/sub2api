@@ -40,11 +40,35 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Check Aliyun ACR secrets
+        id: aliyun
+        env:
+          ALIYUN_REGISTRY_URL: ${{ secrets.ALIYUN_REGISTRY_URL }}
+          ALIYUN_REGISTRY_NAMESPACE: ${{ secrets.ALIYUN_REGISTRY_NAMESPACE }}
+          ALIYUN_REGISTRY_USERNAME: ${{ secrets.ALIYUN_REGISTRY_USERNAME }}
+          ALIYUN_REGISTRY_PASSWORD: ${{ secrets.ALIYUN_REGISTRY_PASSWORD }}
+        run: |
+          if [ -n "$ALIYUN_REGISTRY_URL" ] && [ -n "$ALIYUN_REGISTRY_NAMESPACE" ] && [ -n "$ALIYUN_REGISTRY_USERNAME" ] && [ -n "$ALIYUN_REGISTRY_PASSWORD" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Log in to Aliyun ACR
+        if: steps.aliyun.outputs.enabled == 'true'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ${{ secrets.ALIYUN_REGISTRY_URL }}
+          username: ${{ secrets.ALIYUN_REGISTRY_USERNAME }}
+          password: ${{ secrets.ALIYUN_REGISTRY_PASSWORD }}
+
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
-          images: ${{ env.IMAGE_NAME }}
+          images: |
+            ${{ env.IMAGE_NAME }}
+            ${{ steps.aliyun.outputs.enabled == 'true' && format('{0}/{1}/sub2api', secrets.ALIYUN_REGISTRY_URL, secrets.ALIYUN_REGISTRY_NAMESPACE) || '' }}
           tags: |
             type=raw,value=sha-${{ github.sha }}
             type=raw,value=main,enable={{is_default_branch}}
