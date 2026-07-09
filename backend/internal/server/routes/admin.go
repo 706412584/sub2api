@@ -51,6 +51,9 @@ func RegisterAdminRoutes(
 		// Antigravity OAuth
 		registerAntigravityOAuthRoutes(admin, h)
 
+		// Kiro OAuth
+		registerKiroOAuthRoutes(admin, h)
+
 		// Grok OAuth
 		registerGrokOAuthRoutes(admin, h)
 
@@ -435,6 +438,17 @@ func registerAntigravityOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers)
 		antigravity.POST("/oauth/auth-url", h.Admin.AntigravityOAuth.GenerateAuthURL)
 		antigravity.POST("/oauth/exchange-code", h.Admin.AntigravityOAuth.ExchangeCode)
 		antigravity.POST("/oauth/refresh-token", h.Admin.AntigravityOAuth.RefreshToken)
+	}
+}
+
+func registerKiroOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	kiro := admin.Group("/kiro")
+	{
+		kiro.POST("/oauth/normalize", h.Admin.KiroOAuth.NormalizeCredentials)
+		kiro.POST("/oauth/create-account", h.Admin.KiroOAuth.CreateAccount)
+		kiro.POST("/oauth/builder-id/start", h.Admin.KiroOAuth.StartBuilderIDDeviceFlow)
+		kiro.POST("/oauth/builder-id/poll", h.Admin.KiroOAuth.PollBuilderIDDeviceFlow)
+		kiro.POST("/oauth/builder-id/create-account", h.Admin.KiroOAuth.CreateAccountFromBuilderIDDeviceFlow)
 	}
 }
 

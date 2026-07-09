@@ -66,6 +66,10 @@ func ProvideOpenAIOAuthService(
 	return svc
 }
 
+func ProvideKiroBuilderIDDeviceFlowService() *KiroBuilderIDDeviceFlowService {
+	return NewKiroBuilderIDDeviceFlowService()
+}
+
 // ProvideTokenRefreshService creates and starts TokenRefreshService
 func ProvideTokenRefreshService(
 	accountRepo AccountRepository,
@@ -672,6 +676,7 @@ var ProviderSet = wire.NewSet(
 	ProvideOpenAIOAuthService,
 	NewGrokOAuthService,
 	wire.Bind(new(GrokOAuthTokenService), new(*GrokOAuthService)),
+	ProvideKiroBuilderIDDeviceFlowService,
 	NewGeminiOAuthService,
 	NewGeminiQuotaService,
 	NewCompositeTokenCacheInvalidator,
