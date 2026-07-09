@@ -1017,20 +1017,10 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 		return
 	}
 
-	// Fallback to default models
-	if platform == service.PlatformOpenAI {
-		c.JSON(http.StatusOK, gin.H{
-			"object": "list",
-			"data":   openai.DefaultModels,
-		})
-		return
-	}
-
-	if platform == service.PlatformGemini {
-		c.JSON(http.StatusOK, gin.H{
-			"object": "list",
-			"data":   geminicli.DefaultModels,
-		})
+	// Fallback to default models for the selected group platform.
+	fallbackModels := defaultModelIDsForPlatform(platform)
+	if len(fallbackModels) > 0 {
+		writeCustomModelsList(c, platform, fallbackModels)
 		return
 	}
 

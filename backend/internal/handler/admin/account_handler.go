@@ -45,6 +45,12 @@ func NewOAuthHandler(oauthService *service.OAuthService) *OAuthHandler {
 	}
 }
 
+var defaultKiroModels = []openai.Model{
+	{ID: "claude-sonnet-4.6", Object: "model", OwnedBy: "kiro", Type: "model", DisplayName: "Claude Sonnet 4.6"},
+	{ID: "claude-opus-4.7", Object: "model", OwnedBy: "kiro", Type: "model", DisplayName: "Claude Opus 4.7"},
+	{ID: "claude-haiku-4.5", Object: "model", OwnedBy: "kiro", Type: "model", DisplayName: "Claude Haiku 4.5"},
+}
+
 // AccountHandler handles admin account management
 type AccountHandler struct {
 	adminService            service.AdminService
@@ -2333,6 +2339,27 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 	if account.Platform == service.PlatformAntigravity {
 		// 直接复用 antigravity.DefaultModels()，与 /v1/models 端点保持同步
 		response.Success(c, antigravity.DefaultModels())
+		return
+	}
+
+	// Handle Kiro accounts
+	if account.Platform == service.PlatformKiro {
+		mapping := account.GetModelMapping()
+		if len(mapping) == 0 {
+			response.Success(c, defaultKiroModels)
+			return
+		}
+
+		models := make([]openai.Model, 0, len(mapping))
+		for requestedModel := range mapping {
+			models = append(models, openai.Model{
+				ID:          requestedModel,
+				Object:      "model",
+				Type:        "model",
+				DisplayName: requestedModel,
+			})
+		}
+		response.Success(c, models)
 		return
 	}
 

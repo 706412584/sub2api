@@ -391,7 +391,20 @@
       </template>
       <template #pagination><Pagination v-if="pagination.total > 0" :page="pagination.page" :total="pagination.total" :page-size="pagination.page_size" @update:page="handlePageChange" @update:pageSize="handlePageSizeChange" /></template>
     </TablePageLayout>
-    <CreateAccountModal :show="showCreate" :proxies="proxies" :groups="groups" @close="showCreate = false" @created="reload" />
+    <CreateAccountModal
+      :show="showCreate"
+      :proxies="proxies"
+      :groups="groups"
+      @close="showCreate = false"
+      @created="reload"
+      @open-kiro-browser-login="handleOpenKiroBrowserLogin"
+    />
+    <KiroBrowserLoginModal
+      :show="showKiroBrowserLogin"
+      :account-defaults="kiroAccountDefaults"
+      @close="showKiroBrowserLogin = false"
+      @created="handleKiroAccountCreated"
+    />
     <EditAccountModal :show="showEdit" :account="edAcc" :proxies="proxies" :groups="groups" @close="showEdit = false" @updated="handleAccountUpdated" />
     <ReAuthAccountModal :show="showReAuth" :account="reAuthAcc" @close="closeReAuthModal" @reauthorized="handleAccountUpdated" />
     <AccountTestModal :show="showTest" :account="testingAcc" @close="closeTestModal" />
@@ -432,6 +445,7 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
+import type { KiroBuilderIDCreateAccountRequest } from '@/api/admin/accounts'
 import { useTableLoader } from '@/composables/useTableLoader'
 import { useSwipeSelect, type SwipeSelectVirtualContext } from '@/composables/useSwipeSelect'
 import { useTableSelection } from '@/composables/useTableSelection'
@@ -451,6 +465,7 @@ import ReAuthAccountModal from '@/components/admin/account/ReAuthAccountModal.vu
 import AccountTestModal from '@/components/admin/account/AccountTestModal.vue'
 import AccountStatsModal from '@/components/admin/account/AccountStatsModal.vue'
 import ScheduledTestsPanel from '@/components/admin/account/ScheduledTestsPanel.vue'
+import KiroBrowserLoginModal from '@/components/admin/account/KiroBrowserLoginModal.vue'
 import type { SelectOption } from '@/components/common/Select.vue'
 import AccountStatusIndicator from '@/components/account/AccountStatusIndicator.vue'
 import AccountUsageCell from '@/components/account/AccountUsageCell.vue'
@@ -514,6 +529,8 @@ const selTypes = computed<AccountType[]>(() => {
   return [...types]
 })
 const showCreate = ref(false)
+const showKiroBrowserLogin = ref(false)
+const kiroAccountDefaults = ref<Omit<KiroBuilderIDCreateAccountRequest, 'session_id'> | undefined>()
 const showEdit = ref(false)
 const showSync = ref(false)
 const showImportData = ref(false)
@@ -1080,6 +1097,20 @@ const handleManualRefresh = async () => {
   await load()
   // Force usage cells to refetch /usage on explicit user refresh.
   usageManualRefreshToken.value += 1
+}
+
+const handleOpenKiroBrowserLogin = (defaults?: Omit<KiroBuilderIDCreateAccountRequest, 'session_id'>) => {
+  kiroAccountDefaults.value = {
+    ...defaults,
+    skip_default_group_bind: defaults?.skip_default_group_bind ?? true
+  }
+  showKiroBrowserLogin.value = true
+}
+
+const handleKiroAccountCreated = async () => {
+  showKiroBrowserLogin.value = false
+  showCreate.value = false
+  await reload()
 }
 
 const closeAccountToolsDropdown = () => {

@@ -41,6 +41,7 @@ const (
 	PlatformOpenAI      = domain.PlatformOpenAI
 	PlatformGemini      = domain.PlatformGemini
 	PlatformAntigravity = domain.PlatformAntigravity
+	PlatformKiro        = domain.PlatformKiro
 	PlatformGrok        = domain.PlatformGrok
 )
 
@@ -52,6 +53,7 @@ var AllowedQuotaPlatforms = []string{
 	PlatformOpenAI,
 	PlatformGemini,
 	PlatformAntigravity,
+	PlatformKiro,
 	PlatformGrok,
 }
 

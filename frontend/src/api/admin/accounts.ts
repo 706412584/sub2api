@@ -335,7 +335,7 @@ export async function resetTempUnschedulable(id: number): Promise<{ message: str
  */
 export async function generateAuthUrl(
   endpoint: string,
-  config: { proxy_id?: number }
+  config: { proxy_id?: number | null }
 ): Promise<{ auth_url: string; session_id: string }> {
   const { data } = await apiClient.post<{ auth_url: string; session_id: string }>(endpoint, config)
   return data
@@ -349,7 +349,7 @@ export async function generateAuthUrl(
  */
 export async function exchangeCode(
   endpoint: string,
-  exchangeData: { session_id: string; code: string; state?: string; proxy_id?: number }
+  exchangeData: { session_id: string; code: string; state?: string; proxy_id?: number | null }
 ): Promise<Record<string, unknown>> {
   const { data } = await apiClient.post<Record<string, unknown>>(endpoint, exchangeData)
   return data
@@ -624,6 +624,94 @@ export async function createOpenAICodexPAT(payload: OpenAICodexPATCreateRequest)
   return data
 }
 
+export interface KiroOAuthNormalizeResponse {
+  name: string
+  credentials: Record<string, unknown>
+  extra: Record<string, unknown>
+}
+
+export interface KiroBuilderIDDeviceFlowStartRequest {
+  region?: string
+}
+
+export interface KiroBuilderIDDeviceFlowStartResponse {
+  session_id: string
+  user_code: string
+  verification_uri: string
+  verification_uri_complete: string
+  expires_in: number
+  interval: number
+  region: string
+}
+
+export interface KiroBuilderIDDeviceFlowPollResponse {
+  status: 'pending' | 'authorized'
+  interval?: number
+  expires_in?: number
+  authorized_at?: number
+}
+
+export interface KiroCreateAccountRequest {
+  data: any
+  name?: string
+  notes?: string
+  group_ids?: number[]
+  proxy_id?: number | null
+  concurrency?: number
+  priority?: number
+  rate_multiplier?: number
+  load_factor?: number | null
+  expires_at?: number | null
+  auto_pause_on_expired?: boolean
+  skip_default_group_bind?: boolean
+  confirm_mixed_channel_risk?: boolean
+}
+
+export interface KiroBuilderIDCreateAccountRequest {
+  session_id: string
+  name?: string
+  notes?: string
+  group_ids?: number[]
+  proxy_id?: number | null
+  concurrency?: number
+  priority?: number
+  rate_multiplier?: number
+  load_factor?: number | null
+  expires_at?: number | null
+  auto_pause_on_expired?: boolean
+  skip_default_group_bind?: boolean
+  confirm_mixed_channel_risk?: boolean
+}
+
+export async function normalizeKiroOAuthCredentials(payload: { data: any }): Promise<KiroOAuthNormalizeResponse> {
+  const { data } = await apiClient.post<KiroOAuthNormalizeResponse>('/admin/kiro/oauth/normalize', payload)
+  return data
+}
+
+export async function createKiroOAuthAccount(payload: KiroCreateAccountRequest): Promise<Account> {
+  const { data } = await apiClient.post<Account>('/admin/kiro/oauth/create-account', payload)
+  return data
+}
+
+export async function startKiroBuilderIDDeviceFlow(
+  payload: KiroBuilderIDDeviceFlowStartRequest
+): Promise<KiroBuilderIDDeviceFlowStartResponse> {
+  const { data } = await apiClient.post<KiroBuilderIDDeviceFlowStartResponse>('/admin/kiro/oauth/builder-id/start', payload)
+  return data
+}
+
+export async function pollKiroBuilderIDDeviceFlow(payload: {
+  session_id: string
+}): Promise<KiroBuilderIDDeviceFlowPollResponse> {
+  const { data } = await apiClient.post<KiroBuilderIDDeviceFlowPollResponse>('/admin/kiro/oauth/builder-id/poll', payload)
+  return data
+}
+
+export async function createKiroBuilderIDAccount(payload: KiroBuilderIDCreateAccountRequest): Promise<Account> {
+  const { data } = await apiClient.post<Account>('/admin/kiro/oauth/builder-id/create-account', payload)
+  return data
+}
+
 /**
  * Get Antigravity default model mapping from backend
  * @returns Default model mapping (from -> to)
@@ -647,7 +735,7 @@ export async function refreshOpenAIToken(
   endpoint: string = '/admin/openai/refresh-token',
   clientId?: string
 ): Promise<Record<string, unknown>> {
-  const payload: { refresh_token: string; proxy_id?: number; client_id?: string } = {
+  const payload: { refresh_token: string; proxy_id?: number | null; client_id?: string } = {
     refresh_token: refreshToken
   }
   if (proxyId) {
@@ -842,6 +930,11 @@ export const accountsAPI = {
   importData,
   importCodexSession,
   createOpenAICodexPAT,
+  normalizeKiroOAuthCredentials,
+  createKiroOAuthAccount,
+  startKiroBuilderIDDeviceFlow,
+  pollKiroBuilderIDDeviceFlow,
+  createKiroBuilderIDAccount,
   getAntigravityDefaultModelMapping,
   batchClearError,
   batchRefresh,
