@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
@@ -333,14 +332,4 @@ func inferKiroOAuthAccountName(account kiroAccountData) string {
 		return fmt.Sprintf("kiro-%s", clientID)
 	}
 	return "kiro-account"
-}
-
-func requireKiroOAuthAccount(account *service.Account) error {
-	if account == nil {
-		return infraerrors.BadRequest("ACCOUNT_REQUIRED", "account is required")
-	}
-	if account.Platform != service.PlatformKiro || account.Type != service.AccountTypeOAuth {
-		return infraerrors.BadRequest("NOT_KIRO_OAUTH", "account is not a Kiro OAuth account")
-	}
-	return nil
 }
