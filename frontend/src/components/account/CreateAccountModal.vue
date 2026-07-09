@@ -149,6 +149,19 @@
           </button>
           <button
             type="button"
+            @click="form.platform = 'kiro'"
+            :class="[
+              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              form.platform === 'kiro'
+                ? 'bg-white text-indigo-700 shadow-sm dark:bg-dark-600 dark:text-indigo-300'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+            ]"
+          >
+            <PlatformIcon platform="kiro" size="sm" />
+            Kiro
+          </button>
+          <button
+            type="button"
             @click="form.platform = 'grok'"
             :class="[
               'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
@@ -349,6 +362,26 @@
             </div>
           </button>
 
+        </div>
+      </div>
+
+      <!-- Account Type Selection (Kiro - browser login entry) -->
+      <div v-if="form.platform === 'kiro'">
+        <label class="input-label">{{ t('admin.accounts.accountType') }}</label>
+        <div class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2" data-tour="account-form-type">
+          <button
+            type="button"
+            @click="handleOpenKiroBrowserLogin"
+            class="flex items-center gap-3 rounded-lg border-2 border-indigo-300 bg-indigo-50 p-3 text-left transition-all hover:border-indigo-400 dark:border-indigo-700/60 dark:bg-indigo-900/20 dark:hover:border-indigo-500"
+          >
+            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white dark:bg-indigo-500">
+              <PlatformIcon platform="kiro" size="sm" />
+            </div>
+            <div>
+              <span class="block text-sm font-medium text-gray-900 dark:text-white">{{ t('admin.accounts.kiroLoginButton') }}</span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.kiroLoginEntryDesc') }}</span>
+            </div>
+          </button>
         </div>
       </div>
 
@@ -3569,6 +3602,19 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   close: []
   created: []
+  openKiroBrowserLogin: [payload: {
+    name?: string
+    notes?: string
+    group_ids?: number[]
+    proxy_id?: number | null
+    concurrency?: number
+    priority?: number
+    rate_multiplier?: number
+    load_factor?: number | null
+    expires_at?: number | null
+    auto_pause_on_expired?: boolean
+    skip_default_group_bind?: boolean
+  }]
 }>()
 
 const appStore = useAppStore()
@@ -3579,6 +3625,22 @@ const openaiOAuth = useOpenAIOAuth() // For OpenAI OAuth
 const geminiOAuth = useGeminiOAuth() // For Gemini OAuth
 const antigravityOAuth = useAntigravityOAuth() // For Antigravity OAuth
 const grokOAuth = useGrokOAuth() // For Grok OAuth
+
+const handleOpenKiroBrowserLogin = () => {
+  emit('openKiroBrowserLogin', {
+    name: form.name.trim() || undefined,
+    notes: form.notes.trim() || undefined,
+    group_ids: form.group_ids.length ? [...form.group_ids] : undefined,
+    proxy_id: form.proxy_id,
+    concurrency: form.concurrency,
+    priority: form.priority,
+    rate_multiplier: form.rate_multiplier,
+    load_factor: form.load_factor,
+    expires_at: form.expires_at,
+    auto_pause_on_expired: autoPauseOnExpired.value,
+    skip_default_group_bind: true
+  })
+}
 
 // Computed: current OAuth state for template binding
 const currentAuthUrl = computed(() => {
@@ -4135,6 +4197,14 @@ watch(
       antigravityWhitelistModels.value = []
       antigravityModelMappings.value = []
       antigravityModelRestrictionMode.value = 'mapping'
+    }
+    if (newPlatform === 'kiro') {
+      accountCategory.value = 'oauth-based'
+      addMethod.value = 'oauth'
+      modelRestrictionMode.value = 'mapping'
+      form.type = 'builder-id' as AccountType
+      form.concurrency = 1
+      form.load_factor = null
     }
     if (newPlatform === 'grok') {
       accountCategory.value = 'oauth-based'
@@ -4824,6 +4894,11 @@ const handleVertexServiceAccountDrop = async (event: DragEvent) => {
 }
 
 const handleSubmit = async () => {
+  if (form.platform === 'kiro') {
+    handleOpenKiroBrowserLogin()
+    return
+  }
+
   // For OAuth-based type, handle OAuth flow (goes to step 2)
   if (isOAuthFlow.value) {
     if (!isGrokSSOInputMethod.value && !form.name.trim()) {
