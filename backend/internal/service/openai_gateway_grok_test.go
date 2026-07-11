@@ -199,6 +199,8 @@ func TestGrokMediaGenerationGateCoversImagesAndVideo(t *testing.T) {
 		{name: "image generation", endpoint: GrokMediaEndpointImagesGenerations, want: true},
 		{name: "image edit", endpoint: GrokMediaEndpointImagesEdits, want: true},
 		{name: "video generation", endpoint: GrokMediaEndpointVideosGenerations, want: true},
+		{name: "video extension", endpoint: GrokMediaEndpointVideosExtensions, want: true},
+		{name: "video edit", endpoint: GrokMediaEndpointVideosEdits, want: true},
 		{name: "video status", endpoint: GrokMediaEndpointVideoStatus, want: false},
 	}
 
@@ -496,6 +498,76 @@ func TestForwardGrokMediaVideoGenerationPreservesImageToVideoModel(t *testing.T)
 	require.Equal(t, "grok-imagine-video-1.5", result.BillingModel)
 	// 未指定 duration 时按上游默认 8 秒计费。
 	require.Equal(t, VideoBillingDefaultDurationSeconds, result.VideoDurationSeconds)
+}
+
+func TestForwardGrokMediaVideoExtensionUsesExtensionsEndpoint(t *testing.T) {
+	t.Setenv(xai.EnvAllowUnsafeURLOverrides, "true")
+	gin.SetMode(gin.TestMode)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	body := []byte(`{"model":"grok-imagine-video","prompt":"continue","duration":6,"video":{"url":"https://example.test/source.mp4"}}`)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos/extensions", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	account := &Account{
+		ID:          64,
+		Name:        "grok",
+		Platform:    PlatformGrok,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "api-key",
+			"base_url": "https://xai.test/v1",
+		},
+	}
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header: http.Header{
+			"Content-Type":   []string{"application/json"},
+			"Xai-Request-Id": []string{"xai-video-extend-req"},
+		},
+		Body: io.NopCloser(strings.NewReader(`{"request_id":"video-extend-123","usage":{"prompt_tokens":2,"completion_tokens":3}}`)),
+	}}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+
+	result, err := svc.ForwardGrokMedia(context.Background(), c, account, GrokMediaEndpointVideosExtensions, "", body, "application/json")
+	require.NoError(t, err)
+	require.Equal(t, "https://xai.test/v1/videos/extensions", upstream.lastReq.URL.String())
+	require.JSONEq(t, `{"model":"grok-imagine-video","prompt":"continue","duration":6,"video":{"url":"https://example.test/source.mp4"}}`, string(upstream.lastBody))
+	require.Equal(t, "video-extend-123", result.ResponseID)
+	require.Equal(t, "grok-imagine-video", result.BillingModel)
+	require.Equal(t, 1, result.VideoCount)
+	require.Equal(t, 6, result.VideoDurationSeconds)
+}
+
+func TestForwardGrokMediaVideoEditUsesEditsEndpoint(t *testing.T) {
+	t.Setenv(xai.EnvAllowUnsafeURLOverrides, "true")
+	gin.SetMode(gin.TestMode)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	body := []byte(`{"model":"grok-imagine-video","prompt":"add a necklace","video":{"url":"https://example.test/source.mp4"}}`)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos/edits", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	account := &Account{
+		ID: 65, Name: "grok", Platform: PlatformGrok, Type: AccountTypeAPIKey, Concurrency: 1,
+		Credentials: map[string]any{"api_key": "api-key", "base_url": "https://xai.test/v1"},
+	}
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(`{"request_id":"video-edit-123"}`)),
+	}}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+
+	result, err := svc.ForwardGrokMedia(context.Background(), c, account, GrokMediaEndpointVideosEdits, "", body, "application/json")
+	require.NoError(t, err)
+	require.Equal(t, "https://xai.test/v1/videos/edits", upstream.lastReq.URL.String())
+	require.JSONEq(t, string(body), string(upstream.lastBody))
+	require.Equal(t, "video-edit-123", result.ResponseID)
+	require.Equal(t, 1, result.VideoCount)
 }
 
 func TestForwardGrokMediaVideoStatusUsesGETWithoutBody(t *testing.T) {

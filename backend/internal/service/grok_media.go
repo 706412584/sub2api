@@ -26,6 +26,8 @@ const (
 	GrokMediaEndpointImagesGenerations GrokMediaEndpoint = "images_generations"
 	GrokMediaEndpointImagesEdits       GrokMediaEndpoint = "images_edits"
 	GrokMediaEndpointVideosGenerations GrokMediaEndpoint = "videos_generations"
+	GrokMediaEndpointVideosExtensions  GrokMediaEndpoint = "videos_extensions"
+	GrokMediaEndpointVideosEdits       GrokMediaEndpoint = "videos_edits"
 	GrokMediaEndpointVideoStatus       GrokMediaEndpoint = "video_status"
 )
 
@@ -35,7 +37,7 @@ func (e GrokMediaEndpoint) RequiresRequestBody() bool {
 
 func (e GrokMediaEndpoint) IsGenerationRequest() bool {
 	switch e {
-	case GrokMediaEndpointImagesGenerations, GrokMediaEndpointImagesEdits, GrokMediaEndpointVideosGenerations:
+	case GrokMediaEndpointImagesGenerations, GrokMediaEndpointImagesEdits, GrokMediaEndpointVideosGenerations, GrokMediaEndpointVideosExtensions, GrokMediaEndpointVideosEdits:
 		return true
 	default:
 		return false
@@ -274,6 +276,10 @@ func (e GrokMediaEndpoint) upstreamURL(baseURL, requestID string) (string, error
 		return xai.BuildImagesEditsURL(baseURL)
 	case GrokMediaEndpointVideosGenerations:
 		return xai.BuildVideosGenerationsURL(baseURL)
+	case GrokMediaEndpointVideosExtensions:
+		return xai.BuildVideosExtensionsURL(baseURL)
+	case GrokMediaEndpointVideosEdits:
+		return xai.BuildVideosEditsURL(baseURL)
 	case GrokMediaEndpointVideoStatus:
 		return xai.BuildVideoURL(baseURL, requestID)
 	default:
@@ -532,7 +538,7 @@ func grokMediaUsageFromResponse(endpoint GrokMediaEndpoint, requestInfo GrokMedi
 		meta.ImageSize = requestInfo.SizeTier
 		meta.ImageInputSize = requestInfo.Size
 		meta.ImageOutputSizes = collectOpenAIResponseImageOutputSizesFromJSONBytes(responseBody)
-	case GrokMediaEndpointVideosGenerations:
+	case GrokMediaEndpointVideosGenerations, GrokMediaEndpointVideosExtensions, GrokMediaEndpointVideosEdits:
 		meta.ResponseID = extractGrokMediaVideoRequestID(responseBody)
 		meta.VideoCount = 1
 		meta.VideoResolution = requestInfo.Resolution
