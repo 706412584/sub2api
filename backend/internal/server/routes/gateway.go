@@ -71,6 +71,32 @@ func RegisterGatewayRoutes(
 			},
 		})
 	}
+	videoExtensionHandler := func(c *gin.Context) {
+		if getGroupPlatform(c) == service.PlatformGrok {
+			h.OpenAIGateway.GrokVideoExtension(c)
+			return
+		}
+		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": gin.H{
+				"type":    "not_found_error",
+				"message": "Videos API is not supported for this platform",
+			},
+		})
+	}
+	videoEditHandler := func(c *gin.Context) {
+		if getGroupPlatform(c) == service.PlatformGrok {
+			h.OpenAIGateway.GrokVideoEdit(c)
+			return
+		}
+		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": gin.H{
+				"type":    "not_found_error",
+				"message": "Videos API is not supported for this platform",
+			},
+		})
+	}
 	videoStatusHandler := func(c *gin.Context) {
 		if getGroupPlatform(c) == service.PlatformGrok {
 			h.OpenAIGateway.GrokVideoStatus(c)
@@ -184,6 +210,8 @@ func RegisterGatewayRoutes(
 		gateway.DELETE("/images/batches/:id", h.BatchImage.DeleteRecord)
 		gateway.DELETE("/images/batches/:id/outputs", h.BatchImage.DeleteOutputs)
 		gateway.POST("/videos/generations", videoGenerationHandler)
+		gateway.POST("/videos/extensions", videoExtensionHandler)
+		gateway.POST("/videos/edits", videoEditHandler)
 		gateway.GET("/videos/:request_id", videoStatusHandler)
 	}
 
@@ -249,6 +277,8 @@ func RegisterGatewayRoutes(
 	r.POST("/images/generations", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, imagesHandler)
 	r.POST("/images/edits", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, imagesHandler)
 	r.POST("/videos/generations", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, videoGenerationHandler)
+	r.POST("/videos/extensions", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, videoExtensionHandler)
+	r.POST("/videos/edits", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, videoEditHandler)
 	r.GET("/videos/:request_id", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, videoStatusHandler)
 
 	// Antigravity 模型列表
