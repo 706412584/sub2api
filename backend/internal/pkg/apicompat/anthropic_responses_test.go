@@ -690,6 +690,67 @@ func TestStreamingToolCallStopReasonSurvivesLaterText(t *testing.T) {
 	assert.Equal(t, "message_stop", events[2].Type)
 }
 
+func TestStreamingInterleavedTextDoneDoesNotCloseToolBlock(t *testing.T) {
+	state := NewResponsesEventToAnthropicState()
+
+	ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:     "response.created",
+		Response: &ResponsesResponse{ID: "resp_interleaved", Model: "grok-4.5"},
+	}, state)
+
+	events := ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:        "response.output_text.delta",
+		OutputIndex: 1,
+		Delta:       "I will use tools.",
+	}, state)
+	require.Len(t, events, 2)
+	textIndex := *events[0].Index
+
+	events = ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:        "response.output_item.added",
+		OutputIndex: 2,
+		Item:        &ResponsesOutput{Type: "function_call", CallID: "call_1", Name: "Read"},
+	}, state)
+	require.Len(t, events, 2)
+	tool1Index := *events[1].Index
+
+	events = ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:        "response.function_call_arguments.done",
+		OutputIndex: 2,
+		Arguments:   `{"file_path":"/tmp/a"}`,
+	}, state)
+	require.Len(t, events, 2)
+
+	events = ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:        "response.output_item.added",
+		OutputIndex: 3,
+		Item:        &ResponsesOutput{Type: "function_call", CallID: "call_2", Name: "Bash"},
+	}, state)
+	require.Len(t, events, 1)
+	tool2Index := *events[0].Index
+
+	events = ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:        "response.output_text.done",
+		OutputIndex: 1,
+	}, state)
+	assert.Empty(t, events, "late text done must not close the currently open tool block")
+	assert.True(t, state.ContentBlockOpen)
+	assert.Equal(t, "tool_use", state.CurrentBlockType)
+
+	events = ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:        "response.function_call_arguments.done",
+		OutputIndex: 3,
+		Arguments:   `{"command":"pwd"}`,
+	}, state)
+	require.Len(t, events, 2)
+	assert.Equal(t, "content_block_delta", events[0].Type)
+	assert.Equal(t, tool2Index, *events[0].Index)
+	assert.Equal(t, "content_block_stop", events[1].Type)
+	assert.Equal(t, tool2Index, *events[1].Index)
+	assert.NotEqual(t, textIndex, tool1Index)
+	assert.NotEqual(t, tool1Index, tool2Index)
+}
+
 func TestStreamingToolCallDoneWithoutDeltaEmitsArguments(t *testing.T) {
 	state := NewResponsesEventToAnthropicState()
 
