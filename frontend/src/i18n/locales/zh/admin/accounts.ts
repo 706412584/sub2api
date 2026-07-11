@@ -413,6 +413,7 @@ export default {
         clear: '清除选择',
         edit: '批量编辑账号',
         delete: '批量删除',
+        batchTest: '批量测活',
         enableScheduling: '批量启用调度',
         disableScheduling: '批量停止调度',
         resetStatus: '批量重置状态',
@@ -420,6 +421,21 @@ export default {
         resetStatusSuccess: '已成功重置 {count} 个账号状态',
         refreshTokenSuccess: '已成功刷新 {count} 个账号令牌',
         partialSuccess: '操作部分完成：{success} 成功，{failed} 失败'
+      },
+      batchTest: {
+        title: '批量账号测活',
+        selectedCount: '已选择 {count} 个账号',
+        moreSelected: '另有 {count} 个',
+        start: '开始测活',
+        testing: '测活中...',
+        summary: '正常：{success} / 异常：{failed}',
+        accountName: '账号名',
+        status: '状态',
+        latency: '耗时',
+        error: '错误',
+        normal: '正常',
+        abnormal: '异常',
+        loadModelsFailed: '加载可用模型失败'
       },
       bulkEdit: {
         title: '批量编辑账号',

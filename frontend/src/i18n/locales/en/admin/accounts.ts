@@ -309,6 +309,7 @@ export default {
         clear: 'Clear selection',
         edit: 'Bulk Edit',
         delete: 'Bulk Delete',
+        batchTest: 'Batch Health Check',
         enableScheduling: 'Enable Scheduling',
         disableScheduling: 'Disable Scheduling',
         resetStatus: 'Reset Status',
@@ -316,6 +317,21 @@ export default {
         resetStatusSuccess: 'Successfully reset {count} account(s) status',
         refreshTokenSuccess: 'Successfully refreshed {count} account(s) token',
         partialSuccess: 'Partially completed: {success} succeeded, {failed} failed'
+      },
+      batchTest: {
+        title: 'Batch Health Check',
+        selectedCount: '{count} account(s) selected',
+        moreSelected: '{count} more',
+        start: 'Start Test',
+        testing: 'Testing...',
+        summary: 'Healthy: {success} / Failed: {failed}',
+        accountName: 'Account',
+        status: 'Status',
+        latency: 'Latency',
+        error: 'Error',
+        normal: 'Healthy',
+        abnormal: 'Failed',
+        loadModelsFailed: 'Failed to load available models'
       },
       bulkEdit: {
         title: 'Bulk Edit Accounts',

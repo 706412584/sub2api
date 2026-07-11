@@ -32,6 +32,8 @@ func TestNormalizeInboundEndpoint(t *testing.T) {
 		{"/v1/images/generations", EndpointImagesGenerations},
 		{"/v1/images/edits", EndpointImagesEdits},
 		{"/v1/videos/generations", EndpointVideosGenerations},
+		{"/v1/videos/extensions", EndpointVideosExtensions},
+		{"/v1/videos/edits", EndpointVideosEdits},
 		{"/v1/videos/req_123", EndpointVideos},
 		{"/v1beta/models", EndpointGeminiModels},
 
@@ -128,6 +130,8 @@ func TestDeriveUpstreamEndpoint(t *testing.T) {
 		{"grok chat defaults to responses without runtime result", EndpointChatCompletions, "/v1/chat/completions", service.PlatformGrok, EndpointResponses},
 		{"grok responses", EndpointResponses, "/v1/responses", service.PlatformGrok, EndpointResponses},
 		{"grok video generations", EndpointVideosGenerations, "/v1/videos/generations", service.PlatformGrok, EndpointVideosGenerations},
+		{"grok video extensions", EndpointVideosExtensions, "/v1/videos/extensions", service.PlatformGrok, EndpointVideosExtensions},
+		{"grok video edits", EndpointVideosEdits, "/v1/videos/edits", service.PlatformGrok, EndpointVideosEdits},
 		{"grok video status", EndpointVideos, "/videos/req_123", service.PlatformGrok, EndpointVideos},
 
 		// Antigravity — uses inbound to pick Claude vs Gemini upstream.
