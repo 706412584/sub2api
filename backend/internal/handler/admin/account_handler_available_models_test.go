@@ -38,11 +38,13 @@ func setupAvailableModelsRouter(adminSvc service.AdminService) *gin.Engine {
 }
 
 type syncUpstreamHTTPUpstream struct {
-	resp *http.Response
-	err  error
+	resp    *http.Response
+	err     error
+	lastReq *http.Request
 }
 
 func (u *syncUpstreamHTTPUpstream) Do(req *http.Request, proxyURL string, accountID int64, accountConcurrency int) (*http.Response, error) {
+	u.lastReq = req
 	if u.err != nil {
 		return nil, u.err
 	}
@@ -141,6 +143,64 @@ func TestAccountHandlerGetAvailableModels_OpenAIOAuthPassthroughFallsBackToDefau
 	require.NotEqual(t, "gpt-5", resp.Data[0].ID)
 }
 
+func TestAccountHandlerGetAvailableModels_GrokOAuthFallsBackToGrokDefaults(t *testing.T) {
+	svc := &availableModelsAdminService{
+		stubAdminService: newStubAdminService(),
+		account: service.Account{
+			ID:       44,
+			Name:     "grok-oauth",
+			Platform: service.PlatformGrok,
+			Type:     service.AccountTypeOAuth,
+			Status:   service.StatusActive,
+		},
+	}
+	router := setupAvailableModelsRouter(svc)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts/44/models", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var resp struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	require.NotEmpty(t, resp.Data)
+	require.Equal(t, "grok-4", resp.Data[0].ID)
+}
+
+func TestAccountHandlerGetAvailableModels_KiroOAuthFallsBackToKiroDefaults(t *testing.T) {
+	svc := &availableModelsAdminService{
+		stubAdminService: newStubAdminService(),
+		account: service.Account{
+			ID:       45,
+			Name:     "kiro-oauth",
+			Platform: service.PlatformKiro,
+			Type:     service.AccountTypeOAuth,
+			Status:   service.StatusActive,
+		},
+	}
+	router := setupAvailableModelsRouter(svc)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts/45/models", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var resp struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	require.NotEmpty(t, resp.Data)
+	require.Equal(t, "claude-sonnet-4.6", resp.Data[0].ID)
+}
+
 func TestAccountHandlerSyncUpstreamModels_ConfigErrorReturnsBadRequest(t *testing.T) {
 	svc := &availableModelsAdminService{
 		stubAdminService: newStubAdminService(),
@@ -162,7 +222,40 @@ func TestAccountHandlerSyncUpstreamModels_ConfigErrorReturnsBadRequest(t *testin
 	router.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusBadRequest, rec.Code)
-	require.Contains(t, rec.Body.String(), "No OpenAI API key is available")
+	require.Contains(t, rec.Body.String(), "No OpenAI-compatible bearer token is available")
+}
+
+func TestAccountHandlerSyncUpstreamModels_GrokOAuthUsesXAIModelsEndpoint(t *testing.T) {
+	svc := &availableModelsAdminService{
+		stubAdminService: newStubAdminService(),
+		account: service.Account{
+			ID:       46,
+			Name:     "grok-oauth",
+			Platform: service.PlatformGrok,
+			Type:     service.AccountTypeOAuth,
+			Status:   service.StatusActive,
+			Credentials: map[string]any{
+				"access_token": "grok-token",
+				"api_base_url": "https://api.x.ai/v1",
+			},
+		},
+	}
+	upstream := &syncUpstreamHTTPUpstream{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(`{"data":[{"id":"grok-4"},{"id":"grok-3"}]}`)),
+	}}
+	router := setupSyncUpstreamModelsRouter(svc, upstream)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/46/models/sync-upstream", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NotNil(t, upstream.lastReq)
+	require.Equal(t, "https://api.x.ai/v1/models", upstream.lastReq.URL.String())
+	require.Equal(t, "Bearer grok-token", upstream.lastReq.Header.Get("Authorization"))
+	require.Contains(t, rec.Body.String(), "grok-4")
 }
 
 func TestAccountHandlerSyncUpstreamModels_UpstreamErrorDoesNotExposeBody(t *testing.T) {

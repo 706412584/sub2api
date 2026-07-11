@@ -283,7 +283,7 @@ const loadAvailableModels = async () => {
       ? sortTestModels(models)
       : models
     if (availableModels.value.length > 0) {
-      if (firstAccount.value.platform === 'gemini') {
+      if (firstAccount.value.platform === 'gemini' || firstAccount.value.platform === 'grok') {
         selectedModelId.value = availableModels.value[0].id
       } else {
         const sonnetModel = availableModels.value.find(model => model.id.includes('sonnet'))

@@ -34,10 +34,11 @@ import (
 var sseDataPrefix = regexp.MustCompile(`^data:\s*`)
 
 const (
-	testClaudeAPIURL   = "https://api.anthropic.com/v1/messages?beta=true"
-	chatgptCodexAPIURL = "https://chatgpt.com/backend-api/codex/responses"
-	kiroNativeUA       = "aws-sdk-js/1.0.36 ua/2.1 os/darwin#24.6.0 lang/js md/nodejs#22.22.0 api/codewhispererstreaming#1.0.36 m/E KiroIDE-0.12.200"
-	kiroNativeAmzUA    = "aws-sdk-js/1.0.36 KiroIDE-0.12.200"
+	testClaudeAPIURL      = "https://api.anthropic.com/v1/messages?beta=true"
+	chatgptCodexAPIURL    = "https://chatgpt.com/backend-api/codex/responses"
+	accountTestRequestTTL = 30 * time.Second
+	kiroNativeUA          = "aws-sdk-js/1.0.36 ua/2.1 os/darwin#24.6.0 lang/js md/nodejs#22.22.0 api/codewhispererstreaming#1.0.36 m/E KiroIDE-0.12.200"
+	kiroNativeAmzUA       = "aws-sdk-js/1.0.36 KiroIDE-0.12.200"
 )
 
 var refreshKiroAccountTokenForTest = RefreshKiroAccountToken
@@ -177,7 +178,9 @@ func createTestPayload(modelID string) (map[string]any, error) {
 // modelID is optional - if empty, defaults to claude.DefaultTestModel
 // mode is optional - "compact" routes OpenAI accounts to the /responses/compact probe path
 func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int64, modelID string, prompt string, mode string) error {
-	ctx := c.Request.Context()
+	ctx, cancel := context.WithTimeout(c.Request.Context(), accountTestRequestTTL)
+	defer cancel()
+	c.Request = c.Request.WithContext(ctx)
 
 	// Get account
 	account, err := s.accountRepo.GetByID(ctx, accountID)
@@ -186,7 +189,7 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 	}
 
 	// Route to platform-specific test method
-	if account.IsOpenAI() {
+	if account.IsOpenAICompatible() {
 		return s.testOpenAIAccountConnection(c, account, modelID, prompt, normalizeAccountTestMode(mode))
 	}
 
@@ -885,7 +888,19 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 	var isOAuth bool
 	var chatgptAccountID string
 
-	if account.IsOAuth() {
+	if account.Platform == PlatformGrok {
+		authToken = account.GetOpenAICompatibleBearerToken()
+		if authToken == "" {
+			return s.sendErrorAndEnd(c, "No access token available")
+		}
+
+		baseURL := account.GetOpenAICompatibleBaseURL()
+		normalizedBaseURL, err := s.validateUpstreamBaseURL(baseURL)
+		if err != nil {
+			return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid base URL: %s", err.Error()))
+		}
+		return s.testOpenAIChatCompletionsConnection(c, account, testModelID, prompt, normalizedBaseURL, authToken)
+	} else if account.IsOAuth() {
 		isOAuth = true
 		// OAuth - use Bearer token with ChatGPT internal API
 		authToken = account.GetOpenAIAccessToken()

@@ -399,6 +399,9 @@ func registerKiroOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	{
 		kiro.POST("/oauth/normalize", h.Admin.KiroOAuth.NormalizeCredentials)
 		kiro.POST("/oauth/create-account", h.Admin.KiroOAuth.CreateAccount)
+		kiro.POST("/oauth/builder-id/start", h.Admin.KiroOAuth.StartBuilderIDDeviceFlow)
+		kiro.POST("/oauth/builder-id/poll", h.Admin.KiroOAuth.PollBuilderIDDeviceFlow)
+		kiro.POST("/oauth/builder-id/create-account", h.Admin.KiroOAuth.CreateAccountFromBuilderIDDeviceFlow)
 	}
 }
 

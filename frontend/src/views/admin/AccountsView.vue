@@ -104,18 +104,6 @@
                       </span>
                       <span class="flex-1 text-left">{{ t('admin.accounts.kiroImportButton') }}</span>
                     </button>
-                    <button class="account-tools-menu-item" @click="openKiroBrowserLogin">
-                      <span class="account-tools-menu-icon bg-cyan-50 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-300">
-                        <Icon name="key" size="sm" />
-                      </span>
-                      <span class="flex-1 text-left">{{ t('admin.accounts.kiroLoginButton') }}</span>
-                    </button>
-                    <button class="account-tools-menu-item" @click="openGrokTokenCreate">
-                      <span class="account-tools-menu-icon bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200">
-                        <Icon name="key" size="sm" />
-                      </span>
-                      <span class="flex-1 text-left">{{ t('admin.accounts.grokTokenButton') }}</span>
-                    </button>
                     <button class="account-tools-menu-item" @click="openExportDataDialogFromMenu">
                       <span class="account-tools-menu-icon bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-300">
                         <Icon name="download" size="sm" />
@@ -398,7 +386,16 @@
       </template>
       <template #pagination><Pagination v-if="pagination.total > 0" :page="pagination.page" :total="pagination.total" :page-size="pagination.page_size" @update:page="handlePageChange" @update:pageSize="handlePageSizeChange" /></template>
     </TablePageLayout>
-    <CreateAccountModal :show="showCreate" :proxies="proxies" :groups="groups" @close="showCreate = false" @created="reload" />
+    <CreateAccountModal
+      :show="showCreate"
+      :proxies="proxies"
+      :groups="groups"
+      @close="showCreate = false"
+      @created="reload"
+      @open-kiro-browser-login="openKiroBrowserLoginFromCreate"
+      @open-grok-oauth-login="openGrokOAuthLoginFromCreate"
+      @open-grok-token-create="openGrokTokenCreateFromCreate"
+    />
     <EditAccountModal :show="showEdit" :account="edAcc" :proxies="proxies" :groups="groups" @close="showEdit = false" @updated="handleAccountUpdated" />
     <ReAuthAccountModal :show="showReAuth" :account="reAuthAcc" @close="closeReAuthModal" @reauthorized="handleAccountUpdated" />
     <AccountTestModal :show="showTest" :account="testingAcc" @close="closeTestModal" />
@@ -411,6 +408,7 @@
     <ImportDataModal :show="showImportData" @close="showImportData = false" @imported="handleDataImported" />
     <ImportKiroModal :show="showKiroImport" @close="showKiroImport = false" @imported="handleKiroImported" />
     <KiroBrowserLoginModal :show="showKiroBrowserLogin" @close="showKiroBrowserLogin = false" @created="handleKiroBrowserLoginCreated" />
+    <GrokOAuthLoginModal :show="showGrokOAuthLogin" @close="showGrokOAuthLogin = false" @created="handleGrokOAuthCreated" />
     <GrokTokenCreateModal :show="showGrokTokenCreate" @close="showGrokTokenCreate = false" @created="handleGrokTokenCreated" />
     <BulkEditAccountModal
       :show="showBulkEdit"
@@ -460,6 +458,7 @@ import AccountActionMenu from '@/components/admin/account/AccountActionMenu.vue'
 import ImportDataModal from '@/components/admin/account/ImportDataModal.vue'
 import ImportKiroModal from '@/components/admin/account/ImportKiroModal.vue'
 import KiroBrowserLoginModal from '@/components/admin/account/KiroBrowserLoginModal.vue'
+import GrokOAuthLoginModal from '@/components/admin/account/GrokOAuthLoginModal.vue'
 import GrokTokenCreateModal from '@/components/admin/account/GrokTokenCreateModal.vue'
 import ReAuthAccountModal from '@/components/admin/account/ReAuthAccountModal.vue'
 import AccountTestModal from '@/components/admin/account/AccountTestModal.vue'
@@ -536,6 +535,7 @@ const showSync = ref(false)
 const showImportData = ref(false)
 const showKiroImport = ref(false)
 const showKiroBrowserLogin = ref(false)
+const showGrokOAuthLogin = ref(false)
 const showGrokTokenCreate = ref(false)
 const showExportDataDialog = ref(false)
 const includeProxyOnExport = ref(true)
@@ -922,6 +922,7 @@ const isAnyModalOpen = computed(() => {
     showImportData.value ||
     showKiroImport.value ||
     showKiroBrowserLogin.value ||
+    showGrokOAuthLogin.value ||
     showGrokTokenCreate.value ||
     showExportDataDialog.value ||
     showBulkEdit.value ||
@@ -1062,13 +1063,15 @@ const openKiroImport = () => {
   showKiroImport.value = true
 }
 
-const openKiroBrowserLogin = () => {
-  closeAccountToolsDropdown()
+const openKiroBrowserLoginFromCreate = () => {
   showKiroBrowserLogin.value = true
 }
 
-const openGrokTokenCreate = () => {
-  closeAccountToolsDropdown()
+const openGrokOAuthLoginFromCreate = () => {
+  showGrokOAuthLogin.value = true
+}
+
+const openGrokTokenCreateFromCreate = () => {
   showGrokTokenCreate.value = true
 }
 
@@ -1610,6 +1613,7 @@ const handleBulkUpdated = () => {
 const handleDataImported = () => { showImportData.value = false; reload() }
 const handleKiroImported = () => { showKiroImport.value = false; reload() }
 const handleKiroBrowserLoginCreated = () => { showKiroBrowserLogin.value = false; reload() }
+const handleGrokOAuthCreated = () => { showGrokOAuthLogin.value = false; reload() }
 const handleGrokTokenCreated = () => { showGrokTokenCreate.value = false; reload() }
 const ACCOUNT_UNGROUPED_GROUP_QUERY_VALUE = 'ungrouped'
 const ACCOUNT_PRIVACY_MODE_UNSET_QUERY_VALUE = '__unset__'

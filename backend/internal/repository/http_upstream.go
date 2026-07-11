@@ -89,12 +89,13 @@ type openAIHTTP2Settings struct {
 // upstreamClientEntry 上游客户端缓存条目
 // 记录客户端实例及其元数据，用于连接池管理和淘汰策略
 type upstreamClientEntry struct {
+	lastUsed int64 // 最后使用时间戳（纳秒），用于 LRU 淘汰；必须 8 字节对齐供 32-bit atomic 使用
+	inFlight int64 // 当前进行中的请求数，>0 时不可淘汰；必须 8 字节对齐供 32-bit atomic 使用
+
 	client       *http.Client // HTTP 客户端实例
 	proxyKey     string       // 代理标识（用于检测代理变更）
 	poolKey      string       // 连接池配置标识（用于检测配置变更）
 	protocolMode string       // 协议模式（default/openai_h1/openai_h2/openai_h1_fallback）
-	lastUsed     int64        // 最后使用时间戳（纳秒），用于 LRU 淘汰
-	inFlight     int64        // 当前进行中的请求数，>0 时不可淘汰
 }
 
 type openAIHTTP2FallbackState struct {

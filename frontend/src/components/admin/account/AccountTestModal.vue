@@ -334,10 +334,10 @@ const loadAvailableModels = async () => {
       : models
     // Default selection by platform
     if (availableModels.value.length > 0) {
-      if (props.account.platform === 'gemini') {
+      if (props.account.platform === 'gemini' || props.account.platform === 'grok') {
         selectedModelId.value = availableModels.value[0].id
       } else {
-        // Try to select Sonnet as default, otherwise use first model
+        // Try to select Sonnet as default for Claude-compatible accounts, otherwise use first model
         const sonnetModel = availableModels.value.find((m) => m.id.includes('sonnet'))
         selectedModelId.value = sonnetModel?.id || availableModels.value[0].id
       }

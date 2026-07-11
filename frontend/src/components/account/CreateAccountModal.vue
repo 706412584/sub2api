@@ -6,7 +6,7 @@
     @close="handleClose"
   >
     <!-- Step Indicator for OAuth accounts -->
-    <div v-if="isOAuthFlow && form.platform !== 'grok'" class="mb-6 flex items-center justify-center">
+    <div v-if="isOAuthFlow" class="mb-6 flex items-center justify-center">
       <div class="flex items-center space-x-4">
         <div class="flex items-center">
           <div
@@ -70,7 +70,7 @@
       <!-- Platform Selection - Segmented Control Style -->
       <div>
         <label class="input-label">{{ t('admin.accounts.platform') }}</label>
-        <div class="mt-2 flex rounded-lg bg-gray-100 p-1 dark:bg-dark-700" data-tour="account-form-platform">
+        <div class="mt-2 grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1 dark:bg-dark-700 sm:grid-cols-3 lg:grid-cols-6" data-tour="account-form-platform">
           <button
             type="button"
             @click="form.platform = 'anthropic'"
@@ -149,6 +149,19 @@
           </button>
           <button
             type="button"
+            @click="form.platform = 'kiro'"
+            :class="[
+              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              form.platform === 'kiro'
+                ? 'bg-white text-cyan-600 shadow-sm dark:bg-dark-600 dark:text-cyan-300'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+            ]"
+          >
+            <PlatformIcon platform="kiro" size="sm" />
+            Kiro
+          </button>
+          <button
+            type="button"
             @click="form.platform = 'grok'"
             :class="[
               'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
@@ -167,6 +180,59 @@
         >
           {{ t('admin.accounts.grokComingSoon') }}
         </p>
+      </div>
+
+      <!-- Account Type Selection (Kiro) -->
+      <div v-if="form.platform === 'kiro'">
+        <label class="input-label">{{ t('admin.accounts.accountType') }}</label>
+        <div class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            class="flex items-center gap-3 rounded-lg border-2 border-cyan-500 bg-cyan-50 p-3 text-left transition-all dark:bg-cyan-900/20"
+            @click="handleOpenKiroBrowserLogin"
+          >
+            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cyan-500 text-white">
+              <Icon name="key" size="sm" />
+            </div>
+            <div>
+              <span class="block text-sm font-medium text-gray-900 dark:text-white">{{ t('admin.accounts.kiroLoginButton') }}</span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.kiroLoginEntryDesc') }}</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Account Type Selection (Grok) -->
+      <div v-if="form.platform === 'grok'">
+        <label class="input-label">{{ t('admin.accounts.accountType') }}</label>
+        <div class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            class="flex items-center gap-3 rounded-lg border-2 border-slate-500 bg-slate-50 p-3 text-left transition-all dark:bg-slate-900/20"
+            @click="handleOpenGrokOAuthLogin"
+          >
+            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-700 text-white">
+              <Icon name="key" size="sm" />
+            </div>
+            <div>
+              <span class="block text-sm font-medium text-gray-900 dark:text-white">{{ t('admin.accounts.grokOAuthButton') }}</span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.grokOAuthEntryDesc') }}</span>
+            </div>
+          </button>
+          <button
+            type="button"
+            class="flex items-center gap-3 rounded-lg border-2 border-gray-200 p-3 text-left transition-all hover:border-slate-400 dark:border-dark-600 dark:hover:border-slate-500"
+            @click="handleOpenGrokTokenCreate"
+          >
+            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400">
+              <Icon name="key" size="sm" />
+            </div>
+            <div>
+              <span class="block text-sm font-medium text-gray-900 dark:text-white">{{ t('admin.accounts.grokTokenButton') }}</span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.grokTokenEntryDesc') }}</span>
+            </div>
+          </button>
+        </div>
       </div>
 
       <!-- Account Type Selection (Anthropic) -->
@@ -2906,9 +2972,10 @@
           {{ t('common.cancel') }}
         </button>
         <button
+          v-if="!isExternalCreatePlatform"
           type="submit"
           form="create-account-form"
-          :disabled="submitting || form.platform === 'grok'"
+          :disabled="submitting"
           class="btn btn-primary"
           data-tour="account-form-submit"
         >
@@ -3321,6 +3388,9 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   close: []
   created: []
+  openKiroBrowserLogin: []
+  openGrokOauthLogin: []
+  openGrokTokenCreate: []
 }>()
 
 const appStore = useAppStore()
@@ -3719,7 +3789,10 @@ const form = reactive({
 })
 
 // Helper to check if current type needs OAuth flow
+const isExternalCreatePlatform = computed(() => form.platform === 'kiro' || form.platform === 'grok')
+
 const isOAuthFlow = computed(() => {
+  if (isExternalCreatePlatform.value) return false
   // Antigravity upstream 类型不需要 OAuth 流程
   if (form.platform === 'antigravity' && antigravityAccountType.value === 'upstream') {
     return false
@@ -4318,6 +4391,18 @@ const handleClose = () => {
   antigravityMixedChannelConfirmed.value = false
   clearMixedChannelDialog()
   emit('close')
+}
+
+const handleOpenKiroBrowserLogin = () => {
+  emit('openKiroBrowserLogin')
+}
+
+const handleOpenGrokOAuthLogin = () => {
+  emit('openGrokOauthLogin')
+}
+
+const handleOpenGrokTokenCreate = () => {
+  emit('openGrokTokenCreate')
 }
 
 const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknown> | undefined => {

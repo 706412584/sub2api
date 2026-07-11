@@ -22,6 +22,7 @@ const (
 	GrokOAuthDiscoveryURL  = "https://auth.x.ai/.well-known/openid-configuration"
 	GrokOAuthTokenEndpoint = "https://auth.x.ai/oauth2/token"
 	GrokOAuthAPIBaseURL    = "https://api.x.ai/v1"
+	GrokOAuthRedirectURI   = "http://127.0.0.1:56121/callback"
 	GrokOAuthClientID      = "b1a00492-073a-47ea-816f-4c329264a828"
 	GrokOAuthScope         = "openid profile email offline_access grok-cli:access api:access"
 )
@@ -111,7 +112,7 @@ func (s *GrokOAuthService) GenerateAuthURL(ctx context.Context, proxyID *int64, 
 	}
 
 	if strings.TrimSpace(redirectURI) == "" {
-		redirectURI = openai.DefaultRedirectURI
+		redirectURI = GrokOAuthRedirectURI
 	}
 
 	s.sessionStore.Set(sessionID, &openai.OAuthSession{
@@ -131,6 +132,9 @@ func (s *GrokOAuthService) GenerateAuthURL(ctx context.Context, proxyID *int64, 
 	params.Set("state", state)
 	params.Set("code_challenge", codeChallenge)
 	params.Set("code_challenge_method", "S256")
+	params.Set("nonce", state)
+	params.Set("plan", "generic")
+	params.Set("referrer", "sub2api")
 
 	return &GrokAuthURLResult{
 		AuthURL:   GrokOAuthAuthorizeURL + "?" + params.Encode(),

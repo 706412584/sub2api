@@ -13,17 +13,18 @@ import (
 )
 
 type KiroOAuthHandler struct {
-	adminService service.AdminService
+	adminService               service.AdminService
+	kiroBuilderIDDeviceService *service.KiroBuilderIDDeviceFlowService
 }
 
-func NewKiroOAuthHandler(adminService service.AdminService) *KiroOAuthHandler {
-	return &KiroOAuthHandler{adminService: adminService}
+func NewKiroOAuthHandler(adminService service.AdminService, kiroBuilderIDDeviceService *service.KiroBuilderIDDeviceFlowService) *KiroOAuthHandler {
+	return &KiroOAuthHandler{adminService: adminService, kiroBuilderIDDeviceService: kiroBuilderIDDeviceService}
 }
 
 type KiroOAuthCreateRequest struct {
 	Name                    string   `json:"name"`
 	Notes                   *string  `json:"notes"`
-	Data                    any      `json:"data" binding:"required"`
+	Data                    any      `json:"data"`
 	ProxyID                 *int64   `json:"proxy_id"`
 	Concurrency             *int     `json:"concurrency"`
 	Priority                *int     `json:"priority"`
@@ -34,6 +35,30 @@ type KiroOAuthCreateRequest struct {
 	AutoPauseOnExpired      *bool    `json:"auto_pause_on_expired"`
 	SkipDefaultGroupBind    *bool    `json:"skip_default_group_bind"`
 	ConfirmMixedChannelRisk *bool    `json:"confirm_mixed_channel_risk"`
+}
+
+type KiroOAuthCreateFromSessionRequest struct {
+	SessionID               string   `json:"session_id" binding:"required"`
+	Name                    string   `json:"name"`
+	Notes                   *string  `json:"notes"`
+	ProxyID                 *int64   `json:"proxy_id"`
+	Concurrency             *int     `json:"concurrency"`
+	Priority                *int     `json:"priority"`
+	RateMultiplier          *float64 `json:"rate_multiplier"`
+	LoadFactor              *int     `json:"load_factor"`
+	GroupIDs                []int64  `json:"group_ids"`
+	ExpiresAt               *int64   `json:"expires_at"`
+	AutoPauseOnExpired      *bool    `json:"auto_pause_on_expired"`
+	SkipDefaultGroupBind    *bool    `json:"skip_default_group_bind"`
+	ConfirmMixedChannelRisk *bool    `json:"confirm_mixed_channel_risk"`
+}
+
+type KiroBuilderIDStartRequest struct {
+	Region string `json:"region"`
+}
+
+type KiroBuilderIDPollRequest struct {
+	SessionID string `json:"session_id" binding:"required"`
 }
 
 type KiroOAuthNormalizeRequest struct {
@@ -73,12 +98,47 @@ func (h *KiroOAuthHandler) NormalizeCredentials(c *gin.Context) {
 	response.Success(c, KiroOAuthNormalizeResponse{Name: name, Credentials: credentials, Extra: extra})
 }
 
+// StartBuilderIDDeviceFlow starts AWS OIDC Builder ID device authorization flow.
+// POST /api/v1/admin/kiro/oauth/builder-id/start
+func (h *KiroOAuthHandler) StartBuilderIDDeviceFlow(c *gin.Context) {
+	var req KiroBuilderIDStartRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		req = KiroBuilderIDStartRequest{}
+	}
+	result, err := h.kiroBuilderIDDeviceService.Start(c.Request.Context(), req.Region)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
+// PollBuilderIDDeviceFlow polls Builder ID device flow once.
+// POST /api/v1/admin/kiro/oauth/builder-id/poll
+func (h *KiroOAuthHandler) PollBuilderIDDeviceFlow(c *gin.Context) {
+	var req KiroBuilderIDPollRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	result, err := h.kiroBuilderIDDeviceService.Poll(c.Request.Context(), req.SessionID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
 // CreateAccount creates one Kiro OAuth account from a browser-login/export payload.
 // POST /api/v1/admin/kiro/oauth/create-account
 func (h *KiroOAuthHandler) CreateAccount(c *gin.Context) {
 	var req KiroOAuthCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if req.Data == nil {
+		response.BadRequest(c, "data field is required")
 		return
 	}
 
@@ -97,6 +157,53 @@ func (h *KiroOAuthHandler) CreateAccount(c *gin.Context) {
 	}
 
 	account, err := h.createKiroOAuthAccount(c.Request.Context(), req, accounts[0])
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, account)
+}
+
+// CreateAccountFromBuilderIDDeviceFlow creates a Kiro OAuth account from a completed Builder ID device flow session.
+// POST /api/v1/admin/kiro/oauth/builder-id/create-account
+func (h *KiroOAuthHandler) CreateAccountFromBuilderIDDeviceFlow(c *gin.Context) {
+	var req KiroOAuthCreateFromSessionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	credentials, err := h.kiroBuilderIDDeviceService.Credentials(req.SessionID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	accountData := kiroAccountData{
+		AuthMethod:   "idc",
+		Provider:     "BuilderId",
+		Region:       credentials.Region,
+		AccessToken:  credentials.AccessToken,
+		RefreshToken: credentials.RefreshToken,
+		ClientID:     credentials.ClientID,
+		ClientSecret: credentials.ClientSecret,
+		ProfileArn:   credentials.ProfileArn,
+		ExpiresAt:    credentials.ExpiresAt,
+		Scopes:       append([]string(nil), credentials.Scopes...),
+		StartURL:     "https://view.awsapps.com/start",
+	}
+	account, err := h.createKiroOAuthAccount(c.Request.Context(), KiroOAuthCreateRequest{
+		Name:                    req.Name,
+		Notes:                   req.Notes,
+		ProxyID:                 req.ProxyID,
+		Concurrency:             req.Concurrency,
+		Priority:                req.Priority,
+		RateMultiplier:          req.RateMultiplier,
+		LoadFactor:              req.LoadFactor,
+		GroupIDs:                req.GroupIDs,
+		ExpiresAt:               req.ExpiresAt,
+		AutoPauseOnExpired:      req.AutoPauseOnExpired,
+		SkipDefaultGroupBind:    req.SkipDefaultGroupBind,
+		ConfirmMixedChannelRisk: req.ConfirmMixedChannelRisk,
+	}, accountData)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
