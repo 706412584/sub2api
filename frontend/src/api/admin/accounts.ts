@@ -753,6 +753,34 @@ export async function batchRefresh(accountIds: number[]): Promise<BatchOperation
   return data
 }
 
+export interface BatchTestAccountsRequest {
+  account_ids: number[]
+  model_id: string
+}
+
+export interface BatchTestAccountItem {
+  account_id: number
+  name: string
+  success: boolean
+  status: string
+  latency_ms: number
+  error: string
+}
+
+export interface BatchTestAccountsResponse {
+  total: number
+  success: number
+  failed: number
+  items: BatchTestAccountItem[]
+}
+
+export async function batchTestAccounts(request: BatchTestAccountsRequest): Promise<BatchTestAccountsResponse> {
+  const { data } = await apiClient.post<BatchTestAccountsResponse>('/admin/accounts/batch-test', request, {
+    timeout: 180000
+  })
+  return data
+}
+
 /**
  * Set privacy for an Antigravity OAuth account
  * @param id - Account ID
@@ -924,6 +952,7 @@ export const accountsAPI = {
   getAntigravityDefaultModelMapping,
   batchClearError,
   batchRefresh,
+  batchTestAccounts,
   setPrivacy,
   revertProxyFallback,
   queryOpenAIQuota,

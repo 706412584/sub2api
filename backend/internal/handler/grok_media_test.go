@@ -33,6 +33,18 @@ func TestShouldRecordGrokMediaUsage(t *testing.T) {
 			want:     true,
 		},
 		{
+			name:     "video extension records usage",
+			endpoint: service.GrokMediaEndpointVideosExtensions,
+			model:    "grok-imagine-video",
+			want:     true,
+		},
+		{
+			name:     "video edit records usage",
+			endpoint: service.GrokMediaEndpointVideosEdits,
+			model:    "grok-imagine-video",
+			want:     true,
+		},
+		{
 			name:     "video status skips empty model usage",
 			endpoint: service.GrokMediaEndpointVideoStatus,
 			model:    "",
