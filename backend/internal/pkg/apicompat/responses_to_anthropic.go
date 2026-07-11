@@ -177,6 +177,8 @@ type ResponsesEventToAnthropicState struct {
 	CurrentToolArgs     string
 	CurrentToolHadDelta bool
 	HasToolCall         bool
+	CurrentOutputIndex  int
+	CurrentOutputSet    bool
 
 	// OutputIndexToBlockIdx maps Responses output_index → Anthropic content block index.
 	OutputIndexToBlockIdx map[int]int
@@ -212,7 +214,7 @@ func ResponsesEventToAnthropicEvents(
 	case "response.output_text.delta":
 		return resToAnthHandleTextDelta(evt, state)
 	case "response.output_text.done":
-		return resToAnthHandleBlockDone(state)
+		return resToAnthHandleBlockDone(evt, state)
 	case "response.function_call_arguments.delta",
 		// custom/freeform 工具的输入增量与 function_call 参数增量同形。
 		"response.custom_tool_call_input.delta":
@@ -226,7 +228,7 @@ func ResponsesEventToAnthropicEvents(
 		"response.reasoning_text.delta":
 		return resToAnthHandleReasoningDelta(evt, state)
 	case "response.reasoning_summary_text.done":
-		return resToAnthHandleBlockDone(state)
+		return resToAnthHandleBlockDone(evt, state)
 	// response.done 是 Realtime/WS 与项目透传路径使用的终止别名；
 	// 普通 Responses HTTP SSE 的公开终止事件仍以 response.completed 为主。
 	case "response.completed", "response.done", "response.incomplete", "response.failed":
@@ -325,6 +327,8 @@ func resToAnthHandleOutputItemAdded(evt *ResponsesStreamEvent, state *ResponsesE
 		idx := state.ContentBlockIndex
 		state.OutputIndexToBlockIdx[evt.OutputIndex] = idx
 		state.ContentBlockOpen = true
+		state.CurrentOutputIndex = evt.OutputIndex
+		state.CurrentOutputSet = true
 		state.CurrentBlockType = "tool_use"
 		state.CurrentToolName = evt.Item.Name
 		state.CurrentToolArgs = ""
@@ -350,6 +354,8 @@ func resToAnthHandleOutputItemAdded(evt *ResponsesStreamEvent, state *ResponsesE
 		idx := state.ContentBlockIndex
 		state.OutputIndexToBlockIdx[evt.OutputIndex] = idx
 		state.ContentBlockOpen = true
+		state.CurrentOutputIndex = evt.OutputIndex
+		state.CurrentOutputSet = true
 		state.CurrentBlockType = "thinking"
 
 		events = append(events, AnthropicStreamEvent{
@@ -381,6 +387,8 @@ func resToAnthHandleTextDelta(evt *ResponsesStreamEvent, state *ResponsesEventTo
 
 		idx := state.ContentBlockIndex
 		state.ContentBlockOpen = true
+		state.CurrentOutputIndex = evt.OutputIndex
+		state.CurrentOutputSet = true
 		state.CurrentBlockType = "text"
 
 		events = append(events, AnthropicStreamEvent{
@@ -434,8 +442,8 @@ func resToAnthHandleFuncArgsDelta(evt *ResponsesStreamEvent, state *ResponsesEve
 }
 
 func resToAnthHandleFuncArgsDone(evt *ResponsesStreamEvent, state *ResponsesEventToAnthropicState) []AnthropicStreamEvent {
-	if state.CurrentBlockType != "tool_use" {
-		return resToAnthHandleBlockDone(state)
+	if state.CurrentBlockType != "tool_use" || !currentBlockMatchesOutput(evt, state) {
+		return nil
 	}
 
 	raw := evt.Arguments
@@ -486,11 +494,15 @@ func resToAnthHandleReasoningDelta(evt *ResponsesStreamEvent, state *ResponsesEv
 	}}
 }
 
-func resToAnthHandleBlockDone(state *ResponsesEventToAnthropicState) []AnthropicStreamEvent {
-	if !state.ContentBlockOpen {
+func resToAnthHandleBlockDone(evt *ResponsesStreamEvent, state *ResponsesEventToAnthropicState) []AnthropicStreamEvent {
+	if !state.ContentBlockOpen || !currentBlockMatchesOutput(evt, state) {
 		return nil
 	}
 	return closeCurrentBlock(state)
+}
+
+func currentBlockMatchesOutput(evt *ResponsesStreamEvent, state *ResponsesEventToAnthropicState) bool {
+	return evt != nil && state.CurrentOutputSet && state.CurrentOutputIndex == evt.OutputIndex
 }
 
 func resToAnthHandleOutputItemDone(evt *ResponsesStreamEvent, state *ResponsesEventToAnthropicState) []AnthropicStreamEvent {
@@ -503,7 +515,7 @@ func resToAnthHandleOutputItemDone(evt *ResponsesStreamEvent, state *ResponsesEv
 		return resToAnthHandleWebSearchDone(evt, state)
 	}
 
-	if state.ContentBlockOpen {
+	if state.ContentBlockOpen && currentBlockMatchesOutput(evt, state) {
 		return closeCurrentBlock(state)
 	}
 	return nil
@@ -622,6 +634,7 @@ func closeCurrentBlock(state *ResponsesEventToAnthropicState) []AnthropicStreamE
 	}
 	idx := state.ContentBlockIndex
 	state.ContentBlockOpen = false
+	state.CurrentOutputSet = false
 	state.ContentBlockIndex++
 	state.CurrentToolName = ""
 	state.CurrentToolArgs = ""
