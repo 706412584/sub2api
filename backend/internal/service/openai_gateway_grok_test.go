@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/model"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -753,6 +754,208 @@ func TestBindGrokMediaVideoRequestAccountUsesRequestIDStickyHash(t *testing.T) {
 	accountID, err := svc.getStickySessionAccountID(ctx, &groupID, hash)
 	require.NoError(t, err)
 	require.Equal(t, int64(63), accountID)
+}
+
+func TestForwardGrokMediaErrorReturnsSafeXAIMessage(t *testing.T) {
+	t.Setenv(xai.EnvAllowUnsafeURLOverrides, "true")
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name         string
+		status       int
+		body         string
+		wantStatus   int
+		wantType     string
+		wantMessage  string
+		forbidString string
+	}{
+		{
+			name:        "top-level xAI error string",
+			status:      http.StatusBadRequest,
+			body:        `{"code":"imagine:content-moderated","error":"Generated image rejected by content moderation.","usage":{"cost_in_usd_ticks":200000000}}`,
+			wantStatus:  http.StatusBadRequest,
+			wantType:    "invalid_request_error",
+			wantMessage: "Generated image rejected by content moderation.",
+		},
+		{
+			name:        "nested error message",
+			status:      http.StatusBadRequest,
+			body:        `{"error":{"message":"Prompt cannot be empty. Please provide a prompt."}}`,
+			wantStatus:  http.StatusBadRequest,
+			wantType:    "invalid_request_error",
+			wantMessage: "Prompt cannot be empty. Please provide a prompt.",
+		},
+		{
+			name:        "plain text validation error",
+			status:      http.StatusUnprocessableEntity,
+			body:        "Failed to deserialize the JSON body into the target type: missing field `prompt` at line 1 column 29",
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantType:    "upstream_error",
+			wantMessage: "Failed to deserialize the JSON body into the target type: missing field `prompt` at line 1 column 29",
+		},
+		{
+			name:         "reject large media payload",
+			status:       http.StatusUnprocessableEntity,
+			body:         "data:image/jpeg;base64," + strings.Repeat("A", 2048),
+			wantStatus:   http.StatusUnprocessableEntity,
+			wantType:     "upstream_error",
+			wantMessage:  "xAI upstream returned status 422",
+			forbidString: "data:image",
+		},
+		{
+			name:         "redact token query parameter",
+			status:       http.StatusBadRequest,
+			body:         `{"error":"failed to fetch https://example.test/image?access_token=secret-value"}`,
+			wantStatus:   http.StatusBadRequest,
+			wantType:     "invalid_request_error",
+			wantMessage:  "access_token=***",
+			forbidString: "secret-value",
+		},
+		{
+			name:         "redact bearer token",
+			status:       http.StatusBadRequest,
+			body:         `{"error":"Authorization: Bearer secret.token.value"}`,
+			wantStatus:   http.StatusBadRequest,
+			wantType:     "invalid_request_error",
+			wantMessage:  "Bearer ***",
+			forbidString: "secret.token.value",
+		},
+		{
+			name:         "redact JSON API key",
+			status:       http.StatusBadRequest,
+			body:         `{"error":"upstream diagnostic: api_key: secret-api-key"}`,
+			wantStatus:   http.StatusBadRequest,
+			wantType:     "invalid_request_error",
+			wantMessage:  "api_key: ***",
+			forbidString: "secret-api-key",
+		},
+		{
+			name:         "reject JSON media payload",
+			status:       http.StatusUnprocessableEntity,
+			body:         `{"error":"data:image/png;base64,` + strings.Repeat("A", 128) + `"}`,
+			wantStatus:   http.StatusUnprocessableEntity,
+			wantType:     "upstream_error",
+			wantMessage:  "xAI upstream returned status 422",
+			forbidString: "data:image",
+		},
+		{
+			name:         "reject embedded short data URI",
+			status:       http.StatusUnprocessableEntity,
+			body:         `{"error":"invalid image: data:text/plain,token"}`,
+			wantStatus:   http.StatusUnprocessableEntity,
+			wantType:     "upstream_error",
+			wantMessage:  "xAI upstream returned status 422",
+			forbidString: "data:text",
+		},
+		{
+			name:         "do not expose short plain text 400",
+			status:       http.StatusBadRequest,
+			body:         "internal upstream diagnostic",
+			wantStatus:   http.StatusBadRequest,
+			wantType:     "invalid_request_error",
+			wantMessage:  "xAI upstream returned status 400",
+			forbidString: "internal upstream diagnostic",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			requestBody := []byte(`{"model":"grok-imagine-image","prompt":"draw a cat"}`)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(requestBody))
+			c.Request.Header.Set("Content-Type", "application/json")
+
+			account := &Account{
+				ID:          65,
+				Name:        "grok",
+				Platform:    PlatformGrok,
+				Type:        AccountTypeAPIKey,
+				Concurrency: 1,
+				Credentials: map[string]any{
+					"api_key":                    "api-key",
+					"base_url":                   "https://xai.test/v1",
+					"custom_error_codes_enabled": true,
+					"custom_error_codes":         []any{float64(tt.status)},
+				},
+			}
+			upstream := &httpUpstreamRecorder{resp: &http.Response{
+				StatusCode: tt.status,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(tt.body)),
+			}}
+			svc := &OpenAIGatewayService{httpUpstream: upstream}
+
+			result, err := svc.ForwardGrokMedia(context.Background(), c, account, GrokMediaEndpointImagesGenerations, "", requestBody, "application/json")
+			require.Error(t, err)
+			require.Nil(t, result)
+			require.Equal(t, tt.wantStatus, recorder.Code)
+			require.Contains(t, recorder.Body.String(), tt.wantType)
+			require.Contains(t, recorder.Body.String(), tt.wantMessage)
+			if tt.forbidString != "" {
+				require.NotContains(t, recorder.Body.String(), tt.forbidString)
+			}
+			require.NotContains(t, recorder.Body.String(), "cost_in_usd_ticks")
+		})
+	}
+}
+
+func TestForwardGrokMediaPassthroughRuleSanitizesMessage(t *testing.T) {
+	t.Setenv(xai.EnvAllowUnsafeURLOverrides, "true")
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name         string
+		body         string
+		wantMessage  string
+		forbidString string
+	}{
+		{
+			name:         "redact bearer",
+			body:         `{"error":{"message":"Authorization: Bearer secret.token.value"}}`,
+			wantMessage:  "Bearer ***",
+			forbidString: "secret.token.value",
+		},
+		{
+			name:         "reject media payload",
+			body:         `{"error":{"message":"data:image/png;base64,` + strings.Repeat("A", 128) + `"}}`,
+			wantMessage:  "xAI upstream returned status 400",
+			forbidString: "data:image",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			requestBody := []byte(`{"model":"grok-imagine-image","prompt":"draw a cat"}`)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(requestBody))
+
+			ruleSvc := &ErrorPassthroughService{}
+			ruleSvc.setLocalCache([]*model.ErrorPassthroughRule{{
+				ID:              1,
+				Name:            "grok-media-400",
+				Enabled:         true,
+				Priority:        1,
+				ErrorCodes:      []int{http.StatusBadRequest},
+				MatchMode:       model.MatchModeAny,
+				PassthroughCode: true,
+				PassthroughBody: true,
+			}})
+			BindErrorPassthroughService(c, ruleSvc)
+
+			account := &Account{ID: 66, Name: "grok", Platform: PlatformGrok, Type: AccountTypeAPIKey, Concurrency: 1, Credentials: map[string]any{"api_key": "api-key", "base_url": "https://xai.test/v1"}}
+			upstream := &httpUpstreamRecorder{resp: &http.Response{StatusCode: http.StatusBadRequest, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(tt.body))}}
+			svc := &OpenAIGatewayService{httpUpstream: upstream}
+
+			result, err := svc.ForwardGrokMedia(context.Background(), c, account, GrokMediaEndpointImagesGenerations, "", requestBody, "application/json")
+			require.Error(t, err)
+			require.Nil(t, result)
+			require.Equal(t, http.StatusBadRequest, recorder.Code)
+			require.Contains(t, recorder.Body.String(), tt.wantMessage)
+			require.NotContains(t, recorder.Body.String(), tt.forbidString)
+		})
+	}
 }
 
 func TestForwardGrokMedia429ReconcilesRateLimitBeforeCustomErrorBypass(t *testing.T) {
