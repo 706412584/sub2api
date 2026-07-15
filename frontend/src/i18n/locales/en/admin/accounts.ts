@@ -124,6 +124,7 @@ export default {
       kiroLoginEntryDesc: 'Use Builder ID browser login, with JSON import as fallback.',
       kiroLoginDesc: 'Start the AWS Builder ID device authorization flow, finish authorization in a real browser, then create the Kiro OAuth account here. JSON import remains available as an advanced fallback.',
       kiroLoginNamePlaceholder: 'Leave blank to use profile ARN or derived Kiro account name',
+      kiroLoginRegion: 'Region',
       kiroLoginBrowserSectionTitle: 'Builder ID browser authorization',
       kiroLoginBrowserSectionDesc: 'Start login, open the AWS authorization page, complete login in the browser, then return here and wait for authorization to finish.',
       kiroLoginStartButton: 'Start Kiro Login',

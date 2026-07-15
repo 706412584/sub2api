@@ -12,7 +12,7 @@
       </div>
 
       <div>
-        <label class="input-label">{{ t('admin.accounts.name') }}</label>
+        <label class="input-label">{{ t('common.name') }}</label>
         <input
           v-model="name"
           type="text"
@@ -23,7 +23,7 @@
       </div>
 
       <div>
-        <label class="input-label">{{ t('common.region') }}</label>
+        <label class="input-label">{{ t('admin.accounts.kiroLoginRegion') }}</label>
         <input
           v-model="region"
           type="text"
@@ -113,8 +113,8 @@
           <div v-if="preview" class="rounded-xl border border-gray-200 p-3 text-sm dark:border-dark-700">
             <div class="font-medium text-gray-900 dark:text-white">{{ t('admin.accounts.kiroLoginPreview') }}</div>
             <div class="mt-2 space-y-1 text-gray-700 dark:text-dark-300">
-              <div>{{ t('admin.accounts.name') }}: {{ preview.name }}</div>
-              <div>{{ t('admin.accounts.type') }}: kiro / oauth</div>
+              <div>{{ t('common.name') }}: {{ preview.name }}</div>
+              <div>{{ t('admin.accounts.accountType') }}: kiro / oauth</div>
             </div>
           </div>
 
