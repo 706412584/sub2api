@@ -561,13 +561,12 @@ func (s *OpenAIGatewayService) handleGrokMediaErrorResponse(
 		upstreamMsg = fmt.Sprintf("xAI upstream returned status %d", resp.StatusCode)
 	}
 
+	// Grok media errors may echo credentials or media payloads inside otherwise
+	// harmless-looking JSON strings. Keep Ops detail limited to the same sanitized
+	// client-safe message instead of persisting the raw upstream body.
 	upstreamDetail := ""
 	if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
-		maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
-		if maxBytes <= 0 {
-			maxBytes = 2048
-		}
-		upstreamDetail = truncateString(string(body), maxBytes)
+		upstreamDetail = upstreamMsg
 	}
 	setOpsUpstreamError(c, resp.StatusCode, upstreamMsg, upstreamDetail)
 
@@ -580,9 +579,9 @@ func (s *OpenAIGatewayService) handleGrokMediaErrorResponse(
 		"upstream_error",
 		"Upstream request failed",
 	); matched {
-		safeErrMsg := sanitizeGrokMediaClientErrorMessage(errMsg)
+		safeErrMsg := SanitizeGrokMediaClientErrorMessage(errMsg)
 		if safeErrMsg == "" {
-			safeErrMsg = upstreamMsg
+			safeErrMsg = "Upstream request failed"
 		}
 		MarkResponseCommitted(c)
 		writeGrokMediaErrorResponse(c, status, errType, safeErrMsg)
@@ -624,6 +623,8 @@ func (s *OpenAIGatewayService) handleGrokMediaErrorResponse(
 			StatusCode:             resp.StatusCode,
 			ResponseBody:           body,
 			ResponseHeaders:        resp.Header.Clone(),
+			Platform:               PlatformGrok,
+			ClientMessage:          upstreamMsg,
 			RetryableOnSameAccount: account.IsPoolMode() && account.IsPoolModeRetryableStatus(resp.StatusCode),
 		}
 	}
@@ -637,8 +638,11 @@ const grokMediaClientErrorMessageMaxBytes = 1024
 
 var (
 	grokMediaBearerSecretRegex = regexp.MustCompile(`(?i)(\b(?:authorization\s*:\s*)?bearer\s+)[A-Za-z0-9._~+/=-]+`)
-	grokMediaNamedSecretRegex  = regexp.MustCompile(`(?i)((?:"?(?:api[_-]?key|x-api-key|client_secret|access_token|refresh_token)"?)\s*[:=]\s*"?)[^\s,"}]+`)
+	grokMediaNamedSecretRegex  = regexp.MustCompile(`(?i)((?:"?(?:api(?:[_-]|\s+)?key|x-api-key|client(?:[_-]|\s+)?secret|access(?:[_-]|\s+)?token|refresh(?:[_-]|\s+)?token|auth(?:[_-]|\s+)?token|id(?:[_-]|\s+)?token|session(?:[_-]|\s+)?token|token)"?)\s*[:=]\s*"?)[^\s,"}]+`)
+	grokMediaSpacedSecretRegex = regexp.MustCompile(`(?i)(\b(?:api(?:[_-]|\s+)?key|x-api-key|client(?:[_-]|\s+)?secret|access(?:[_-]|\s+)?token|refresh(?:[_-]|\s+)?token|auth(?:[_-]|\s+)?token|id(?:[_-]|\s+)?token|session(?:[_-]|\s+)?token|token)\s+)[A-Za-z0-9._~+/=-]{8,}`)
 	grokMediaBase64BlobRegex   = regexp.MustCompile(`(?i)(?:data:[^,;\s]+(?:;base64)?,|base64\s*[:=]\s*)[A-Za-z0-9+/=_-]{32,}`)
+	grokMediaOpaqueBlobRegex   = regexp.MustCompile(`(?:^|[\s"'=,:])(?:[A-Za-z0-9+/_-]{64,}={0,2})(?:$|[\s"',}])`)
+	grokMediaJWTRegex          = regexp.MustCompile(`\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}(?:\.[A-Za-z0-9_-]{8,})?\b`)
 )
 
 func extractGrokMediaUpstreamErrorMessage(statusCode int, body []byte) string {
@@ -652,21 +656,35 @@ func extractGrokMediaUpstreamErrorMessage(statusCode int, body []byte) string {
 	if message == "" && statusCode == http.StatusUnprocessableEntity && len(body) > 0 && len(body) <= grokMediaClientErrorMessageMaxBytes && !gjson.ValidBytes(body) {
 		message = strings.TrimSpace(string(body))
 	}
-	return sanitizeGrokMediaClientErrorMessage(message)
+	return SanitizeGrokMediaClientErrorMessage(message)
 }
 
-func sanitizeGrokMediaClientErrorMessage(message string) string {
+func safeGrokUpstreamErrorMessage(statusCode int, body []byte, message, fallback string) string {
+	if safeMessage := extractGrokMediaUpstreamErrorMessage(statusCode, body); safeMessage != "" {
+		return safeMessage
+	}
+	if safeMessage := SanitizeGrokMediaClientErrorMessage(message); safeMessage != "" {
+		return safeMessage
+	}
+	if safeMessage := SanitizeGrokMediaClientErrorMessage(fallback); safeMessage != "" {
+		return safeMessage
+	}
+	return "Upstream request failed"
+}
+
+func SanitizeGrokMediaClientErrorMessage(message string) string {
 	message = strings.TrimSpace(message)
 	if message == "" || len(message) > grokMediaClientErrorMessageMaxBytes || !utf8.ValidString(message) || strings.ContainsRune(message, '\x00') {
 		return ""
 	}
 	lower := strings.ToLower(message)
-	if strings.Contains(lower, "data:") || grokMediaBase64BlobRegex.MatchString(message) {
+	if strings.Contains(lower, "data:") || grokMediaBase64BlobRegex.MatchString(message) || grokMediaOpaqueBlobRegex.MatchString(message) || grokMediaJWTRegex.MatchString(message) {
 		return ""
 	}
 	message = sanitizeUpstreamErrorMessage(message)
 	message = grokMediaBearerSecretRegex.ReplaceAllString(message, `${1}***`)
 	message = grokMediaNamedSecretRegex.ReplaceAllString(message, `${1}***`)
+	message = grokMediaSpacedSecretRegex.ReplaceAllString(message, `${1}***`)
 	return message
 }
 

@@ -417,11 +417,17 @@ func resToAnthHandleTextDelta(evt *ResponsesStreamEvent, state *ResponsesEventTo
 }
 
 func resToAnthHandleFuncArgsDelta(evt *ResponsesStreamEvent, state *ResponsesEventToAnthropicState) []AnthropicStreamEvent {
-	if evt.Delta == "" {
+	if evt.Delta == "" || state.CurrentBlockType != "tool_use" {
+		return nil
+	}
+	// Production streams set CurrentOutputSet when opening a block. Preserve the
+	// helper's legacy mapped-index contract for isolated callers that construct
+	// state directly without an active output owner.
+	if state.CurrentOutputSet && !currentBlockMatchesOutput(evt, state) {
 		return nil
 	}
 
-	if state.CurrentBlockType == "tool_use" && state.CurrentToolName == "Read" {
+	if state.CurrentToolName == "Read" {
 		state.CurrentToolArgs += evt.Delta
 		if state.CurrentToolHadDelta || !json.Valid([]byte(state.CurrentToolArgs)) {
 			return nil
@@ -443,14 +449,11 @@ func resToAnthHandleFuncArgsDelta(evt *ResponsesStreamEvent, state *ResponsesEve
 		}}
 	}
 
-	if state.CurrentBlockType == "tool_use" {
-		state.CurrentToolHadDelta = true
-	}
-
 	blockIdx, ok := state.OutputIndexToBlockIdx[evt.OutputIndex]
 	if !ok {
 		return nil
 	}
+	state.CurrentToolHadDelta = true
 
 	return []AnthropicStreamEvent{{
 		Type:  "content_block_delta",

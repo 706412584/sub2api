@@ -2164,13 +2164,17 @@ func (s *RateLimitService) triggerTempUnschedulable(ctx context.Context, account
 	now := time.Now()
 	until := now.Add(time.Duration(rule.DurationMinutes) * time.Minute)
 
+	errorMessage := truncateTempUnschedMessage(responseBody, tempUnschedMessageMaxBytes)
+	if account.Platform == PlatformGrok {
+		errorMessage = safeGrokUpstreamErrorMessage(statusCode, responseBody, "", "Upstream request failed")
+	}
 	state := &TempUnschedState{
 		UntilUnix:       until.Unix(),
 		TriggeredAtUnix: now.Unix(),
 		StatusCode:      statusCode,
 		MatchedKeyword:  matchedKeyword,
 		RuleIndex:       ruleIndex,
-		ErrorMessage:    truncateTempUnschedMessage(responseBody, tempUnschedMessageMaxBytes),
+		ErrorMessage:    errorMessage,
 	}
 
 	reason := ""

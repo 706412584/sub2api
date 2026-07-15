@@ -331,7 +331,9 @@ export default {
         error: 'Error',
         normal: 'Healthy',
         abnormal: 'Failed',
-        loadModelsFailed: 'Failed to load available models'
+        defaultModel: 'Default model for each account',
+        defaultModelHint: 'Keep the default for cross-platform or cross-page selections so each account uses its own test model.',
+        loadModelsFailed: 'Failed to load available models; the default model for each account is still available'
       },
       bulkEdit: {
         title: 'Bulk Edit Accounts',

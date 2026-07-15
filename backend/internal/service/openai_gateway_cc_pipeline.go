@@ -94,8 +94,14 @@ func (s *OpenAIGatewayService) failoverOpenAIUpstreamHTTPError(
 	if !s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMsg, respBody) {
 		return nil
 	}
+	platform := ""
+	clientMessage := ""
 	upstreamDetail := ""
-	if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
+	if account.Platform == PlatformGrok {
+		platform = PlatformGrok
+		clientMessage = safeGrokUpstreamErrorMessage(resp.StatusCode, respBody, upstreamMsg, fmt.Sprintf("xAI upstream returned status %d", resp.StatusCode))
+		upstreamMsg = clientMessage
+	} else if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
 		maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
 		if maxBytes <= 0 {
 			maxBytes = 2048
@@ -119,6 +125,8 @@ func (s *OpenAIGatewayService) failoverOpenAIUpstreamHTTPError(
 		StatusCode:             resp.StatusCode,
 		ResponseBody:           respBody,
 		ResponseHeaders:        resp.Header.Clone(),
+		Platform:               platform,
+		ClientMessage:          clientMessage,
 		RetryableOnSameAccount: account.IsPoolMode() && (account.IsPoolModeRetryableStatus(resp.StatusCode) || isOpenAITransientProcessingError(resp.StatusCode, upstreamMsg, respBody)),
 	}
 }

@@ -435,7 +435,9 @@ export default {
         error: '错误',
         normal: '正常',
         abnormal: '异常',
-        loadModelsFailed: '加载可用模型失败'
+        defaultModel: '各账号默认测试模型',
+        defaultModelHint: '跨平台或跨页选择时建议保留默认，让每个账号使用自身测试模型。',
+        loadModelsFailed: '加载可用模型失败，仍可使用各账号默认测试模型'
       },
       bulkEdit: {
         title: '批量编辑账号',

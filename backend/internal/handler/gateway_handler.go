@@ -1567,6 +1567,9 @@ func (h *GatewayHandler) handleConcurrencyError(c *gin.Context, err error, slotT
 func (h *GatewayHandler) handleFailoverExhausted(c *gin.Context, failoverErr *service.UpstreamFailoverError, platform string, streamStarted bool) {
 	statusCode := failoverErr.StatusCode
 	responseBody := failoverErr.ResponseBody
+	if failoverErr.Platform != "" {
+		platform = failoverErr.Platform
+	}
 	if service.IsOpenAISilentRefusalErrorBody(responseBody) {
 		service.SetOpsUpstreamError(c, statusCode, service.OpenAISilentRefusalClientMessage(), "")
 		h.handleStreamingAwareError(c, http.StatusBadGateway, "upstream_error", service.OpenAISilentRefusalClientMessage(), streamStarted)
@@ -1582,10 +1585,20 @@ func (h *GatewayHandler) handleFailoverExhausted(c *gin.Context, failoverErr *se
 				respCode = *rule.ResponseCode
 			}
 
-			// 确定响应消息
-			msg := service.ExtractUpstreamErrorMessage(responseBody)
+			// 确定响应消息。Grok 必须显式携带已脱敏消息，禁止回退到原始响应体。
+			msg := failoverErr.ClientMessage
+			if msg == "" && platform != service.PlatformGrok {
+				msg = service.ExtractUpstreamErrorMessage(responseBody)
+			}
 			if !rule.PassthroughBody && rule.CustomMessage != nil {
 				msg = *rule.CustomMessage
+			}
+			if platform == service.PlatformGrok {
+				if safeMessage := service.SanitizeGrokMediaClientErrorMessage(msg); safeMessage != "" {
+					msg = safeMessage
+				} else {
+					msg = "Upstream request failed"
+				}
 			}
 
 			if rule.SkipMonitoring {
@@ -1597,8 +1610,15 @@ func (h *GatewayHandler) handleFailoverExhausted(c *gin.Context, failoverErr *se
 		}
 	}
 
-	// 记录原始上游状态码，以便 ops 错误日志捕获真实的上游错误
-	upstreamMsg := service.ExtractUpstreamErrorMessage(responseBody)
+	// 记录真实上游状态码；Grok 缺少安全消息时 fail closed，不读取原始响应体。
+	upstreamMsg := failoverErr.ClientMessage
+	if upstreamMsg == "" {
+		if platform == service.PlatformGrok {
+			upstreamMsg = "Upstream request failed"
+		} else {
+			upstreamMsg = service.ExtractUpstreamErrorMessage(responseBody)
+		}
+	}
 	service.SetOpsUpstreamError(c, statusCode, upstreamMsg, "")
 
 	// 使用默认的错误映射

@@ -107,6 +107,13 @@ func classifyOpenAITransportError(err error) openAITransportErrorClass {
 // passthrough tags the Ops error event for the OpenAI passthrough forward path.
 func (s *OpenAIGatewayService) handleOpenAIUpstreamTransportError(ctx context.Context, c *gin.Context, account *Account, err error, passthrough bool) error {
 	safeErr := sanitizeUpstreamErrorMessage(err.Error())
+	platform := ""
+	clientMessage := ""
+	if account.Platform == PlatformGrok {
+		platform = PlatformGrok
+		clientMessage = "Upstream request failed"
+		safeErr = clientMessage
+	}
 	setOpsUpstreamError(c, 0, safeErr, "")
 	appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
 		Platform:           account.Platform,
@@ -129,8 +136,10 @@ func (s *OpenAIGatewayService) handleOpenAIUpstreamTransportError(ctx context.Co
 	}
 
 	return &UpstreamFailoverError{
-		StatusCode:   http.StatusBadGateway,
-		ResponseBody: openAITransportFailoverBody,
+		StatusCode:    http.StatusBadGateway,
+		ResponseBody:  openAITransportFailoverBody,
+		Platform:      platform,
+		ClientMessage: clientMessage,
 	}
 }
 

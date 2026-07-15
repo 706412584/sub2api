@@ -1046,6 +1046,11 @@ type BatchTestAccountsResponse struct {
 	Items   []BatchTestAccountItem `json:"items"`
 }
 
+const (
+	batchTestAccountsMax     = 100
+	batchTestAccountsTimeout = 5 * time.Minute
+)
+
 type SyncFromCRSRequest struct {
 	BaseURL            string   `json:"base_url" binding:"required"`
 	Username           string   `json:"username" binding:"required"`
@@ -1086,14 +1091,37 @@ func (h *AccountHandler) Test(c *gin.Context) {
 	}
 }
 
+func normalizeBatchTestAccountIDs(requested []int64) ([]int64, error) {
+	if len(requested) == 0 {
+		return nil, errors.New("account_ids is required")
+	}
+	accountIDs := make([]int64, 0, len(requested))
+	seen := make(map[int64]struct{}, len(requested))
+	for _, accountID := range requested {
+		if accountID <= 0 {
+			return nil, errors.New("account_ids must contain positive IDs")
+		}
+		if _, exists := seen[accountID]; exists {
+			continue
+		}
+		seen[accountID] = struct{}{}
+		accountIDs = append(accountIDs, accountID)
+		if len(accountIDs) > batchTestAccountsMax {
+			return nil, fmt.Errorf("account_ids cannot exceed %d unique IDs", batchTestAccountsMax)
+		}
+	}
+	return accountIDs, nil
+}
+
 func (h *AccountHandler) BatchTestAccounts(c *gin.Context) {
 	var req BatchTestAccountsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
 	}
-	if len(req.AccountIDs) == 0 {
-		response.BadRequest(c, "account_ids is required")
+	accountIDs, err := normalizeBatchTestAccountIDs(req.AccountIDs)
+	if err != nil {
+		response.BadRequest(c, err.Error())
 		return
 	}
 	if h.accountTestService == nil {
@@ -1101,8 +1129,9 @@ func (h *AccountHandler) BatchTestAccounts(c *gin.Context) {
 		return
 	}
 
-	ctx := c.Request.Context()
-	accounts, err := h.adminService.GetAccountsByIDs(ctx, req.AccountIDs)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), batchTestAccountsTimeout)
+	defer cancel()
+	accounts, err := h.adminService.GetAccountsByIDs(ctx, accountIDs)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -1115,7 +1144,7 @@ func (h *AccountHandler) BatchTestAccounts(c *gin.Context) {
 		}
 	}
 
-	items := make([]BatchTestAccountItem, len(req.AccountIDs))
+	items := make([]BatchTestAccountItem, len(accountIDs))
 	var mu sync.Mutex
 	var successCount, failedCount int
 	markItem := func(index int, item BatchTestAccountItem) {
@@ -1131,7 +1160,7 @@ func (h *AccountHandler) BatchTestAccounts(c *gin.Context) {
 
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(5)
-	for index, accountID := range req.AccountIDs {
+	for index, accountID := range accountIDs {
 		index, accountID := index, accountID
 		account := accountByID[accountID]
 		if account == nil {
@@ -1168,7 +1197,7 @@ func (h *AccountHandler) BatchTestAccounts(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, BatchTestAccountsResponse{Total: len(req.AccountIDs), Success: successCount, Failed: failedCount, Items: items})
+	response.Success(c, BatchTestAccountsResponse{Total: len(accountIDs), Success: successCount, Failed: failedCount, Items: items})
 }
 
 // RecoverState handles unified recovery of recoverable account runtime state.

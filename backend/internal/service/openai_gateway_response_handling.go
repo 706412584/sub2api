@@ -410,7 +410,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 				// 再打 cyber 标记，否则 mark 记到的是解析前的 0，导致流式 cyber 按 0 token 计费
 				// 而漏记真实用量。对齐 WS V2 / Chat 流式路径（均先解析 usage 再 Mark）。
 				s.parseSSEUsageBytes(dataBytes, usage)
-				if hit, code, msg := detectOpenAICyberPolicy(dataBytes); hit {
+				if hit, code, msg := detectOpenAICyberPolicy(dataBytes); hit && account.Platform != PlatformGrok {
 					MarkOpsCyberPolicy(c, CyberPolicyMark{
 						Code:           code,
 						Message:        msg,
@@ -489,6 +489,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			if sanitizedData, sanitized := sanitizeOpenAIResponseFailedEventForClient(
 				dataBytes,
 				eventType,
+				account.Platform,
 				openAIStreamClientOutputStarted(c, clientOutputStarted),
 			); sanitized {
 				dataBytes = sanitizedData
@@ -1071,7 +1072,7 @@ func (s *OpenAIGatewayService) handleNonStreamingResponse(ctx context.Context, r
 	// Some OpenAI-compatible upstreams (including other sub2api instances)
 	// may return SSE even when stream=false was requested.
 	if isEventStreamResponse(resp.Header) {
-		return s.handleSSEToJSON(resp, c, body, originalModel, mappedModel)
+		return s.handleSSEToJSON(resp, c, account, body, originalModel, mappedModel)
 	}
 	// bodyLooksLikeSSE is a line-level heuristic: real SSE framing requires
 	// "data:"/"event:" field names at the very start of a physical line. A
@@ -1087,13 +1088,18 @@ func (s *OpenAIGatewayService) handleNonStreamingResponse(ctx context.Context, r
 	// positives on JSON responses that coincidentally contain "data:" or
 	// "event:" in their text content.
 	if account.Type == AccountTypeOAuth && bodyLooksLikeSSE {
-		return s.handleSSEToJSON(resp, c, body, originalModel, mappedModel)
+		return s.handleSSEToJSON(resp, c, account, body, originalModel, mappedModel)
+	}
+
+	if account.Platform == PlatformGrok && strings.TrimSpace(gjson.GetBytes(body, "status").String()) == "failed" {
+		message := safeGrokUpstreamErrorMessage(http.StatusBadGateway, body, "", "Upstream request failed")
+		return nil, s.newOpenAIStreamFailoverError(c, account, false, resp.Header.Get("x-request-id"), body, message)
 	}
 
 	usageValue, usageOK := extractOpenAIUsageFromJSONBytes(body)
 	if !usageOK {
 		if bodyLooksLikeSSE {
-			return s.handleSSEToJSON(resp, c, body, originalModel, mappedModel)
+			return s.handleSSEToJSON(resp, c, account, body, originalModel, mappedModel)
 		}
 		return nil, fmt.Errorf("parse response: invalid json response")
 	}
@@ -1150,7 +1156,7 @@ func bodyHasSSEFraming(body []byte) bool {
 	return false
 }
 
-func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Context, body []byte, originalModel, mappedModel string) (*openaiNonStreamingResult, error) {
+func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Context, account *Account, body []byte, originalModel, mappedModel string) (*openaiNonStreamingResult, error) {
 	bodyText := string(body)
 	finalResponse, ok := extractCodexFinalResponse(bodyText)
 
@@ -1188,7 +1194,7 @@ func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Conte
 			if msg == "" {
 				msg = "Upstream compact response failed"
 			}
-			return nil, s.writeOpenAINonStreamingProtocolError(resp, c, msg)
+			return nil, s.writeOpenAINonStreamingProtocolError(resp, c, account, terminalPayload, msg)
 		}
 		usage = s.parseSSEUsageFromBody(bodyText)
 		if originalModel != mappedModel {
@@ -1251,9 +1257,34 @@ func extractOpenAISSEErrorMessage(payload []byte) string {
 	return sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(payload)))
 }
 
-func sanitizeOpenAIResponseFailedEventForClient(payload []byte, eventType string, clientOutputStarted bool) ([]byte, bool) {
+func sanitizeOpenAIResponseFailedEventForClient(payload []byte, eventType, platform string, clientOutputStarted bool) ([]byte, bool) {
 	if eventType != "response.failed" || len(payload) == 0 || !gjson.ValidBytes(payload) {
 		return payload, false
+	}
+	if platform == PlatformGrok {
+		safeMessage := safeGrokUpstreamErrorMessage(http.StatusBadGateway, payload, extractOpenAISSEErrorMessage(payload), "Upstream request failed")
+		responseID := strings.TrimSpace(gjson.GetBytes(payload, "response.id").String())
+		if responseID == "" {
+			responseID = "resp_failed"
+		}
+		body, err := marshalOpenAIUpstreamJSON(gin.H{
+			"type": "response.failed",
+			"response": gin.H{
+				"id":     responseID,
+				"object": "response",
+				"model":  strings.TrimSpace(gjson.GetBytes(payload, "response.model").String()),
+				"status": "failed",
+				"output": []any{},
+				"error": gin.H{
+					"code":    "upstream_error",
+					"message": safeMessage,
+				},
+			},
+		})
+		if err != nil {
+			return payload, false
+		}
+		return body, true
 	}
 	updated := payload
 	if clientOutputStarted && isOpenAIContextWindowError(extractOpenAISSEErrorMessage(payload), payload) {
@@ -1303,10 +1334,14 @@ func sanitizeOpenAIResponseFailedEventForClient(payload []byte, eventType string
 	return updated, !bytes.Equal(updated, payload)
 }
 
-func (s *OpenAIGatewayService) writeOpenAINonStreamingProtocolError(resp *http.Response, c *gin.Context, message string) error {
-	message = sanitizeUpstreamErrorMessage(strings.TrimSpace(message))
-	if message == "" {
-		message = "Upstream returned an invalid non-streaming response"
+func (s *OpenAIGatewayService) writeOpenAINonStreamingProtocolError(resp *http.Response, c *gin.Context, account *Account, payload []byte, message string) error {
+	if account != nil && account.Platform == PlatformGrok {
+		message = safeGrokUpstreamErrorMessage(http.StatusBadGateway, payload, message, "Upstream request failed")
+	} else {
+		message = sanitizeUpstreamErrorMessage(strings.TrimSpace(message))
+		if message == "" {
+			message = "Upstream returned an invalid non-streaming response"
+		}
 	}
 	setOpsUpstreamError(c, http.StatusBadGateway, message, "")
 	// body-signal compact 心跳可能已把响应头提交为 200，此时只能以

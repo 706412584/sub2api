@@ -84,6 +84,53 @@ func TestForwardAsChatCompletions_ResponseFailed_PassthroughRule(t *testing.T) {
 	require.Contains(t, errMsg, "context window")
 }
 
+func TestNewOpenAIStreamFailoverErrorSanitizesGrokPayload(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	account := &Account{ID: 99, Name: "grok", Platform: PlatformGrok}
+	payload := []byte(`{"type":"response.failed","response":{"error":{"message":"failed session_token=secret-token-value"}}}`)
+	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig()}
+
+	failoverErr := svc.newOpenAIStreamFailoverError(c, account, false, "req-grok", payload, "failed session_token=secret-token-value")
+
+	require.Equal(t, PlatformGrok, failoverErr.Platform)
+	require.Equal(t, "failed session_token=***", failoverErr.ClientMessage)
+	require.NotContains(t, string(failoverErr.ResponseBody), "secret-token-value")
+	if detail, ok := c.Get(OpsUpstreamErrorDetailKey); ok {
+		require.NotContains(t, fmt.Sprint(detail), "secret-token-value")
+	}
+	rawEvents, ok := c.Get(OpsUpstreamErrorsKey)
+	require.True(t, ok)
+	events, ok := rawEvents.([]*OpsUpstreamErrorEvent)
+	require.True(t, ok)
+	require.Len(t, events, 1)
+	require.Equal(t, "failed session_token=***", events[0].Message)
+	require.Empty(t, events[0].Detail)
+}
+
+func TestSanitizeOpenAIResponseFailedEventForGrokRemovesSensitivePayload(t *testing.T) {
+	payload := []byte(`{"type":"response.failed","response":{"status":"failed","instructions":"private prompt","output":[{"type":"message","content":"private output"}],"error":{"message":"failed token=secret-token-value"}}}`)
+
+	sanitized, changed := sanitizeOpenAIResponseFailedEventForClient(payload, "response.failed", PlatformGrok, true)
+
+	require.True(t, changed)
+	require.Equal(t, "response.failed", gjson.GetBytes(sanitized, "type").String())
+	require.Equal(t, "failed", gjson.GetBytes(sanitized, "response.status").String())
+	require.NotEmpty(t, gjson.GetBytes(sanitized, "response.id").String())
+	require.Equal(t, "response", gjson.GetBytes(sanitized, "response.object").String())
+	require.True(t, gjson.GetBytes(sanitized, "response.output").IsArray())
+	require.Empty(t, gjson.GetBytes(sanitized, "response.output").Array())
+	require.Equal(t, "upstream_error", gjson.GetBytes(sanitized, "response.error.code").String())
+	require.False(t, gjson.GetBytes(sanitized, "response.error.type").Exists())
+	require.Equal(t, "failed token=***", gjson.GetBytes(sanitized, "response.error.message").String())
+	require.False(t, gjson.GetBytes(sanitized, "response.instructions").Exists())
+	require.NotContains(t, string(sanitized), "secret-token-value")
+	require.NotContains(t, string(sanitized), "private prompt")
+	require.NotContains(t, string(sanitized), "private output")
+}
+
 func TestForwardAsAnthropic_ResponseFailed_PassthroughRule(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
