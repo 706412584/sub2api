@@ -245,7 +245,9 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 			s.handleOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, canonicalModel)
 		}
 		upstreamMsg := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(respBody)))
-		if upstreamMsg == "" {
+		if account.Platform == PlatformGrok {
+			upstreamMsg = safeGrokUpstreamErrorMessage(resp.StatusCode, respBody, upstreamMsg, http.StatusText(resp.StatusCode))
+		} else if upstreamMsg == "" {
 			upstreamMsg = http.StatusText(resp.StatusCode)
 		}
 		_ = writeClientMessage(buildOpenAIWSHTTPBridgeErrorEvent(resp.StatusCode, upstreamMsg))
@@ -340,6 +342,20 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 			upstreamMessage = normalized
 		}
 		eventType, eventResponseID, _ := parseOpenAIWSEventEnvelope(upstreamMessage)
+		if account.Platform == PlatformGrok {
+			switch eventType {
+			case "response.failed":
+				if sanitized, changed := sanitizeOpenAIResponseFailedEventForClient(upstreamMessage, eventType, PlatformGrok, wroteDownstream); changed {
+					upstreamMessage = sanitized
+					eventType, eventResponseID, _ = parseOpenAIWSEventEnvelope(upstreamMessage)
+				}
+			case "error":
+				code, errType, message := parseOpenAIWSErrorEventFields(upstreamMessage)
+				safeMessage := safeGrokUpstreamErrorMessage(http.StatusBadGateway, upstreamMessage, message, "Upstream request failed")
+				upstreamMessage = buildOpenAIWSHTTPBridgeErrorEvent(openAIWSErrorHTTPStatusFromRaw(code, errType), safeMessage)
+				eventType, eventResponseID, _ = parseOpenAIWSEventEnvelope(upstreamMessage)
+			}
+		}
 		if responseID == "" && eventResponseID != "" {
 			responseID = eventResponseID
 		}
@@ -401,7 +417,9 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 			errCodeRaw, errTypeRaw, errMsgRaw := parseOpenAIWSErrorEventFields(upstreamMessage)
 			s.persistOpenAIWSRateLimitSignal(ctx, account, resp.Header, upstreamMessage, errCodeRaw, errTypeRaw, errMsgRaw)
 			errMessage := strings.TrimSpace(errMsgRaw)
-			if errMessage == "" {
+			if account.Platform == PlatformGrok {
+				errMessage = safeGrokUpstreamErrorMessage(http.StatusBadGateway, upstreamMessage, errMessage, "Upstream request failed")
+			} else if errMessage == "" {
 				errMessage = "upstream error event"
 			}
 			return resultWithUsage(), errors.New(errMessage)

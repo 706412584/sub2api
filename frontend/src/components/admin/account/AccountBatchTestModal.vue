@@ -3,6 +3,8 @@
     :show="visible"
     :title="t('admin.accounts.batchTest.title')"
     width="wide"
+    :close-on-escape="!testing"
+    :show-close-button="!testing"
     @close="handleClose"
   >
     <div class="space-y-4">
@@ -39,6 +41,7 @@
           label-key="display_name"
           :placeholder="loadingModels ? t('common.loading') + '...' : t('admin.accounts.selectTestModel')"
         />
+        <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.batchTest.defaultModelHint') }}</p>
         <p v-if="modelLoadError" class="text-xs text-red-500">{{ modelLoadError }}</p>
       </div>
 
@@ -83,7 +86,7 @@
         </button>
         <button
           class="btn btn-primary"
-          :disabled="testing || loadingModels || !selectedModelId || accountIds.length === 0"
+          :disabled="testing || loadingModels || accountIds.length === 0"
           @click="startTest"
         >
           {{ testing ? t('admin.accounts.batchTest.testing') : t('admin.accounts.batchTest.start') }}
@@ -94,7 +97,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
@@ -115,13 +118,24 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const availableModels = ref<ClaudeModel[]>([])
+const defaultModelOption: ClaudeModel = {
+  id: '',
+  type: 'model',
+  display_name: t('admin.accounts.batchTest.defaultModel'),
+  created_at: ''
+}
+const availableModels = ref<ClaudeModel[]>([defaultModelOption])
 const selectedModelId = ref('')
 const loadingModels = ref(false)
 const modelLoadError = ref('')
 const testing = ref(false)
 const result = ref<BatchTestAccountsResponse | null>(null)
+let testAbortController: AbortController | null = null
 const firstAccount = computed(() => props.accounts[0] ?? null)
+const canUseSharedModelOptions = computed(() => {
+  if (props.accounts.length !== props.accountIds.length || props.accounts.length === 0) return false
+  return new Set(props.accounts.map(account => account.platform)).size === 1
+})
 const prioritizedGeminiModels = ['gemini-3.1-flash-image', 'gemini-2.5-flash-image', 'gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3-flash-preview', 'gemini-3-pro-preview', 'gemini-2.0-flash']
 
 const sortTestModels = (models: ClaudeModel[]) => {
@@ -130,20 +144,20 @@ const sortTestModels = (models: ClaudeModel[]) => {
 }
 
 const loadAvailableModels = async () => {
-  if (!firstAccount.value) return
-  loadingModels.value = true
-  modelLoadError.value = ''
+  availableModels.value = [defaultModelOption]
   selectedModelId.value = ''
+  modelLoadError.value = ''
+  if (!firstAccount.value || !canUseSharedModelOptions.value) return
+
+  loadingModels.value = true
   try {
     const models = await adminAPI.accounts.getAvailableModels(firstAccount.value.id)
-    availableModels.value = firstAccount.value.platform === 'gemini' || firstAccount.value.platform === 'antigravity'
+    const sortedModels = firstAccount.value.platform === 'gemini' || firstAccount.value.platform === 'antigravity'
       ? sortTestModels(models)
       : models
-    const sonnetModel = availableModels.value.find(model => model.id.includes('sonnet'))
-    selectedModelId.value = sonnetModel?.id || availableModels.value[0]?.id || ''
+    availableModels.value = [defaultModelOption, ...sortedModels]
   } catch (error) {
     console.error('Failed to load available models:', error)
-    availableModels.value = []
     modelLoadError.value = t('admin.accounts.batchTest.loadModelsFailed')
   } finally {
     loadingModels.value = false
@@ -156,26 +170,28 @@ watch(
     if (visible) {
       result.value = null
       await loadAvailableModels()
-    } else {
-      testing.value = false
     }
   }
 )
 
 const startTest = async () => {
-  if (!selectedModelId.value || props.accountIds.length === 0) return
+  if (testing.value || props.accountIds.length === 0) return
   testing.value = true
   modelLoadError.value = ''
+  testAbortController = new AbortController()
   try {
     result.value = await adminAPI.accounts.batchTestAccounts({
       account_ids: props.accountIds,
       model_id: selectedModelId.value
-    })
+    }, testAbortController.signal)
     emit('completed')
   } catch (error) {
-    console.error('Failed to batch test accounts:', error)
-    modelLoadError.value = error instanceof Error ? error.message : String(error)
+    if (!testAbortController.signal.aborted) {
+      console.error('Failed to batch test accounts:', error)
+      modelLoadError.value = error instanceof Error ? error.message : String(error)
+    }
   } finally {
+    testAbortController = null
     testing.value = false
   }
 }
@@ -183,7 +199,10 @@ const startTest = async () => {
 const formatLatency = (latency: number) => latency > 0 ? `${latency} ms` : '-'
 
 const handleClose = () => {
+  if (testing.value) return
   emit('update:visible', false)
   emit('close')
 }
+
+onUnmounted(() => testAbortController?.abort())
 </script>

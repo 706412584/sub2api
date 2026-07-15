@@ -845,7 +845,7 @@ func applyOpenAIStreamFailedErrorPassthroughRule(
 ) (status int, errType string, errMsg string, matched bool) {
 	ruleBody := openAIStreamFailedEventPassthroughBody(payload, failedMessage)
 	upstreamStatus := openAIStreamFailedEventSemanticStatus(payload, failedMessage)
-	return applyErrorPassthroughRule(
+	status, errType, errMsg, matched = applyErrorPassthroughRule(
 		c,
 		platform,
 		upstreamStatus,
@@ -854,6 +854,10 @@ func applyOpenAIStreamFailedErrorPassthroughRule(
 		"upstream_error",
 		"Upstream request failed",
 	)
+	if matched && platform == PlatformGrok {
+		errMsg = safeGrokUpstreamErrorMessage(upstreamStatus, nil, errMsg, "Upstream request failed")
+	}
+	return status, errType, errMsg, matched
 }
 
 func openAIStreamFailedEventShouldFailover(payload []byte, message string) bool {
@@ -901,12 +905,17 @@ func (s *OpenAIGatewayService) recordOpenAIStreamUpstreamError(
 	payload []byte,
 	message string,
 ) string {
-	message = sanitizeUpstreamErrorMessage(strings.TrimSpace(message))
-	if message == "" {
-		message = "OpenAI upstream response failed"
+	isGrok := account != nil && account.Platform == PlatformGrok
+	if isGrok {
+		message = safeGrokUpstreamErrorMessage(http.StatusBadGateway, payload, message, "xAI upstream response failed")
+	} else {
+		message = sanitizeUpstreamErrorMessage(strings.TrimSpace(message))
+		if message == "" {
+			message = "OpenAI upstream response failed"
+		}
 	}
 	detail := ""
-	if len(payload) > 0 && s != nil && s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
+	if !isGrok && len(payload) > 0 && s != nil && s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
 		maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
 		if maxBytes <= 0 {
 			maxBytes = 2048
@@ -942,9 +951,17 @@ func (s *OpenAIGatewayService) newOpenAIStreamFailoverError(
 	payload []byte,
 	message string,
 ) *UpstreamFailoverError {
-	message = sanitizeUpstreamErrorMessage(strings.TrimSpace(message))
-	if message == "" {
-		message = "OpenAI stream disconnected before completion"
+	platform := ""
+	clientMessage := ""
+	if account != nil && account.Platform == PlatformGrok {
+		platform = PlatformGrok
+		clientMessage = safeGrokUpstreamErrorMessage(http.StatusBadGateway, payload, message, "xAI stream disconnected before completion")
+		message = clientMessage
+	} else {
+		message = sanitizeUpstreamErrorMessage(strings.TrimSpace(message))
+		if message == "" {
+			message = "OpenAI stream disconnected before completion"
+		}
 	}
 	message = s.recordOpenAIStreamUpstreamError(c, account, passthrough, upstreamRequestID, "failover", payload, message)
 	body, _ := json.Marshal(gin.H{
@@ -954,8 +971,10 @@ func (s *OpenAIGatewayService) newOpenAIStreamFailoverError(
 		},
 	})
 	return &UpstreamFailoverError{
-		StatusCode:   http.StatusBadGateway,
-		ResponseBody: body,
+		StatusCode:    http.StatusBadGateway,
+		ResponseBody:  body,
+		Platform:      platform,
+		ClientMessage: clientMessage,
 	}
 }
 
@@ -1083,7 +1102,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 				// 再打 cyber 标记，否则 mark 记到的是解析前的 0，导致流式 cyber 按 0 token 计费
 				// 而漏记真实用量。对齐 WS V2 / Chat 流式路径（均先解析 usage 再 Mark）。
 				s.parseSSEUsageBytes(dataBytes, usage)
-				if hit, code, msg := detectOpenAICyberPolicy(dataBytes); hit {
+				if hit, code, msg := detectOpenAICyberPolicy(dataBytes); hit && account.Platform != PlatformGrok {
 					MarkOpsCyberPolicy(c, CyberPolicyMark{
 						Code:           code,
 						Message:        msg,
@@ -1129,6 +1148,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			if sanitizedData, sanitized := sanitizeOpenAIResponseFailedEventForClient(
 				dataBytes,
 				eventType,
+				account.Platform,
 				openAIStreamClientOutputStarted(c, clientOutputStarted),
 			); sanitized {
 				dataBytes = sanitizedData
@@ -1316,7 +1336,7 @@ func (s *OpenAIGatewayService) handlePassthroughSSEToJSON(resp *http.Response, c
 			if msg == "" {
 				msg = "Upstream compact response failed"
 			}
-			return nil, s.writeOpenAINonStreamingProtocolError(resp, c, msg)
+			return nil, s.writeOpenAINonStreamingProtocolError(resp, c, nil, terminalPayload, msg)
 		}
 		usage = s.parseSSEUsageFromBody(bodyText)
 		if originalModel != "" && mappedModel != "" && originalModel != mappedModel {

@@ -774,9 +774,10 @@ export interface BatchTestAccountsResponse {
   items: BatchTestAccountItem[]
 }
 
-export async function batchTestAccounts(request: BatchTestAccountsRequest): Promise<BatchTestAccountsResponse> {
+export async function batchTestAccounts(request: BatchTestAccountsRequest, signal?: AbortSignal): Promise<BatchTestAccountsResponse> {
   const { data } = await apiClient.post<BatchTestAccountsResponse>('/admin/accounts/batch-test', request, {
-    timeout: 180000
+    timeout: 330000,
+    signal
   })
   return data
 }

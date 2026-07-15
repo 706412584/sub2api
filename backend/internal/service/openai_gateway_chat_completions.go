@@ -421,7 +421,7 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 		payload, _ := json.Marshal(gin.H{"type": "response.failed", "response": finalResponse})
 		// cyber_policy 致命不可重试：不 failover，以 Chat Completions 错误格式回写（F4），
 		// 标记供 handler 事后写风控/邮件/tokens=0 用量行。
-		if hit, code, msg := detectOpenAICyberPolicy(payload); hit {
+		if hit, code, msg := detectOpenAICyberPolicy(payload); hit && account.Platform != PlatformGrok {
 			MarkOpsCyberPolicy(c, CyberPolicyMark{
 				Code:           code,
 				Message:        msg,
@@ -574,7 +574,7 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 		if strings.TrimSpace(event.Type) == "response.failed" {
 			payloadBytes := []byte(payload)
 			message := extractOpenAISSEErrorMessage(payloadBytes)
-			if hit, code, msg := detectOpenAICyberPolicy(payloadBytes); hit {
+			if hit, code, msg := detectOpenAICyberPolicy(payloadBytes); hit && account.Platform != PlatformGrok {
 				// cyber_policy 致命且不可重试：不 failover。下发标准 error chunk +
 				// [DONE]，让程序化客户端可感知并停止重试（F4）；标记供 handler 事后
 				// 写风控/邮件。
@@ -785,8 +785,30 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 			)
 		}
 	}
+	streamReadErr := func(err error) (*OpenAIForwardResult, error) {
+		result := resultWithUsage()
+		message := "OpenAI chat stream disconnected before completion"
+		if err == nil {
+			message = "OpenAI chat stream ended before a terminal event"
+		}
+		if !clientOutputStarted {
+			return result, s.newOpenAIStreamFailoverError(c, account, false, requestID, nil, message)
+		}
+		if !clientDisconnected {
+			if _, writeErr := fmt.Fprint(c.Writer, buildChatStreamErrorSSE("upstream_error", message)); writeErr == nil {
+				_, _ = fmt.Fprint(c.Writer, "data: [DONE]\n\n")
+				c.Writer.Flush()
+			} else {
+				clientDisconnected = true
+			}
+		}
+		if err != nil {
+			return result, fmt.Errorf("stream usage incomplete: %w", err)
+		}
+		return result, fmt.Errorf("stream usage incomplete: missing terminal event")
+	}
 	missingTerminalErr := func() (*OpenAIForwardResult, error) {
-		return resultWithUsage(), fmt.Errorf("stream usage incomplete: missing terminal event")
+		return streamReadErr(nil)
 	}
 	processFrame := func(frame openAICompatSSEFrame) bool {
 		payload := openAICompatPayloadWithEventType(frame.Data, frame.EventType)
@@ -820,7 +842,7 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 		}
 		if err := scanner.Err(); err != nil {
 			handleScanErr(err)
-			return resultWithUsage(), fmt.Errorf("stream usage incomplete: %w", err)
+			return streamReadErr(err)
 		}
 		if frame, ok := parser.Finish(); ok {
 			if strings.TrimSpace(frame.Data) == "[DONE]" {
@@ -892,7 +914,7 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 			}
 			if ev.err != nil {
 				handleScanErr(ev.err)
-				return resultWithUsage(), fmt.Errorf("stream usage incomplete: %w", ev.err)
+				return streamReadErr(ev.err)
 			}
 			lastDataAt = time.Now()
 			line := ev.line

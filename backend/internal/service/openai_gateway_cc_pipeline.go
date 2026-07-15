@@ -94,8 +94,14 @@ func (s *OpenAIGatewayService) failoverOpenAIUpstreamHTTPError(
 	if !s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMsg, respBody) {
 		return nil
 	}
+	platform := ""
+	clientMessage := ""
 	upstreamDetail := ""
-	if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
+	if account.Platform == PlatformGrok {
+		platform = PlatformGrok
+		clientMessage = safeGrokUpstreamErrorMessage(resp.StatusCode, respBody, upstreamMsg, fmt.Sprintf("xAI upstream returned status %d", resp.StatusCode))
+		upstreamMsg = clientMessage
+	} else if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
 		maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
 		if maxBytes <= 0 {
 			maxBytes = 2048
@@ -115,13 +121,18 @@ func (s *OpenAIGatewayService) failoverOpenAIUpstreamHTTPError(
 	if account.Platform != PlatformGrok {
 		s.handleOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, upstreamModel)
 	}
-	return newOpenAIUpstreamFailoverError(
+	failoverErr := newOpenAIUpstreamFailoverError(
 		resp.StatusCode,
 		resp.Header,
 		respBody,
 		upstreamMsg,
 		account.IsPoolMode() && (account.IsPoolModeRetryableStatus(resp.StatusCode) || isOpenAITransientProcessingError(resp.StatusCode, upstreamMsg, respBody)),
 	)
+	if account.Platform == PlatformGrok {
+		failoverErr.Platform = platform
+		failoverErr.ClientMessage = clientMessage
+	}
+	return failoverErr
 }
 
 // openAIChatCompletionsTargetURL 解析账号的（非 Grok）Chat Completions 上游端点。

@@ -22,6 +22,43 @@ func setupAccountListRouter() (*gin.Engine, *stubAdminService) {
 	return router, adminSvc
 }
 
+func TestNormalizeBatchTestAccountIDs(t *testing.T) {
+	t.Run("rejects empty input", func(t *testing.T) {
+		_, err := normalizeBatchTestAccountIDs(nil)
+		require.EqualError(t, err, "account_ids is required")
+	})
+
+	t.Run("deduplicates while preserving order", func(t *testing.T) {
+		ids, err := normalizeBatchTestAccountIDs([]int64{3, 1, 3, 2, 1})
+		require.NoError(t, err)
+		require.Equal(t, []int64{3, 1, 2}, ids)
+	})
+
+	t.Run("rejects invalid IDs", func(t *testing.T) {
+		_, err := normalizeBatchTestAccountIDs([]int64{1, 0})
+		require.EqualError(t, err, "account_ids must contain positive IDs")
+	})
+
+	t.Run("accepts exactly the limit", func(t *testing.T) {
+		requested := make([]int64, batchTestAccountsMax)
+		for i := range requested {
+			requested[i] = int64(i + 1)
+		}
+		ids, err := normalizeBatchTestAccountIDs(requested)
+		require.NoError(t, err)
+		require.Len(t, ids, batchTestAccountsMax)
+	})
+
+	t.Run("rejects too many unique IDs", func(t *testing.T) {
+		requested := make([]int64, batchTestAccountsMax+1)
+		for i := range requested {
+			requested[i] = int64(i + 1)
+		}
+		_, err := normalizeBatchTestAccountIDs(requested)
+		require.EqualError(t, err, "account_ids cannot exceed 100 unique IDs")
+	})
+}
+
 func TestAccountHandlerListIncludesCreatedAt(t *testing.T) {
 	router, adminSvc := setupAccountListRouter()
 

@@ -466,7 +466,7 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 
 	if strings.TrimSpace(finalResponse.Status) == "failed" {
 		payload, _ := json.Marshal(gin.H{"type": "response.failed", "response": finalResponse})
-		if hit, code, msg := detectOpenAICyberPolicy(payload); hit {
+		if hit, code, msg := detectOpenAICyberPolicy(payload); hit && account.Platform != PlatformGrok {
 			MarkOpsCyberPolicy(c, CyberPolicyMark{
 				Code:           code,
 				Message:        msg,
@@ -812,7 +812,7 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 			// 回写让客户端感知并停止重试（F4），丢弃后续转换输出。
 			if eventType == "response.failed" || isBareErrorEvent {
 				payloadBytes := []byte(payload)
-				if hit, code, msg := detectOpenAICyberPolicy(payloadBytes); hit {
+				if hit, code, msg := detectOpenAICyberPolicy(payloadBytes); hit && account.Platform != PlatformGrok {
 					MarkOpsCyberPolicy(c, CyberPolicyMark{
 						Code:           code,
 						Message:        msg,
@@ -940,6 +940,17 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 			)
 		}
 	}
+	writeStreamError := func(message string) {
+		if clientDisconnected {
+			return
+		}
+		writeStreamHeaders()
+		if _, err := fmt.Fprint(c.Writer, buildAnthropicStreamErrorSSE("api_error", message)); err != nil {
+			clientDisconnected = true
+			return
+		}
+		c.Writer.Flush()
+	}
 	missingTerminalErr := func() (*OpenAIForwardResult, error) {
 		result := resultWithUsage()
 		if clientDisconnected {
@@ -950,6 +961,7 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 			return result, s.newOpenAIStreamFailoverError(c, account, false, requestID, nil, message)
 		}
 		s.recordOpenAIMessagesStreamUpstreamError(c, account, requestID, "stream_missing_terminal", message)
+		writeStreamError(message)
 		return result, fmt.Errorf("stream usage incomplete: missing terminal event")
 	}
 	processFrame := func(frame openAICompatSSEFrame) bool {
@@ -981,6 +993,12 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 		}
 		if err := scanner.Err(); err != nil {
 			handleScanErr(err)
+			message := "OpenAI messages stream disconnected before completion"
+			if !clientOutputStarted {
+				return resultWithUsage(), s.newOpenAIStreamFailoverError(c, account, false, requestID, nil, message)
+			}
+			s.recordOpenAIMessagesStreamUpstreamError(c, account, requestID, "stream_read_error", message)
+			writeStreamError(message)
 			return resultWithUsage(), fmt.Errorf("stream usage incomplete: %w", err)
 		}
 		if frame, ok := parser.Finish(); ok {
@@ -1054,6 +1072,12 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 			}
 			if ev.err != nil {
 				handleScanErr(ev.err)
+				message := "OpenAI messages stream disconnected before completion"
+				if !clientOutputStarted {
+					return resultWithUsage(), s.newOpenAIStreamFailoverError(c, account, false, requestID, nil, message)
+				}
+				s.recordOpenAIMessagesStreamUpstreamError(c, account, requestID, "stream_read_error", message)
+				writeStreamError(message)
 				return resultWithUsage(), fmt.Errorf("stream usage incomplete: %w", ev.err)
 			}
 			lastDataAt = time.Now()

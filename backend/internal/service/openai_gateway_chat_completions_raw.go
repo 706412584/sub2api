@@ -174,6 +174,7 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	if resp.StatusCode >= 400 {
 		respBody, upstreamMsg := s.readOpenAIUpstreamError(resp)
 		if account.Platform == PlatformGrok {
+			upstreamMsg = safeGrokUpstreamErrorMessage(resp.StatusCode, respBody, upstreamMsg, fmt.Sprintf("xAI upstream returned status %d", resp.StatusCode))
 			appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
 				Platform:           account.Platform,
 				AccountID:          account.ID,
@@ -189,6 +190,8 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 					StatusCode:             resp.StatusCode,
 					ResponseBody:           respBody,
 					ResponseHeaders:        resp.Header.Clone(),
+					Platform:               PlatformGrok,
+					ClientMessage:          upstreamMsg,
 					RetryableOnSameAccount: account.IsPoolMode() && account.IsPoolModeRetryableStatus(resp.StatusCode),
 				}
 			}
@@ -257,6 +260,7 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 	var firstTokenMs *int
 	clientDisconnected := false
 	clientOutputStarted := false
+	sawDone := false
 	pendingLines := make([]string, 0, 8)
 	refusalDetector := newOpenAIChatSilentRefusalDetector(requestBodyLen)
 
@@ -291,13 +295,33 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 			)
 		}
 	}
+	writeStreamError := func(message string) {
+		writeLine(strings.TrimSuffix(buildChatStreamErrorSSE("upstream_error", message), "\n\n"))
+		writeLine("")
+		writeLine("data: [DONE]")
+		writeLine("")
+		if !clientDisconnected {
+			c.Writer.Flush()
+		}
+	}
 
 	for scanner.Scan() {
 		line := scanner.Text()
 		refusalDetector.ObserveSSELine(line)
 		if payload, ok := extractOpenAISSEDataLine(line); ok {
 			trimmedPayload := strings.TrimSpace(payload)
-			if trimmedPayload != "[DONE]" {
+			if trimmedPayload == "[DONE]" {
+				sawDone = true
+			} else {
+				payloadBytes := []byte(trimmedPayload)
+				if account.Platform == PlatformGrok && gjson.GetBytes(payloadBytes, "error").Exists() {
+					safeMessage := safeGrokUpstreamErrorMessage(http.StatusBadGateway, payloadBytes, extractUpstreamErrorMessage(payloadBytes), "Upstream request failed")
+					if !clientOutputStarted {
+						return nil, s.newOpenAIStreamFailoverError(c, account, false, requestID, payloadBytes, safeMessage)
+					}
+					writeStreamError(safeMessage)
+					return nil, fmt.Errorf("upstream chat stream error: %s", safeMessage)
+				}
 				usageOnlyChunk := isOpenAIChatUsageOnlyStreamChunk(payload)
 				if u := extractCCStreamUsage(payload); u != nil {
 					usage = *u
@@ -328,6 +352,17 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 				zap.String("request_id", requestID),
 			)
 		}
+		if !clientOutputStarted {
+			return nil, s.newOpenAIStreamFailoverError(c, account, false, requestID, nil, "Upstream stream disconnected before completion")
+		}
+		writeStreamError("Upstream stream disconnected before completion")
+		return nil, fmt.Errorf("upstream chat stream read error: %w", err)
+	} else if !sawDone {
+		if !clientOutputStarted {
+			return nil, s.newOpenAIStreamFailoverError(c, account, false, requestID, nil, "Upstream stream ended before completion")
+		}
+		writeStreamError("Upstream stream ended before completion")
+		return nil, errors.New("upstream chat stream ended before completion")
 	} else if !clientDisconnected && !clientOutputStarted {
 		if refusalDetector.IsSilentRefusal() {
 			return nil, newOpenAISilentRefusalFailoverError(c, account, requestID)

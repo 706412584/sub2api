@@ -327,7 +327,7 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 	// cyber_policy 硬阻断：透传上游原始错误体给客户端（不重包成通用 502），不冷却账号。
 	// 当前请求恒透传（需求1）；标记供 handler 事后写风控/邮件。400 cyber 不可 failover
 	// （shouldFailoverUpstreamError(400)=false），故走到此处即可安全早返回。
-	if hit, code, cyberMsg := detectOpenAICyberPolicy(body); hit {
+	if hit, code, cyberMsg := detectOpenAICyberPolicy(body); hit && account.Platform != PlatformGrok {
 		MarkOpsCyberPolicy(c, CyberPolicyMark{
 			Code:           code,
 			Message:        cyberMsg,
@@ -348,9 +348,13 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 	}
 
 	upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(body))
-	upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
 	upstreamDetail := ""
-	if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
+	if account.Platform == PlatformGrok {
+		upstreamMsg = safeGrokUpstreamErrorMessage(resp.StatusCode, body, upstreamMsg, fmt.Sprintf("xAI upstream returned status %d", resp.StatusCode))
+	} else {
+		upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
+	}
+	if account.Platform != PlatformGrok && s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
 		maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
 		if maxBytes <= 0 {
 			maxBytes = 2048
@@ -360,7 +364,7 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 	setOpsUpstreamError(c, resp.StatusCode, upstreamMsg, upstreamDetail)
 	logOpenAIInstructionsRequiredDebug(ctx, c, account, resp.StatusCode, upstreamMsg, requestBody, body)
 
-	if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
+	if account.Platform != PlatformGrok && s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
 		logger.LegacyPrintf("service.openai_gateway",
 			"OpenAI upstream error %d (account=%d platform=%s type=%s): %s",
 			resp.StatusCode,
@@ -394,13 +398,16 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 
 	if status, errType, errMsg, matched := applyErrorPassthroughRule(
 		c,
-		PlatformOpenAI,
+		account.Platform,
 		resp.StatusCode,
 		body,
 		http.StatusBadGateway,
 		"upstream_error",
 		"Upstream request failed",
 	); matched {
+		if account.Platform == PlatformGrok {
+			errMsg = safeGrokUpstreamErrorMessage(resp.StatusCode, nil, errMsg, "Upstream request failed")
+		}
 		MarkResponseCommitted(c)
 		c.JSON(status, gin.H{
 			"error": gin.H{
@@ -467,9 +474,17 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 		Detail:             upstreamDetail,
 	})
 	if shouldDisable {
+		platform := ""
+		clientMessage := ""
+		if account.Platform == PlatformGrok {
+			platform = PlatformGrok
+			clientMessage = upstreamMsg
+		}
 		return nil, &UpstreamFailoverError{
 			StatusCode:             resp.StatusCode,
 			ResponseBody:           body,
+			Platform:               platform,
+			ClientMessage:          clientMessage,
 			RetryableOnSameAccount: account.IsPoolMode() && account.IsPoolModeRetryableStatus(resp.StatusCode),
 		}
 	}
@@ -542,7 +557,7 @@ func (s *OpenAIGatewayService) handleCompatErrorResponse(
 	// 不原样透传 responses 格式的 cyber body（否则对下游格式不合法）。cyber 是上游网络
 	// 安全策略拦截，不冷却账号，故标记后直接以兼容格式回写错误并返回，跳过下方
 	// handleOpenAIAccountUpstreamError（避免自定义 temp-unschedulable 规则误冷却）。
-	if hit, code, cyberMsg := detectOpenAICyberPolicy(body); hit {
+	if hit, code, cyberMsg := detectOpenAICyberPolicy(body); hit && account.Platform != PlatformGrok {
 		MarkOpsCyberPolicy(c, CyberPolicyMark{
 			Code:           code,
 			Message:        cyberMsg,
@@ -562,13 +577,17 @@ func (s *OpenAIGatewayService) handleCompatErrorResponse(
 	}
 
 	upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(body))
-	if upstreamMsg == "" {
-		upstreamMsg = fmt.Sprintf("Upstream error: %d", resp.StatusCode)
-	}
-	upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
-
 	upstreamDetail := ""
-	if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
+	if account.Platform == PlatformGrok {
+		upstreamMsg = safeGrokUpstreamErrorMessage(resp.StatusCode, body, upstreamMsg, fmt.Sprintf("xAI upstream returned status %d", resp.StatusCode))
+	} else {
+		if upstreamMsg == "" {
+			upstreamMsg = fmt.Sprintf("Upstream error: %d", resp.StatusCode)
+		}
+		upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
+	}
+
+	if account.Platform != PlatformGrok && s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
 		maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
 		if maxBytes <= 0 {
 			maxBytes = 2048
@@ -582,6 +601,9 @@ func (s *OpenAIGatewayService) handleCompatErrorResponse(
 		c, account.Platform, resp.StatusCode, body,
 		http.StatusBadGateway, "api_error", "Upstream request failed",
 	); matched {
+		if account.Platform == PlatformGrok {
+			errMsg = safeGrokUpstreamErrorMessage(resp.StatusCode, nil, errMsg, "Upstream request failed")
+		}
 		MarkResponseCommitted(c)
 		writeError(c, status, errType, errMsg)
 		if upstreamMsg == "" {
@@ -637,9 +659,17 @@ func (s *OpenAIGatewayService) handleCompatErrorResponse(
 		Detail:             upstreamDetail,
 	})
 	if shouldDisable {
+		platform := ""
+		clientMessage := ""
+		if account.Platform == PlatformGrok {
+			platform = PlatformGrok
+			clientMessage = upstreamMsg
+		}
 		return nil, &UpstreamFailoverError{
 			StatusCode:             resp.StatusCode,
 			ResponseBody:           body,
+			Platform:               platform,
+			ClientMessage:          clientMessage,
 			RetryableOnSameAccount: account.IsPoolMode() && account.IsPoolModeRetryableStatus(resp.StatusCode),
 		}
 	}

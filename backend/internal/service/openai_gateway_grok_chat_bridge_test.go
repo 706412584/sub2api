@@ -289,7 +289,7 @@ func TestForwardGrokChatViaResponses429UsesGrokRateLimitPolicy(t *testing.T) {
 			"Content-Type": []string{"application/json"},
 			"Retry-After":  []string{"45"},
 		},
-		Body: io.NopCloser(strings.NewReader(`{"error":{"message":"rate limited"}}`)),
+		Body: io.NopCloser(strings.NewReader(`{"error":{"message":"rate limited Authorization: Bearer secret.token.value"}}`)),
 	}}
 	svc := &OpenAIGatewayService{
 		httpUpstream:      upstream,
@@ -305,6 +305,9 @@ func TestForwardGrokChatViaResponses429UsesGrokRateLimitPolicy(t *testing.T) {
 	require.True(t, errors.As(err, &failoverErr))
 	require.Equal(t, http.StatusTooManyRequests, failoverErr.StatusCode)
 	require.Equal(t, "45", failoverErr.ResponseHeaders.Get("Retry-After"))
+	require.Equal(t, PlatformGrok, failoverErr.Platform)
+	require.Equal(t, "rate limited Authorization: Bearer ***", failoverErr.ClientMessage)
+	require.NotContains(t, failoverErr.ClientMessage, "secret.token.value")
 	require.Equal(t, xai.DefaultCLIBaseURL+"/responses", upstream.lastReq.URL.String())
 	require.Equal(t, grokChatResponsesEndpoint, GetActualOpenAIUpstreamEndpoint(c))
 	require.Equal(t, 1, repo.rateLimitedCalls)
@@ -350,6 +353,40 @@ func TestForwardGrokRawChat429PreservesRetryAfter(t *testing.T) {
 	require.Equal(t, http.StatusTooManyRequests, failoverErr.StatusCode)
 	require.Equal(t, "45", failoverErr.ResponseHeaders.Get("Retry-After"))
 	require.Equal(t, xai.DefaultCLIBaseURL+"/chat/completions", upstream.lastReq.URL.String())
+}
+
+func TestForwardGrokRawChatFailoverCarriesOnlySanitizedClientMessage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	body := []byte(`{"model":"grok","messages":[{"role":"user","content":"hi"}],"stream":false,"stop":"done"}`)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, grokChatRawEndpoint, bytes.NewReader(body))
+	c.Set("api_key", &APIKey{ID: 7552})
+
+	account := grokChatBridgeTestAccount(756)
+	repo := &grokQuotaAccountRepo{mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
+		accountsByID: map[int64]*Account{account.ID: account},
+	}}
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusServiceUnavailable,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"upstream token=secret-token-value"}}`)),
+	}}
+	svc := &OpenAIGatewayService{
+		httpUpstream:      upstream,
+		grokTokenProvider: NewGrokTokenProvider(repo, nil),
+		accountRepo:       repo,
+	}
+
+	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
+	require.Error(t, err)
+	require.Nil(t, result)
+	var failoverErr *UpstreamFailoverError
+	require.ErrorAs(t, err, &failoverErr)
+	require.Equal(t, PlatformGrok, failoverErr.Platform)
+	require.Equal(t, "upstream token=***", failoverErr.ClientMessage)
+	require.NotContains(t, failoverErr.ClientMessage, "secret-token-value")
 }
 
 func TestForwardGrokRawChatErrorRecordsActualEndpoint(t *testing.T) {

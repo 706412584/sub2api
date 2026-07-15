@@ -751,6 +751,39 @@ func TestStreamingInterleavedTextDoneDoesNotCloseToolBlock(t *testing.T) {
 	assert.NotEqual(t, tool1Index, tool2Index)
 }
 
+func TestStreamingInterleavedOldToolDeltaDoesNotCorruptCurrentTool(t *testing.T) {
+	state := NewResponsesEventToAnthropicState()
+
+	ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:        "response.output_item.added",
+		OutputIndex: 1,
+		Item:        &ResponsesOutput{Type: "function_call", CallID: "call_1", Name: "Read"},
+	}, state)
+	ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:        "response.output_item.added",
+		OutputIndex: 2,
+		Item:        &ResponsesOutput{Type: "function_call", CallID: "call_2", Name: "Bash"},
+	}, state)
+
+	events := ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:        "response.function_call_arguments.delta",
+		OutputIndex: 1,
+		Delta:       `{"file_path":"/tmp/a"}`,
+	}, state)
+	assert.Empty(t, events)
+	assert.False(t, state.CurrentToolHadDelta)
+
+	events = ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:        "response.function_call_arguments.done",
+		OutputIndex: 2,
+		Arguments:   `{"command":"pwd"}`,
+	}, state)
+	require.Len(t, events, 2)
+	assert.Equal(t, "content_block_delta", events[0].Type)
+	assert.JSONEq(t, `{"command":"pwd"}`, events[0].Delta.PartialJSON)
+	assert.Equal(t, "content_block_stop", events[1].Type)
+}
+
 func TestStreamingToolCallDoneWithoutDeltaEmitsArguments(t *testing.T) {
 	state := NewResponsesEventToAnthropicState()
 
