@@ -655,20 +655,6 @@ func rawChatCompletionsTestConfig() *config.Config {
 	}
 }
 
-func rawChatCompletionsTestAccount() *Account {
-	return &Account{
-		ID:          101,
-		Name:        "raw-openai-apikey",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key":  "sk-test",
-			"base_url": "http://upstream.example",
-		},
-	}
-}
-
 func largeRawChatCompletionsBody() []byte {
 	return []byte(`{"model":"gpt-5.5","messages":[{"role":"user","content":"` +
 		strings.Repeat("x", openAISilentRefusalMinRequestBodyBytes) +

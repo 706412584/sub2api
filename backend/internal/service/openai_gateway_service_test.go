@@ -2881,6 +2881,20 @@ func TestExtractCodexFinalResponse_SampleReplay(t *testing.T) {
 	require.Contains(t, string(finalResp), `"input_tokens":11`)
 }
 
+func rawChatCompletionsTestAccount() *Account {
+	return &Account{
+		ID:          101,
+		Name:        "raw-openai-apikey",
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "http://upstream.example",
+		},
+	}
+}
+
 func TestHandleSSEToJSON_CompletedEventReturnsJSON(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()
