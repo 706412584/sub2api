@@ -271,6 +271,7 @@ export default {
       kiroLoginEntryDesc: '使用 Builder ID 真浏览器登录，JSON 导入作为兜底。',
       kiroLoginDesc: '启动 AWS Builder ID 设备授权流程，在真实浏览器完成授权后回到这里创建 Kiro OAuth 账号；高级模式下仍可使用 JSON 导入兜底。',
       kiroLoginNamePlaceholder: '留空则自动使用 profile ARN 或推导出的 Kiro 账号名',
+      kiroLoginRegion: '区域',
       kiroLoginBrowserSectionTitle: 'Builder ID 浏览器授权',
       kiroLoginBrowserSectionDesc: '点击开始登录，打开 AWS 授权页，在浏览器中完成登录后回到这里等待授权完成。',
       kiroLoginStartButton: '开始 Kiro 登录',
