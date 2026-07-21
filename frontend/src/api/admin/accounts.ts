@@ -729,6 +729,23 @@ export interface KiroBuilderIDCreateAccountRequest {
   confirm_mixed_channel_risk?: boolean
 }
 
+export interface KiroAPIKeyCreateAccountRequest {
+  name: string
+  notes?: string | null
+  kiro_api_key: string
+  endpoint?: string
+  auth_region?: string
+  api_region?: string
+  proxy_id?: number | null
+  concurrency?: number
+  priority?: number
+  rate_multiplier?: number
+  load_factor?: number | null
+  group_ids?: number[]
+  skip_default_group_bind?: boolean
+  confirm_mixed_channel_risk?: boolean
+}
+
 export async function normalizeKiroOAuthCredentials(payload: { data: any }): Promise<KiroOAuthNormalizeResponse> {
   const { data } = await apiClient.post<KiroOAuthNormalizeResponse>('/admin/kiro/oauth/normalize', payload)
   return data
@@ -736,6 +753,11 @@ export async function normalizeKiroOAuthCredentials(payload: { data: any }): Pro
 
 export async function createKiroOAuthAccount(payload: KiroCreateAccountRequest): Promise<Account> {
   const { data } = await apiClient.post<Account>('/admin/kiro/oauth/create-account', payload)
+  return data
+}
+
+export async function createKiroAPIKeyAccount(payload: KiroAPIKeyCreateAccountRequest): Promise<Account> {
+  const { data } = await apiClient.post<Account>('/admin/kiro/api-key/create-account', payload)
   return data
 }
 
@@ -1040,6 +1062,7 @@ export const accountsAPI = {
   createOpenAICodexPAT,
   normalizeKiroOAuthCredentials,
   createKiroOAuthAccount,
+  createKiroAPIKeyAccount,
   startKiroBuilderIDDeviceFlow,
   pollKiroBuilderIDDeviceFlow,
   createKiroBuilderIDAccount,

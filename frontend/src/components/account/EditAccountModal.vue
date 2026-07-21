@@ -26,8 +26,59 @@
         <p class="input-hint">{{ t('admin.accounts.notesHint') }}</p>
       </div>
 
-      <!-- API Key fields (only for apikey type) -->
-      <div v-if="account.type === 'apikey'" class="space-y-4">
+      <!-- Kiro API Key fields -->
+      <div v-if="account.platform === 'kiro' && account.type === 'apikey'" class="space-y-4">
+        <div>
+          <label class="input-label">{{ t('admin.accounts.kiroApiKeyLabel') }}</label>
+          <input
+            v-model="editKiroApiKey"
+            type="password"
+            class="input font-mono"
+            autocomplete="new-password"
+            data-1p-ignore
+            data-lpignore="true"
+            data-bwignore="true"
+            :placeholder="t('admin.accounts.kiroApiKeyPlaceholder')"
+          />
+          <p class="input-hint">{{ t('admin.accounts.leaveEmptyToKeep') }}</p>
+          <p class="input-hint">{{ t('admin.accounts.kiroApiKeyHint') }}</p>
+        </div>
+        <div>
+          <label class="input-label">{{ t('admin.accounts.kiroEndpoint') }}</label>
+          <select v-model="editKiroEndpoint" class="input" disabled>
+            <option value="cli">cli</option>
+          </select>
+          <p class="input-hint">{{ t('admin.accounts.kiroEndpointHint') }}</p>
+        </div>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label class="input-label">{{ t('admin.accounts.kiroApiRegion') }}</label>
+            <input
+              v-model="editKiroApiRegion"
+              type="text"
+              class="input font-mono"
+              placeholder="us-east-1"
+            />
+            <p class="input-hint">{{ t('admin.accounts.kiroApiRegionHint') }}</p>
+          </div>
+          <div>
+            <label class="input-label">{{ t('admin.accounts.kiroAuthRegion') }}</label>
+            <input
+              v-model="editKiroAuthRegion"
+              type="text"
+              class="input font-mono"
+              placeholder="us-east-1"
+            />
+            <p class="input-hint">{{ t('admin.accounts.kiroAuthRegionHint') }}</p>
+          </div>
+        </div>
+        <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800/40 dark:bg-amber-900/20 dark:text-amber-200">
+          {{ t('admin.accounts.kiroApiKeyNoRefresh') }}
+        </div>
+      </div>
+
+      <!-- API Key fields (only for apikey type, excluding Kiro which has its own fields) -->
+      <div v-if="account.type === 'apikey' && account.platform !== 'kiro'" class="space-y-4">
         <div>
           <label class="input-label">{{ t('admin.accounts.baseUrl') }}</label>
           <input
@@ -2698,6 +2749,10 @@ interface TempUnschedRuleForm {
 const submitting = ref(false)
 const editBaseUrl = ref('https://api.anthropic.com')
 const editApiKey = ref('')
+const editKiroApiKey = ref('')
+const editKiroEndpoint = ref<'cli'>('cli')
+const editKiroApiRegion = ref('us-east-1')
+const editKiroAuthRegion = ref('us-east-1')
 // Bedrock credentials
 const editBedrockAccessKeyId = ref('')
 const editBedrockSecretAccessKey = ref('')
@@ -3443,7 +3498,19 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   }
 
   // Initialize API Key fields for apikey type
-  if (newAccount.type === 'apikey' && newAccount.credentials) {
+  if (newAccount.type === 'apikey' && newAccount.platform === 'kiro') {
+    const credentials = (newAccount.credentials as Record<string, unknown>) || {}
+    // Never hydrate full kiro_api_key — backend redacts it.
+    editKiroApiKey.value = ''
+    editKiroEndpoint.value = 'cli'
+    editKiroApiRegion.value =
+      (typeof credentials.api_region === 'string' && credentials.api_region.trim()) ||
+      (typeof credentials.region === 'string' && credentials.region.trim()) ||
+      'us-east-1'
+    editKiroAuthRegion.value =
+      (typeof credentials.auth_region === 'string' && credentials.auth_region.trim()) ||
+      editKiroApiRegion.value
+  } else if (newAccount.type === 'apikey' && newAccount.credentials) {
     const credentials = newAccount.credentials as Record<string, unknown>
     const platformDefaultUrl =
       newAccount.platform === 'openai'
@@ -3542,6 +3609,12 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     selectedErrorCodes.value = []
   }
   editApiKey.value = ''
+  if (!(newAccount.type === 'apikey' && newAccount.platform === 'kiro')) {
+    editKiroApiKey.value = ''
+    editKiroEndpoint.value = 'cli'
+    editKiroApiRegion.value = 'us-east-1'
+    editKiroAuthRegion.value = 'us-east-1'
+  }
 }
 
 async function loadTLSProfiles() {
@@ -4039,8 +4112,45 @@ const handleSubmit = async () => {
     }
     updatePayload.auto_pause_on_expired = autoPauseOnExpired.value
 
-    // For apikey type, handle credentials update
-    if (props.account.type === 'apikey') {
+    // Kiro API Key: dedicated credentials shape (kiro_api_key, never full-key echo)
+    if (props.account.platform === 'kiro' && props.account.type === 'apikey') {
+      const currentCredentials = (props.account.credentials as Record<string, unknown>) || {}
+      const newKey = editKiroApiKey.value.trim()
+      const hasExistingKey =
+        props.account.credentials_status?.has_kiro_api_key ??
+        props.account.credentials_status?.has_api_key ??
+        Boolean(currentCredentials.kiro_api_key)
+
+      if (newKey) {
+        if (!newKey.startsWith('ksk_') || newKey.length <= 'ksk_'.length) {
+          appStore.showError(t('admin.accounts.kiroApiKeyInvalidPrefix'))
+          return
+        }
+      } else if (!hasExistingKey) {
+        appStore.showError(t('admin.accounts.kiroApiKeyRequired'))
+        return
+      }
+
+      const apiRegion = editKiroApiRegion.value.trim() || 'us-east-1'
+      const authRegion = editKiroAuthRegion.value.trim() || apiRegion
+      const newCredentials: Record<string, unknown> = {
+        ...currentCredentials,
+        auth_method: 'api_key',
+        endpoint: 'cli',
+        auth_region: authRegion,
+        api_region: apiRegion,
+        region: apiRegion
+      }
+      // Drop unrelated fields that generic apikey forms might leave around
+      delete newCredentials.base_url
+      delete newCredentials.api_key
+      if (newKey) {
+        newCredentials.kiro_api_key = newKey
+      } else {
+        delete newCredentials.kiro_api_key
+      }
+      updatePayload.credentials = newCredentials
+    } else if (props.account.type === 'apikey') {
       const currentCredentials = (props.account.credentials as Record<string, unknown>) || {}
       const newBaseUrl = editBaseUrl.value.trim() || defaultBaseUrl.value
       const shouldApplyModelMapping = !(props.account.platform === 'openai' && openaiPassthroughEnabled.value)

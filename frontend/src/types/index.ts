@@ -914,9 +914,10 @@ export interface Account {
   platform: AccountPlatform
   type: AccountType
   // 后端响应里 credentials 已脱敏：access_token / refresh_token / id_token /
-  // api_key / session_key / cookie / aws_secret_access_key / aws_session_token /
+  // api_key / kiro_api_key / session_key / cookie / aws_secret_access_key / aws_session_token /
   // service_account_json / service_account / private_key 不会出现，
-  // 改为通过 credentials_status.has_<key> 暴露存在性。
+  // 改为通过 credentials_status.has_<key> 暴露存在性（如 has_api_key / has_kiro_api_key）。
+  // Kiro API Key 账号 credentials 可能含：endpoint / auth_region / api_region / auth_method / region。
   credentials?: Record<string, unknown>
   credentials_status?: Record<string, boolean>
   // Extra fields including Codex usage, OpenAI compact capability, and model-level rate limits.
