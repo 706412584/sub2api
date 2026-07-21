@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -249,11 +250,15 @@ func transformClaudeToKiro(req kiroClaudeRequest, mappedModel string) (kiroproto
 	var lastUserContent string
 	var lastUserTools []kiroprotocol.Tool
 	var lastUserToolResults []kiroprotocol.ToolResult
+	var lastUserImages []kiroprotocol.Image
 
 	// Convert all but the last user message into history; last user becomes current.
 	for i, msg := range req.Messages {
 		role := strings.ToLower(strings.TrimSpace(msg.Role))
-		text, toolUses, toolResults := extractClaudeContent(msg.Content)
+		text, toolUses, toolResults, images, err := extractClaudeContent(msg.Content)
+		if err != nil {
+			return kiroprotocol.Request{}, err
+		}
 		isLast := i == len(req.Messages)-1
 
 		switch role {
@@ -268,6 +273,7 @@ func transformClaudeToKiro(req kiroClaudeRequest, mappedModel string) (kiroproto
 					}
 				}
 				lastUserToolResults = toolResults
+				lastUserImages = images
 				continue
 			}
 			content := text
@@ -282,6 +288,7 @@ func transformClaudeToKiro(req kiroClaudeRequest, mappedModel string) (kiroproto
 				Content: content,
 				ModelID: mappedModel,
 				Origin:  kiroprotocol.OriginIDE,
+				Images:  images,
 			}
 			if len(toolResults) > 0 {
 				hm.UserInputMessageContext = &kiroprotocol.UserInputMessageContext{ToolResults: toolResults}
@@ -295,16 +302,24 @@ func transformClaudeToKiro(req kiroClaudeRequest, mappedModel string) (kiroproto
 		}
 	}
 
-	if lastUserContent == "" && len(lastUserToolResults) == 0 {
+	if lastUserContent == "" && len(lastUserToolResults) == 0 && len(lastUserImages) == 0 {
 		// No explicit last user; take last message content.
 		last := req.Messages[len(req.Messages)-1]
-		lastUserContent, _, lastUserToolResults = extractClaudeContent(last.Content)
+		var err error
+		lastUserContent, _, lastUserToolResults, lastUserImages, err = extractClaudeContent(last.Content)
+		if err != nil {
+			return kiroprotocol.Request{}, err
+		}
 		if systemText != "" && lastUserContent != "" {
 			lastUserContent = systemText + "\n\n" + lastUserContent
 		}
 	}
 
 	for _, t := range req.Tools {
+		// Server-side Anthropic tools (web_search_*) must not leak as client tools.
+		if isKiroServerTool(t.Name) {
+			continue
+		}
 		schema := t.InputSchema
 		if len(schema) == 0 {
 			schema = json.RawMessage(`{}`)
@@ -320,6 +335,9 @@ func transformClaudeToKiro(req kiroClaudeRequest, mappedModel string) (kiroproto
 
 	out := kiroprotocol.NewRequest(uuid.NewString(), mappedModel, lastUserContent)
 	out.ConversationState.History = history
+	if len(lastUserImages) > 0 {
+		out.ConversationState.CurrentMessage.UserInputMessage.Images = lastUserImages
+	}
 	ctxMsg := &out.ConversationState.CurrentMessage.UserInputMessage.UserInputMessageContext
 	if len(lastUserTools) > 0 {
 		ctxMsg.Tools = lastUserTools
@@ -354,17 +372,17 @@ func extractClaudeText(raw json.RawMessage) string {
 	return b.String()
 }
 
-func extractClaudeContent(raw json.RawMessage) (text string, toolUses []kiroprotocol.ToolUse, toolResults []kiroprotocol.ToolResult) {
+func extractClaudeContent(raw json.RawMessage) (text string, toolUses []kiroprotocol.ToolUse, toolResults []kiroprotocol.ToolResult, images []kiroprotocol.Image, err error) {
 	if len(raw) == 0 || string(raw) == "null" {
-		return "", nil, nil
+		return "", nil, nil, nil, nil
 	}
 	var asString string
 	if err := json.Unmarshal(raw, &asString); err == nil {
-		return asString, nil, nil
+		return asString, nil, nil, nil, nil
 	}
 	var blocks []map[string]any
 	if err := json.Unmarshal(raw, &blocks); err != nil {
-		return "", nil, nil
+		return "", nil, nil, nil, nil
 	}
 	var textParts []string
 	for _, block := range blocks {
@@ -373,6 +391,14 @@ func extractClaudeContent(raw json.RawMessage) (text string, toolUses []kiroprot
 		case "text":
 			if t, ok := block["text"].(string); ok {
 				textParts = append(textParts, t)
+			}
+		case "image":
+			img, convErr := claudeImageToKiro(block)
+			if convErr != nil {
+				return "", nil, nil, nil, convErr
+			}
+			if img != nil {
+				images = append(images, *img)
 			}
 		case "tool_use":
 			id, _ := block["id"].(string)
@@ -401,5 +427,68 @@ func extractClaudeContent(raw json.RawMessage) (text string, toolUses []kiroprot
 			}
 		}
 	}
-	return strings.Join(textParts, ""), toolUses, toolResults
+	return strings.Join(textParts, ""), toolUses, toolResults, images, nil
+}
+
+const kiroMaxImageBytes = 5 << 20 // 5 MiB decoded
+
+func isKiroServerTool(name string) bool {
+	n := strings.ToLower(strings.TrimSpace(name))
+	return strings.HasPrefix(n, "web_search") || n == "web_search" || strings.Contains(n, "web_search_")
+}
+
+func claudeImageToKiro(block map[string]any) (*kiroprotocol.Image, error) {
+	source, _ := block["source"].(map[string]any)
+	if source == nil {
+		return nil, fmt.Errorf("image source is required")
+	}
+	srcType, _ := source["type"].(string)
+	switch strings.ToLower(strings.TrimSpace(srcType)) {
+	case "base64":
+		mediaType, _ := source["media_type"].(string)
+		data, _ := source["data"].(string)
+		format, err := kiroImageFormat(mediaType)
+		if err != nil {
+			return nil, err
+		}
+		raw, err := base64.StdEncoding.DecodeString(data)
+		if err != nil {
+			// some clients omit padding
+			raw, err = base64.RawStdEncoding.DecodeString(data)
+			if err != nil {
+				return nil, fmt.Errorf("invalid image base64")
+			}
+		}
+		if len(raw) == 0 {
+			return nil, fmt.Errorf("empty image data")
+		}
+		if len(raw) > kiroMaxImageBytes {
+			return nil, fmt.Errorf("image exceeds %d bytes", kiroMaxImageBytes)
+		}
+		// re-encode to standard base64 without data URI for Kiro wire
+		return &kiroprotocol.Image{
+			Format: format,
+			Source: kiroprotocol.ImageSource{Bytes: base64.StdEncoding.EncodeToString(raw)},
+		}, nil
+	case "url":
+		// Avoid SSRF: require client to send base64; do not fetch remote URLs here.
+		return nil, fmt.Errorf("image URL sources are not supported; use base64 image blocks")
+	default:
+		return nil, fmt.Errorf("unsupported image source type")
+	}
+}
+
+func kiroImageFormat(mediaType string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(mediaType)) {
+	case "image/png", "png":
+		return "png", nil
+	case "image/jpeg", "image/jpg", "jpeg", "jpg":
+		return "jpeg", nil
+	case "image/webp", "webp":
+		return "webp", nil
+	case "image/gif", "gif":
+		return "gif", nil
+	default:
+		return "", fmt.Errorf("unsupported image media type: %s", mediaType)
+	}
 }

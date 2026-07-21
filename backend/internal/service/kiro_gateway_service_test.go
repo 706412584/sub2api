@@ -156,3 +156,46 @@ func TestKiroGatewayServiceForwardAsResponsesNonStream(t *testing.T) {
 	require.Contains(t, w.Body.String(), "resp-ok")
 	require.Contains(t, w.Body.String(), `"object":"response"`)
 }
+
+func TestTransformClaudeToKiro_ImageAndServerToolFilter(t *testing.T) {
+	pngB64 := "iVBORw0KGgo=" // minimal valid-looking base64
+	req := kiroClaudeRequest{
+		Model: "claude-sonnet-4.6",
+		Messages: []struct {
+			Role    string          `json:"role"`
+			Content json.RawMessage `json:"content"`
+		}{
+			{Role: "user", Content: json.RawMessage(`[{"type":"text","text":"describe"},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"` + pngB64 + `"}}]`)},
+		},
+		Tools: []struct {
+			Name        string          `json:"name"`
+			Description string          `json:"description"`
+			InputSchema json.RawMessage `json:"input_schema"`
+		}{
+			{Name: "lookup", Description: "client tool", InputSchema: json.RawMessage(`{"type":"object"}`)},
+			{Name: "web_search_20250305", Description: "server tool", InputSchema: json.RawMessage(`{"type":"object"}`)},
+		},
+	}
+	out, err := transformClaudeToKiro(req, "claude-sonnet-4.6")
+	require.NoError(t, err)
+	require.Len(t, out.ConversationState.CurrentMessage.UserInputMessage.Images, 1)
+	require.Equal(t, "png", out.ConversationState.CurrentMessage.UserInputMessage.Images[0].Format)
+	require.NotEmpty(t, out.ConversationState.CurrentMessage.UserInputMessage.Images[0].Source.Bytes)
+	require.Len(t, out.ConversationState.CurrentMessage.UserInputMessage.UserInputMessageContext.Tools, 1)
+	require.Equal(t, "lookup", out.ConversationState.CurrentMessage.UserInputMessage.UserInputMessageContext.Tools[0].ToolSpecification.Name)
+}
+
+func TestTransformClaudeToKiro_RejectsImageURL(t *testing.T) {
+	req := kiroClaudeRequest{
+		Model: "claude-sonnet-4.6",
+		Messages: []struct {
+			Role    string          `json:"role"`
+			Content json.RawMessage `json:"content"`
+		}{
+			{Role: "user", Content: json.RawMessage(`[{"type":"image","source":{"type":"url","url":"https://example.com/a.png"}}]`)},
+		},
+	}
+	_, err := transformClaudeToKiro(req, "claude-sonnet-4.6")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "base64")
+}
