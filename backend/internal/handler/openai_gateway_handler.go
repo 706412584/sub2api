@@ -2206,7 +2206,12 @@ func (h *OpenAIGatewayHandler) handleFailoverExhausted(c *gin.Context, failoverE
 }
 
 func credentialFailoverClientResponse(failoverErr *service.UpstreamFailoverError) (int, string) {
-	_ = failoverErr
+	if failoverErr != nil && failoverErr.Platform == service.PlatformKiro {
+		return http.StatusBadGateway, "Upstream authentication failed, please contact administrator"
+	}
+	if failoverErr != nil && failoverErr.Platform != "" && failoverErr.Platform != service.PlatformGrok {
+		return http.StatusBadGateway, "Upstream authentication failed, please contact administrator"
+	}
 	return http.StatusServiceUnavailable, service.GrokCredentialUnavailableClientMessage
 }
 
