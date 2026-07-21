@@ -118,6 +118,14 @@ func (s *KiroGatewayService) Forward(ctx context.Context, c *gin.Context, accoun
 		}
 	}
 
+	// Optional restricted web-search agentic loop (native web_search tools only).
+	if snap, used, loopErr := s.maybeWebSearchCollect(ctx, account, claudeReq, mappedModel); used {
+		if loopErr != nil {
+			return nil, loopErr
+		}
+		return s.renderCollectedClaude(c, snap, claudeReq.Stream, originalModel, mappedModel, startTime, false)
+	}
+
 	kiroReq, err := transformClaudeToKiro(claudeReq, mappedModel)
 	if err != nil {
 		return nil, s.writeClaudeError(c, http.StatusBadRequest, "invalid_request_error", err.Error())

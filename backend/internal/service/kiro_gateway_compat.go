@@ -140,6 +140,13 @@ func (s *KiroGatewayService) executeAndCollect(ctx context.Context, account *Acc
 		mappedModel = claudeReq.Model
 	}
 
+	if snap, used, loopErr := s.maybeWebSearchCollect(ctx, account, claudeReq, mappedModel); used {
+		if loopErr != nil {
+			return empty, "", loopErr
+		}
+		return snap, mappedModel, nil
+	}
+
 	creds := s.buildCredentials(account)
 	if err := creds.Validate(); err != nil {
 		return empty, "", &UpstreamFailoverError{

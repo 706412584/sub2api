@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/websearch"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -297,4 +298,86 @@ func TestKiroGatewayServiceFetchAvailableModels(t *testing.T) {
 	require.Len(t, upstream.requests, 1)
 	require.Contains(t, upstream.requests[0].URL.Path, "ListAvailableModels")
 	require.Equal(t, "Bearer ksk_test-value", upstream.requests[0].Header.Get("Authorization"))
+}
+
+func TestKiroWebSearchAgenticLoop(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// Fake Brave provider
+	braveSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"web":{"results":[{"url":"https://example.com","title":"Example","description":"snippet from web"}]}}`))
+	}))
+	defer braveSrv.Close()
+
+	// Override Brave URL via package-internal var through doWebSearch manager path.
+	// Use Manager with mock HTTP by patching through SearchWithBestProvider with custom server:
+	// re-use NewManager and inject client cache like websearch tests — but braveSearchURL is internal.
+	// Instead stub manager by implementing search via httptest that Manager hits after URL rewrite is unavailable.
+	// For service-layer test we temporarily install a manager with a provider and hijack HTTP via custom Dial...
+	// Simplest: unit-test loop helpers + inject a fake manager using SearchWithBestProvider against real httptest by
+	// exporting isn't available; call format/helpers directly and simulate loop with two queued upstream responses
+	// while stubbing doWebSearch is not easy. We'll install manager and monkey via websearch package tests style
+	// by creating Manager and overriding clientCache + brave URL through a tiny bridge in test file same package websearch is external.
+
+	// Approach: only test that maybeWebSearchCollect is skipped without manager, and
+	// runWebSearchAgenticLoop with a stub by replacing getWebSearchManager via SetWebSearchManager
+	// and using websearch.NewManager against brave httptest with clientCache. Need to set braveSearchURL —
+	// not accessible. Alternative: call formatKiroWebSearchResults + kiroWebSearchUses helpers,
+	// and full loop with doWebSearch failing gracefully still advances.
+
+	// Full loop: install manager with empty configs -> search fails -> tool error -> second model call.
+	// Better: use SearchWithBestProvider path with injected http.Client that doesn't need URL rewrite:
+	// Looking at manager code, it uses provider.Search which builds absolute brave URL from braveSearchURL.
+	// So without access, simulate search failure path still validates loop wiring.
+
+	toolFrame := kiroTestEventFrame("toolUseEvent", []byte(`{"name":"sub2api_web_search","toolUseId":"tu1","input":"{\"query\":\"weather\"}","stop":true}`))
+	finalFrame := kiroTestEventFrame("assistantResponseEvent", []byte(`{"content":"based on search"}`))
+	upstream := &queuedHTTPUpstream{responses: []*http.Response{
+		{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(bytes.NewReader(toolFrame))},
+		{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(bytes.NewReader(finalFrame))},
+	}}
+
+	// Manager with no providers -> doWebSearch fails -> error tool result still continues loop.
+	mgr := websearch.NewManager(nil, nil)
+	SetWebSearchManager(mgr)
+	defer SetWebSearchManager(nil)
+
+	svc := NewKiroGatewayService(upstream, nil, nil, nil)
+	account := &Account{
+		ID:       21,
+		Platform: PlatformKiro,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"kiro_api_key": "ksk_test-value",
+			"auth_method":  "api_key",
+			"endpoint":     "cli",
+			"api_region":   "us-west-2",
+		},
+	}
+	body := []byte(`{"model":"claude-sonnet-4.6","stream":false,"messages":[{"role":"user","content":"weather?"}],"tools":[{"name":"web_search_20250305","description":"search","input_schema":{"type":"object"}}]}`)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
+
+	result, err := svc.Forward(c.Request.Context(), c, account, body, false)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Len(t, upstream.requests, 2)
+	require.Contains(t, w.Body.String(), "based on search")
+	require.NotContains(t, w.Body.String(), "sub2api_web_search")
+	require.NotContains(t, w.Body.String(), "ksk_test-value")
+	_ = braveSrv
+}
+
+func TestKiroWebSearchHelpers(t *testing.T) {
+	require.True(t, requestWantsKiroWebSearch(kiroClaudeRequest{Tools: []struct {
+		Name        string          `json:"name"`
+		Description string          `json:"description"`
+		InputSchema json.RawMessage `json:"input_schema"`
+	}{{Name: "web_search_20250305"}}}))
+	require.Equal(t, "hello world", extractWebSearchQuery(map[string]any{"query": "hello world"}))
+	require.Equal(t, "q", extractWebSearchQuery(`{"query":"q"}`))
+	text := formatKiroWebSearchResults("q", &websearch.SearchResponse{Results: []websearch.SearchResult{{Title: "T", URL: "https://t", Snippet: "S"}}})
+	require.Contains(t, text, "https://t")
+	require.Contains(t, text, "T")
 }
