@@ -1301,6 +1301,9 @@ func (h *AccountHandler) PreviewFromCRS(c *gin.Context) {
 // refreshSingleAccount refreshes credentials for a single OAuth account.
 // Returns (updatedAccount, warning, error) where warning is used for Antigravity ProjectIDMissing scenario.
 func (h *AccountHandler) refreshSingleAccount(ctx context.Context, account *service.Account) (*service.Account, string, error) {
+	if account != nil && account.IsKiroAPIKey() {
+		return nil, "", infraerrors.BadRequest("KIRO_API_KEY_NO_REFRESH", "Kiro API key accounts cannot be refreshed")
+	}
 	if !account.IsOAuth() {
 		return nil, "", infraerrors.BadRequest("NOT_OAUTH", "cannot refresh non-OAuth account")
 	}
@@ -1379,6 +1382,13 @@ func (h *AccountHandler) refreshSingleAccount(ctx context.Context, account *serv
 				return nil, "", fmt.Errorf("failed to clear account error: %w", clearErr)
 			}
 		}
+	} else if account.Platform == service.PlatformKiro {
+		kiroRefresher := service.NewKiroTokenRefresher()
+		refreshedCredentials, refreshErr := kiroRefresher.Refresh(ctx, account)
+		if refreshErr != nil {
+			return nil, "", fmt.Errorf("failed to refresh Kiro credentials: %w", refreshErr)
+		}
+		newCredentials = refreshedCredentials
 	} else if account.Platform == service.PlatformGrok {
 		if h.grokOAuthService == nil {
 			return nil, "", fmt.Errorf("grok oauth service is not configured")

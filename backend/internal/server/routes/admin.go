@@ -349,6 +349,7 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAu
 		accounts.POST("/:id/duplicate", h.Admin.Account.Duplicate)
 		accounts.POST("/check-mixed-channel", h.Admin.Account.CheckMixedChannel)
 		accounts.POST("/import/codex-session", h.Admin.Account.ImportCodexSession)
+		accounts.POST("/import/kiro", h.Admin.Account.ImportKiroAccounts)
 		accounts.POST("/sync/crs", h.Admin.Account.SyncFromCRS)
 		accounts.POST("/sync/crs/preview", h.Admin.Account.PreviewFromCRS)
 		accounts.PUT("/:id", h.Admin.Account.Update)
@@ -451,6 +452,7 @@ func registerKiroOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	{
 		kiro.POST("/oauth/normalize", h.Admin.KiroOAuth.NormalizeCredentials)
 		kiro.POST("/oauth/create-account", h.Admin.KiroOAuth.CreateAccount)
+		kiro.POST("/api-key/create-account", h.Admin.KiroOAuth.CreateAPIKeyAccount)
 		kiro.POST("/oauth/builder-id/start", h.Admin.KiroOAuth.StartBuilderIDDeviceFlow)
 		kiro.POST("/oauth/builder-id/poll", h.Admin.KiroOAuth.PollBuilderIDDeviceFlow)
 		kiro.POST("/oauth/builder-id/create-account", h.Admin.KiroOAuth.CreateAccountFromBuilderIDDeviceFlow)

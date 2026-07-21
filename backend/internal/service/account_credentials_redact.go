@@ -4,9 +4,9 @@ package service
 // dto 层做响应脱敏、service 层做更新合并都引用此清单——新增凭证类型时务必同步。
 var SensitiveCredentialKeys = []string{
 	// OAuth
-	"access_token", "refresh_token", "id_token", "agent_private_key",
+	"access_token", "refresh_token", "id_token", "agent_private_key", "client_secret",
 	// API Key 类
-	"api_key", "session_key", "cookie",
+	"api_key", "kiro_api_key", "session_key", "cookie",
 	// 云服务凭据
 	"aws_secret_access_key", "aws_session_token",
 	"service_account_json", "service_account", "private_key",
@@ -36,6 +36,12 @@ func IsSensitiveCredentialKey(key string) bool {
 func MergePreservingSensitiveCreds(existing, incoming map[string]any) map[string]any {
 	out := make(map[string]any, len(incoming)+len(SensitiveCredentialKeys))
 	for k, v := range incoming {
+		incomingMap, incomingIsMap := v.(map[string]any)
+		existingMap, existingIsMap := existing[k].(map[string]any)
+		if incomingIsMap && existingIsMap {
+			out[k] = MergePreservingSensitiveCreds(existingMap, incomingMap)
+			continue
+		}
 		out[k] = v
 	}
 	for _, key := range SensitiveCredentialKeys {

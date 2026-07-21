@@ -1,0 +1,52 @@
+package admin
+
+import (
+	"testing"
+
+	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/stretchr/testify/require"
+)
+
+func TestParseKiroImportDataSupportsAPIKey(t *testing.T) {
+	accounts, err := parseKiroImportData(map[string]any{
+		"name":       "cli-key",
+		"kiroApiKey": "ksk_test-value",
+		"endpoint":   "cli",
+		"authRegion": "eu-west-1",
+		"api_region": "us-west-2",
+	})
+	require.NoError(t, err)
+	require.Len(t, accounts, 1)
+	require.Equal(t, "ksk_test-value", accounts[0].KiroAPIKey)
+	require.Equal(t, "api_key", accounts[0].AuthMethod)
+	require.Equal(t, "cli", accounts[0].Endpoint)
+	require.Equal(t, "eu-west-1", accounts[0].AuthRegion)
+	require.Equal(t, "us-west-2", accounts[0].APIRegion)
+}
+
+func TestKiroImportAPIKeyCreatesAPIKeyAccount(t *testing.T) {
+	stub := newStubAdminService()
+	h := &AccountHandler{adminService: stub}
+	accounts, err := parseKiroImportData(map[string]any{
+		"name":         "cli-key",
+		"kiro_api_key": "ksk_test-value",
+	})
+	require.NoError(t, err)
+
+	result, err := h.importKiroAccounts(t.Context(), KiroImportRequest{}, accounts)
+	require.NoError(t, err)
+	require.Equal(t, 1, result.Created)
+	require.Len(t, stub.createdAccounts, 1)
+	created := stub.createdAccounts[0]
+	require.Equal(t, service.PlatformKiro, created.Platform)
+	require.Equal(t, service.AccountTypeAPIKey, created.Type)
+	require.Equal(t, "ksk_test-value", created.Credentials["kiro_api_key"])
+	require.Equal(t, "api_key", created.Credentials["auth_method"])
+	require.Equal(t, "cli", created.Credentials["endpoint"])
+	require.NotContains(t, created.Credentials, "refresh_token")
+}
+
+func TestParseKiroImportDataRejectsMalformedAPIKey(t *testing.T) {
+	_, err := parseKiroImportData(map[string]any{"kiro_api_key": "sk_wrong"})
+	require.Error(t, err)
+}

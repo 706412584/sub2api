@@ -256,6 +256,97 @@ func (a *Account) IsGrokOAuth() bool {
 	return a.IsGrok() && a.Type == AccountTypeOAuth
 }
 
+func (a *Account) IsKiro() bool {
+	return a != nil && a.Platform == PlatformKiro
+}
+
+func (a *Account) IsKiroOAuth() bool {
+	return a.IsKiro() && a.Type == AccountTypeOAuth
+}
+
+func (a *Account) IsKiroAPIKey() bool {
+	return a.IsKiro() && a.Type == AccountTypeAPIKey
+}
+
+func (a *Account) GetKiroToken() string {
+	if a.IsKiroAPIKey() {
+		return strings.TrimSpace(a.GetCredential("kiro_api_key"))
+	}
+	if a.IsKiroOAuth() {
+		return strings.TrimSpace(a.GetCredential("access_token"))
+	}
+	return ""
+}
+
+func (a *Account) GetKiroEndpoint() string {
+	if !a.IsKiro() {
+		return ""
+	}
+	endpoint := strings.ToLower(strings.TrimSpace(a.GetCredential("endpoint")))
+	if endpoint == "ide" || endpoint == "cli" {
+		return endpoint
+	}
+	if a.IsKiroAPIKey() {
+		return "cli"
+	}
+	return "ide"
+}
+
+func (a *Account) GetKiroAuthRegion() string {
+	if !a.IsKiro() {
+		return ""
+	}
+	if region := strings.TrimSpace(a.GetCredential("auth_region")); region != "" {
+		return region
+	}
+	if region := strings.TrimSpace(a.GetCredential("region")); region != "" {
+		return region
+	}
+	return "us-east-1"
+}
+
+func (a *Account) GetKiroAPIRegion() string {
+	if !a.IsKiro() {
+		return ""
+	}
+	if region := strings.TrimSpace(a.GetCredential("api_region")); region != "" {
+		return region
+	}
+	if region := strings.TrimSpace(a.GetCredential("region")); region != "" {
+		return region
+	}
+	return "us-east-1"
+}
+
+func ValidateKiroAccountCredentials(platform, accountType string, credentials map[string]any) error {
+	if platform != PlatformKiro {
+		return nil
+	}
+	endpoint := strings.ToLower(strings.TrimSpace(credentialString(credentials, "endpoint")))
+	if endpoint != "" && endpoint != "ide" && endpoint != "cli" {
+		return errors.New("Kiro endpoint must be ide or cli")
+	}
+	if accountType != AccountTypeAPIKey {
+		return nil
+	}
+	if endpoint != "" && endpoint != "cli" {
+		return errors.New("Kiro API key accounts require the cli endpoint")
+	}
+	apiKey := strings.TrimSpace(credentialString(credentials, "kiro_api_key"))
+	if !strings.HasPrefix(apiKey, "ksk_") || len(apiKey) <= len("ksk_") {
+		return errors.New("Kiro API key must start with ksk_")
+	}
+	return nil
+}
+
+func credentialString(credentials map[string]any, key string) string {
+	if credentials == nil {
+		return ""
+	}
+	value, _ := credentials[key].(string)
+	return value
+}
+
 func (a *Account) IsOpenAICompatible() bool {
 	return a != nil && (a.Platform == PlatformOpenAI || a.Platform == PlatformGrok)
 }

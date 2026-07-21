@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -33,6 +34,23 @@ type KiroOAuthCreateRequest struct {
 	GroupIDs                []int64  `json:"group_ids"`
 	ExpiresAt               *int64   `json:"expires_at"`
 	AutoPauseOnExpired      *bool    `json:"auto_pause_on_expired"`
+	SkipDefaultGroupBind    *bool    `json:"skip_default_group_bind"`
+	ConfirmMixedChannelRisk *bool    `json:"confirm_mixed_channel_risk"`
+}
+
+type KiroAPIKeyCreateRequest struct {
+	Name                    string   `json:"name" binding:"required"`
+	Notes                   *string  `json:"notes"`
+	KiroAPIKey              string   `json:"kiro_api_key" binding:"required"`
+	Endpoint                string   `json:"endpoint"`
+	AuthRegion              string   `json:"auth_region"`
+	APIRegion               string   `json:"api_region"`
+	ProxyID                 *int64   `json:"proxy_id"`
+	Concurrency             *int     `json:"concurrency"`
+	Priority                *int     `json:"priority"`
+	RateMultiplier          *float64 `json:"rate_multiplier"`
+	LoadFactor              *int     `json:"load_factor"`
+	GroupIDs                []int64  `json:"group_ids"`
 	SkipDefaultGroupBind    *bool    `json:"skip_default_group_bind"`
 	ConfirmMixedChannelRisk *bool    `json:"confirm_mixed_channel_risk"`
 }
@@ -95,7 +113,8 @@ func (h *KiroOAuthHandler) NormalizeCredentials(c *gin.Context) {
 	}
 
 	name, credentials, extra := buildKiroOAuthAccountPayload(accounts[0], "")
-	response.Success(c, KiroOAuthNormalizeResponse{Name: name, Credentials: credentials, Extra: extra})
+	redactedCredentials, _ := dto.RedactCredentials(credentials)
+	response.Success(c, KiroOAuthNormalizeResponse{Name: name, Credentials: redactedCredentials, Extra: extra})
 }
 
 // StartBuilderIDDeviceFlow starts AWS OIDC Builder ID device authorization flow.
@@ -127,6 +146,69 @@ func (h *KiroOAuthHandler) PollBuilderIDDeviceFlow(c *gin.Context) {
 		return
 	}
 	response.Success(c, result)
+}
+
+func (h *KiroOAuthHandler) CreateAPIKeyAccount(c *gin.Context) {
+	var req KiroAPIKeyCreateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	endpoint := strings.ToLower(strings.TrimSpace(req.Endpoint))
+	if endpoint == "" {
+		endpoint = "cli"
+	}
+	authRegion := strings.TrimSpace(req.AuthRegion)
+	if authRegion == "" {
+		authRegion = "us-east-1"
+	}
+	apiRegion := strings.TrimSpace(req.APIRegion)
+	if apiRegion == "" {
+		apiRegion = authRegion
+	}
+	credentials := map[string]any{
+		"kiro_api_key": strings.TrimSpace(req.KiroAPIKey),
+		"auth_method":  "api_key",
+		"endpoint":     endpoint,
+		"auth_region":  authRegion,
+		"api_region":   apiRegion,
+		"region":       apiRegion,
+	}
+	if err := service.ValidateKiroAccountCredentials(service.PlatformKiro, service.AccountTypeAPIKey, credentials); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	concurrency := 3
+	if req.Concurrency != nil {
+		concurrency = *req.Concurrency
+	}
+	priority := 50
+	if req.Priority != nil {
+		priority = *req.Priority
+	}
+	input := &service.CreateAccountInput{
+		Name:                  strings.TrimSpace(req.Name),
+		Notes:                 req.Notes,
+		Platform:              service.PlatformKiro,
+		Type:                  service.AccountTypeAPIKey,
+		Credentials:           credentials,
+		ProxyID:               req.ProxyID,
+		Concurrency:           concurrency,
+		Priority:              priority,
+		RateMultiplier:        req.RateMultiplier,
+		LoadFactor:            req.LoadFactor,
+		GroupIDs:              req.GroupIDs,
+		SkipMixedChannelCheck: req.ConfirmMixedChannelRisk != nil && *req.ConfirmMixedChannelRisk,
+	}
+	if req.SkipDefaultGroupBind != nil {
+		input.SkipDefaultGroupBind = *req.SkipDefaultGroupBind
+	}
+	account, err := h.adminService.CreateAccount(c.Request.Context(), input)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dto.AccountFromService(account))
 }
 
 // CreateAccount creates one Kiro OAuth account from a browser-login/export payload.
@@ -161,7 +243,7 @@ func (h *KiroOAuthHandler) CreateAccount(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, account)
+	response.Success(c, dto.AccountFromService(account))
 }
 
 // CreateAccountFromBuilderIDDeviceFlow creates a Kiro OAuth account from a completed Builder ID device flow session.
@@ -208,7 +290,7 @@ func (h *KiroOAuthHandler) CreateAccountFromBuilderIDDeviceFlow(c *gin.Context) 
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, account)
+	response.Success(c, dto.AccountFromService(account))
 }
 
 func (h *KiroOAuthHandler) createKiroOAuthAccount(ctx context.Context, req KiroOAuthCreateRequest, account kiroAccountData) (*service.Account, error) {
@@ -267,6 +349,9 @@ func buildKiroOAuthAccountPayload(account kiroAccountData, requestedName string)
 	putString("issuer_url", account.IssuerURL)
 	putString("start_url", account.StartURL)
 	putString("machine_id", account.MachineID)
+	putString("endpoint", account.Endpoint)
+	putString("auth_region", account.AuthRegion)
+	putString("api_region", account.APIRegion)
 	if len(account.Scopes) > 0 {
 		credentials["scopes"] = account.Scopes
 		credentials["scope"] = strings.Join(account.Scopes, " ")

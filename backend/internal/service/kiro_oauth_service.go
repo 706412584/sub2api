@@ -33,7 +33,7 @@ func (r *KiroTokenRefresher) CacheKey(account *Account) string {
 }
 
 func (r *KiroTokenRefresher) CanRefresh(account *Account) bool {
-	return account.Platform == PlatformKiro && account.Type == AccountTypeOAuth
+	return account != nil && account.IsKiroOAuth()
 }
 
 func (r *KiroTokenRefresher) NeedsRefresh(account *Account, refreshWindow time.Duration) bool {
@@ -58,6 +58,9 @@ func (r *KiroTokenRefresher) Refresh(ctx context.Context, account *Account) (map
 func RefreshKiroAccountToken(ctx context.Context, account *Account) (*KiroTokenInfo, error) {
 	if account == nil {
 		return nil, fmt.Errorf("account is nil")
+	}
+	if !account.IsKiroOAuth() {
+		return nil, fmt.Errorf("Kiro API key accounts cannot be refreshed")
 	}
 	refreshToken := strings.TrimSpace(account.GetCredential("refresh_token"))
 	if refreshToken == "" {

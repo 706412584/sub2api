@@ -21,6 +21,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
+	kiroprotocol "github.com/Wei-Shaw/sub2api/internal/pkg/kiro"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
@@ -203,7 +204,75 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 		return s.routeAntigravityTest(c, account, modelID, prompt)
 	}
 
+	if account.IsKiro() {
+		return s.testKiroAccountConnection(c, account, modelID)
+	}
+
 	return s.testClaudeAccountConnection(c, account, modelID)
+}
+
+func (s *AccountTestService) testKiroAccountConnection(c *gin.Context, account *Account, modelID string) error {
+	ctx := c.Request.Context()
+	testModelID := strings.TrimSpace(modelID)
+	if testModelID == "" {
+		testModelID = "claude-sonnet-4.6"
+	}
+	testModelID = account.GetMappedModel(testModelID)
+	credentials := kiroprotocol.Credentials{
+		AccessToken:  strings.TrimSpace(account.GetCredential("access_token")),
+		RefreshToken: strings.TrimSpace(account.GetCredential("refresh_token")),
+		ProfileARN:   strings.TrimSpace(account.GetCredential("profile_arn")),
+		APIKey:       strings.TrimSpace(account.GetCredential("kiro_api_key")),
+		AuthMethod:   strings.TrimSpace(account.GetCredential("auth_method")),
+		APIRegion:    account.GetKiroAPIRegion(),
+		Endpoint:     kiroprotocol.Endpoint(account.GetKiroEndpoint()),
+	}
+	request, err := kiroprotocol.BuildDataPlaneRequest(
+		credentials,
+		kiroprotocol.NewRequest(uuid.NewString(), testModelID, "hi"),
+		kiroprotocol.EndpointOptions{
+			Region:        account.GetKiroAPIRegion(),
+			MachineID:     strings.TrimSpace(account.GetCredential("machine_id")),
+			KiroVersion:   "0.7.1",
+			SystemVersion: "windows",
+			NodeVersion:   "20",
+		},
+	)
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to build Kiro request: %s", err.Error()))
+	}
+	request = request.WithContext(ctx)
+	account.ApplyHeaderOverrides(request.Header)
+
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("X-Accel-Buffering", "no")
+	c.Writer.Flush()
+	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
+
+	proxyURL := ""
+	if account.ProxyID != nil && account.Proxy != nil {
+		proxyURL = account.Proxy.URL()
+	}
+	resp, err := s.httpUpstream.DoWithTLS(request, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Kiro request failed: %s", err.Error()))
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Kiro API returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body))))
+	}
+	result, err := kiroprotocol.CollectResponse(resp.Body, 0)
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Kiro stream failed: %s", err.Error()))
+	}
+	if text := strings.TrimSpace(result.Content); text != "" {
+		s.sendEvent(c, TestEvent{Type: "text", Text: text})
+	}
+	s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+	return nil
 }
 
 // testClaudeAccountConnection tests an Anthropic Claude account's connection

@@ -72,6 +72,10 @@ type kiroAccountData struct {
 	StartURL                      string         `json:"start_url"`
 	ExpiresAt                     int64          `json:"expires_at"`
 	MachineID                     string         `json:"machine_id"`
+	KiroAPIKey                    string         `json:"kiro_api_key"`
+	Endpoint                      string         `json:"endpoint"`
+	AuthRegion                    string         `json:"auth_region"`
+	APIRegion                     string         `json:"api_region"`
 	SubscriptionType              string         `json:"subscription_type"`
 	SubscriptionTitle             string         `json:"subscription_title"`
 	SubscriptionRawType           string         `json:"subscription_raw_type"`
@@ -197,6 +201,10 @@ func kiroAccountFromMap(raw map[string]any) (kiroAccountData, bool) {
 		StartURL:      readKiroString(sources, "startUrl", "start_url"),
 		ExpiresAt:     readKiroInt64(sources, "expiresAt", "expires_at"),
 		MachineID:     readKiroString(sources, "machineId", "machine_id"),
+		KiroAPIKey:    readKiroString(sources, "kiroApiKey", "kiro_api_key"),
+		Endpoint:      strings.ToLower(readKiroString(sources, "endpoint")),
+		AuthRegion:    readKiroString(sources, "authRegion", "auth_region"),
+		APIRegion:     readKiroString(sources, "apiRegion", "api_region"),
 		RawData:       raw,
 	}
 	if externalIDP, ok := readKiroRecord(raw, "external_idp", "externalIdp", "externalIDP"); ok {
@@ -205,7 +213,21 @@ func kiroAccountFromMap(raw map[string]any) (kiroAccountData, bool) {
 	if account.Region == "" {
 		account.Region = "us-east-1"
 	}
-	if account.AuthMethod == "" {
+	if account.AuthRegion == "" {
+		account.AuthRegion = account.Region
+	}
+	if account.APIRegion == "" {
+		account.APIRegion = account.Region
+	}
+	if account.KiroAPIKey != "" {
+		if !strings.HasPrefix(account.KiroAPIKey, "ksk_") || len(account.KiroAPIKey) <= len("ksk_") {
+			return kiroAccountData{}, false
+		}
+		account.AuthMethod = "api_key"
+		if account.Endpoint == "" {
+			account.Endpoint = "cli"
+		}
+	} else if account.AuthMethod == "" {
 		account.AuthMethod = inferKiroAuthMethod(account)
 	}
 	if subscription, ok := readKiroRecord(raw, "subscription"); ok {
@@ -232,7 +254,7 @@ func kiroAccountFromMap(raw map[string]any) (kiroAccountData, bool) {
 		account.Provider = defaultKiroProvider(account.AuthMethod)
 	}
 
-	return account, account.RefreshToken != "" || account.AccessToken != "" || account.ClientID != "" || account.ExternalIDP != nil
+	return account, account.KiroAPIKey != "" || account.RefreshToken != "" || account.AccessToken != "" || account.ClientID != "" || account.ExternalIDP != nil
 }
 
 func readKiroRecord(source map[string]any, keys ...string) (map[string]any, bool) {
@@ -369,6 +391,8 @@ func normalizeKiroAuthMethod(method string) string {
 		return "social"
 	case "external_idp", "externalidp", "external", "enterprise":
 		return "external_idp"
+	case "api_key", "apikey", "kiro_api_key":
+		return "api_key"
 	default:
 		return lower
 	}
@@ -390,6 +414,8 @@ func defaultKiroProvider(authMethod string) string {
 		return "ExternalIdp"
 	case "idc":
 		return "BuilderId"
+	case "api_key":
+		return "KiroAPIKey"
 	default:
 		return "Google"
 	}
@@ -422,8 +448,12 @@ func (h *AccountHandler) importKiroAccounts(ctx context.Context, req KiroImportR
 		}
 
 		// Build credentials
-		credentials := map[string]any{
-			"refresh_token": account.RefreshToken,
+		credentials := map[string]any{}
+		if account.RefreshToken != "" {
+			credentials["refresh_token"] = account.RefreshToken
+		}
+		if account.KiroAPIKey != "" {
+			credentials["kiro_api_key"] = account.KiroAPIKey
 		}
 		if account.AccessToken != "" {
 			credentials["access_token"] = account.AccessToken
@@ -442,6 +472,15 @@ func (h *AccountHandler) importKiroAccounts(ctx context.Context, req KiroImportR
 		}
 		if account.Region != "" {
 			credentials["region"] = account.Region
+		}
+		if account.Endpoint != "" {
+			credentials["endpoint"] = account.Endpoint
+		}
+		if account.AuthRegion != "" {
+			credentials["auth_region"] = account.AuthRegion
+		}
+		if account.APIRegion != "" {
+			credentials["api_region"] = account.APIRegion
 		}
 		if account.ProfileArn != "" {
 			credentials["profile_arn"] = account.ProfileArn
@@ -530,10 +569,14 @@ func (h *AccountHandler) importKiroAccounts(ctx context.Context, req KiroImportR
 		}
 
 		// Create the account
+		accountType := service.AccountTypeOAuth
+		if account.KiroAPIKey != "" {
+			accountType = service.AccountTypeAPIKey
+		}
 		createReq := &service.CreateAccountInput{
 			Name:                 accountName,
 			Platform:             domain.PlatformKiro,
-			Type:                 "oauth",
+			Type:                 accountType,
 			Credentials:          credentials,
 			Extra:                extra,
 			Concurrency:          concurrency,
