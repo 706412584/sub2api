@@ -83,3 +83,76 @@ func TestKiroGatewayServiceForwardAPIKeyNonStream(t *testing.T) {
 	require.Contains(t, w.Body.String(), `"ok"`)
 	require.Contains(t, w.Body.String(), `"type":"message"`)
 }
+
+func TestKiroGatewayServiceForwardAsChatCompletionsNonStream(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	stream := kiroTestEventFrame("assistantResponseEvent", []byte(`{"content":"chat-ok"}`))
+	upstream := &queuedHTTPUpstream{responses: []*http.Response{{
+		StatusCode: http.StatusOK,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(bytes.NewReader(stream)),
+	}}}
+	svc := NewKiroGatewayService(upstream, nil, nil, nil)
+	account := &Account{
+		ID:       8,
+		Platform: PlatformKiro,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"kiro_api_key": "ksk_test-value",
+			"auth_method":  "api_key",
+			"endpoint":     "cli",
+			"api_region":   "us-west-2",
+		},
+	}
+	body := []byte(`{"model":"claude-sonnet-4.6","stream":false,"messages":[{"role":"user","content":"hi"}]}`)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+
+	result, err := svc.ForwardAsChatCompletions(c.Request.Context(), c, account, body)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, "claude-sonnet-4.6", result.Model)
+	require.False(t, result.Stream)
+	require.Len(t, upstream.requests, 1)
+	require.Equal(t, "Bearer ksk_test-value", upstream.requests[0].Header.Get("Authorization"))
+	require.NotContains(t, w.Body.String(), "ksk_test-value")
+	require.Contains(t, w.Body.String(), "chat-ok")
+	require.Contains(t, w.Body.String(), `"object":"chat.completion"`)
+}
+
+func TestKiroGatewayServiceForwardAsResponsesNonStream(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	stream := kiroTestEventFrame("assistantResponseEvent", []byte(`{"content":"resp-ok"}`))
+	upstream := &queuedHTTPUpstream{responses: []*http.Response{{
+		StatusCode: http.StatusOK,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(bytes.NewReader(stream)),
+	}}}
+	svc := NewKiroGatewayService(upstream, nil, nil, nil)
+	account := &Account{
+		ID:       9,
+		Platform: PlatformKiro,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"kiro_api_key": "ksk_test-value",
+			"auth_method":  "api_key",
+			"endpoint":     "cli",
+			"api_region":   "us-west-2",
+		},
+	}
+	body := []byte(`{"model":"claude-sonnet-4.6","stream":false,"input":"hello"}`)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
+
+	result, err := svc.ForwardAsResponses(c.Request.Context(), c, account, body)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, "claude-sonnet-4.6", result.Model)
+	require.False(t, result.Stream)
+	require.Len(t, upstream.requests, 1)
+	require.NotContains(t, w.Body.String(), "ksk_test-value")
+	require.Contains(t, w.Body.String(), "resp-ok")
+	require.Contains(t, w.Body.String(), `"object":"response"`)
+}
