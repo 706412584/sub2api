@@ -1,8 +1,12 @@
 package admin
 
 import (
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
 )
@@ -26,7 +30,16 @@ func TestParseKiroImportDataSupportsAPIKey(t *testing.T) {
 
 func TestKiroImportAPIKeyCreatesAPIKeyAccount(t *testing.T) {
 	stub := newStubAdminService()
-	h := &AccountHandler{adminService: stub}
+	upstream := &syncUpstreamHTTPUpstream{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(`{"models":[{"modelId":"claude-sonnet-5"},{"modelId":"gpt-5.6-sol"}]}`)),
+	}}
+	accountTestService := service.NewAccountTestService(
+		nil, nil, nil, nil, nil, upstream,
+		&config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
+		nil,
+	)
+	h := &AccountHandler{adminService: stub, accountTestService: accountTestService}
 	accounts, err := parseKiroImportData(map[string]any{
 		"name":         "cli-key",
 		"kiro_api_key": "ksk_test-value",
@@ -43,6 +56,10 @@ func TestKiroImportAPIKeyCreatesAPIKeyAccount(t *testing.T) {
 	require.Equal(t, "ksk_test-value", created.Credentials["kiro_api_key"])
 	require.Equal(t, "api_key", created.Credentials["auth_method"])
 	require.Equal(t, "cli", created.Credentials["endpoint"])
+	require.Equal(t, map[string]any{
+		"claude-sonnet-5": "claude-sonnet-5",
+		"gpt-5.6-sol":     "gpt-5.6-sol",
+	}, created.Credentials["model_mapping"])
 	require.NotContains(t, created.Credentials, "refresh_token")
 }
 

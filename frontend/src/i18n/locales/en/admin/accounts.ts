@@ -173,6 +173,28 @@ export default {
       kiroAuthRegionHint: 'Defaults to the API region when empty.',
       kiroApiKeyCreateSuccess: 'Kiro API Key account created',
       kiroApiKeyCreateFailed: 'Failed to create Kiro API Key account',
+      kiroImportMode: 'Kiro Credentials',
+      kiroImportHint: 'Supports Kiro Account Manager, kiro.rs batch credentials, OAuth JSON, and ksk_ API keys across multiple JSON files.',
+      kiroImportButton: 'Import Kiro Credentials',
+      kiroImportSuccess: 'Kiro import completed: created {created}, failed {failed}',
+      kiroImportFailed: 'Failed to import Kiro credentials',
+      kiroDetails: {
+        title: 'Kiro Account Details',
+        refresh: 'Refresh Upstream',
+        subscription: 'Subscription',
+        email: 'Email',
+        region: 'API Region',
+        endpoint: 'Endpoint',
+        overage: 'Overage',
+        nextReset: 'Next Reset',
+        quota: 'Agentic Usage',
+        models: 'Upstream Models',
+        enabled: 'Enabled',
+        available: 'Available',
+        unavailable: 'Unavailable',
+        unknown: 'Unknown',
+        loadFailed: 'Failed to load Kiro account details'
+      },
       antigravityProjectIdLabel: 'GCP Project ID (optional)',
       antigravityProjectIdPlaceholder: 'your-gcp-project-id',
       antigravityProjectIdHint:
@@ -1367,7 +1389,8 @@ export default {
         grokLastProbe: 'Probe {time}',
         grokLastHeadersSeen: 'Headers {time}',
         passiveSampled: 'Passive',
-        activeQuery: 'Query'
+        activeQuery: 'Query',
+        kiroAgentic: 'Agentic'
       },
       openaiQuotaReset: {
         count: 'Credits',

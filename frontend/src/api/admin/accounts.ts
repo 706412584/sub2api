@@ -658,6 +658,22 @@ export async function importData(payload: {
   return data
 }
 
+export interface KiroImportResult {
+  total: number
+  created: number
+  failed: number
+  items?: Array<{ index: number; name?: string; action: string; account_id?: number; message?: string }>
+  errors?: Array<{ index: number; name?: string; message: string }>
+}
+
+export async function importKiroCredentials(data: unknown): Promise<KiroImportResult> {
+  const { data: result } = await apiClient.post<KiroImportResult>('/admin/accounts/import/kiro', {
+    data,
+    skip_default_group_bind: true
+  }, { timeout: 120000 })
+  return result
+}
+
 export async function importCodexSession(payload: CodexSessionImportRequest): Promise<CodexSessionImportResult> {
   const { data } = await apiClient.post<CodexSessionImportResult>('/admin/accounts/import/codex-session', payload, {
     timeout: 120000 // 120s timeout for large session imports
@@ -1058,6 +1074,7 @@ export const accountsAPI = {
   syncFromCrs,
   exportData,
   importData,
+  importKiroCredentials,
   importCodexSession,
   createOpenAICodexPAT,
   normalizeKiroOAuthCredentials,

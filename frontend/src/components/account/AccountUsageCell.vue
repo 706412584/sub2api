@@ -118,6 +118,40 @@
       </div>
     </template>
 
+    <template v-else-if="account.platform === 'kiro'">
+      <div v-if="loading" class="space-y-1.5">
+        <div class="h-4 w-20 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
+        <div class="h-1.5 w-24 animate-pulse rounded-full bg-gray-200 dark:bg-gray-700"></div>
+      </div>
+      <div v-else-if="error" class="text-xs text-red-500">{{ error }}</div>
+      <div v-else-if="usageInfo?.kiro" class="space-y-1">
+        <div class="flex items-center gap-1.5">
+          <span class="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+            {{ usageInfo.kiro.subscription_title || 'Kiro' }}
+          </span>
+          <button
+            type="button"
+            class="text-[10px] text-blue-600 hover:text-blue-700 dark:text-blue-400"
+            :disabled="activeQueryLoading"
+            @click="loadActiveUsage"
+          >
+            {{ t('admin.accounts.usageWindow.activeQuery') }}
+          </button>
+        </div>
+        <UsageProgressBar
+          v-if="usageInfo.kiro.usage_limit > 0"
+          :label="t('admin.accounts.usageWindow.kiroAgentic')"
+          :utilization="kiroUsagePercent"
+          :resets-at="usageInfo.kiro.next_reset_at || null"
+          color="indigo"
+        />
+        <div class="text-[10px] text-gray-500 dark:text-gray-400">
+          {{ formatKiroUsage(usageInfo.kiro.current_usage) }} / {{ formatKiroUsage(usageInfo.kiro.usage_limit) }}
+        </div>
+      </div>
+      <div v-else class="text-xs text-gray-400">-</div>
+    </template>
+
     <!-- OpenAI OAuth accounts: single source from /usage API -->
     <template v-else-if="account.platform === 'openai' && account.type === 'oauth'">
       <div v-if="hasOpenAIUsageFallback" class="space-y-1">
@@ -671,7 +705,7 @@ let visibilityObserver: IntersectionObserver | null = null
 // Show usage windows for OAuth and Setup Token accounts
 const showUsageWindows = computed(() => {
   // Gemini: we can always compute local usage windows from DB logs (simulated quotas).
-  if (props.account.platform === 'gemini') return true
+  if (props.account.platform === 'gemini' || props.account.platform === 'kiro') return true
   return props.account.type === 'oauth' || props.account.type === 'setup-token'
 })
 
@@ -691,6 +725,9 @@ const shouldFetchUsage = computed(() => {
   if (props.account.platform === 'openai') {
     return props.account.type === 'oauth'
   }
+  if (props.account.platform === 'kiro') {
+    return true
+  }
   return false
 })
 
@@ -708,6 +745,16 @@ const geminiUsageAvailable = computed(() => {
     !!usageInfo.value?.gemini_flash_minute
   )
 })
+
+const kiroUsagePercent = computed(() => {
+  const usage = usageInfo.value?.kiro
+  if (!usage || usage.usage_limit <= 0) return 0
+  return Math.min(100, Math.max(0, (usage.current_usage / usage.usage_limit) * 100))
+})
+
+const formatKiroUsage = (value: number) => {
+  return Number.isInteger(value) ? value.toLocaleString() : value.toLocaleString(undefined, { maximumFractionDigits: 2 })
+}
 
 const hasOpenAIUsageFallback = computed(() => {
   if (props.account.platform !== 'openai' || props.account.type !== 'oauth') return false

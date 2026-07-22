@@ -36,6 +36,7 @@ type stubAdminService struct {
 	lastBulkUpdateAccountInput          *service.BulkUpdateAccountsInput
 	getAccountResult                    *service.Account
 	updateAccountCalls                  int
+	lastUpdateAccountInput              *service.UpdateAccountInput
 	updateAccountExtraCalls             int
 	checkMixedErr                       error
 	lastMixedCheck                      struct {
@@ -451,6 +452,7 @@ func (s *stubAdminService) RecoverDuplicateAccount(ctx context.Context, id int64
 
 func (s *stubAdminService) UpdateAccount(ctx context.Context, id int64, input *service.UpdateAccountInput) (*service.Account, error) {
 	s.updateAccountCalls++
+	s.lastUpdateAccountInput = input
 	if s.updateAccountErr != nil {
 		return nil, s.updateAccountErr
 	}

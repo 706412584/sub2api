@@ -7,8 +7,24 @@
     @close="handleClose"
   >
     <form id="import-data-form" class="space-y-4" @submit.prevent="handleImport">
+      <div class="grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1 dark:bg-dark-800">
+        <button
+          type="button"
+          :class="['rounded-md px-3 py-2 text-sm font-medium transition-colors', importMode === 'sub2api' ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white' : 'text-gray-500 dark:text-gray-400']"
+          @click="setImportMode('sub2api')"
+        >
+          Sub2API
+        </button>
+        <button
+          type="button"
+          :class="['rounded-md px-3 py-2 text-sm font-medium transition-colors', importMode === 'kiro' ? 'bg-white text-indigo-700 shadow-sm dark:bg-dark-700 dark:text-indigo-300' : 'text-gray-500 dark:text-gray-400']"
+          @click="setImportMode('kiro')"
+        >
+          {{ t('admin.accounts.kiroImportMode') }}
+        </button>
+      </div>
       <div class="text-sm text-gray-600 dark:text-dark-300">
-        {{ t('admin.accounts.dataImportHint') }}
+        {{ importMode === 'kiro' ? t('admin.accounts.kiroImportHint') : t('admin.accounts.dataImportHint') }}
       </div>
       <div
         class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-600 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400"
@@ -88,7 +104,7 @@
           form="import-data-form"
           :disabled="importing"
         >
-          {{ importing ? t('admin.accounts.dataImporting') : t('admin.accounts.dataImportButton') }}
+          {{ importing ? t('admin.accounts.dataImporting') : (importMode === 'kiro' ? t('admin.accounts.kiroImportButton') : t('admin.accounts.dataImportButton')) }}
         </button>
       </div>
     </template>
@@ -119,6 +135,7 @@ const { t } = useI18n()
 const appStore = useAppStore()
 
 const importing = ref(false)
+const importMode = ref<'sub2api' | 'kiro'>('sub2api')
 const files = ref<File[]>([])
 const dragDepth = ref(0)
 const dragActive = computed(() => dragDepth.value > 0)
@@ -149,6 +166,14 @@ watch(
     }
   }
 )
+
+const setImportMode = (mode: 'sub2api' | 'kiro') => {
+  if (importing.value || importMode.value === mode) return
+  importMode.value = mode
+  files.value = []
+  result.value = null
+  if (fileInput.value) fileInput.value.value = ''
+}
 
 const openFilePicker = () => {
   fileInput.value?.click()
@@ -249,6 +274,14 @@ const isValidDataPayload = (payload: unknown): payload is AdminDataPayload => {
   return Array.isArray(candidate.proxies) && Array.isArray(candidate.accounts)
 }
 
+const extractKiroAccounts = (payload: unknown): unknown[] => {
+  if (Array.isArray(payload)) return payload
+  if (!payload || typeof payload !== 'object') return []
+  const record = payload as Record<string, unknown>
+  if (Array.isArray(record.accounts)) return record.accounts
+  return [payload]
+}
+
 const mergeDataPayloads = (payloads: AdminDataPayload[]): AdminDataPayload => {
   const [firstPayload] = payloads
   if (payloads.length === 1 && firstPayload) return firstPayload
@@ -274,19 +307,36 @@ const handleImport = async () => {
 
   importing.value = true
   try {
-    const dataPayloads: AdminDataPayload[] = []
+    const parsedFiles: unknown[] = []
     for (const sourceFile of files.value) {
-      let parsed: unknown
       try {
-        parsed = JSON.parse(await readFileAsText(sourceFile))
+        parsedFiles.push(JSON.parse(await readFileAsText(sourceFile)))
       } catch {
         appStore.showError(
           t('admin.accounts.dataImportParseFailedFile', { name: sourceFile.name })
         )
         return
       }
+    }
+
+    if (importMode.value === 'kiro') {
+      const kiroPayload = parsedFiles.length === 1 ? parsedFiles[0] : { accounts: parsedFiles.flatMap(extractKiroAccounts) }
+      const kiroResult = await adminAPI.accounts.importKiroCredentials(kiroPayload)
+      if (kiroResult.created > 0) emit('imported')
+      const message = t('admin.accounts.kiroImportSuccess', {
+        created: kiroResult.created,
+        failed: kiroResult.failed
+      })
+      if (kiroResult.failed > 0) appStore.showWarning(message)
+      else appStore.showSuccess(message)
+      return
+    }
+
+    const dataPayloads: AdminDataPayload[] = []
+    for (let index = 0; index < parsedFiles.length; index++) {
+      const parsed = parsedFiles[index]
       if (!isValidDataPayload(parsed)) {
-        appStore.showError(t('admin.accounts.dataImportInvalidFile', { name: sourceFile.name }))
+        appStore.showError(t('admin.accounts.dataImportInvalidFile', { name: files.value[index]?.name || '-' }))
         return
       }
       dataPayloads.push(parsed)

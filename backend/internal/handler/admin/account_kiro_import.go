@@ -573,6 +573,41 @@ func (h *AccountHandler) importKiroAccounts(ctx context.Context, req KiroImportR
 		if account.KiroAPIKey != "" {
 			accountType = service.AccountTypeAPIKey
 		}
+		// API Key 导入要求同步成功；OAuth 有 access_token 时尽力同步，失败不阻断导入。
+		canSyncModels := account.KiroAPIKey != "" || strings.TrimSpace(account.AccessToken) != ""
+		if canSyncModels {
+			if h.accountTestService == nil {
+				if account.KiroAPIKey != "" {
+					item.Action = "failed"
+					item.Message = "Kiro model sync service is not configured"
+					result.Failed++
+					result.Errors = append(result.Errors, KiroImportMessage{Index: i, Name: accountName, Message: item.Message})
+					result.Items = append(result.Items, item)
+					continue
+				}
+			} else {
+				models, modelErr := h.accountTestService.FetchUpstreamSupportedModels(ctx, &service.Account{
+					Platform: service.PlatformKiro, Type: accountType, Credentials: credentials,
+					ProxyID: req.ProxyID, Concurrency: concurrency,
+				})
+				if modelErr != nil {
+					if account.KiroAPIKey != "" {
+						item.Action = "failed"
+						item.Message = "Failed to sync Kiro models from upstream"
+						result.Failed++
+						result.Errors = append(result.Errors, KiroImportMessage{Index: i, Name: accountName, Message: item.Message})
+						result.Items = append(result.Items, item)
+						continue
+					}
+				} else {
+					modelMapping := make(map[string]any, len(models))
+					for _, model := range models {
+						modelMapping[model] = model
+					}
+					credentials["model_mapping"] = modelMapping
+				}
+			}
+		}
 		createReq := &service.CreateAccountInput{
 			Name:                 accountName,
 			Platform:             domain.PlatformKiro,

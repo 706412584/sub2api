@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	kiroprotocol "github.com/Wei-Shaw/sub2api/internal/pkg/kiro"
@@ -111,7 +112,7 @@ func SnapshotUsageToAccountExtra(extra map[string]any, limits *kiroprotocol.Usag
 	if limits == nil {
 		return extra
 	}
-	extra["kiro_usage"] = map[string]any{
+	snapshot := map[string]any{
 		"version":            1,
 		"fetched_at":         time.Now().UTC().Format(time.RFC3339),
 		"subscription_title": limits.SubscriptionTitle(),
@@ -119,6 +120,23 @@ func SnapshotUsageToAccountExtra(extra map[string]any, limits *kiroprotocol.Usag
 		"usage_limit":        limits.UsageLimit(),
 		"stale":              false,
 	}
+	if email := strings.TrimSpace(limits.Email()); email != "" {
+		snapshot["email"] = email
+	}
+	if enabled, ok := limits.OverageEnabled(); ok {
+		snapshot["overage_enabled"] = enabled
+	}
+	if capable, ok := limits.OverageCapable(); ok {
+		snapshot["overage_capable"] = capable
+	}
+	resetAt := limits.NextDateReset
+	if len(limits.UsageBreakdownList) > 0 && limits.UsageBreakdownList[0].NextDateReset != nil {
+		resetAt = limits.UsageBreakdownList[0].NextDateReset
+	}
+	if resetAt != nil && *resetAt > 0 {
+		snapshot["next_reset_at"] = time.Unix(int64(*resetAt), 0).UTC().Format(time.RFC3339)
+	}
+	extra["kiro_usage"] = snapshot
 	return extra
 }
 

@@ -328,6 +328,28 @@ export default {
       kiroAuthRegionHint: '留空时与 API 区域相同。',
       kiroApiKeyCreateSuccess: 'Kiro API Key 账号创建成功',
       kiroApiKeyCreateFailed: 'Kiro API Key 账号创建失败',
+      kiroImportMode: 'Kiro 凭证',
+      kiroImportHint: '支持 Kiro Account Manager、kiro.rs 批量凭证、OAuth JSON 和 ksk_ API Key，可选择多个 JSON 文件。',
+      kiroImportButton: '导入 Kiro 凭证',
+      kiroImportSuccess: 'Kiro 凭证导入完成：创建 {created}，失败 {failed}',
+      kiroImportFailed: 'Kiro 凭证导入失败',
+      kiroDetails: {
+        title: 'Kiro 账号详情',
+        refresh: '刷新上游',
+        subscription: '订阅',
+        email: '邮箱',
+        region: 'API 区域',
+        endpoint: '端点',
+        overage: '超额用量',
+        nextReset: '下次重置',
+        quota: 'Agentic 用量',
+        models: '上游模型',
+        enabled: '已开启',
+        available: '可开启',
+        unavailable: '不支持',
+        unknown: '未知',
+        loadFailed: '加载 Kiro 账号详情失败'
+      },
       antigravityProjectIdLabel: 'GCP Project ID（可选）',
       antigravityProjectIdPlaceholder: 'your-gcp-project-id',
       antigravityProjectIdHint:
@@ -420,7 +442,8 @@ export default {
         grokLastProbe: '探测 {time}',
         grokLastHeadersSeen: '响应头 {time}',
         passiveSampled: '被动采样',
-        activeQuery: '查询'
+        activeQuery: '查询',
+        kiroAgentic: 'Agentic'
       },
       openaiQuotaReset: {
         count: '次数',

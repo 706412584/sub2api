@@ -446,10 +446,11 @@
     <EditAccountModal :show="showEdit" :account="edAcc" :proxies="proxies" :groups="groups" @close="showEdit = false" @updated="handleAccountUpdated" />
     <ReAuthAccountModal :show="showReAuth" :account="reAuthAcc" @close="closeReAuthModal" @reauthorized="handleAccountUpdated" />
     <AccountTestModal :show="showTest" :account="testingAcc" @close="closeTestModal" />
+    <KiroAccountDetailsModal :show="showKiroDetails" :account="kiroDetailsAcc" @close="closeKiroDetailsModal" />
     <AccountBatchTestModal v-model:visible="showBatchTest" :account-ids="selIds" :accounts="selectedAccounts" @close="showBatchTest = false" @completed="reload" />
     <AccountStatsModal :show="showStats" :account="statsAcc" @close="closeStatsModal" />
     <ScheduledTestsPanel :show="showSchedulePanel" :account-id="scheduleAcc?.id ?? null" :model-options="scheduleModelOptions" @close="closeSchedulePanel" />
-    <AccountActionMenu :show="menu.show" :account="menu.acc" :position="menu.pos" @close="menu.show = false" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @duplicate="handleDuplicateAccount" @reauth="handleReAuth" @refresh-token="handleRefresh" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" @create-spark-shadow="handleCreateSparkShadow" />
+    <AccountActionMenu :show="menu.show" :account="menu.acc" :position="menu.pos" @close="menu.show = false" @test="handleTest" @kiro-details="handleKiroDetails" @stats="handleViewStats" @schedule="handleSchedule" @duplicate="handleDuplicateAccount" @reauth="handleReAuth" @refresh-token="handleRefresh" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" @create-spark-shadow="handleCreateSparkShadow" />
     <SyncFromCrsModal :show="showSync" @close="showSync = false" @synced="reload" />
     <ImportDataModal :show="showImportData" @close="showImportData = false" @imported="handleDataImported" />
     <BulkEditAccountModal
@@ -509,6 +510,7 @@ import AccountBatchTestModal from '@/components/admin/account/AccountBatchTestMo
 import AccountStatsModal from '@/components/admin/account/AccountStatsModal.vue'
 import ScheduledTestsPanel from '@/components/admin/account/ScheduledTestsPanel.vue'
 import KiroBrowserLoginModal from '@/components/admin/account/KiroBrowserLoginModal.vue'
+import KiroAccountDetailsModal from '@/components/admin/account/KiroAccountDetailsModal.vue'
 import type { SelectOption } from '@/components/common/Select.vue'
 import AccountStatusIndicator from '@/components/account/AccountStatusIndicator.vue'
 import AccountUsageCell from '@/components/account/AccountUsageCell.vue'
@@ -590,6 +592,7 @@ const showDeleteDialog = ref(false)
 const showCreateShadowDialog = ref(false)
 const showReAuth = ref(false)
 const showTest = ref(false)
+const showKiroDetails = ref(false)
 const showBatchTest = ref(false)
 const showStats = ref(false)
 const showErrorPassthrough = ref(false)
@@ -600,6 +603,7 @@ const deletingAcc = ref<Account | null>(null)
 const creatingShadowAcc = ref<Account | null>(null)
 const reAuthAcc = ref<Account | null>(null)
 const testingAcc = ref<Account | null>(null)
+const kiroDetailsAcc = ref<Account | null>(null)
 const statsAcc = ref<Account | null>(null)
 const showSchedulePanel = ref(false)
 const scheduleAcc = ref<Account | null>(null)
@@ -1068,6 +1072,7 @@ const isAnyModalOpen = computed(() => {
     showDeleteDialog.value ||
     showReAuth.value ||
     showTest.value ||
+    showKiroDetails.value ||
     showStats.value ||
     showSchedulePanel.value ||
     showErrorPassthrough.value ||
@@ -1275,8 +1280,8 @@ const { pause: pauseAutoRefresh, resume: resumeAutoRefresh } = useIntervalFn(
 // can be stale, so they remain fallbacks together with legacy plan_type fields.
 function getAccountPlanType(row: any): string | undefined {
   if (!row) return undefined
+  const extra = (row.extra || {}) as Record<string, any>
   if (row.platform === 'grok') {
-    const extra = (row.extra || {}) as Record<string, any>
     const billing = extra.grok_billing_snapshot as Record<string, any> | undefined
     const quota = extra.grok_quota_snapshot as Record<string, any> | undefined
     return (
@@ -1288,6 +1293,11 @@ function getAccountPlanType(row: any): string | undefined {
       row.parent_plan_type ||
       undefined
     )
+  }
+  if (row.platform === 'kiro') {
+    const usage = extra.kiro_usage as Record<string, any> | undefined
+    const subscription = extra.kiro_subscription as Record<string, any> | undefined
+    return usage?.subscription_title || subscription?.title || undefined
   }
   return row.credentials?.plan_type || row.parent_plan_type || undefined
 }
@@ -1892,9 +1902,11 @@ const handleExportData = async () => {
 }
 const accountExportStepUp = useStepUp()
 const closeTestModal = () => { showTest.value = false; testingAcc.value = null }
+const closeKiroDetailsModal = () => { showKiroDetails.value = false; kiroDetailsAcc.value = null }
 const closeStatsModal = () => { showStats.value = false; statsAcc.value = null }
 const closeReAuthModal = () => { showReAuth.value = false; reAuthAcc.value = null }
 const handleTest = (a: Account) => { testingAcc.value = a; showTest.value = true }
+const handleKiroDetails = (a: Account) => { kiroDetailsAcc.value = a; showKiroDetails.value = true }
 const handleViewStats = (a: Account) => { statsAcc.value = a; showStats.value = true }
 const handleSchedule = async (a: Account) => {
   scheduleAcc.value = a

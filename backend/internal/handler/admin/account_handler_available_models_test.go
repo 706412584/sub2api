@@ -42,6 +42,18 @@ type syncUpstreamHTTPUpstream struct {
 	err  error
 }
 
+type modelsCacheInvalidatorRecorder struct {
+	calls    int
+	groupID  *int64
+	platform string
+}
+
+func (r *modelsCacheInvalidatorRecorder) InvalidateAvailableModelsCache(groupID *int64, platform string) {
+	r.calls++
+	r.groupID = groupID
+	r.platform = platform
+}
+
 func (u *syncUpstreamHTTPUpstream) Do(req *http.Request, proxyURL string, accountID int64, accountConcurrency int) (*http.Response, error) {
 	if u.err != nil {
 		return nil, u.err
@@ -54,6 +66,10 @@ func (u *syncUpstreamHTTPUpstream) DoWithTLS(req *http.Request, proxyURL string,
 }
 
 func setupSyncUpstreamModelsRouter(adminSvc service.AdminService, upstream service.HTTPUpstream) *gin.Engine {
+	return setupSyncUpstreamModelsRouterWithCacheInvalidator(adminSvc, upstream, nil)
+}
+
+func setupSyncUpstreamModelsRouterWithCacheInvalidator(adminSvc service.AdminService, upstream service.HTTPUpstream, invalidator availableModelsCacheInvalidator) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	accountTestSvc := service.NewAccountTestService(
@@ -67,6 +83,7 @@ func setupSyncUpstreamModelsRouter(adminSvc service.AdminService, upstream servi
 		nil,
 	)
 	handler := NewAccountHandler(adminSvc, nil, nil, nil, nil, nil, nil, nil, accountTestSvc, nil, nil, nil, nil, nil)
+	handler.SetAvailableModelsCacheInvalidator(invalidator)
 	router.POST("/api/v1/admin/accounts/:id/models/sync-upstream", handler.SyncUpstreamModels)
 	return router
 }
@@ -253,6 +270,83 @@ func TestAccountHandlerGetAvailableModels_OpenAISparkShadowReturnsMappingModels(
 	require.ElementsMatch(t, []string{
 		"gpt-5.3-codex-spark",
 	}, ids, "影子可用模型由 model_mapping 派生（非写死）")
+}
+
+func TestAccountHandlerGetAvailableModels_KiroSyncsMissingMapping(t *testing.T) {
+	t.Parallel()
+
+	stub := newStubAdminService()
+	account := service.Account{
+		ID: 47, Name: "kiro-existing", Platform: service.PlatformKiro,
+		Type: service.AccountTypeAPIKey, Status: service.StatusActive, Concurrency: 3,
+		Credentials: map[string]any{
+			"kiro_api_key": "ksk_test-value", "auth_method": "api_key", "endpoint": "cli", "api_region": "us-east-1",
+		},
+	}
+	stub.getAccountResult = &account
+	upstream := &syncUpstreamHTTPUpstream{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(`{"models":[{"modelId":"claude-sonnet-5"},{"modelId":"gpt-5.6-sol"}]}`)),
+	}}
+	accountTestSvc := service.NewAccountTestService(nil, nil, nil, nil, nil, upstream, &config.Config{
+		Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}},
+	}, nil)
+	handler := NewAccountHandler(stub, nil, nil, nil, nil, nil, nil, nil, accountTestSvc, nil, nil, nil, nil, nil)
+	router := gin.New()
+	router.GET("/api/v1/admin/accounts/:id/models", handler.GetAvailableModels)
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts/47/models", nil))
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, 1, stub.updateAccountCalls)
+	require.Contains(t, rec.Body.String(), "claude-sonnet-5")
+	require.Contains(t, rec.Body.String(), "gpt-5.6-sol")
+	require.NotContains(t, rec.Body.String(), "claude-haiku-4.5")
+}
+
+func TestAccountHandlerSyncUpstreamModels_KiroPersistsModelMapping(t *testing.T) {
+	t.Parallel()
+
+	stub := newStubAdminService()
+	account := service.Account{
+		ID:          46,
+		Name:        "kiro-apikey",
+		Platform:    service.PlatformKiro,
+		Type:        service.AccountTypeAPIKey,
+		Status:      service.StatusActive,
+		Concurrency: 3,
+		Credentials: map[string]any{
+			"kiro_api_key": "ksk_test-value",
+			"auth_method":  "api_key",
+			"endpoint":     "cli",
+			"api_region":   "us-east-1",
+		},
+	}
+	stub.getAccountResult = &account
+	upstream := &syncUpstreamHTTPUpstream{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(`{"models":[{"modelId":"claude-sonnet-5"},{"modelId":"gpt-5.6-sol"}]}`)),
+	}}
+	cacheInvalidator := &modelsCacheInvalidatorRecorder{}
+	router := setupSyncUpstreamModelsRouterWithCacheInvalidator(stub, upstream, cacheInvalidator)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/46/models/sync-upstream", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, 1, stub.updateAccountCalls)
+	require.NotNil(t, stub.lastUpdateAccountInput)
+	require.Equal(t, map[string]any{
+		"claude-sonnet-5": "claude-sonnet-5",
+		"gpt-5.6-sol":     "gpt-5.6-sol",
+	}, stub.lastUpdateAccountInput.Credentials["model_mapping"])
+	require.Equal(t, "ksk_test-value", stub.lastUpdateAccountInput.Credentials["kiro_api_key"])
+	require.Equal(t, 1, cacheInvalidator.calls)
+	require.Nil(t, cacheInvalidator.groupID)
+	require.Equal(t, service.PlatformKiro, cacheInvalidator.platform)
 }
 
 func TestAccountHandlerSyncUpstreamModels_ConfigErrorReturnsBadRequest(t *testing.T) {

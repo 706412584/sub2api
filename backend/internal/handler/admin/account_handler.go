@@ -51,6 +51,10 @@ var defaultKiroModels = []openai.Model{
 	{ID: "claude-haiku-4.5", Object: "model", OwnedBy: "kiro", Type: "model", DisplayName: "Claude Haiku 4.5"},
 }
 
+type availableModelsCacheInvalidator interface {
+	InvalidateAvailableModelsCache(groupID *int64, platform string)
+}
+
 // AccountHandler handles admin account management
 type AccountHandler struct {
 	adminService            service.AdminService
@@ -69,11 +73,16 @@ type AccountHandler struct {
 	tokenCacheInvalidator   service.TokenCacheInvalidator
 	grokImportProber        grokImportProber
 	upstreamBillingProbe    *service.UpstreamBillingProbeService
+	modelsCacheInvalidator  availableModelsCacheInvalidator
 }
 
 // SetUpstreamBillingProbeService attaches the optional remote billing probe service.
 func (h *AccountHandler) SetUpstreamBillingProbeService(probe *service.UpstreamBillingProbeService) {
 	h.upstreamBillingProbe = probe
+}
+
+func (h *AccountHandler) SetAvailableModelsCacheInvalidator(invalidator availableModelsCacheInvalidator) {
+	h.modelsCacheInvalidator = invalidator
 }
 
 // NewAccountHandler creates a new admin account handler
@@ -2581,6 +2590,24 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 	// Handle Kiro accounts
 	if account.Platform == service.PlatformKiro {
 		mapping := account.GetModelMapping()
+		if len(mapping) == 0 && h.accountTestService != nil {
+			if upstreamModels, syncErr := h.accountTestService.FetchUpstreamSupportedModels(c.Request.Context(), account); syncErr == nil {
+				modelMapping := make(map[string]any, len(upstreamModels))
+				mapping = make(map[string]string, len(upstreamModels))
+				for _, model := range upstreamModels {
+					modelMapping[model] = model
+					mapping[model] = model
+				}
+				credentials := make(map[string]any, len(account.Credentials)+1)
+				for key, value := range account.Credentials {
+					credentials[key] = value
+				}
+				credentials["model_mapping"] = modelMapping
+				if _, updateErr := h.adminService.UpdateAccount(c.Request.Context(), account.ID, &service.UpdateAccountInput{Credentials: credentials}); updateErr == nil && h.modelsCacheInvalidator != nil {
+					h.modelsCacheInvalidator.InvalidateAvailableModelsCache(nil, account.Platform)
+				}
+			}
+		}
 		if len(mapping) == 0 {
 			response.Success(c, defaultKiroModels)
 			return
@@ -2727,6 +2754,25 @@ func (h *AccountHandler) SyncUpstreamModels(c *gin.Context) {
 		slog.Warn("sync_upstream_models_failed", "account_id", accountID)
 		response.Error(c, http.StatusBadGateway, "Failed to sync upstream models from upstream")
 		return
+	}
+
+	modelMapping := make(map[string]any, len(models))
+	for _, model := range models {
+		modelMapping[model] = model
+	}
+	credentials := make(map[string]any, len(account.Credentials)+1)
+	for key, value := range account.Credentials {
+		credentials[key] = value
+	}
+	credentials["model_mapping"] = modelMapping
+	if _, err := h.adminService.UpdateAccount(c.Request.Context(), accountID, &service.UpdateAccountInput{
+		Credentials: credentials,
+	}); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if h.modelsCacheInvalidator != nil {
+		h.modelsCacheInvalidator.InvalidateAvailableModelsCache(nil, account.Platform)
 	}
 
 	response.Success(c, gin.H{"models": models})

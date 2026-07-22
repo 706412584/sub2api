@@ -1099,6 +1099,16 @@ export interface GrokBillingSummary {
   failed_windows?: string[]
 }
 
+export interface KiroUsageInfo {
+  subscription_title?: string
+  current_usage: number
+  usage_limit: number
+  next_reset_at?: string | null
+  email?: string
+  overage_enabled?: boolean | null
+  overage_capable?: boolean | null
+}
+
 export interface AccountUsageInfo {
   source?: 'passive' | 'active'
   updated_at: string | null
@@ -1127,6 +1137,7 @@ export interface AccountUsageInfo {
   grok_local_usage_7d?: WindowStats | null
   grok_local_usage_monthly?: WindowStats | null
   grok_billing?: GrokBillingSummary | null
+  kiro?: KiroUsageInfo | null
   subscription_tier?: string
   subscription_tier_raw?: string
   ai_credits?: Array<{

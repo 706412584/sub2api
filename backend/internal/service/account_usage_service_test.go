@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"testing"
 	"time"
+
+	kiroprotocol "github.com/Wei-Shaw/sub2api/internal/pkg/kiro"
 )
 
 type accountUsageCodexProbeRepo struct {
@@ -29,6 +31,109 @@ func (r *accountUsageCodexProbeRepo) SetRateLimited(_ context.Context, _ int64, 
 		r.rateLimitCh <- resetAt
 	}
 	return nil
+}
+
+func TestBuildKiroUsageInfo(t *testing.T) {
+	t.Parallel()
+
+	reset := float64(1785542400)
+	info := buildKiroUsageInfo(&kiroprotocol.UsageLimitsResponse{
+		NextDateReset: &reset,
+		SubscriptionInfo: &kiroprotocol.SubscriptionInfo{
+			SubscriptionTitle: "KIRO POWER",
+			OverageCapability: "OVERAGE_CAPABLE",
+		},
+		UsageBreakdownList: []kiroprotocol.UsageBreakdown{{
+			CurrentUsageWithPrecision: 2703.1,
+			UsageLimitWithPrecision:   10000,
+		}},
+		UserInfo: &kiroprotocol.UserInfo{Email: "kiro@example.com"},
+	})
+
+	if info == nil {
+		t.Fatal("expected Kiro usage info")
+	}
+	if info.SubscriptionTitle != "KIRO POWER" || info.CurrentUsage != 2703.1 || info.UsageLimit != 10000 {
+		t.Fatalf("unexpected Kiro usage: %+v", info)
+	}
+	if info.NextResetAt == nil || info.NextResetAt.Unix() != int64(reset) {
+		t.Fatalf("unexpected reset time: %v", info.NextResetAt)
+	}
+	if info.OverageCapable == nil || !*info.OverageCapable {
+		t.Fatal("expected overage-capable subscription")
+	}
+}
+
+func TestSnapshotUsageToAccountExtraPersistsExtendedFields(t *testing.T) {
+	t.Parallel()
+
+	topReset := float64(1785542400)
+	breakdownReset := float64(1785628800)
+	overageEnabled := true
+	extra := SnapshotUsageToAccountExtra(nil, &kiroprotocol.UsageLimitsResponse{
+		NextDateReset: &topReset,
+		SubscriptionInfo: &kiroprotocol.SubscriptionInfo{
+			SubscriptionTitle: "KIRO POWER",
+			OverageCapability: "OVERAGE_CAPABLE",
+		},
+		UsageBreakdownList: []kiroprotocol.UsageBreakdown{{
+			CurrentUsageWithPrecision: 2703.1,
+			UsageLimitWithPrecision:   10000,
+			NextDateReset:             &breakdownReset,
+		}},
+		OverageConfiguration: &kiroprotocol.OverageConfiguration{
+			OverageEnabled: &overageEnabled,
+		},
+		UserInfo: &kiroprotocol.UserInfo{Email: "kiro@example.com"},
+	})
+
+	snapshot, ok := extra["kiro_usage"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected kiro_usage snapshot, got %#v", extra["kiro_usage"])
+	}
+	if snapshot["subscription_title"] != "KIRO POWER" {
+		t.Fatalf("unexpected subscription title: %#v", snapshot["subscription_title"])
+	}
+	if snapshot["current_usage"] != 2703.1 || snapshot["usage_limit"] != float64(10000) {
+		t.Fatalf("unexpected usage numbers: %#v", snapshot)
+	}
+	if snapshot["email"] != "kiro@example.com" {
+		t.Fatalf("unexpected email: %#v", snapshot["email"])
+	}
+	if snapshot["overage_enabled"] != true {
+		t.Fatalf("unexpected overage_enabled: %#v", snapshot["overage_enabled"])
+	}
+	if snapshot["overage_capable"] != true {
+		t.Fatalf("unexpected overage_capable: %#v", snapshot["overage_capable"])
+	}
+	// breakdown reset takes priority over top-level nextDateReset
+	wantReset := time.Unix(int64(breakdownReset), 0).UTC().Format(time.RFC3339)
+	if snapshot["next_reset_at"] != wantReset {
+		t.Fatalf("unexpected next_reset_at: got %#v want %s", snapshot["next_reset_at"], wantReset)
+	}
+
+	// empty email / unknown overage should omit optional keys
+	minimal := SnapshotUsageToAccountExtra(nil, &kiroprotocol.UsageLimitsResponse{
+		SubscriptionInfo: &kiroprotocol.SubscriptionInfo{SubscriptionTitle: "FREE"},
+		UsageBreakdownList: []kiroprotocol.UsageBreakdown{{
+			CurrentUsageWithPrecision: 1,
+			UsageLimitWithPrecision:   50,
+		}},
+		UserInfo: &kiroprotocol.UserInfo{Email: "  "},
+	})
+	minSnap := minimal["kiro_usage"].(map[string]any)
+	if _, exists := minSnap["email"]; exists {
+		t.Fatal("expected empty email to be omitted")
+	}
+	if _, exists := minSnap["overage_enabled"]; exists {
+		t.Fatal("expected missing overage_enabled to be omitted")
+	}
+	if _, exists := minSnap["overage_capable"]; exists {
+		t.Fatal("expected unknown overage_capable to be omitted")
+	}
+	if _, exists := minSnap["next_reset_at"]; exists {
+		t.Fatal("expected missing reset to be omitted")
+	}
 }
 
 func TestShouldRefreshOpenAICodexSnapshot(t *testing.T) {

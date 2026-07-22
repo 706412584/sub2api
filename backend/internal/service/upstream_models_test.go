@@ -321,6 +321,35 @@ func TestFetchUpstreamSupportedModelsParsesGrokAPIKeyResponse(t *testing.T) {
 	require.Equal(t, "Bearer xai-key", upstream.lastReq.Header.Get("Authorization"))
 }
 
+func TestFetchUpstreamSupportedModelsParsesKiroAPIKeyResponse(t *testing.T) {
+	t.Parallel()
+
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(`{"models":[{"modelId":"claude-sonnet-5"},{"modelId":"gpt-5.6-sol"},{"modelId":"claude-sonnet-5"}]}`)),
+	}}
+	svc := &AccountTestService{httpUpstream: upstream}
+
+	models, err := svc.FetchUpstreamSupportedModels(context.Background(), &Account{
+		ID:          10,
+		Platform:    PlatformKiro,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 3,
+		Credentials: map[string]any{
+			"kiro_api_key": "ksk_test-value",
+			"auth_method":  "api_key",
+			"endpoint":     "cli",
+			"api_region":   "us-east-1",
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"claude-sonnet-5", "gpt-5.6-sol"}, models)
+	require.Equal(t, "https://q.us-east-1.amazonaws.com/ListAvailableModels?origin=AI_EDITOR", upstream.lastReq.URL.String())
+	require.Equal(t, "Bearer ksk_test-value", upstream.lastReq.Header.Get("Authorization"))
+	require.Equal(t, "API_KEY", upstream.lastReq.Header.Get("tokentype"))
+}
+
 func TestFetchUpstreamSupportedModelsDoesNotExposeUpstreamBody(t *testing.T) {
 	t.Parallel()
 

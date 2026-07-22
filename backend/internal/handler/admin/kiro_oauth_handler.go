@@ -2,7 +2,9 @@ package admin
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
@@ -16,10 +18,17 @@ import (
 type KiroOAuthHandler struct {
 	adminService               service.AdminService
 	kiroBuilderIDDeviceService *service.KiroBuilderIDDeviceFlowService
+	accountTestService         *service.AccountTestService
+	kiroGatewayService         *service.KiroGatewayService
 }
 
-func NewKiroOAuthHandler(adminService service.AdminService, kiroBuilderIDDeviceService *service.KiroBuilderIDDeviceFlowService) *KiroOAuthHandler {
-	return &KiroOAuthHandler{adminService: adminService, kiroBuilderIDDeviceService: kiroBuilderIDDeviceService}
+func NewKiroOAuthHandler(adminService service.AdminService, kiroBuilderIDDeviceService *service.KiroBuilderIDDeviceFlowService, accountTestService *service.AccountTestService, kiroGatewayService *service.KiroGatewayService) *KiroOAuthHandler {
+	return &KiroOAuthHandler{
+		adminService:               adminService,
+		kiroBuilderIDDeviceService: kiroBuilderIDDeviceService,
+		accountTestService:         accountTestService,
+		kiroGatewayService:         kiroGatewayService,
+	}
 }
 
 type KiroOAuthCreateRequest struct {
@@ -182,6 +191,49 @@ func (h *KiroOAuthHandler) CreateAPIKeyAccount(c *gin.Context) {
 	if req.Concurrency != nil {
 		concurrency = *req.Concurrency
 	}
+	if h.accountTestService == nil {
+		response.InternalError(c, "Account test service is not configured")
+		return
+	}
+	models, err := h.accountTestService.FetchUpstreamSupportedModels(c.Request.Context(), &service.Account{
+		Platform:    service.PlatformKiro,
+		Type:        service.AccountTypeAPIKey,
+		Credentials: credentials,
+		ProxyID:     req.ProxyID,
+		Concurrency: concurrency,
+	})
+	if err != nil {
+		var syncErr *service.UpstreamModelSyncError
+		if errors.As(err, &syncErr) {
+			switch syncErr.Kind {
+			case service.UpstreamModelSyncErrorConfiguration, service.UpstreamModelSyncErrorUnsupported:
+				response.BadRequest(c, syncErr.SafeMessage())
+			default:
+				response.Error(c, http.StatusBadGateway, syncErr.SafeMessage())
+			}
+			return
+		}
+		response.Error(c, http.StatusBadGateway, "Failed to sync Kiro models from upstream")
+		return
+	}
+	modelMapping := make(map[string]any, len(models))
+	for _, model := range models {
+		modelMapping[model] = model
+	}
+	credentials["model_mapping"] = modelMapping
+	extra := map[string]any{}
+	tempAccount := &service.Account{
+		Platform:    service.PlatformKiro,
+		Type:        service.AccountTypeAPIKey,
+		Credentials: credentials,
+		ProxyID:     req.ProxyID,
+		Concurrency: concurrency,
+	}
+	if h.kiroGatewayService != nil {
+		if limits, usageErr := h.kiroGatewayService.FetchUsageLimits(c.Request.Context(), tempAccount); usageErr == nil {
+			extra = service.SnapshotUsageToAccountExtra(extra, limits)
+		}
+	}
 	priority := 50
 	if req.Priority != nil {
 		priority = *req.Priority
@@ -192,6 +244,7 @@ func (h *KiroOAuthHandler) CreateAPIKeyAccount(c *gin.Context) {
 		Platform:              service.PlatformKiro,
 		Type:                  service.AccountTypeAPIKey,
 		Credentials:           credentials,
+		Extra:                 extra,
 		ProxyID:               req.ProxyID,
 		Concurrency:           concurrency,
 		Priority:              priority,
@@ -302,6 +355,26 @@ func (h *KiroOAuthHandler) createKiroOAuthAccount(ctx context.Context, req KiroO
 	concurrency := 3
 	if req.Concurrency != nil {
 		concurrency = *req.Concurrency
+	}
+	if h.accountTestService != nil && strings.TrimSpace(account.AccessToken) != "" {
+		if models, modelErr := h.accountTestService.FetchUpstreamSupportedModels(ctx, &service.Account{
+			Platform: service.PlatformKiro, Type: service.AccountTypeOAuth, Credentials: credentials,
+			ProxyID: req.ProxyID, Concurrency: concurrency,
+		}); modelErr == nil {
+			modelMapping := make(map[string]any, len(models))
+			for _, model := range models {
+				modelMapping[model] = model
+			}
+			credentials["model_mapping"] = modelMapping
+		}
+	}
+	if h.kiroGatewayService != nil && strings.TrimSpace(account.AccessToken) != "" {
+		if limits, usageErr := h.kiroGatewayService.FetchUsageLimits(ctx, &service.Account{
+			Platform: service.PlatformKiro, Type: service.AccountTypeOAuth, Credentials: credentials,
+			ProxyID: req.ProxyID, Concurrency: concurrency,
+		}); usageErr == nil {
+			extra = service.SnapshotUsageToAccountExtra(extra, limits)
+		}
 	}
 	priority := 50
 	if req.Priority != nil {

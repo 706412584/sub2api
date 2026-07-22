@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"log/slog"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	httppool "github.com/Wei-Shaw/sub2api/internal/pkg/httpclient"
+	kiroprotocol "github.com/Wei-Shaw/sub2api/internal/pkg/kiro"
 	openaipkg "github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
@@ -181,6 +183,16 @@ type AICredit struct {
 }
 
 // UsageInfo 账号使用量信息
+type KiroUsageInfo struct {
+	SubscriptionTitle string     `json:"subscription_title,omitempty"`
+	CurrentUsage      float64    `json:"current_usage"`
+	UsageLimit        float64    `json:"usage_limit"`
+	NextResetAt       *time.Time `json:"next_reset_at,omitempty"`
+	Email             string     `json:"email,omitempty"`
+	OverageEnabled    *bool      `json:"overage_enabled,omitempty"`
+	OverageCapable    *bool      `json:"overage_capable,omitempty"`
+}
+
 type UsageInfo struct {
 	Source             string         `json:"source,omitempty"`               // "passive" or "active"
 	UpdatedAt          *time.Time     `json:"updated_at,omitempty"`           // 更新时间
@@ -213,6 +225,8 @@ type UsageInfo struct {
 	GrokLocalUsage7d       *WindowStats        `json:"grok_local_usage_7d,omitempty"`
 	GrokLocalUsageMonthly  *WindowStats        `json:"grok_local_usage_monthly,omitempty"`
 	GrokBilling            *xai.BillingSummary `json:"grok_billing,omitempty"`
+
+	Kiro *KiroUsageInfo `json:"kiro,omitempty"`
 
 	// Antigravity 账号级信息
 	SubscriptionTier    string `json:"subscription_tier,omitempty"`     // 归一化订阅等级: FREE/PRO/ULTRA/UNKNOWN
@@ -297,6 +311,7 @@ type AccountUsageService struct {
 	grokQuotaFetcher        *GrokQuotaFetcher
 	grokQuotaService        *GrokQuotaService
 	openAIQuotaService      *OpenAIQuotaService
+	kiroGatewayService      *KiroGatewayService
 	cache                   *UsageCache
 	identityCache           IdentityCache
 	tlsFPProfileService     *TLSFingerprintProfileService
@@ -314,6 +329,7 @@ func NewAccountUsageService(
 	grokQuotaFetcher *GrokQuotaFetcher,
 	grokQuotaService *GrokQuotaService,
 	openAIQuotaService *OpenAIQuotaService,
+	kiroGatewayService *KiroGatewayService,
 	cache *UsageCache,
 	identityCache IdentityCache,
 	tlsFPProfileService *TLSFingerprintProfileService,
@@ -327,6 +343,7 @@ func NewAccountUsageService(
 		grokQuotaFetcher:        grokQuotaFetcher,
 		grokQuotaService:        grokQuotaService,
 		openAIQuotaService:      openAIQuotaService,
+		kiroGatewayService:      kiroGatewayService,
 		cache:                   cache,
 		identityCache:           identityCache,
 		tlsFPProfileService:     tlsFPProfileService,
@@ -376,6 +393,10 @@ func (s *AccountUsageService) GetUsage(ctx context.Context, accountID int64, for
 			s.tryClearRecoverableAccountError(ctx, account)
 		}
 		return usage, err
+	}
+
+	if account.Platform == PlatformKiro {
+		return s.getKiroUsage(ctx, account)
 	}
 
 	// 只有oauth类型账号可以通过API获取usage（有profile scope）
@@ -473,6 +494,54 @@ func (s *AccountUsageService) GetUsage(ctx context.Context, accountID int64, for
 
 	// API Key账号不支持usage查询
 	return nil, fmt.Errorf("account type %s does not support usage query", account.Type)
+}
+
+func (s *AccountUsageService) getKiroUsage(ctx context.Context, account *Account) (*UsageInfo, error) {
+	if s.kiroGatewayService == nil {
+		return nil, errors.New("kiro usage service is not configured")
+	}
+	limits, err := s.kiroGatewayService.FetchUsageLimits(ctx, account)
+	if err != nil {
+		return nil, fmt.Errorf("fetch Kiro usage failed: %w", err)
+	}
+
+	now := time.Now().UTC()
+	usage := buildKiroUsageInfo(limits)
+
+	if s.accountRepo != nil {
+		snapshot := SnapshotUsageToAccountExtra(nil, limits)["kiro_usage"]
+		if err := s.accountRepo.UpdateExtra(ctx, account.ID, map[string]any{"kiro_usage": snapshot}); err != nil {
+			slog.Warn("kiro_usage_snapshot_update_failed", "account_id", account.ID, "error", err)
+		}
+	}
+	return &UsageInfo{UpdatedAt: &now, Kiro: usage}, nil
+}
+
+func buildKiroUsageInfo(limits *kiroprotocol.UsageLimitsResponse) *KiroUsageInfo {
+	if limits == nil {
+		return nil
+	}
+	usage := &KiroUsageInfo{
+		SubscriptionTitle: limits.SubscriptionTitle(),
+		CurrentUsage:      limits.CurrentUsage(),
+		UsageLimit:        limits.UsageLimit(),
+		Email:             limits.Email(),
+	}
+	if enabled, ok := limits.OverageEnabled(); ok {
+		usage.OverageEnabled = &enabled
+	}
+	if capable, ok := limits.OverageCapable(); ok {
+		usage.OverageCapable = &capable
+	}
+	resetAt := limits.NextDateReset
+	if len(limits.UsageBreakdownList) > 0 && limits.UsageBreakdownList[0].NextDateReset != nil {
+		resetAt = limits.UsageBreakdownList[0].NextDateReset
+	}
+	if resetAt != nil && *resetAt > 0 {
+		value := time.Unix(int64(*resetAt), 0).UTC()
+		usage.NextResetAt = &value
+	}
+	return usage
 }
 
 // GetPassiveUsage 从 Account.Extra 中的被动采样数据构建 UsageInfo，不调用外部 API。

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
+	kiroprotocol "github.com/Wei-Shaw/sub2api/internal/pkg/kiro"
 )
 
 const upstreamModelsBodyLimit int64 = 8 << 20
@@ -87,6 +89,9 @@ func (s *AccountTestService) FetchUpstreamSupportedModels(ctx context.Context, a
 
 	if s.httpUpstream == nil {
 		return nil, newUpstreamModelSyncConfigError("Upstream HTTP client is not configured", nil)
+	}
+	if account.IsKiro() {
+		return s.fetchKiroUpstreamModels(ctx, account)
 	}
 
 	req, err := s.buildUpstreamModelsRequest(ctx, account)
@@ -362,6 +367,76 @@ func (s *AccountTestService) buildGeminiUpstreamModelsRequest(ctx context.Contex
 	}
 
 	return req, nil
+}
+
+func (s *AccountTestService) fetchKiroUpstreamModels(ctx context.Context, account *Account) ([]string, error) {
+	credentials := kiroprotocol.Credentials{
+		AccessToken:  strings.TrimSpace(account.GetCredential("access_token")),
+		RefreshToken: strings.TrimSpace(account.GetCredential("refresh_token")),
+		ProfileARN:   strings.TrimSpace(account.GetCredential("profile_arn")),
+		APIKey:       strings.TrimSpace(account.GetCredential("kiro_api_key")),
+		AuthMethod:   strings.TrimSpace(account.GetCredential("auth_method")),
+		APIRegion:    account.GetKiroAPIRegion(),
+		Endpoint:     kiroprotocol.Endpoint(account.GetKiroEndpoint()),
+	}
+	if err := credentials.Validate(); err != nil {
+		return nil, newUpstreamModelSyncConfigError("Invalid Kiro credentials", err)
+	}
+
+	var lastErr error
+	for _, region := range kiroprotocol.RESTRegionCandidates(account.GetKiroAPIRegion()) {
+		request, err := kiroprotocol.BuildAvailableModelsRequest(credentials, kiroprotocol.EndpointOptions{
+			Region:        region,
+			MachineID:     strings.TrimSpace(account.GetCredential("machine_id")),
+			KiroVersion:   "0.7.1",
+			SystemVersion: "windows",
+			NodeVersion:   "20",
+		})
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		request = request.WithContext(ctx)
+		account.ApplyHeaderOverrides(request.Header)
+
+		response, err := s.doUpstreamModelsRequest(request, upstreamModelsProxyURL(account), account)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		body, readErr := io.ReadAll(io.LimitReader(response.Body, upstreamModelsBodyLimit+1))
+		_ = response.Body.Close()
+		if readErr != nil {
+			lastErr = readErr
+			continue
+		}
+		if int64(len(body)) > upstreamModelsBodyLimit {
+			lastErr = fmt.Errorf("response exceeds %d bytes", upstreamModelsBodyLimit)
+			continue
+		}
+		if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+			lastErr = fmt.Errorf("upstream model list returned HTTP %d", response.StatusCode)
+			continue
+		}
+
+		var parsed kiroprotocol.ListAvailableModelsResponse
+		if err := json.Unmarshal(body, &parsed); err != nil {
+			lastErr = err
+			continue
+		}
+		modelIDs := make([]string, 0, len(parsed.Models))
+		for _, model := range parsed.Models {
+			modelIDs = append(modelIDs, model.ModelID)
+		}
+		models := dedupeAndSortModelIDs(modelIDs)
+		if len(models) == 0 {
+			lastErr = errors.New("upstream returned no supported models")
+			continue
+		}
+		return models, nil
+	}
+
+	return nil, newUpstreamModelSyncUpstreamError("Failed to request Kiro model list", lastErr)
 }
 
 func (s *AccountTestService) fetchAntigravityOAuthUpstreamModels(ctx context.Context, account *Account) ([]string, error) {
