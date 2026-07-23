@@ -21903,6 +21903,8 @@ type GroupMutation struct {
 	addfallback_group_id                    *int64
 	fallback_group_id_on_invalid_request    *int64
 	addfallback_group_id_on_invalid_request *int64
+	default_proxy_id                        *int64
+	adddefault_proxy_id                     *int64
 	model_routing                           *map[string][]int64
 	model_routing_enabled                   *bool
 	mcp_xml_inject                          *bool
@@ -23962,6 +23964,76 @@ func (m *GroupMutation) ResetFallbackGroupIDOnInvalidRequest() {
 	delete(m.clearedFields, group.FieldFallbackGroupIDOnInvalidRequest)
 }
 
+// SetDefaultProxyID sets the "default_proxy_id" field.
+func (m *GroupMutation) SetDefaultProxyID(i int64) {
+	m.default_proxy_id = &i
+	m.adddefault_proxy_id = nil
+}
+
+// DefaultProxyID returns the value of the "default_proxy_id" field in the mutation.
+func (m *GroupMutation) DefaultProxyID() (r int64, exists bool) {
+	v := m.default_proxy_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDefaultProxyID returns the old "default_proxy_id" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldDefaultProxyID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDefaultProxyID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDefaultProxyID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDefaultProxyID: %w", err)
+	}
+	return oldValue.DefaultProxyID, nil
+}
+
+// AddDefaultProxyID adds i to the "default_proxy_id" field.
+func (m *GroupMutation) AddDefaultProxyID(i int64) {
+	if m.adddefault_proxy_id != nil {
+		*m.adddefault_proxy_id += i
+	} else {
+		m.adddefault_proxy_id = &i
+	}
+}
+
+// AddedDefaultProxyID returns the value that was added to the "default_proxy_id" field in this mutation.
+func (m *GroupMutation) AddedDefaultProxyID() (r int64, exists bool) {
+	v := m.adddefault_proxy_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearDefaultProxyID clears the value of the "default_proxy_id" field.
+func (m *GroupMutation) ClearDefaultProxyID() {
+	m.default_proxy_id = nil
+	m.adddefault_proxy_id = nil
+	m.clearedFields[group.FieldDefaultProxyID] = struct{}{}
+}
+
+// DefaultProxyIDCleared returns if the "default_proxy_id" field was cleared in this mutation.
+func (m *GroupMutation) DefaultProxyIDCleared() bool {
+	_, ok := m.clearedFields[group.FieldDefaultProxyID]
+	return ok
+}
+
+// ResetDefaultProxyID resets all changes to the "default_proxy_id" field.
+func (m *GroupMutation) ResetDefaultProxyID() {
+	m.default_proxy_id = nil
+	m.adddefault_proxy_id = nil
+	delete(m.clearedFields, group.FieldDefaultProxyID)
+}
+
 // SetModelRouting sets the "model_routing" field.
 func (m *GroupMutation) SetModelRouting(value map[string][]int64) {
 	m.model_routing = &value
@@ -24907,7 +24979,7 @@ func (m *GroupMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *GroupMutation) Fields() []string {
-	fields := make([]string, 0, 51)
+	fields := make([]string, 0, 52)
 	if m.created_at != nil {
 		fields = append(fields, group.FieldCreatedAt)
 	}
@@ -25018,6 +25090,9 @@ func (m *GroupMutation) Fields() []string {
 	}
 	if m.fallback_group_id_on_invalid_request != nil {
 		fields = append(fields, group.FieldFallbackGroupIDOnInvalidRequest)
+	}
+	if m.default_proxy_id != nil {
+		fields = append(fields, group.FieldDefaultProxyID)
 	}
 	if m.model_routing != nil {
 		fields = append(fields, group.FieldModelRouting)
@@ -25143,6 +25218,8 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.FallbackGroupID()
 	case group.FieldFallbackGroupIDOnInvalidRequest:
 		return m.FallbackGroupIDOnInvalidRequest()
+	case group.FieldDefaultProxyID:
+		return m.DefaultProxyID()
 	case group.FieldModelRouting:
 		return m.ModelRouting()
 	case group.FieldModelRoutingEnabled:
@@ -25254,6 +25331,8 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldFallbackGroupID(ctx)
 	case group.FieldFallbackGroupIDOnInvalidRequest:
 		return m.OldFallbackGroupIDOnInvalidRequest(ctx)
+	case group.FieldDefaultProxyID:
+		return m.OldDefaultProxyID(ctx)
 	case group.FieldModelRouting:
 		return m.OldModelRouting(ctx)
 	case group.FieldModelRoutingEnabled:
@@ -25550,6 +25629,13 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetFallbackGroupIDOnInvalidRequest(v)
 		return nil
+	case group.FieldDefaultProxyID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDefaultProxyID(v)
+		return nil
 	case group.FieldModelRouting:
 		v, ok := value.(map[string][]int64)
 		if !ok {
@@ -25713,6 +25799,9 @@ func (m *GroupMutation) AddedFields() []string {
 	if m.addfallback_group_id_on_invalid_request != nil {
 		fields = append(fields, group.FieldFallbackGroupIDOnInvalidRequest)
 	}
+	if m.adddefault_proxy_id != nil {
+		fields = append(fields, group.FieldDefaultProxyID)
+	}
 	if m.addsort_order != nil {
 		fields = append(fields, group.FieldSortOrder)
 	}
@@ -25765,6 +25854,8 @@ func (m *GroupMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedFallbackGroupID()
 	case group.FieldFallbackGroupIDOnInvalidRequest:
 		return m.AddedFallbackGroupIDOnInvalidRequest()
+	case group.FieldDefaultProxyID:
+		return m.AddedDefaultProxyID()
 	case group.FieldSortOrder:
 		return m.AddedSortOrder()
 	case group.FieldRpmLimit:
@@ -25911,6 +26002,13 @@ func (m *GroupMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddFallbackGroupIDOnInvalidRequest(v)
 		return nil
+	case group.FieldDefaultProxyID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddDefaultProxyID(v)
+		return nil
 	case group.FieldSortOrder:
 		v, ok := value.(int)
 		if !ok {
@@ -25978,6 +26076,9 @@ func (m *GroupMutation) ClearedFields() []string {
 	if m.FieldCleared(group.FieldFallbackGroupIDOnInvalidRequest) {
 		fields = append(fields, group.FieldFallbackGroupIDOnInvalidRequest)
 	}
+	if m.FieldCleared(group.FieldDefaultProxyID) {
+		fields = append(fields, group.FieldDefaultProxyID)
+	}
 	if m.FieldCleared(group.FieldModelRouting) {
 		fields = append(fields, group.FieldModelRouting)
 	}
@@ -26039,6 +26140,9 @@ func (m *GroupMutation) ClearField(name string) error {
 		return nil
 	case group.FieldFallbackGroupIDOnInvalidRequest:
 		m.ClearFallbackGroupIDOnInvalidRequest()
+		return nil
+	case group.FieldDefaultProxyID:
+		m.ClearDefaultProxyID()
 		return nil
 	case group.FieldModelRouting:
 		m.ClearModelRouting()
@@ -26161,6 +26265,9 @@ func (m *GroupMutation) ResetField(name string) error {
 		return nil
 	case group.FieldFallbackGroupIDOnInvalidRequest:
 		m.ResetFallbackGroupIDOnInvalidRequest()
+		return nil
+	case group.FieldDefaultProxyID:
+		m.ResetDefaultProxyID()
 		return nil
 	case group.FieldModelRouting:
 		m.ResetModelRouting()

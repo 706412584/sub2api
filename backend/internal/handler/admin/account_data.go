@@ -75,6 +75,9 @@ type DataAccount struct {
 type DataImportRequest struct {
 	Data                 DataPayload `json:"data"`
 	SkipDefaultGroupBind *bool       `json:"skip_default_group_bind"`
+	// Optional overrides applied to every imported account.
+	GroupIDs []int64 `json:"group_ids,omitempty"`
+	ProxyID  *int64  `json:"proxy_id,omitempty"`
 }
 
 type DataImportResult struct {
@@ -429,6 +432,19 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 
 		enrichCredentialsFromIDToken(&item)
 
+		if req.ProxyID != nil {
+			if *req.ProxyID == 0 {
+				proxyID = nil
+			} else {
+				pid := *req.ProxyID
+				proxyID = &pid
+			}
+		}
+		groupIDs := req.GroupIDs
+		skipBind := skipDefaultGroupBind
+		if len(groupIDs) > 0 {
+			skipBind = true
+		}
 		accountInput := &service.CreateAccountInput{
 			Name:                 item.Name,
 			Notes:                item.Notes,
@@ -440,10 +456,10 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 			Concurrency:          item.Concurrency,
 			Priority:             item.Priority,
 			RateMultiplier:       item.RateMultiplier,
-			GroupIDs:             nil,
+			GroupIDs:             groupIDs,
 			ExpiresAt:            item.ExpiresAt,
 			AutoPauseOnExpired:   item.AutoPauseOnExpired,
-			SkipDefaultGroupBind: skipDefaultGroupBind,
+			SkipDefaultGroupBind: skipBind,
 		}
 
 		created, err := h.adminService.CreateAccount(ctx, accountInput)

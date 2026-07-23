@@ -381,6 +381,11 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 			return nil, err
 		}
 	}
+	if input.DefaultProxyID != nil && *input.DefaultProxyID > 0 {
+		if err := s.validateDefaultProxyID(ctx, *input.DefaultProxyID); err != nil {
+			return nil, err
+		}
+	}
 	fallbackOnInvalidRequest := input.FallbackGroupIDOnInvalidRequest
 	if fallbackOnInvalidRequest != nil && *fallbackOnInvalidRequest <= 0 {
 		fallbackOnInvalidRequest = nil
@@ -466,6 +471,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		ClaudeCodeOnly:                  input.ClaudeCodeOnly,
 		FallbackGroupID:                 input.FallbackGroupID,
 		FallbackGroupIDOnInvalidRequest: fallbackOnInvalidRequest,
+		DefaultProxyID:                  input.DefaultProxyID,
 		ModelRouting:                    input.ModelRouting,
 		MCPXMLInject:                    mcpXMLInject,
 		SupportedModelScopes:            input.SupportedModelScopes,
@@ -756,6 +762,20 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 		}
 	}
 	group.FallbackGroupIDOnInvalidRequest = fallbackOnInvalidRequest
+
+	if input.DefaultProxyID != nil {
+		if *input.DefaultProxyID > 0 {
+			if s.proxyRepo != nil {
+				if _, err := s.proxyRepo.GetByID(ctx, *input.DefaultProxyID); err != nil {
+					return nil, err
+				}
+			}
+			group.DefaultProxyID = input.DefaultProxyID
+		} else {
+			// 0 或负数表示清除
+			group.DefaultProxyID = nil
+		}
+	}
 
 	// 模型路由配置
 	if input.ModelRouting != nil {
@@ -1192,4 +1212,62 @@ func (s *adminServiceImpl) ReplaceUserGroup(ctx context.Context, userID, oldGrou
 	}
 
 	return &ReplaceUserGroupResult{MigratedKeys: migrated}, nil
+}
+
+func (s *adminServiceImpl) validateDefaultProxyID(ctx context.Context, proxyID int64) error {
+	if proxyID <= 0 {
+		return nil
+	}
+	if s.proxyRepo == nil {
+		return nil
+	}
+	if _, err := s.proxyRepo.GetByID(ctx, proxyID); err != nil {
+		return err
+	}
+	return nil
+}
+
+// SetProxyBoundGroups binds the given groups to use proxyID as their default proxy.
+// Groups previously bound to this proxy but not listed are cleared.
+func (s *adminServiceImpl) SetProxyBoundGroups(ctx context.Context, proxyID int64, groupIDs []int64) error {
+	if proxyID <= 0 {
+		return infraerrors.BadRequest("INVALID_PROXY_ID", "invalid proxy id")
+	}
+	if _, err := s.proxyRepo.GetByID(ctx, proxyID); err != nil {
+		return err
+	}
+	// de-dup group IDs
+	seen := make(map[int64]struct{}, len(groupIDs))
+	clean := make([]int64, 0, len(groupIDs))
+	for _, id := range groupIDs {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		clean = append(clean, id)
+	}
+	for _, id := range clean {
+		if _, err := s.groupRepo.GetByIDLite(ctx, id); err != nil {
+			return err
+		}
+	}
+	return s.mustAdminGroupRepo().SetDefaultProxyBoundGroups(ctx, proxyID, clean)
+}
+
+func (s *adminServiceImpl) ListGroupIDsByDefaultProxy(ctx context.Context, proxyID int64) ([]int64, error) {
+	if s.groupRepo == nil {
+		return nil, nil
+	}
+	return s.mustAdminGroupRepo().ListGroupIDsByDefaultProxy(ctx, proxyID)
+}
+
+
+func (s *adminServiceImpl) mustAdminGroupRepo() AdminGroupRepository {
+	if repo, ok := s.groupRepo.(AdminGroupRepository); ok {
+		return repo
+	}
+	panic("group repository does not implement AdminGroupRepository")
 }

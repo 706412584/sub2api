@@ -120,6 +120,9 @@ type AdminService interface {
 	GetProxiesByIDs(ctx context.Context, ids []int64) ([]Proxy, error)
 	CreateProxy(ctx context.Context, input *CreateProxyInput) (*Proxy, error)
 	UpdateProxy(ctx context.Context, id int64, input *UpdateProxyInput) (*Proxy, error)
+	// SetProxyBoundGroups binds groups to use this proxy as default when accounts join.
+	SetProxyBoundGroups(ctx context.Context, proxyID int64, groupIDs []int64) error
+	ListGroupIDsByDefaultProxy(ctx context.Context, proxyID int64) ([]int64, error)
 	DeleteProxy(ctx context.Context, id int64) error
 	BatchDeleteProxies(ctx context.Context, ids []int64) (*ProxyBatchDeleteResult, error)
 	GetProxyAccounts(ctx context.Context, proxyID int64) ([]ProxyAccountSummary, error)
@@ -244,6 +247,8 @@ type CreateGroupInput struct {
 	FallbackGroupID       *int64 // 降级分组 ID
 	// 无效请求兜底分组 ID（仅 anthropic 平台使用）
 	FallbackGroupIDOnInvalidRequest *int64
+	// DefaultProxyID 账号入组未指定代理时自动绑定
+	DefaultProxyID *int64
 	// 模型路由配置（仅 anthropic 平台使用）
 	ModelRouting        map[string][]int64
 	ModelRoutingEnabled bool // 是否启用模型路由
@@ -304,6 +309,8 @@ type UpdateGroupInput struct {
 	FallbackGroupID       *int64 // 降级分组 ID
 	// 无效请求兜底分组 ID（仅 anthropic 平台使用）
 	FallbackGroupIDOnInvalidRequest *int64
+	// DefaultProxyID nil=不修改；0=清除；>0=设置
+	DefaultProxyID *int64
 	// 模型路由配置（仅 anthropic 平台使用）
 	ModelRouting        map[string][]int64
 	ModelRoutingEnabled *bool // 是否启用模型路由

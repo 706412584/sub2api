@@ -549,6 +549,8 @@ export interface Group {
   claude_code_only: boolean
   fallback_group_id: number | null
   fallback_group_id_on_invalid_request: number | null
+  // 分组默认代理：账号入组未指定代理时自动绑定
+  default_proxy_id: number | null
   // OpenAI Messages 调度开关（用户侧需要此字段判断是否展示 Claude Code 教程）
   allow_messages_dispatch?: boolean
   default_mapped_model?: string
@@ -738,6 +740,7 @@ export interface CreateGroupRequest {
   claude_code_only?: boolean
   fallback_group_id?: number | null
   fallback_group_id_on_invalid_request?: number | null
+  default_proxy_id?: number | null
   mcp_xml_inject?: boolean
   supported_model_scopes?: string[]
   models_list_config?: ModelsListConfig
@@ -788,6 +791,7 @@ export interface UpdateGroupRequest {
   claude_code_only?: boolean
   fallback_group_id?: number | null
   fallback_group_id_on_invalid_request?: number | null
+  default_proxy_id?: number | null
   mcp_xml_inject?: boolean
   supported_model_scopes?: string[]
   models_list_config?: ModelsListConfig

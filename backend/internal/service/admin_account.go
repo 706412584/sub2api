@@ -558,6 +558,12 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 	if err != nil {
 		return nil, err
 	}
+	// 未显式指定代理时，从入组的 default_proxy_id 继承（按 groupIDs 顺序取第一个非空）
+	if account.ProxyID == nil && len(groupIDs) > 0 {
+		if pid := s.resolveDefaultProxyFromGroups(ctx, groupIDs); pid != nil {
+			account.ProxyID = pid
+		}
+	}
 	if err := s.accountRepo.Create(ctx, account); err != nil {
 		return nil, err
 	}
@@ -849,6 +855,20 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	if input.GroupIDs != nil {
 		if err := s.accountRepo.BindGroups(ctx, account.ID, *input.GroupIDs); err != nil {
 			return nil, err
+		}
+		// 入组且未显式改代理、账号当前无代理时，继承分组默认代理
+		if input.ProxyID == nil && account.ProxyID == nil && !account.IsCredentialShadow() {
+			if pid := s.resolveDefaultProxyFromGroups(ctx, *input.GroupIDs); pid != nil {
+				zeroClear := *pid
+				account.ProxyID = &zeroClear
+				account.Proxy = nil
+				if err := s.accountRepo.Update(ctx, account); err != nil {
+					return nil, err
+				}
+				if err := s.propagateProxyToShadows(ctx, id, account.ProxyID); err != nil {
+					return nil, err
+				}
+			}
 		}
 	}
 
@@ -1673,4 +1693,20 @@ func (s *adminServiceImpl) ForceAntigravityPrivacy(ctx context.Context, account 
 	}
 	applyAntigravityPrivacyMode(account, mode)
 	return mode
+}
+
+// resolveDefaultProxyFromGroups returns the first non-nil DefaultProxyID among groups (order preserved).
+func (s *adminServiceImpl) resolveDefaultProxyFromGroups(ctx context.Context, groupIDs []int64) *int64 {
+	if s.groupRepo == nil || len(groupIDs) == 0 {
+		return nil
+	}
+	for _, gid := range groupIDs {
+		g, err := s.groupRepo.GetByIDLite(ctx, gid)
+		if err != nil || g == nil || g.DefaultProxyID == nil || *g.DefaultProxyID <= 0 {
+			continue
+		}
+		pid := *g.DefaultProxyID
+		return &pid
+	}
+	return nil
 }

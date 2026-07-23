@@ -760,6 +760,12 @@
           <label class="input-label">{{ t('admin.proxies.backupProxy') }}</label>
           <Select v-model="editForm.backup_proxy_id" :options="backupProxyOptions(editingProxy?.id)" />
         </div>
+        <div>
+          <GroupSelector v-model="editBoundGroupIds" :groups="allGroups" searchable />
+          <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
+            {{ t('admin.proxies.boundGroupsHint') }}
+          </p>
+        </div>
 
       </form>
 
@@ -968,7 +974,7 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
-import type { Proxy, ProxyAccountSummary, ProxyProtocol, ProxyQualityCheckResult } from '@/types'
+import type { AdminGroup, Proxy, ProxyAccountSummary, ProxyProtocol, ProxyQualityCheckResult } from '@/types'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
@@ -979,6 +985,7 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import ImportDataModal from '@/components/admin/proxy/ImportDataModal.vue'
 import Select from '@/components/common/Select.vue'
+import GroupSelector from '@/components/common/GroupSelector.vue'
 import ProxyAdBanner from '@/components/common/ProxyAdBanner.vue'
 import Icon from '@/components/icons/Icon.vue'
 import PlatformTypeBadge from '@/components/common/PlatformTypeBadge.vue'
@@ -1147,6 +1154,8 @@ const editForm = reactive({
   backup_proxy_id: null as number | null,
   expiry_warn_days: 7 as number,
 })
+const editBoundGroupIds = ref<number[]>([])
+const allGroups = ref<AdminGroup[]>([])
 
 const allProxiesForBackup = ref<Proxy[]>([])
 const loadBackupProxyOptions = async () => {
@@ -1402,7 +1411,7 @@ const handleCreateProxy = async () => {
   }
 }
 
-const handleEdit = (proxy: Proxy) => {
+const handleEdit = async (proxy: Proxy) => {
   editingProxy.value = proxy
   editForm.name = proxy.name
   editForm.protocol = proxy.protocol
@@ -1417,6 +1426,20 @@ const handleEdit = (proxy: Proxy) => {
   editForm.expiry_warn_days = proxy.expiry_warn_days ?? 7
   editPasswordVisible.value = false
   editPasswordDirty.value = false
+  editBoundGroupIds.value = []
+  try {
+    if (allGroups.value.length === 0) {
+      allGroups.value = await adminAPI.groups.getAllIncludingInactive()
+    }
+  } catch {
+    allGroups.value = []
+  }
+  try {
+    const bound = await adminAPI.proxies.getBoundGroups(proxy.id)
+    editBoundGroupIds.value = bound.group_ids || []
+  } catch {
+    editBoundGroupIds.value = []
+  }
   showEditModal.value = true
 }
 
@@ -1463,6 +1486,7 @@ const handleUpdateProxy = async () => {
     }
 
     await adminAPI.proxies.update(editingProxy.value.id, updateData)
+    await adminAPI.proxies.setBoundGroups(editingProxy.value.id, editBoundGroupIds.value)
     appStore.showSuccess(t('admin.proxies.proxyUpdated'))
     closeEditModal()
     loadProxies()

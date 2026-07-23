@@ -129,6 +129,8 @@ type Group struct {
 	FallbackGroupID *int64 `json:"fallback_group_id"`
 	// 无效请求兜底分组
 	FallbackGroupIDOnInvalidRequest *int64 `json:"fallback_group_id_on_invalid_request"`
+	// DefaultProxyID 账号入组未指定代理时自动绑定
+	DefaultProxyID *int64 `json:"default_proxy_id"`
 
 	// OpenAI Messages 调度开关（用户侧需要此字段判断是否展示 Claude Code 教程）
 	AllowMessagesDispatch bool `json:"allow_messages_dispatch"`

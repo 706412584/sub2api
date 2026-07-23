@@ -93,6 +93,19 @@ export async function create(proxyData: CreateProxyRequest): Promise<Proxy> {
  * @param updates - Fields to update
  * @returns Updated proxy
  */
+
+export async function getBoundGroups(id: number): Promise<{ group_ids: number[] }> {
+  const { data } = await apiClient.get<{ group_ids: number[] }>(`/admin/proxies/${id}/bound-groups`)
+  return data
+}
+
+export async function setBoundGroups(id: number, groupIds: number[]): Promise<{ group_ids: number[] }> {
+  const { data } = await apiClient.put<{ group_ids: number[] }>(`/admin/proxies/${id}/bound-groups`, {
+    group_ids: groupIds
+  })
+  return data
+}
+
 export async function update(id: number, updates: UpdateProxyRequest): Promise<Proxy> {
   const { data } = await apiClient.put<Proxy>(`/admin/proxies/${id}`, updates)
   return data
@@ -262,6 +275,8 @@ export const proxiesAPI = {
   getById,
   create,
   update,
+  getBoundGroups,
+  setBoundGroups,
   delete: deleteProxy,
   toggleStatus,
   testProxy,

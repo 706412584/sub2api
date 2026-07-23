@@ -63,6 +63,8 @@ type Group struct {
 	FallbackGroupID *int64
 	// 无效请求兜底分组（仅 anthropic 平台使用）
 	FallbackGroupIDOnInvalidRequest *int64
+	// DefaultProxyID 账号加入该分组且未显式指定代理时自动绑定
+	DefaultProxyID *int64
 
 	// 模型路由配置
 	// key: 模型匹配模式（支持 * 通配符，如 "claude-opus-*"）

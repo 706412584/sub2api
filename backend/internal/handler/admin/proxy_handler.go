@@ -394,3 +394,46 @@ func (h *ProxyHandler) BatchCreate(c *gin.Context) {
 		"skipped": skipped,
 	})
 }
+
+// GetBoundGroups lists groups that use this proxy as default_proxy_id.
+// GET /api/v1/admin/proxies/:id/bound-groups
+func (h *ProxyHandler) GetBoundGroups(c *gin.Context) {
+	proxyID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid proxy ID")
+		return
+	}
+	ids, err := h.adminService.ListGroupIDsByDefaultProxy(c.Request.Context(), proxyID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"group_ids": ids})
+}
+
+// SetBoundGroups binds groups to use this proxy as their default proxy.
+// PUT /api/v1/admin/proxies/:id/bound-groups
+func (h *ProxyHandler) SetBoundGroups(c *gin.Context) {
+	proxyID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid proxy ID")
+		return
+	}
+	var req struct {
+		GroupIDs []int64 `json:"group_ids"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := h.adminService.SetProxyBoundGroups(c.Request.Context(), proxyID, req.GroupIDs); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	ids, err := h.adminService.ListGroupIDsByDefaultProxy(c.Request.Context(), proxyID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"group_ids": ids})
+}

@@ -234,6 +234,8 @@ export default {
       fallbackProxy: '指定备用代理',
       fallbackDirect: '回退直连',
       backupProxy: '备用代理',
+      boundGroups: '绑定分组',
+      boundGroupsHint: '账号加入这些分组且未指定代理时，将自动绑定本代理。',
     },
 
     // Redeem Codes Management

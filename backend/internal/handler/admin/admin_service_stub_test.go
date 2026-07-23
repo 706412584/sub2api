@@ -638,6 +638,14 @@ func (s *stubAdminService) CreateProxy(ctx context.Context, input *service.Creat
 	return &proxy, nil
 }
 
+func (s *stubAdminService) SetProxyBoundGroups(ctx context.Context, proxyID int64, groupIDs []int64) error {
+	return nil
+}
+
+func (s *stubAdminService) ListGroupIDsByDefaultProxy(ctx context.Context, proxyID int64) ([]int64, error) {
+	return nil, nil
+}
+
 func (s *stubAdminService) UpdateProxy(ctx context.Context, id int64, input *service.UpdateProxyInput) (*service.Proxy, error) {
 	s.mu.Lock()
 	s.updatedProxyIDs = append(s.updatedProxyIDs, id)

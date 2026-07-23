@@ -240,6 +240,11 @@ func FallbackGroupIDOnInvalidRequest(v int64) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldFallbackGroupIDOnInvalidRequest, v))
 }
 
+// DefaultProxyID applies equality check predicate on the "default_proxy_id" field. It's identical to DefaultProxyIDEQ.
+func DefaultProxyID(v int64) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldDefaultProxyID, v))
+}
+
 // ModelRoutingEnabled applies equality check predicate on the "model_routing_enabled" field. It's identical to ModelRoutingEnabledEQ.
 func ModelRoutingEnabled(v bool) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldModelRoutingEnabled, v))
@@ -1903,6 +1908,56 @@ func FallbackGroupIDOnInvalidRequestIsNil() predicate.Group {
 // FallbackGroupIDOnInvalidRequestNotNil applies the NotNil predicate on the "fallback_group_id_on_invalid_request" field.
 func FallbackGroupIDOnInvalidRequestNotNil() predicate.Group {
 	return predicate.Group(sql.FieldNotNull(FieldFallbackGroupIDOnInvalidRequest))
+}
+
+// DefaultProxyIDEQ applies the EQ predicate on the "default_proxy_id" field.
+func DefaultProxyIDEQ(v int64) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldDefaultProxyID, v))
+}
+
+// DefaultProxyIDNEQ applies the NEQ predicate on the "default_proxy_id" field.
+func DefaultProxyIDNEQ(v int64) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldDefaultProxyID, v))
+}
+
+// DefaultProxyIDIn applies the In predicate on the "default_proxy_id" field.
+func DefaultProxyIDIn(vs ...int64) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldDefaultProxyID, vs...))
+}
+
+// DefaultProxyIDNotIn applies the NotIn predicate on the "default_proxy_id" field.
+func DefaultProxyIDNotIn(vs ...int64) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldDefaultProxyID, vs...))
+}
+
+// DefaultProxyIDGT applies the GT predicate on the "default_proxy_id" field.
+func DefaultProxyIDGT(v int64) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldDefaultProxyID, v))
+}
+
+// DefaultProxyIDGTE applies the GTE predicate on the "default_proxy_id" field.
+func DefaultProxyIDGTE(v int64) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldDefaultProxyID, v))
+}
+
+// DefaultProxyIDLT applies the LT predicate on the "default_proxy_id" field.
+func DefaultProxyIDLT(v int64) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldDefaultProxyID, v))
+}
+
+// DefaultProxyIDLTE applies the LTE predicate on the "default_proxy_id" field.
+func DefaultProxyIDLTE(v int64) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldDefaultProxyID, v))
+}
+
+// DefaultProxyIDIsNil applies the IsNil predicate on the "default_proxy_id" field.
+func DefaultProxyIDIsNil() predicate.Group {
+	return predicate.Group(sql.FieldIsNull(FieldDefaultProxyID))
+}
+
+// DefaultProxyIDNotNil applies the NotNil predicate on the "default_proxy_id" field.
+func DefaultProxyIDNotNil() predicate.Group {
+	return predicate.Group(sql.FieldNotNull(FieldDefaultProxyID))
 }
 
 // ModelRoutingIsNil applies the IsNil predicate on the "model_routing" field.

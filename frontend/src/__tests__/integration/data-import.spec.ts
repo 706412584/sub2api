@@ -17,7 +17,14 @@ vi.mock('@/stores/app', () => ({
 vi.mock('@/api/admin', () => ({
   adminAPI: {
     accounts: {
-      importData: vi.fn()
+      importData: vi.fn(),
+      importKiroCredentials: vi.fn()
+    },
+    groups: {
+      getAllIncludingInactive: vi.fn().mockResolvedValue([])
+    },
+    proxies: {
+      getAllWithCount: vi.fn().mockResolvedValue([])
     }
   }
 }))
@@ -130,7 +137,9 @@ describe('ImportDataModal', () => {
       data: expect.objectContaining({
         accounts: [{ name: 'a' }]
       }),
-      skip_default_group_bind: true
+      skip_default_group_bind: true,
+      group_ids: undefined,
+      proxy_id: null
     })
   })
 
@@ -170,9 +179,173 @@ describe('ImportDataModal', () => {
         proxies: [{ proxy_key: 'p' }],
         accounts: [{ name: 'a' }, { name: 'b' }]
       }),
-      skip_default_group_bind: true
+      skip_default_group_bind: true,
+      group_ids: undefined,
+      proxy_id: null
     })
     expect(showSuccess).toHaveBeenCalledWith('admin.accounts.dataImportSuccess')
+  })
+
+  it('applies per-platform concurrency override before import', async () => {
+    const { adminAPI } = await import('@/api/admin')
+    vi.mocked(adminAPI.accounts.importData).mockResolvedValue({
+      proxy_created: 0,
+      proxy_reused: 0,
+      proxy_failed: 0,
+      account_created: 3,
+      account_failed: 0
+    })
+
+    const wrapper = mountModal()
+    const input = wrapper.find('input[type="file"]')
+    setInputFiles(input.element, [
+      makeJsonFile(
+        'typed.json',
+        JSON.stringify({
+          exported_at: '2026-07-05T00:00:00Z',
+          proxies: [],
+          accounts: [
+            { name: 'g1', platform: 'grok', type: 'oauth', credentials: {}, concurrency: 1, priority: 50 },
+            { name: 'g2', platform: 'grok', type: 'oauth', credentials: {}, concurrency: 2, priority: 40 },
+            { name: 'c1', platform: 'claude', type: 'oauth', credentials: {}, concurrency: 3, priority: 50 }
+          ]
+        })
+      )
+    ])
+    await input.trigger('change')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('grok')
+    expect(wrapper.text()).toContain('claude')
+
+    // platform rows are sorted alphabetically: claude then grok
+    const checkboxes = wrapper.findAll('input[type="checkbox"]')
+    const concurrencyBoxes = checkboxes.filter((box) => {
+      const label = box.element.closest('label')
+      return label?.textContent?.includes('admin.accounts.concurrency')
+    })
+    // enable grok (second platform row)
+    expect(concurrencyBoxes.length).toBeGreaterThanOrEqual(2)
+    await concurrencyBoxes[1]!.setValue(true)
+
+    const numberInputs = wrapper.findAll('input[type="number"]')
+    // per platform: concurrency, priority, rateMultiplier → grok concurrency is index 3
+    await numberInputs[3]!.setValue(9)
+
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    const call = vi.mocked(adminAPI.accounts.importData).mock.calls[0]?.[0]
+    expect(call?.data.accounts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'g1', platform: 'grok', concurrency: 9 }),
+        expect.objectContaining({ name: 'g2', platform: 'grok', concurrency: 9 }),
+        expect.objectContaining({ name: 'c1', platform: 'claude', concurrency: 3 })
+      ])
+    )
+  })
+
+  it('import scope first only imports the first account', async () => {
+    const { adminAPI } = await import('@/api/admin')
+    vi.mocked(adminAPI.accounts.importData).mockResolvedValue({
+      proxy_created: 0,
+      proxy_reused: 0,
+      proxy_failed: 0,
+      account_created: 1,
+      account_failed: 0
+    })
+
+    const wrapper = mountModal()
+    const input = wrapper.find('input[type="file"]')
+    setInputFiles(input.element, [
+      makeJsonFile(
+        'many.json',
+        JSON.stringify({
+          exported_at: '2026-07-05T00:00:00Z',
+          proxies: [],
+          accounts: [
+            { name: 'a1', platform: 'grok', type: 'oauth', credentials: {}, concurrency: 1, priority: 50 },
+            { name: 'a2', platform: 'grok', type: 'oauth', credentials: {}, concurrency: 1, priority: 50 }
+          ]
+        })
+      )
+    ])
+    await input.trigger('change')
+    await flushPromises()
+
+    const scopeButtons = wrapper.findAll('button').filter((btn) =>
+      btn.text().includes('admin.accounts.importScopeFirst')
+    )
+    expect(scopeButtons.length).toBeGreaterThan(0)
+    await scopeButtons[0]!.trigger('click')
+
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    const call = vi.mocked(adminAPI.accounts.importData).mock.calls[0]?.[0]
+    expect(call?.data.accounts).toHaveLength(1)
+    expect(call?.data.accounts[0]).toEqual(expect.objectContaining({ name: 'a1' }))
+  })
+
+  it('applies name prefix and notes by platform', async () => {
+    const { adminAPI } = await import('@/api/admin')
+    vi.mocked(adminAPI.accounts.importData).mockResolvedValue({
+      proxy_created: 0,
+      proxy_reused: 0,
+      proxy_failed: 0,
+      account_created: 1,
+      account_failed: 0
+    })
+
+    const wrapper = mountModal()
+    const input = wrapper.find('input[type="file"]')
+    setInputFiles(input.element, [
+      makeJsonFile(
+        'named.json',
+        JSON.stringify({
+          exported_at: '2026-07-05T00:00:00Z',
+          proxies: [],
+          accounts: [
+            { name: 'acc', platform: 'grok', type: 'oauth', credentials: {}, concurrency: 1, priority: 50 }
+          ]
+        })
+      )
+    ])
+    await input.trigger('change')
+    await flushPromises()
+
+    const checkboxes = wrapper.findAll('input[type="checkbox"]')
+    const prefixBox = checkboxes.find((box) => {
+      const label = box.element.closest('label')
+      return label?.textContent?.includes('admin.accounts.importPreEditNamePrefix')
+    })
+    const notesBox = checkboxes.find((box) => {
+      const label = box.element.closest('label')
+      return label?.textContent?.includes('admin.accounts.notes')
+    })
+    expect(prefixBox).toBeTruthy()
+    expect(notesBox).toBeTruthy()
+    await prefixBox!.setValue(true)
+    await notesBox!.setValue(true)
+
+    const textInputs = wrapper.findAll('input[type="text"]')
+    // name prefix + name suffix + notes under platform edit
+    const prefixInput = textInputs.find((el) => {
+      return (el.element as HTMLInputElement).placeholder === 'admin.accounts.importPreEditNamePrefixPh'
+    })
+    const notesInput = textInputs.find((el) => {
+      return (el.element as HTMLInputElement).placeholder === 'admin.accounts.importPreEditNotesPh'
+    })
+    await prefixInput!.setValue('prod-')
+    await notesInput!.setValue('batch-import')
+
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    const call = vi.mocked(adminAPI.accounts.importData).mock.calls[0]?.[0]
+    expect(call?.data.accounts[0]).toEqual(
+      expect.objectContaining({ name: 'prod-acc', notes: 'batch-import' })
+    )
   })
 
   it('部分成功时关闭弹窗仍通知父组件刷新', async () => {

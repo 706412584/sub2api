@@ -87,6 +87,7 @@ func createGroupRecord(ctx context.Context, client *dbent.Client, groupIn *servi
 		SetClaudeCodeOnly(groupIn.ClaudeCodeOnly).
 		SetNillableFallbackGroupID(groupIn.FallbackGroupID).
 		SetNillableFallbackGroupIDOnInvalidRequest(groupIn.FallbackGroupIDOnInvalidRequest).
+		SetNillableDefaultProxyID(groupIn.DefaultProxyID).
 		SetModelRoutingEnabled(groupIn.ModelRoutingEnabled).
 		SetMcpXMLInject(groupIn.MCPXMLInject).
 		SetAllowMessagesDispatch(groupIn.AllowMessagesDispatch).
@@ -331,6 +332,13 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		builder = builder.SetFallbackGroupIDOnInvalidRequest(*groupIn.FallbackGroupIDOnInvalidRequest)
 	} else {
 		builder = builder.ClearFallbackGroupIDOnInvalidRequest()
+	}
+
+	// 处理 DefaultProxyID：nil 时清除，否则设置
+	if groupIn.DefaultProxyID != nil {
+		builder = builder.SetDefaultProxyID(*groupIn.DefaultProxyID)
+	} else {
+		builder = builder.ClearDefaultProxyID()
 	}
 
 	// 处理 ModelRouting：nil 时清除，否则设置
@@ -1060,4 +1068,65 @@ func (r *groupRepository) UpdateSortOrders(ctx context.Context, updates []servic
 		}
 	}
 	return nil
+}
+
+func (r *groupRepository) SetDefaultProxyBoundGroups(ctx context.Context, proxyID int64, groupIDs []int64) error {
+	if proxyID <= 0 {
+		return nil
+	}
+	tx, err := r.client.Tx(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx for default proxy bind: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	// Clear previous bindings for this proxy that are not in the new set.
+	q := tx.Group.Update().
+		Where(group.DefaultProxyIDEQ(proxyID)).
+		ClearDefaultProxyID()
+	if len(groupIDs) > 0 {
+		q = q.Where(group.IDNotIn(groupIDs...))
+	}
+	if _, err := q.Save(ctx); err != nil {
+		return fmt.Errorf("clear old default proxy bindings: %w", err)
+	}
+
+	if len(groupIDs) > 0 {
+		if _, err := tx.Group.Update().
+			Where(group.IDIn(groupIDs...)).
+			SetDefaultProxyID(proxyID).
+			Save(ctx); err != nil {
+			return fmt.Errorf("set default proxy bindings: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit default proxy bind: %w", err)
+	}
+
+	// Outbox for each affected group
+	affected := append([]int64(nil), groupIDs...)
+	// also notify cleared ones is hard without listing; best-effort for bound groups
+	for _, id := range affected {
+		gid := id
+		if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventGroupChanged, nil, &gid, nil); err != nil {
+			logger.LegacyPrintf("repository.group", "[SchedulerOutbox] enqueue group default_proxy bind failed: group=%d err=%v", id, err)
+		}
+	}
+	return nil
+}
+
+func (r *groupRepository) ListGroupIDsByDefaultProxy(ctx context.Context, proxyID int64) ([]int64, error) {
+	if proxyID <= 0 {
+		return nil, nil
+	}
+	ids, err := r.client.Group.Query().
+		Where(group.DefaultProxyIDEQ(proxyID)).
+		IDs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list groups by default proxy: %w", err)
+	}
+	return ids, nil
 }

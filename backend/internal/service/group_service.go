@@ -51,6 +51,11 @@ type GroupDuplicateRepository interface {
 type AdminGroupRepository interface {
 	GroupRepository
 	GroupDuplicateRepository
+	// SetDefaultProxyBoundGroups 将 groupIDs 的 default_proxy_id 设为 proxyID；
+	// 原先绑定到该代理但不在列表中的分组会被清空。
+	SetDefaultProxyBoundGroups(ctx context.Context, proxyID int64, groupIDs []int64) error
+	// ListGroupIDsByDefaultProxy 返回 default_proxy_id = proxyID 的分组 ID。
+	ListGroupIDsByDefaultProxy(ctx context.Context, proxyID int64) ([]int64, error)
 }
 
 // GroupSortOrderUpdate 分组排序更新

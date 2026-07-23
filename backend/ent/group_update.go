@@ -735,6 +735,33 @@ func (_u *GroupUpdate) ClearFallbackGroupIDOnInvalidRequest() *GroupUpdate {
 	return _u
 }
 
+// SetDefaultProxyID sets the "default_proxy_id" field.
+func (_u *GroupUpdate) SetDefaultProxyID(v int64) *GroupUpdate {
+	_u.mutation.ResetDefaultProxyID()
+	_u.mutation.SetDefaultProxyID(v)
+	return _u
+}
+
+// SetNillableDefaultProxyID sets the "default_proxy_id" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableDefaultProxyID(v *int64) *GroupUpdate {
+	if v != nil {
+		_u.SetDefaultProxyID(*v)
+	}
+	return _u
+}
+
+// AddDefaultProxyID adds value to the "default_proxy_id" field.
+func (_u *GroupUpdate) AddDefaultProxyID(v int64) *GroupUpdate {
+	_u.mutation.AddDefaultProxyID(v)
+	return _u
+}
+
+// ClearDefaultProxyID clears the value of the "default_proxy_id" field.
+func (_u *GroupUpdate) ClearDefaultProxyID() *GroupUpdate {
+	_u.mutation.ClearDefaultProxyID()
+	return _u
+}
+
 // SetModelRouting sets the "model_routing" field.
 func (_u *GroupUpdate) SetModelRouting(v map[string][]int64) *GroupUpdate {
 	_u.mutation.SetModelRouting(v)
@@ -1465,6 +1492,15 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.FallbackGroupIDOnInvalidRequestCleared() {
 		_spec.ClearField(group.FieldFallbackGroupIDOnInvalidRequest, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.DefaultProxyID(); ok {
+		_spec.SetField(group.FieldDefaultProxyID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedDefaultProxyID(); ok {
+		_spec.AddField(group.FieldDefaultProxyID, field.TypeInt64, value)
+	}
+	if _u.mutation.DefaultProxyIDCleared() {
+		_spec.ClearField(group.FieldDefaultProxyID, field.TypeInt64)
 	}
 	if value, ok := _u.mutation.ModelRouting(); ok {
 		_spec.SetField(group.FieldModelRouting, field.TypeJSON, value)
@@ -2540,6 +2576,33 @@ func (_u *GroupUpdateOne) ClearFallbackGroupIDOnInvalidRequest() *GroupUpdateOne
 	return _u
 }
 
+// SetDefaultProxyID sets the "default_proxy_id" field.
+func (_u *GroupUpdateOne) SetDefaultProxyID(v int64) *GroupUpdateOne {
+	_u.mutation.ResetDefaultProxyID()
+	_u.mutation.SetDefaultProxyID(v)
+	return _u
+}
+
+// SetNillableDefaultProxyID sets the "default_proxy_id" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableDefaultProxyID(v *int64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetDefaultProxyID(*v)
+	}
+	return _u
+}
+
+// AddDefaultProxyID adds value to the "default_proxy_id" field.
+func (_u *GroupUpdateOne) AddDefaultProxyID(v int64) *GroupUpdateOne {
+	_u.mutation.AddDefaultProxyID(v)
+	return _u
+}
+
+// ClearDefaultProxyID clears the value of the "default_proxy_id" field.
+func (_u *GroupUpdateOne) ClearDefaultProxyID() *GroupUpdateOne {
+	_u.mutation.ClearDefaultProxyID()
+	return _u
+}
+
 // SetModelRouting sets the "model_routing" field.
 func (_u *GroupUpdateOne) SetModelRouting(v map[string][]int64) *GroupUpdateOne {
 	_u.mutation.SetModelRouting(v)
@@ -3300,6 +3363,15 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if _u.mutation.FallbackGroupIDOnInvalidRequestCleared() {
 		_spec.ClearField(group.FieldFallbackGroupIDOnInvalidRequest, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.DefaultProxyID(); ok {
+		_spec.SetField(group.FieldDefaultProxyID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedDefaultProxyID(); ok {
+		_spec.AddField(group.FieldDefaultProxyID, field.TypeInt64, value)
+	}
+	if _u.mutation.DefaultProxyIDCleared() {
+		_spec.ClearField(group.FieldDefaultProxyID, field.TypeInt64)
 	}
 	if value, ok := _u.mutation.ModelRouting(); ok {
 		_spec.SetField(group.FieldModelRouting, field.TypeJSON, value)

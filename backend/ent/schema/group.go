@@ -167,6 +167,12 @@ func (Group) Fields() []ent.Field {
 			Nillable().
 			Comment("无效请求兜底使用的分组 ID"),
 
+			// 账号加入该分组且未显式指定代理时，自动绑定此代理（migration 187）
+			field.Int64("default_proxy_id").
+				Optional().
+				Nillable().
+				Comment("分组默认代理：账号入组未指定代理时自动绑定"),
+
 		// 模型路由配置 (added by migration 040)
 		field.JSON("model_routing", map[string][]int64{}).
 			Optional().

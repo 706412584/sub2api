@@ -2,7 +2,7 @@
   <BaseDialog
     :show="show"
     :title="t('admin.accounts.dataImportTitle')"
-    width="normal"
+    width="wide"
     close-on-click-outside
     @close="handleClose"
   >
@@ -30,6 +30,21 @@
         class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-600 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400"
       >
         {{ t('admin.accounts.dataImportWarning') }}
+      </div>
+
+      <div>
+        <GroupSelector v-model="selectedGroupIds" :groups="groups" searchable />
+        <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
+          {{ t('admin.accounts.importPreGroupHint') }}
+        </p>
+      </div>
+
+      <div>
+        <label class="input-label">{{ t('admin.accounts.importPreProxy') }}</label>
+        <ProxySelector v-model="selectedProxyId" :proxies="proxies" />
+        <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
+          {{ t('admin.accounts.importPreProxyHint') }}
+        </p>
       </div>
 
       <div>
@@ -65,6 +80,334 @@
           multiple
           @change="handleFileChange"
         />
+      </div>
+
+      <!-- 预获取范围：第一个 / 全部 -->
+      <div
+        v-if="files.length && (previewAccountCount > 0 || kiroPreviewNames.length > 0)"
+        class="space-y-2"
+      >
+        <label class="input-label">{{ t('admin.accounts.importScopeLabel') }}</label>
+        <div class="grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1 dark:bg-dark-800">
+          <button
+            type="button"
+            :class="[
+              'rounded-md px-3 py-2 text-sm font-medium transition-colors',
+              importScope === 'first'
+                ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white'
+                : 'text-gray-500 dark:text-gray-400'
+            ]"
+            :disabled="importing"
+            @click="importScope = 'first'"
+          >
+            {{ t('admin.accounts.importScopeFirst') }}
+          </button>
+          <button
+            type="button"
+            :class="[
+              'rounded-md px-3 py-2 text-sm font-medium transition-colors',
+              importScope === 'all'
+                ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white'
+                : 'text-gray-500 dark:text-gray-400'
+            ]"
+            :disabled="importing"
+            @click="importScope = 'all'"
+          >
+            {{ t('admin.accounts.importScopeAll') }}
+          </button>
+        </div>
+        <p class="text-xs text-gray-500 dark:text-dark-400">
+          {{
+            importScope === 'first'
+              ? t('admin.accounts.importScopeFirstHint', {
+                  total: importMode === 'kiro' ? kiroPreviewNames.length : previewAccountCount
+                })
+              : t('admin.accounts.importScopeAllHint', {
+                  total: importMode === 'kiro' ? kiroPreviewNames.length : previewAccountCount
+                })
+          }}
+        </p>
+      </div>
+
+      <!-- 按账号类型预编辑 -->
+      <div
+        v-if="importMode === 'sub2api' && platformEdits.length"
+        class="space-y-3 rounded-xl border border-gray-200 p-4 dark:border-dark-700"
+      >
+        <div class="flex items-center justify-between gap-2">
+          <div>
+            <div class="text-sm font-medium text-gray-900 dark:text-white">
+              {{ t('admin.accounts.importPreEditTitle') }}
+            </div>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">
+              {{ t('admin.accounts.importPreEditHint', { count: previewAccountCount }) }}
+            </p>
+          </div>
+        </div>
+
+        <div class="max-h-96 space-y-3 overflow-auto">
+          <div
+            v-for="row in platformEdits"
+            :key="row.platform"
+            class="rounded-lg border border-gray-100 bg-gray-50 p-3 dark:border-dark-600 dark:bg-dark-800"
+          >
+            <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <div class="text-sm font-medium text-gray-800 dark:text-dark-100">
+                {{ row.platform }}
+                <span class="ml-1 text-xs font-normal text-gray-500 dark:text-dark-400">
+                  {{ t('admin.accounts.importPreEditCount', { count: row.count }) }}
+                </span>
+              </div>
+              <div
+                v-if="row.sampleNames.length"
+                class="max-w-full truncate text-xs text-gray-500 dark:text-dark-400"
+                :title="row.sampleNames.join(', ')"
+              >
+                {{ row.sampleNames.join(', ') }}
+              </div>
+            </div>
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <label class="block space-y-1">
+                <span class="flex items-center gap-2 text-xs text-gray-600 dark:text-dark-300">
+                  <input
+                    v-model="row.enableConcurrency"
+                    type="checkbox"
+                    class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                  {{ t('admin.accounts.concurrency') }}
+                </span>
+                <input
+                  v-model.number="row.concurrency"
+                  type="number"
+                  min="1"
+                  max="1000"
+                  class="input"
+                  :disabled="!row.enableConcurrency"
+                  :class="!row.enableConcurrency && 'cursor-not-allowed opacity-50'"
+                />
+              </label>
+              <label class="block space-y-1">
+                <span class="flex items-center gap-2 text-xs text-gray-600 dark:text-dark-300">
+                  <input
+                    v-model="row.enablePriority"
+                    type="checkbox"
+                    class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                  {{ t('admin.accounts.priority') }}
+                </span>
+                <input
+                  v-model.number="row.priority"
+                  type="number"
+                  min="0"
+                  max="100"
+                  class="input"
+                  :disabled="!row.enablePriority"
+                  :class="!row.enablePriority && 'cursor-not-allowed opacity-50'"
+                />
+              </label>
+              <label class="block space-y-1">
+                <span class="flex items-center gap-2 text-xs text-gray-600 dark:text-dark-300">
+                  <input
+                    v-model="row.enableRateMultiplier"
+                    type="checkbox"
+                    class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                  {{ t('admin.accounts.billingRateMultiplier') }}
+                </span>
+                <input
+                  v-model.number="row.rateMultiplier"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  class="input"
+                  :disabled="!row.enableRateMultiplier"
+                  :class="!row.enableRateMultiplier && 'cursor-not-allowed opacity-50'"
+                />
+              </label>
+              <label class="block space-y-1">
+                <span class="flex items-center gap-2 text-xs text-gray-600 dark:text-dark-300">
+                  <input
+                    v-model="row.enableNamePrefix"
+                    type="checkbox"
+                    class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                  {{ t('admin.accounts.importPreEditNamePrefix') }}
+                </span>
+                <input
+                  v-model="row.namePrefix"
+                  type="text"
+                  class="input"
+                  :disabled="!row.enableNamePrefix"
+                  :class="!row.enableNamePrefix && 'cursor-not-allowed opacity-50'"
+                  :placeholder="t('admin.accounts.importPreEditNamePrefixPh')"
+                />
+              </label>
+              <label class="block space-y-1">
+                <span class="flex items-center gap-2 text-xs text-gray-600 dark:text-dark-300">
+                  <input
+                    v-model="row.enableNameSuffix"
+                    type="checkbox"
+                    class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                  {{ t('admin.accounts.importPreEditNameSuffix') }}
+                </span>
+                <input
+                  v-model="row.nameSuffix"
+                  type="text"
+                  class="input"
+                  :disabled="!row.enableNameSuffix"
+                  :class="!row.enableNameSuffix && 'cursor-not-allowed opacity-50'"
+                  :placeholder="t('admin.accounts.importPreEditNameSuffixPh')"
+                />
+              </label>
+              <label class="block space-y-1">
+                <span class="flex items-center gap-2 text-xs text-gray-600 dark:text-dark-300">
+                  <input
+                    v-model="row.enableNotes"
+                    type="checkbox"
+                    class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                  {{ t('admin.accounts.notes') }}
+                </span>
+                <input
+                  v-model="row.notes"
+                  type="text"
+                  class="input"
+                  :disabled="!row.enableNotes"
+                  :class="!row.enableNotes && 'cursor-not-allowed opacity-50'"
+                  :placeholder="t('admin.accounts.importPreEditNotesPh')"
+                />
+              </label>
+              <label class="block space-y-1 sm:col-span-3">
+                <span class="flex items-center gap-2 text-xs text-gray-600 dark:text-dark-300">
+                  <input
+                    v-model="row.enableAutoPause"
+                    type="checkbox"
+                    class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                  {{ t('admin.accounts.autoPauseOnExpired') }}
+                </span>
+                <select
+                  v-model="row.autoPauseOnExpired"
+                  class="input"
+                  :disabled="!row.enableAutoPause"
+                  :class="!row.enableAutoPause && 'cursor-not-allowed opacity-50'"
+                >
+                  <option :value="true">{{ t('common.yes') }}</option>
+                  <option :value="false">{{ t('common.no') }}</option>
+                </select>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div
+          v-if="previewAccountNames.length"
+          class="max-h-28 overflow-auto rounded-lg bg-white p-2 font-mono text-xs text-gray-600 dark:bg-dark-900 dark:text-dark-300"
+        >
+          <div v-for="(name, idx) in visiblePreviewNames" :key="idx">
+            {{ name }}
+          </div>
+          <div v-if="hiddenPreviewCount > 0" class="text-gray-400">
+            {{ t('admin.accounts.importPreEditMore', { count: hiddenPreviewCount }) }}
+          </div>
+        </div>
+      </div>
+
+      <div
+        v-else-if="importMode === 'kiro' && kiroPreviewNames.length"
+        class="space-y-3 rounded-xl border border-gray-200 p-4 dark:border-dark-700"
+      >
+        <div class="text-sm font-medium text-gray-900 dark:text-white">
+          {{ t('admin.accounts.importPreEditTitle') }}
+        </div>
+        <p class="text-xs text-gray-500 dark:text-dark-400">
+          {{ t('admin.accounts.importPreEditHint', { count: kiroPreviewNames.length }) }}
+        </p>
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label class="block space-y-1">
+            <span class="flex items-center gap-2 text-xs text-gray-600 dark:text-dark-300">
+              <input
+                v-model="enableKiroConcurrency"
+                type="checkbox"
+                class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              />
+              {{ t('admin.accounts.concurrency') }}
+            </span>
+            <input
+              v-model.number="kiroConcurrency"
+              type="number"
+              min="1"
+              max="1000"
+              class="input"
+              :disabled="!enableKiroConcurrency"
+              :class="!enableKiroConcurrency && 'cursor-not-allowed opacity-50'"
+            />
+          </label>
+          <label class="block space-y-1">
+            <span class="flex items-center gap-2 text-xs text-gray-600 dark:text-dark-300">
+              <input
+                v-model="enableKiroPriority"
+                type="checkbox"
+                class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              />
+              {{ t('admin.accounts.priority') }}
+            </span>
+            <input
+              v-model.number="kiroPriority"
+              type="number"
+              min="0"
+              max="100"
+              class="input"
+              :disabled="!enableKiroPriority"
+              :class="!enableKiroPriority && 'cursor-not-allowed opacity-50'"
+            />
+          </label>
+          <label class="block space-y-1">
+            <span class="flex items-center gap-2 text-xs text-gray-600 dark:text-dark-300">
+              <input
+                v-model="enableKiroNamePrefix"
+                type="checkbox"
+                class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              />
+              {{ t('admin.accounts.importPreEditNamePrefix') }}
+            </span>
+            <input
+              v-model="kiroNamePrefix"
+              type="text"
+              class="input"
+              :disabled="!enableKiroNamePrefix"
+              :class="!enableKiroNamePrefix && 'cursor-not-allowed opacity-50'"
+            />
+          </label>
+          <label class="block space-y-1">
+            <span class="flex items-center gap-2 text-xs text-gray-600 dark:text-dark-300">
+              <input
+                v-model="enableKiroNotes"
+                type="checkbox"
+                class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              />
+              {{ t('admin.accounts.notes') }}
+            </span>
+            <input
+              v-model="kiroNotes"
+              type="text"
+              class="input"
+              :disabled="!enableKiroNotes"
+              :class="!enableKiroNotes && 'cursor-not-allowed opacity-50'"
+            />
+          </label>
+        </div>
+        <div
+          class="max-h-28 overflow-auto rounded-lg bg-gray-50 p-2 font-mono text-xs text-gray-600 dark:bg-dark-800 dark:text-dark-300"
+        >
+          <div v-for="(name, idx) in visibleKiroPreviewNames" :key="idx">
+            {{ name || t('admin.accounts.importPreEditUnnamed', { index: idx + 1 }) }}
+          </div>
+          <div v-if="hiddenKiroPreviewCount > 0" class="text-gray-400">
+            {{ t('admin.accounts.importPreEditMore', { count: hiddenKiroPreviewCount }) }}
+          </div>
+        </div>
       </div>
 
       <div
@@ -115,9 +458,11 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import GroupSelector from '@/components/common/GroupSelector.vue'
+import ProxySelector from '@/components/common/ProxySelector.vue'
 import { adminAPI } from '@/api/admin'
 import { useAppStore } from '@/stores/app'
-import type { AdminDataImportResult, AdminDataPayload } from '@/types'
+import type { AdminDataAccount, AdminDataImportResult, AdminDataPayload, AdminGroup, Proxy } from '@/types'
 
 interface Props {
   show: boolean
@@ -128,6 +473,26 @@ interface Emits {
   (e: 'imported'): void
 }
 
+interface PlatformPreEdit {
+  platform: string
+  count: number
+  sampleNames: string[]
+  enableConcurrency: boolean
+  concurrency: number
+  enablePriority: boolean
+  priority: number
+  enableRateMultiplier: boolean
+  rateMultiplier: number
+  enableNamePrefix: boolean
+  namePrefix: string
+  enableNameSuffix: boolean
+  nameSuffix: string
+  enableNotes: boolean
+  notes: string
+  enableAutoPause: boolean
+  autoPauseOnExpired: boolean
+}
+
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
@@ -136,11 +501,29 @@ const appStore = useAppStore()
 
 const importing = ref(false)
 const importMode = ref<'sub2api' | 'kiro'>('sub2api')
+const importScope = ref<'first' | 'all'>('all')
+const selectedGroupIds = ref<number[]>([])
+const selectedProxyId = ref<number | null>(null)
+const groups = ref<AdminGroup[]>([])
+const proxies = ref<Proxy[]>([])
 const files = ref<File[]>([])
 const dragDepth = ref(0)
 const dragActive = computed(() => dragDepth.value > 0)
 const hasCreatedData = ref(false)
 const result = ref<AdminDataImportResult | null>(null)
+
+const platformEdits = ref<PlatformPreEdit[]>([])
+const previewAccountCount = ref(0)
+const previewAccountNames = ref<string[]>([])
+const kiroPreviewNames = ref<string[]>([])
+const enableKiroConcurrency = ref(false)
+const kiroConcurrency = ref(3)
+const enableKiroPriority = ref(false)
+const kiroPriority = ref(50)
+const enableKiroNamePrefix = ref(false)
+const kiroNamePrefix = ref('')
+const enableKiroNotes = ref(false)
+const kiroNotes = ref('')
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const selectedFilesLabel = computed(() => {
@@ -152,16 +535,65 @@ const fileListTitle = computed(() => files.value.map((item) => item.name).join('
 
 const errorItems = computed(() => result.value?.errors || [])
 
+const scopedPreviewNames = (names: string[]) => {
+  if (importScope.value === 'first') return names.slice(0, 1)
+  return names
+}
+
+const visiblePreviewNames = computed(() => scopedPreviewNames(previewAccountNames.value).slice(0, 50))
+const hiddenPreviewCount = computed(() => {
+  const scoped = scopedPreviewNames(previewAccountNames.value)
+  return Math.max(0, scoped.length - 50)
+})
+const visibleKiroPreviewNames = computed(() => scopedPreviewNames(kiroPreviewNames.value).slice(0, 50))
+const hiddenKiroPreviewCount = computed(() => {
+  const scoped = scopedPreviewNames(kiroPreviewNames.value)
+  return Math.max(0, scoped.length - 50)
+})
+
+const resetPreview = () => {
+  platformEdits.value = []
+  previewAccountCount.value = 0
+  previewAccountNames.value = []
+  kiroPreviewNames.value = []
+  enableKiroConcurrency.value = false
+  kiroConcurrency.value = 3
+  enableKiroPriority.value = false
+  kiroPriority.value = 50
+  enableKiroNamePrefix.value = false
+  kiroNamePrefix.value = ''
+  enableKiroNotes.value = false
+  kiroNotes.value = ''
+  importScope.value = 'all'
+}
+
 watch(
   () => props.show,
-  (open) => {
+  async (open) => {
     if (open) {
       files.value = []
       dragDepth.value = 0
       hasCreatedData.value = false
       result.value = null
+      selectedGroupIds.value = []
+      selectedProxyId.value = null
+      resetPreview()
       if (fileInput.value) {
         fileInput.value.value = ''
+      }
+      try {
+        if (groups.value.length === 0) {
+          groups.value = await adminAPI.groups.getAllIncludingInactive()
+        }
+      } catch {
+        groups.value = []
+      }
+      try {
+        if (proxies.value.length === 0) {
+          proxies.value = await adminAPI.proxies.getAllWithCount()
+        }
+      } catch {
+        proxies.value = []
       }
     }
   }
@@ -172,6 +604,7 @@ const setImportMode = (mode: 'sub2api' | 'kiro') => {
   importMode.value = mode
   files.value = []
   result.value = null
+  resetPreview()
   if (fileInput.value) fileInput.value.value = ''
 }
 
@@ -181,7 +614,7 @@ const openFilePicker = () => {
 
 const handleFileChange = (event: Event) => {
   const target = event.target as HTMLInputElement
-  setSelectedFiles(target.files)
+  void setSelectedFiles(target.files)
   target.value = ''
 }
 
@@ -199,7 +632,7 @@ const isJsonFile = (sourceFile: File) => {
   return name.endsWith('.json') || sourceFile.type === 'application/json'
 }
 
-const setSelectedFiles = (sourceFiles: FileList | File[] | null | undefined) => {
+const setSelectedFiles = async (sourceFiles: FileList | File[] | null | undefined) => {
   if (importing.value) return
   const incoming = Array.from(sourceFiles || [])
   const picked = incoming.filter(isJsonFile)
@@ -214,6 +647,16 @@ const setSelectedFiles = (sourceFiles: FileList | File[] | null | undefined) => 
   }
   files.value = picked
   result.value = null
+  importScope.value = 'all'
+  enableKiroConcurrency.value = false
+  kiroConcurrency.value = 3
+  enableKiroPriority.value = false
+  kiroPriority.value = 50
+  enableKiroNamePrefix.value = false
+  kiroNamePrefix.value = ''
+  enableKiroNotes.value = false
+  kiroNotes.value = ''
+  await rebuildPreview()
 }
 
 const handleDragEnter = () => {
@@ -228,7 +671,7 @@ const handleDragLeave = () => {
 const handleDrop = (event: DragEvent) => {
   dragDepth.value = 0
   if (importing.value) return
-  setSelectedFiles(event.dataTransfer?.files)
+  void setSelectedFiles(event.dataTransfer?.files)
 }
 
 const readFileAsText = async (sourceFile: File): Promise<string> => {
@@ -282,6 +725,24 @@ const extractKiroAccounts = (payload: unknown): unknown[] => {
   return [payload]
 }
 
+const kiroAccountDisplayName = (item: unknown, index: number): string => {
+  if (!item || typeof item !== 'object') {
+    return t('admin.accounts.importPreEditUnnamed', { index: index + 1 })
+  }
+  const record = item as Record<string, unknown>
+  const credentials =
+    record.credentials && typeof record.credentials === 'object'
+      ? (record.credentials as Record<string, unknown>)
+      : null
+  const name =
+    (typeof record.name === 'string' && record.name) ||
+    (typeof record.displayName === 'string' && record.displayName) ||
+    (typeof record.email === 'string' && record.email) ||
+    (credentials && typeof credentials.email === 'string' && credentials.email) ||
+    ''
+  return name || t('admin.accounts.importPreEditUnnamed', { index: index + 1 })
+}
+
 const mergeDataPayloads = (payloads: AdminDataPayload[]): AdminDataPayload => {
   const [firstPayload] = payloads
   if (payloads.length === 1 && firstPayload) return firstPayload
@@ -299,29 +760,198 @@ const mergeDataPayloads = (payloads: AdminDataPayload[]): AdminDataPayload => {
   }
 }
 
-const handleImport = async () => {
+const buildPlatformEdits = (accounts: AdminDataAccount[]): PlatformPreEdit[] => {
+  const groupsMap = new Map<string, AdminDataAccount[]>()
+  for (const account of accounts) {
+    const platform = (account.platform || 'unknown').trim() || 'unknown'
+    const list = groupsMap.get(platform) || []
+    list.push(account)
+    groupsMap.set(platform, list)
+  }
+
+  return Array.from(groupsMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([platform, list]) => {
+      const first = list[0]
+      return {
+        platform,
+        count: list.length,
+        sampleNames: list
+          .map((item) => item.name)
+          .filter(Boolean)
+          .slice(0, 3),
+        enableConcurrency: false,
+        concurrency: Number(first?.concurrency) > 0 ? Number(first.concurrency) : 3,
+        enablePriority: false,
+        priority: Number.isFinite(Number(first?.priority)) ? Number(first.priority) : 50,
+        enableRateMultiplier: false,
+        rateMultiplier:
+          first?.rate_multiplier != null && Number.isFinite(Number(first.rate_multiplier))
+            ? Number(first.rate_multiplier)
+            : 1,
+        enableNamePrefix: false,
+        namePrefix: '',
+        enableNameSuffix: false,
+        nameSuffix: '',
+        enableNotes: false,
+        notes: first?.notes || '',
+        enableAutoPause: false,
+        autoPauseOnExpired: first?.auto_pause_on_expired !== false
+      }
+    })
+}
+
+const applyNameTransform = (name: string, prefix: string, suffix: string) => {
+  const base = (name || '').trim() || 'imported-account'
+  return `${prefix}${base}${suffix}`
+}
+
+const applyPlatformEdits = (accounts: AdminDataAccount[]): AdminDataAccount[] => {
+  if (!platformEdits.value.length) return accounts
+  const editByPlatform = new Map(platformEdits.value.map((row) => [row.platform, row]))
+  return accounts.map((account) => {
+    const platform = (account.platform || 'unknown').trim() || 'unknown'
+    const edit = editByPlatform.get(platform)
+    if (!edit) return account
+    const next: AdminDataAccount = { ...account }
+    if (edit.enableConcurrency) {
+      next.concurrency = Math.max(1, Math.floor(Number(edit.concurrency) || 1))
+    }
+    if (edit.enablePriority) {
+      const value = Math.floor(Number(edit.priority))
+      next.priority = Number.isFinite(value) ? value : 50
+    }
+    if (edit.enableRateMultiplier) {
+      const value = Number(edit.rateMultiplier)
+      next.rate_multiplier = Number.isFinite(value) ? value : 1
+    }
+    if (edit.enableNamePrefix || edit.enableNameSuffix) {
+      next.name = applyNameTransform(
+        account.name,
+        edit.enableNamePrefix ? edit.namePrefix : '',
+        edit.enableNameSuffix ? edit.nameSuffix : ''
+      )
+    }
+    if (edit.enableNotes) {
+      next.notes = edit.notes
+    }
+    if (edit.enableAutoPause) {
+      next.auto_pause_on_expired = !!edit.autoPauseOnExpired
+    }
+    return next
+  })
+}
+
+const limitAccountsByScope = <T,>(accounts: T[]): T[] => {
+  if (importScope.value === 'first') return accounts.slice(0, 1)
+  return accounts
+}
+
+const applyKiroPreEdits = (accounts: unknown[]): unknown[] => {
+  if (!enableKiroNamePrefix.value && !enableKiroNotes.value) return accounts
+  return accounts.map((item, index) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      if (!enableKiroNamePrefix.value) return item
+      return {
+        name: applyNameTransform(
+          kiroAccountDisplayName(item, index),
+          kiroNamePrefix.value,
+          ''
+        )
+      }
+    }
+    const record = { ...(item as Record<string, unknown>) }
+    if (enableKiroNamePrefix.value) {
+      const current =
+        (typeof record.name === 'string' && record.name) ||
+        (typeof record.displayName === 'string' && record.displayName) ||
+        (typeof record.email === 'string' && record.email) ||
+        kiroAccountDisplayName(item, index)
+      record.name = applyNameTransform(String(current), kiroNamePrefix.value, '')
+    }
+    if (enableKiroNotes.value) {
+      record.notes = kiroNotes.value
+    }
+    return record
+  })
+}
+
+const parseSelectedFiles = async (): Promise<unknown[] | null> => {
   if (files.value.length === 0) {
     appStore.showError(t('admin.accounts.dataImportSelectFile'))
+    return null
+  }
+  const parsedFiles: unknown[] = []
+  for (const sourceFile of files.value) {
+    try {
+      parsedFiles.push(JSON.parse(await readFileAsText(sourceFile)))
+    } catch {
+      appStore.showError(
+        t('admin.accounts.dataImportParseFailedFile', { name: sourceFile.name })
+      )
+      return null
+    }
+  }
+  return parsedFiles
+}
+
+const rebuildPreview = async () => {
+  // keep importScope across rebuild? reset only lists; default all on new files via setSelectedFiles
+  platformEdits.value = []
+  previewAccountCount.value = 0
+  previewAccountNames.value = []
+  kiroPreviewNames.value = []
+  if (files.value.length === 0) return
+
+  const parsedFiles: unknown[] = []
+  for (const sourceFile of files.value) {
+    try {
+      parsedFiles.push(JSON.parse(await readFileAsText(sourceFile)))
+    } catch {
+      // 预览失败不打断选文件；提交时会再次校验并提示
+      return
+    }
+  }
+
+  if (importMode.value === 'kiro') {
+    const accounts = parsedFiles.flatMap(extractKiroAccounts)
+    kiroPreviewNames.value = accounts.map((item, index) => kiroAccountDisplayName(item, index))
     return
   }
 
+  const dataPayloads: AdminDataPayload[] = []
+  for (const parsed of parsedFiles) {
+    if (!isValidDataPayload(parsed)) {
+      return
+    }
+    dataPayloads.push(parsed)
+  }
+  const dataPayload = mergeDataPayloads(dataPayloads)
+  previewAccountCount.value = dataPayload.accounts.length
+  previewAccountNames.value = dataPayload.accounts.map(
+    (item, index) => item.name || t('admin.accounts.importPreEditUnnamed', { index: index + 1 })
+  )
+  platformEdits.value = buildPlatformEdits(dataPayload.accounts)
+}
+
+const handleImport = async () => {
+  const parsedFiles = await parseSelectedFiles()
+  if (!parsedFiles) return
+
   importing.value = true
   try {
-    const parsedFiles: unknown[] = []
-    for (const sourceFile of files.value) {
-      try {
-        parsedFiles.push(JSON.parse(await readFileAsText(sourceFile)))
-      } catch {
-        appStore.showError(
-          t('admin.accounts.dataImportParseFailedFile', { name: sourceFile.name })
-        )
-        return
-      }
-    }
-
     if (importMode.value === 'kiro') {
-      const kiroPayload = parsedFiles.length === 1 ? parsedFiles[0] : { accounts: parsedFiles.flatMap(extractKiroAccounts) }
-      const kiroResult = await adminAPI.accounts.importKiroCredentials(kiroPayload)
+      let accounts = parsedFiles.flatMap(extractKiroAccounts)
+      accounts = limitAccountsByScope(accounts)
+      accounts = applyKiroPreEdits(accounts)
+      const kiroPayload = accounts.length === 1 ? accounts[0] : { accounts }
+      const kiroResult = await adminAPI.accounts.importKiroCredentials(kiroPayload, {
+        group_ids: selectedGroupIds.value.length ? selectedGroupIds.value : undefined,
+        proxy_id: selectedProxyId.value,
+        concurrency: enableKiroConcurrency.value ? kiroConcurrency.value : undefined,
+        priority: enableKiroPriority.value ? kiroPriority.value : undefined,
+        notes: enableKiroNotes.value ? kiroNotes.value : undefined
+      })
       if (kiroResult.created > 0) emit('imported')
       const message = t('admin.accounts.kiroImportSuccess', {
         created: kiroResult.created,
@@ -342,10 +972,14 @@ const handleImport = async () => {
       dataPayloads.push(parsed)
     }
     const dataPayload = mergeDataPayloads(dataPayloads)
+    dataPayload.accounts = limitAccountsByScope(dataPayload.accounts)
+    dataPayload.accounts = applyPlatformEdits(dataPayload.accounts)
 
     const res = await adminAPI.accounts.importData({
       data: dataPayload,
-      skip_default_group_bind: true
+      skip_default_group_bind: true,
+      group_ids: selectedGroupIds.value.length ? selectedGroupIds.value : undefined,
+      proxy_id: selectedProxyId.value
     })
 
     result.value = res

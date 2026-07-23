@@ -235,6 +235,8 @@ export default {
       fallbackNone: 'No fallback',
       fallbackProxy: 'Backup proxy',
       fallbackDirect: 'Direct connection',
+      boundGroups: 'Bound Groups',
+      boundGroupsHint: 'Accounts joining these groups without an explicit proxy will use this proxy.',
       backupProxy: 'Backup proxy',
     },
 

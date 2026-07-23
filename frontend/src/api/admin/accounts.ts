@@ -652,10 +652,14 @@ export async function exportData(options?: {
 export async function importData(payload: {
   data: AdminDataPayload
   skip_default_group_bind?: boolean
+  group_ids?: number[]
+  proxy_id?: number | null
 }): Promise<AdminDataImportResult> {
   const { data } = await apiClient.post<AdminDataImportResult>('/admin/accounts/data', {
     data: payload.data,
-    skip_default_group_bind: payload.skip_default_group_bind
+    skip_default_group_bind: payload.skip_default_group_bind,
+    group_ids: payload.group_ids,
+    proxy_id: payload.proxy_id
   })
   return data
 }
@@ -668,10 +672,24 @@ export interface KiroImportResult {
   errors?: Array<{ index: number; name?: string; message: string }>
 }
 
-export async function importKiroCredentials(data: unknown): Promise<KiroImportResult> {
+export async function importKiroCredentials(
+  data: unknown,
+  options?: {
+    group_ids?: number[]
+    proxy_id?: number | null
+    concurrency?: number
+    priority?: number
+    notes?: string
+  }
+): Promise<KiroImportResult> {
   const { data: result } = await apiClient.post<KiroImportResult>('/admin/accounts/import/kiro', {
     data,
-    skip_default_group_bind: true
+    skip_default_group_bind: true,
+    group_ids: options?.group_ids,
+    proxy_id: options?.proxy_id,
+    concurrency: options?.concurrency,
+    priority: options?.priority,
+    notes: options?.notes
   }, { timeout: 120000 })
   return result
 }
