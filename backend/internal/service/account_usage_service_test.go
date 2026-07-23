@@ -361,3 +361,69 @@ func TestBuildCodexUsageProgressFromExtra_ZerosExpiredWindow(t *testing.T) {
 		}
 	})
 }
+
+func TestReconcileGrokRateLimitFromSnapshotBackfillsMissingCooldown(t *testing.T) {
+	t.Parallel()
+
+	repo := &accountUsageCodexProbeRepo{
+		rateLimitCh: make(chan time.Time, 1),
+	}
+	account := &Account{
+		ID:       9101,
+		Platform: PlatformGrok,
+		Type:     AccountTypeOAuth,
+		Extra: map[string]any{
+			"grok_usage_snapshot": map[string]any{
+				"status_code":         429,
+				"headers_observed":    true,
+				"observation_source":  "active_probe",
+				"retry_after_seconds": 45,
+				"updated_at":          time.Now().UTC().Format(time.RFC3339),
+			},
+		},
+	}
+
+	reconcileGrokRateLimitFromSnapshot(context.Background(), repo, account)
+
+	select {
+	case resetAt := <-repo.rateLimitCh:
+		if !resetAt.After(time.Now()) {
+			t.Fatalf("expected future rate limit reset, got %v", resetAt)
+		}
+		if account.RateLimitResetAt == nil || !account.RateLimitResetAt.Equal(resetAt) {
+			t.Fatalf("expected in-memory RateLimitResetAt=%v, got %v", resetAt, account.RateLimitResetAt)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected rate limit persist from grok 429 snapshot")
+	}
+}
+
+func TestReconcileGrokRateLimitFromSnapshotSkipsActiveCooldown(t *testing.T) {
+	t.Parallel()
+
+	repo := &accountUsageCodexProbeRepo{
+		rateLimitCh: make(chan time.Time, 1),
+	}
+	existing := time.Now().Add(10 * time.Minute)
+	account := &Account{
+		ID:               9102,
+		Platform:         PlatformGrok,
+		Type:             AccountTypeOAuth,
+		RateLimitResetAt: &existing,
+		Extra: map[string]any{
+			"grok_usage_snapshot": map[string]any{
+				"status_code":      429,
+				"headers_observed": true,
+				"updated_at":       time.Now().UTC().Format(time.RFC3339),
+			},
+		},
+	}
+
+	reconcileGrokRateLimitFromSnapshot(context.Background(), repo, account)
+
+	select {
+	case got := <-repo.rateLimitCh:
+		t.Fatalf("should not re-persist when cooldown already active: %v", got)
+	case <-time.After(200 * time.Millisecond):
+	}
+}

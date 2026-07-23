@@ -1208,6 +1208,101 @@ describe('AccountUsageCell', () => {
     expect(wrapper.text()).not.toContain('7d|')
   })
 
+  it('Grok auto usage 429 patches rate_limit_reset_at for status badge', async () => {
+    getUsage.mockResolvedValue({
+      grok_last_status_code: 429,
+      grok_retry_after_seconds: 90,
+      grok_quota_snapshot_state: 'observed',
+      grok_last_headers_seen_at: '2026-07-13T00:00:00Z',
+      error_code: 'rate_limited'
+    })
+
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 4601,
+          platform: 'grok',
+          type: 'oauth',
+          rate_limit_reset_at: null,
+          extra: {}
+        })
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: true,
+          AccountQuotaInfo: true,
+          GrokQuotaProbeCell: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    const patches = wrapper.emitted('account-patch')
+    expect(patches).toBeTruthy()
+    expect(patches!.length).toBeGreaterThan(0)
+    const patch = patches![0][0] as { id: number; rate_limit_reset_at: string }
+    expect(patch.id).toBe(4601)
+    expect(Date.parse(patch.rate_limit_reset_at)).toBeGreaterThan(Date.now())
+  })
+
+  it('Grok hybrid probe 429 patches rate_limit_reset_at', async () => {
+    getUsage.mockResolvedValue({
+      grok_quota_snapshot_state: 'no_headers'
+    })
+
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 4602,
+          platform: 'grok',
+          type: 'oauth',
+          rate_limit_reset_at: null,
+          extra: {}
+        })
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: true,
+          AccountQuotaInfo: true,
+          GrokQuotaProbeCell: {
+            emits: ['probed'],
+            template: `<button class="probe" @click="$emit('probed', {
+              source: 'hybrid_probe',
+              snapshot: {
+                headers_observed: true,
+                status_code: 429,
+                retry_after_seconds: 60,
+                observation_source: 'active_probe',
+                updated_at: '2026-07-13T00:00:00Z'
+              },
+              status_code: 429,
+              headers_observed: true,
+              reset_supported: false,
+              fetched_at: 1
+            })">probe</button>`
+          }
+        }
+      }
+    })
+
+    await flushPromises()
+    await wrapper.get('.probe').trigger('click')
+
+    const patches = wrapper.emitted('account-patch')
+    expect(patches).toBeTruthy()
+    const limitedPatches = (patches || []).filter(
+      ([payload]) => (payload as { rate_limit_reset_at?: string | null }).rate_limit_reset_at
+    )
+    expect(limitedPatches.length).toBeGreaterThan(0)
+    const patch = limitedPatches[limitedPatches.length - 1][0] as {
+      id: number
+      rate_limit_reset_at: string
+    }
+    expect(patch.id).toBe(4602)
+    expect(Date.parse(patch.rate_limit_reset_at)).toBeGreaterThan(Date.now())
+  })
+
   it('Key 账号在 today stats loading 时显示骨架屏', async () => {
 		const wrapper = mount(AccountUsageCell, {
 		  props: {

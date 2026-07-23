@@ -315,6 +315,7 @@
               :today-stats="todayStatsByAccountId[String(row.id)] ?? null"
               :today-stats-loading="todayStatsLoading"
               :manual-refresh-token="usageManualRefreshToken"
+              @account-patch="handleAccountPatch"
             />
           </template>
           <template #cell-proxy="{ row }">
@@ -1882,6 +1883,13 @@ const handleProbeUpstreamBilling = async (account: Account) => {
 const handleAccountUpdated = (updatedAccount: Account) => {
   patchAccountInList(updatedAccount)
   enterAutoRefreshSilentWindow()
+}
+
+/** 额度探测/自动 usage 发现 429 时，就地补齐 rate_limit_reset_at 以刷新状态徽章 */
+const handleAccountPatch = (patch: Partial<Account> & { id: number }) => {
+  const account = accounts.value.find(item => item.id === patch.id)
+  if (!account) return
+  patchAccountInList({ ...account, ...patch })
 }
 const formatExportTimestamp = () => {
   const now = new Date()

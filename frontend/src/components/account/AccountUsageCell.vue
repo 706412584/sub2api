@@ -680,6 +680,13 @@ const props = withDefaults(
   }
 )
 
+const emit = defineEmits<{
+  'account-patch': [patch: Partial<Account> & { id: number }]
+}>()
+
+// 与后端 grokRateLimitFallbackDuration 对齐：无 Retry-After / 窗口 reset 时的兜底冷却
+const GROK_RATE_LIMIT_FALLBACK_MS = 2 * 60 * 1000
+
 const { t } = useI18n()
 const desktopViewportQuery = '(min-width: 768px)'
 
@@ -1325,6 +1332,7 @@ const loadUsage = async (options?: { source?: 'passive' | 'active'; bypassCache?
     if (!unmounted.value) {
       usageInfo.value = result
       _usageCache.set(props.account.id, { data: result, ts: Date.now() })
+      syncGrokRateLimitBadgeFromUsage(result)
     }
   } catch (e: any) {
     if (!unmounted.value) {
@@ -1397,6 +1405,107 @@ const loadActiveUsage = async () => {
   }
 }
 
+const isAccountRateLimitActive = (resetAt: string | null | undefined): boolean => {
+  if (!resetAt) return false
+  const ts = Date.parse(resetAt)
+  return Number.isFinite(ts) && ts > Date.now()
+}
+
+type GrokRateLimitDerivation = {
+  resetAt: string
+  /** 有 Retry-After / 窗口 reset 时可延长已有限流；纯 429 兜底只在当前未限流时补徽章 */
+  authoritative: boolean
+}
+
+const deriveGrokRateLimitResetAt = (usage: AccountUsageInfo): GrokRateLimitDerivation | null => {
+  // billing 接口 429 不暂停模型调度（与后端 ProbeBilling 一致）；仅 active/hybrid 快照或窗口耗尽才同步徽章
+  const hasRetryAfter = usage.grok_retry_after_seconds != null && usage.grok_retry_after_seconds > 0
+  const hasActiveQuotaSignal =
+    hasRetryAfter ||
+    usage.grok_request_quota != null ||
+    usage.grok_token_quota != null ||
+    Boolean(usage.grok_last_headers_seen_at) ||
+    usage.grok_quota_snapshot_state === 'observed' ||
+    usage.grok_quota_snapshot_state === 'no_headers'
+  const windowExhausted = [usage.grok_request_quota, usage.grok_token_quota].some(
+    (window) => window != null && window.remaining != null && window.remaining <= 0
+  )
+  const modelPath429 =
+    usage.grok_last_status_code === 429 && hasActiveQuotaSignal
+  const limited = hasRetryAfter || windowExhausted || modelPath429
+  if (!limited) return null
+
+  const now = Date.now()
+  if (hasRetryAfter && usage.grok_retry_after_seconds != null) {
+    return {
+      resetAt: new Date(now + usage.grok_retry_after_seconds * 1000).toISOString(),
+      authoritative: true
+    }
+  }
+  for (const window of [usage.grok_request_quota, usage.grok_token_quota]) {
+    if (window == null) continue
+    if (window.remaining != null && window.remaining > 0) continue
+    if (!window.reset_at) continue
+    const resetTs = Date.parse(window.reset_at)
+    if (Number.isFinite(resetTs) && resetTs > now) {
+      return {
+        resetAt: new Date(resetTs).toISOString(),
+        authoritative: true
+      }
+    }
+  }
+  return {
+    resetAt: new Date(now + GROK_RATE_LIMIT_FALLBACK_MS).toISOString(),
+    authoritative: false
+  }
+}
+
+/** 额度格已显示 429 时，同步状态列「限流中」（AccountStatusIndicator 只读 rate_limit_reset_at） */
+const syncGrokRateLimitBadgeFromUsage = (usage: AccountUsageInfo) => {
+  if (props.account.platform !== 'grok') return
+
+  const derived = deriveGrokRateLimitResetAt(usage)
+  if (!derived) return
+
+  const currentReset = props.account.rate_limit_reset_at
+  const currentActive = isAccountRateLimitActive(currentReset)
+  if (!currentActive) {
+    emit('account-patch', {
+      id: props.account.id,
+      rate_limit_reset_at: derived.resetAt,
+      rate_limited_at: props.account.rate_limited_at || new Date().toISOString()
+    })
+    return
+  }
+  if (
+    derived.authoritative &&
+    currentReset != null &&
+    Date.parse(derived.resetAt) > Date.parse(currentReset)
+  ) {
+    emit('account-patch', {
+      id: props.account.id,
+      rate_limit_reset_at: derived.resetAt,
+      rate_limited_at: props.account.rate_limited_at || new Date().toISOString()
+    })
+  }
+}
+
+const syncGrokRateLimitBadgeAfterProbe = (
+  usage: AccountUsageInfo,
+  probeSucceeded: boolean
+) => {
+  if (props.account.platform !== 'grok') return
+  if (probeSucceeded && isAccountRateLimitActive(props.account.rate_limit_reset_at)) {
+    emit('account-patch', {
+      id: props.account.id,
+      rate_limit_reset_at: null,
+      rate_limited_at: null
+    })
+    return
+  }
+  syncGrokRateLimitBadgeFromUsage(usage)
+}
+
 const handleGrokProbed = (result: GrokQuotaProbeResult) => {
   const current = usageInfo.value
   if (!current) return
@@ -1416,6 +1525,7 @@ const handleGrokProbed = (result: GrokQuotaProbeResult) => {
       ? undefined
       : current.grok_entitlement_status
   )
+  const nextStatusCode = result.status_code ?? snapshot?.status_code ?? current.grok_last_status_code
   const merged: AccountUsageInfo = {
     ...current,
     grok_billing: result.billing ?? current.grok_billing,
@@ -1433,7 +1543,7 @@ const handleGrokProbed = (result: GrokQuotaProbeResult) => {
         : current.grok_quota_snapshot_state,
     grok_last_quota_probe_at: result.billing?.fetched_at ?? snapshot?.last_probe_at ?? current.grok_last_quota_probe_at,
     grok_last_headers_seen_at: snapshot?.last_headers_seen_at ?? current.grok_last_headers_seen_at,
-    grok_last_status_code: result.status_code ?? snapshot?.status_code ?? current.grok_last_status_code,
+    grok_last_status_code: nextStatusCode,
     is_forbidden: probeSucceeded ? false : current.is_forbidden,
     forbidden_reason: probeSucceeded ? undefined : current.forbidden_reason,
     forbidden_type: probeSucceeded ? undefined : current.forbidden_type,
@@ -1441,10 +1551,17 @@ const handleGrokProbed = (result: GrokQuotaProbeResult) => {
     needs_verify: probeSucceeded ? false : current.needs_verify,
     is_banned: probeSucceeded ? false : current.is_banned,
     error: result.billing || snapshot ? undefined : current.error,
-    error_code: result.billing || snapshot ? undefined : current.error_code
+    error_code: probeSucceeded
+      ? undefined
+      : nextStatusCode === 429
+        ? 'rate_limited'
+        : result.billing || snapshot
+          ? undefined
+          : current.error_code
   }
   usageInfo.value = merged
   _usageCache.set(props.account.id, { data: merged, ts: Date.now() })
+  syncGrokRateLimitBadgeAfterProbe(merged, probeSucceeded)
 }
 
 // ===== API Key quota progress bars =====

@@ -1066,10 +1066,41 @@ func (s *AccountUsageService) getGrokUsage(ctx context.Context, account *Account
 				ctx, s.usageLogRepo, account.ID, usage.GrokBilling, time.Now().UTC(),
 			)
 		}
+		// 若 extra 已有模型路径 429/耗尽快照但 rate_limit_reset_at 缺失，补写调度限流，
+		// 保证列表刷新后状态列与额度格一致。billing 429 不在此路径（见 ProbeBilling 测试）。
+		reconcileGrokRateLimitFromSnapshot(ctx, s.accountRepo, account)
 	}
 
 	enrichUsageWithAccountError(usage, account)
 	return usage, nil
+}
+
+// reconcileGrokRateLimitFromSnapshot backfills RateLimitResetAt from a persisted
+// grok_usage_snapshot when model traffic already observed a 429/exhausted window
+// but the account row is still missing an active rate-limit cooldown.
+func reconcileGrokRateLimitFromSnapshot(ctx context.Context, repo AccountRepository, account *Account) {
+	if repo == nil || account == nil || !account.IsGrokOAuth() {
+		return
+	}
+	now := time.Now()
+	if account.RateLimitResetAt != nil && account.RateLimitResetAt.After(now) {
+		return
+	}
+	snapshot, err := grokQuotaSnapshotFromExtra(account.Extra)
+	if err != nil || snapshot == nil {
+		return
+	}
+	resetAt, limited := grokRateLimitResetAtForAccount(account, snapshot, now)
+	if !limited || !resetAt.After(now) {
+		return
+	}
+	persistGrokRateLimit(ctx, repo, account, resetAt)
+	// Keep the in-memory account consistent for any same-request consumers.
+	account.RateLimitResetAt = &resetAt
+	if account.RateLimitedAt == nil {
+		limitedAt := now
+		account.RateLimitedAt = &limitedAt
+	}
 }
 
 func grokLocalUsageForQuota(
