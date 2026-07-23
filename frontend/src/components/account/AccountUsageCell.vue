@@ -1506,7 +1506,25 @@ const syncGrokRateLimitBadgeAfterProbe = (
   syncGrokRateLimitBadgeFromUsage(usage)
 }
 
+const patchGrokProbeStatusSnapshot = (result: GrokQuotaProbeResult) => {
+  const snapshot = result.snapshot
+  const statusCode = snapshot?.status_code ?? result.status_code
+  if (statusCode !== 402 && statusCode !== 502) return
+  emit('account-patch', {
+    id: props.account.id,
+    extra: {
+      ...(props.account.extra || {}),
+      grok_usage_snapshot: {
+        ...((props.account.extra?.grok_usage_snapshot as Record<string, unknown> | undefined) || {}),
+        ...(snapshot || {}),
+        status_code: statusCode
+      }
+    }
+  })
+}
+
 const handleGrokProbed = (result: GrokQuotaProbeResult) => {
+  patchGrokProbeStatusSnapshot(result)
   const current = usageInfo.value
   if (!current) return
   const snapshot = result.snapshot

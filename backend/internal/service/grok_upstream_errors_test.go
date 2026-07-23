@@ -259,6 +259,24 @@ func TestHandleGrokAccountUpstreamErrorEntitlement403KeepsDefaultCooldown(t *tes
 	require.Less(t, repo.lastTempUnschedUntil, before.Add(31*time.Minute))
 }
 
+func TestHandleGrokAccountUpstreamErrorPaymentRequiredTempUnschedules(t *testing.T) {
+	repo := &grokQuotaAccountRepo{}
+	svc := &OpenAIGatewayService{accountRepo: repo}
+	account := &Account{ID: 4719, Platform: PlatformGrok, Type: AccountTypeOAuth}
+	before := time.Now()
+
+	svc.handleGrokAccountUpstreamError(
+		context.Background(), account, http.StatusPaymentRequired, nil,
+		[]byte(`{"code":"personal-team-blocked:spending-limit","error":"You have run out of credits or need a Grok subscription."}`),
+	)
+
+	require.Equal(t, 1, repo.tempUnschedCalls)
+	require.Equal(t, "grok credits or subscription exhausted", repo.lastTempUnschedReason)
+	require.Greater(t, repo.lastTempUnschedUntil, before.Add(29*time.Minute))
+	require.Less(t, repo.lastTempUnschedUntil, before.Add(31*time.Minute))
+	require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))
+}
+
 func TestHandleGrokAccountUpstreamError403UsesConfiguredRule(t *testing.T) {
 	repo := &grokQuotaAccountRepo{}
 	svc := &OpenAIGatewayService{accountRepo: repo}

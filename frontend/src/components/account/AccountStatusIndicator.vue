@@ -76,6 +76,24 @@
       </div>
     </div>
 
+    <!-- Grok Probe Warning Indicator (402/502) -->
+    <div v-if="grokProbeWarningStatus" class="group relative">
+      <span
+        class="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+      >
+        <Icon name="exclamationTriangle" size="xs" :stroke-width="2" />
+        {{ grokProbeWarningStatus }}
+      </span>
+      <div
+        class="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-56 -translate-x-1/2 whitespace-normal rounded bg-gray-900 px-3 py-2 text-center text-xs leading-relaxed text-white opacity-0 transition-opacity group-hover:opacity-100 dark:bg-gray-700"
+      >
+        {{ t('admin.accounts.status.grokProbeWarningStatus', { status: grokProbeWarningStatus }) }}
+        <div
+          class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-gray-900 dark:border-t-gray-700"
+        ></div>
+      </div>
+    </div>
+
     <!-- Model Status Indicators (普通限流 / 超量请求中) -->
     <div
       v-if="activeModelStatuses.length > 0"
@@ -278,6 +296,15 @@ const isOverloaded = computed(() => {
   return new Date(props.account.overload_until) > new Date()
 })
 
+const grokProbeWarningStatus = computed<number | null>(() => {
+  if (props.account.platform !== 'grok') return null
+  const extra = props.account.extra as Record<string, unknown> | undefined
+  const usageSnapshot = extra?.grok_usage_snapshot as Record<string, unknown> | undefined
+  const billingSnapshot = extra?.grok_billing_snapshot as Record<string, unknown> | undefined
+  const status = Number(usageSnapshot?.status_code ?? billingSnapshot?.status_code ?? 0)
+  return status === 402 || status === 502 ? status : null
+})
+
 // Computed: is temp unschedulable
 const isTempUnschedulable = computed(() => {
   if (!props.account.temp_unschedulable_until) return false
@@ -325,7 +352,7 @@ const statusClass = computed(() => {
   if (props.account.status !== 'active') {
     return props.account.status === 'error' ? 'badge-danger' : 'badge-gray'
   }
-  if (isQuotaExceeded.value) {
+  if (isQuotaExceeded.value || grokProbeWarningStatus.value) {
     return 'badge-warning'
   }
   if (!props.account.schedulable) {
@@ -347,6 +374,9 @@ const statusText = computed(() => {
   }
   if (isQuotaExceeded.value) {
     return t('admin.accounts.status.quotaExceeded')
+  }
+  if (grokProbeWarningStatus.value) {
+    return t('admin.accounts.status.grokProbeWarning')
   }
   if (!props.account.schedulable) {
     return t('admin.accounts.status.paused')

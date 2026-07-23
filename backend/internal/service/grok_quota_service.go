@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -124,6 +125,15 @@ func grokBillingHasAuthoritativeQuota(billing *xai.BillingSummary) bool {
 		strings.TrimSpace(billing.Plan) != ""
 }
 
+func isGrokQuotaProbeDisplayWarningStatus(statusCode int) bool {
+	switch statusCode {
+	case http.StatusPaymentRequired, http.StatusTooManyRequests, http.StatusBadGateway:
+		return true
+	default:
+		return false
+	}
+}
+
 func (s *GrokQuotaService) ProbeUsage(ctx context.Context, accountID int64) (*GrokQuotaProbeResult, error) {
 	return s.runProbeFlight(ctx, "active:"+strconv.FormatInt(accountID, 10), func(sharedCtx context.Context) (*GrokQuotaProbeResult, error) {
 		return s.probeUsage(sharedCtx, accountID)
@@ -191,7 +201,25 @@ func (s *GrokQuotaService) probeUsage(ctx context.Context, accountID int64) (*Gr
 		FetchedAt:       time.Now().Unix(),
 		Persisted:       persistErr == nil,
 	}
-	if resp.StatusCode == http.StatusTooManyRequests {
+	if resp.StatusCode == http.StatusPaymentRequired {
+		if s.accountRepo != nil {
+			until := time.Now().Add(30 * time.Minute)
+			_ = s.accountRepo.SetTempUnschedulable(ctx, account.ID, until, "grok credits or subscription exhausted")
+		}
+	}
+	if isGrokQuotaProbeDisplayWarningStatus(resp.StatusCode) {
+		if resp.StatusCode >= 400 {
+			_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10))
+		}
+		if resp.StatusCode != http.StatusTooManyRequests {
+			result.ProbeError = fmt.Sprintf("upstream returned %d for probe model %q", resp.StatusCode, probeModel)
+			slog.Warn(
+				"grok_quota_probe_warning_status",
+				"account_id", account.ID,
+				"model", probeModel,
+				"status", resp.StatusCode,
+			)
+		}
 		return result, nil
 	}
 	if resp.StatusCode >= 400 {

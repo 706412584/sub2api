@@ -74,6 +74,20 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 			compatPromptCacheInjected = true
 		}
 	}
+	// Grok OAuth pools rotate accounts; thinking.signature from another
+	// account always 400. Drop signatures once before convert so multi-turn
+	// tool continuations do not thrash strip+retry after failover.
+	if account.Platform == PlatformGrok && account.IsGrokOAuth() && !grokEncryptedContentStripRetried(ctx) {
+		if strippedBody, ok := stripAnthropicThinkingSignatures(body); ok {
+			body = strippedBody
+			if err := json.Unmarshal(body, &anthropicReq); err != nil {
+				return nil, fmt.Errorf("parse anthropic request after thinking signature strip: %w", err)
+			}
+			logger.L().Info("openai messages: proactive Grok thinking signature strip",
+				zap.Int64("account_id", account.ID),
+			)
+		}
+	}
 	if promptCacheKey == "" && shouldAutoInjectPromptCacheKeyForCompat(upstreamModel) {
 		promptCacheKey = promptCacheKeyFromAnthropicMetadataSession(&anthropicReq)
 		if promptCacheKey == "" {
@@ -272,6 +286,19 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		responsesBody, patchErr = applyGrokFreeMessagesFunctionToolCacheRoute(responsesBody, grokIntentBody, account, grokCacheIdentity)
 		if patchErr != nil {
 			return nil, fmt.Errorf("apply grok Free function-tool cache route: %w", patchErr)
+		}
+		// Same-account sticky may keep encrypted blobs; multi-account OAuth
+		// almost always cannot. Strip before first upstream hop.
+		if account.IsGrokOAuth() {
+			if stripped, changed, stripErr := stripGrokEncryptedReasoningIfPresent(responsesBody); stripErr != nil {
+				return nil, fmt.Errorf("proactive strip Grok encrypted_content: %w", stripErr)
+			} else if changed {
+				responsesBody = stripped
+				logger.L().Info("openai messages: proactive Grok encrypted_content strip",
+					zap.Int64("account_id", account.ID),
+					zap.Bool("cache_identity_present", strings.TrimSpace(grokCacheIdentity) != ""),
+				)
+			}
 		}
 	}
 

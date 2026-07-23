@@ -131,6 +131,10 @@ func (c *openAIWSToolCallReplayCollector) addItem(item gjson.Result) {
 }
 
 func buildOpenAIWSHTTPBridgeErrorEvent(statusCode int, message string) []byte {
+	return buildOpenAIWSHTTPBridgeErrorEventWithCode(statusCode, "", message)
+}
+
+func buildOpenAIWSHTTPBridgeErrorEventWithCode(statusCode int, code, message string) []byte {
 	message = strings.TrimSpace(message)
 	if message == "" {
 		message = http.StatusText(statusCode)
@@ -138,13 +142,17 @@ func buildOpenAIWSHTTPBridgeErrorEvent(statusCode int, message string) []byte {
 	if message == "" {
 		message = "upstream request failed"
 	}
+	errorBody := map[string]any{
+		"type":    "upstream_error",
+		"message": message,
+	}
+	if code = strings.TrimSpace(code); code != "" {
+		errorBody["code"] = code
+	}
 	event := map[string]any{
 		"type":   "error",
 		"status": statusCode,
-		"error": map[string]any{
-			"type":    "upstream_error",
-			"message": message,
-		},
+		"error":  errorBody,
 	}
 	body, err := json.Marshal(event)
 	if err != nil {
@@ -364,7 +372,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 			case "error":
 				code, errType, message := parseOpenAIWSErrorEventFields(upstreamMessage)
 				safeMessage := safeGrokUpstreamErrorMessage(http.StatusBadGateway, upstreamMessage, message, "Upstream request failed")
-				upstreamMessage = buildOpenAIWSHTTPBridgeErrorEvent(openAIWSErrorHTTPStatusFromRaw(code, errType), safeMessage)
+				upstreamMessage = buildOpenAIWSHTTPBridgeErrorEventWithCode(openAIWSErrorHTTPStatusFromRaw(code, errType), code, safeMessage)
 				eventType, eventResponseID, _ = parseOpenAIWSEventEnvelope(upstreamMessage)
 			}
 		}

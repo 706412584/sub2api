@@ -805,9 +805,9 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 			}
 		}
 		if err != nil {
-			return result, fmt.Errorf("stream usage incomplete: %w", err)
+			return result, newOpenAIUpstreamStreamReadError(err)
 		}
-		return result, fmt.Errorf("stream usage incomplete: missing terminal event")
+		return result, newOpenAIUpstreamStreamReadError(errors.New("missing terminal event"))
 	}
 	missingTerminalErr := func() (*OpenAIForwardResult, error) {
 		return streamReadErr(nil)

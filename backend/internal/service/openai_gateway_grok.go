@@ -84,6 +84,20 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
 	if err != nil {
 		return nil, fmt.Errorf("apply grok Free function-tool cache route: %w", err)
 	}
+	// Multi-account pools often replay foreign compaction/encrypted blobs.
+	// Strip account-bound encrypted reasoning before the first attempt so we
+	// do not burn a guaranteed 400 + retry on every sticky miss.
+	if account.IsGrokOAuth() {
+		if stripped, changed, stripErr := stripGrokEncryptedReasoningIfPresent(patchedBody); stripErr != nil {
+			return nil, fmt.Errorf("proactive strip Grok encrypted_content: %w", stripErr)
+		} else if changed {
+			patchedBody = stripped
+			slog.Info("grok_proactive_encrypted_content_strip",
+				"account_id", account.ID,
+				"cache_identity_present", strings.TrimSpace(cacheIdentity) != "",
+			)
+		}
+	}
 
 	token, _, err := s.getRequestCredential(ctx, c, account)
 	if err != nil {
@@ -225,23 +239,11 @@ func isGrokInvalidEncryptedContentResponse(statusCode int, body []byte) bool {
 		return false
 	}
 
-	// xAI has used both flat and nested error envelopes:
+	// xAI has used both flat and nested error envelopes, plus an `err` alias:
 	//   {"code":"invalid-argument","error":"Could not decrypt the provided encrypted_content."}
 	//   {"error":{"message":"Could not decrypt the provided encrypted_content."}}
-	code := strings.TrimSpace(gjson.GetBytes(body, "code").String())
-	message := ""
-	errNode := gjson.GetBytes(body, "error")
-	switch {
-	case errNode.Type == gjson.String:
-		message = errNode.String()
-	case errNode.IsObject():
-		message = firstNonEmpty(errNode.Get("message").String(), errNode.Get("error").String())
-		if code == "" {
-			code = strings.TrimSpace(errNode.Get("code").String())
-		}
-	default:
-		message = gjson.GetBytes(body, "message").String()
-	}
+	//   {"code":"invalid-argument","err":"Could not decode the compaction blob. Ensure it is unmodified from the compact response."}
+	code, message := extractGrokUpstreamErrorFields(body)
 	normalizedMessage := strings.ToLower(strings.TrimSpace(message))
 	if normalizedMessage == "" {
 		return false
@@ -254,13 +256,71 @@ func isGrokInvalidEncryptedContentResponse(statusCode int, body []byte) bool {
 	if !strings.EqualFold(code, "invalid-argument") && code != "" {
 		return false
 	}
+
+	// Compaction blob replayed under another account/session is not decryptable.
+	if isGrokInvalidCompactionBlobMessage(normalizedMessage) {
+		return true
+	}
+
 	// Nested OpenAI-style envelopes may omit top-level code; require decrypt text.
 	if code == "" && !strings.Contains(normalizedMessage, "decrypt") {
 		return false
 	}
 	return strings.Contains(normalizedMessage, "encrypted_content") &&
 		(strings.Contains(normalizedMessage, "decrypt") ||
-			strings.Contains(normalizedMessage, "unmodified"))
+			strings.Contains(normalizedMessage, "unmodified") ||
+			strings.Contains(normalizedMessage, "decode"))
+}
+
+// extractGrokUpstreamErrorFields normalizes xAI error envelopes into code+message.
+func extractGrokUpstreamErrorFields(body []byte) (code, message string) {
+	code = strings.TrimSpace(gjson.GetBytes(body, "code").String())
+
+	// Prefer `error`, then flat `err` (seen on compaction blob rejects).
+	errNode := gjson.GetBytes(body, "error")
+	switch {
+	case errNode.Type == gjson.String:
+		message = errNode.String()
+	case errNode.IsObject():
+		message = firstNonEmpty(errNode.Get("message").String(), errNode.Get("error").String(), errNode.Get("err").String())
+		if code == "" {
+			code = strings.TrimSpace(errNode.Get("code").String())
+		}
+	default:
+		message = firstNonEmpty(
+			gjson.GetBytes(body, "err").String(),
+			gjson.GetBytes(body, "message").String(),
+		)
+	}
+	return code, message
+}
+
+func isGrokInvalidCompactionBlobMessage(normalizedMessage string) bool {
+	if normalizedMessage == "" {
+		return false
+	}
+	if strings.Contains(normalizedMessage, "compaction blob") {
+		return true
+	}
+	if strings.Contains(normalizedMessage, "compact response") &&
+		(strings.Contains(normalizedMessage, "decode") ||
+			strings.Contains(normalizedMessage, "unmodified") ||
+			strings.Contains(normalizedMessage, "invalid")) {
+		return true
+	}
+	return strings.Contains(normalizedMessage, "compaction") &&
+		strings.Contains(normalizedMessage, "decode") &&
+		(strings.Contains(normalizedMessage, "blob") || strings.Contains(normalizedMessage, "unmodified"))
+}
+
+// stripGrokEncryptedReasoningIfPresent removes account-bound reasoning.encrypted_content
+// from a Grok Responses body. Used proactively for multi-account pools so the first
+// upstream attempt does not burn a 400 + retry on foreign compaction/encrypted blobs.
+func stripGrokEncryptedReasoningIfPresent(body []byte) ([]byte, bool, error) {
+	if !requestHasGrokEncryptedReasoning(body) {
+		return body, false, nil
+	}
+	return trimGrokInvalidEncryptedContentRetryBody(body)
 }
 
 // requestHasGrokEncryptedReasoning reports whether the outbound Responses body
@@ -1356,6 +1416,8 @@ func (s *OpenAIGatewayService) handleGrokAccountUpstreamError(ctx context.Contex
 			return
 		}
 		s.tempUnscheduleGrok(ctx, account, 30*time.Minute, "grok access or entitlement denied")
+	case http.StatusPaymentRequired:
+		s.tempUnscheduleGrok(ctx, account, 30*time.Minute, "grok credits or subscription exhausted")
 	case http.StatusTooManyRequests:
 		// updateGrokUsageSnapshot installs both runtime and durable rate-limit state.
 	default:

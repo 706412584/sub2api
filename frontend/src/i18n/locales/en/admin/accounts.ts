@@ -210,6 +210,8 @@ export default {
         overloaded: 'Overloaded',
         tempUnschedulable: 'Temp Unschedulable',
         quotaExceeded: 'Quota Exceeded',
+        grokProbeWarning: 'Probe Warning',
+        grokProbeWarningStatus: 'Grok probe returned {status}; showing this account as degraded',
         unschedulable: 'Unschedulable',
         rateLimitedUntil: 'Rate limited and removed from scheduling. Auto resumes at {time}',
         rateLimitedAutoResume: 'Auto resumes in {time}',

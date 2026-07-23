@@ -38,7 +38,12 @@
     <div v-if="summary" class="text-[10px] text-gray-600 dark:text-gray-300">
       {{ summary }}
     </div>
-    <div v-if="error" class="truncate text-[10px] text-red-600 dark:text-red-400" :title="error">
+    <div
+      v-if="error"
+      class="truncate text-[10px]"
+      :class="probeWarning ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'"
+      :title="error"
+    >
       {{ truncatedError }}
     </div>
   </div>
@@ -89,6 +94,11 @@ const retryAfterLabel = computed(() => {
   if (seconds == null || seconds <= 0) return null
   if (seconds < 60) return `${seconds}s`
   return `${Math.ceil(seconds / 60)}m`
+})
+
+const probeWarning = computed(() => {
+  const status = data.value?.snapshot?.status_code ?? data.value?.status_code
+  return status === 402 || status === 429 || status === 502
 })
 
 const summary = computed(() => {

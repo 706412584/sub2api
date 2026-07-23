@@ -2035,6 +2035,152 @@ func TestForwardGrokResponsesRetriesInvalidEncryptedContentOnce(t *testing.T) {
 	require.False(t, hasTerminalStatus)
 }
 
+func TestIsGrokInvalidEncryptedContentResponseRecognizesCompactionBlob(t *testing.T) {
+	t.Parallel()
+
+	body := []byte(`{"code":"invalid-argument","err":"Could not decode the compaction blob. Ensure it is unmodified from the compact response."}`)
+	require.True(t, isGrokInvalidEncryptedContentResponse(http.StatusBadRequest, body))
+
+	// Nested error field still works.
+	nested := []byte(`{"code":"invalid-argument","error":"Could not decrypt the provided encrypted_content. Ensure the value is unmodified."}`)
+	require.True(t, isGrokInvalidEncryptedContentResponse(http.StatusBadRequest, nested))
+
+	// Unrelated 400 must not match.
+	other := []byte(`{"code":"invalid-argument","err":"model not found"}`)
+	require.False(t, isGrokInvalidEncryptedContentResponse(http.StatusBadRequest, other))
+}
+
+func TestStripGrokEncryptedReasoningIfPresent(t *testing.T) {
+	t.Parallel()
+
+	body := []byte(`{"model":"grok","input":[{"type":"reasoning","summary":[{"type":"summary_text","text":"keep"}],"encrypted_content":"cipher"},{"type":"message","role":"user","content":"hi"}]}`)
+	out, changed, err := stripGrokEncryptedReasoningIfPresent(body)
+	require.NoError(t, err)
+	require.True(t, changed)
+	require.False(t, gjson.GetBytes(out, "input.0.encrypted_content").Exists())
+	require.Equal(t, "keep", gjson.GetBytes(out, "input.0.summary.0.text").String())
+
+	// No encrypted content → no-op.
+	clean := []byte(`{"model":"grok","input":[{"type":"message","role":"user","content":"hi"}]}`)
+	out2, changed2, err2 := stripGrokEncryptedReasoningIfPresent(clean)
+	require.NoError(t, err2)
+	require.False(t, changed2)
+	require.Equal(t, string(clean), string(out2))
+}
+
+func TestForwardGrokResponsesProactivelyStripsEncryptedContentForOAuth(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	body := []byte(`{
+		"model":"grok",
+		"input":[
+			{"type":"reasoning","summary":[{"type":"summary_text","text":"keep this summary"}],"encrypted_content":"encrypted-reasoning"},
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"hi"}]}
+		],
+		"stream":false
+	}`)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
+	c.Set("api_key", &APIKey{ID: 9901})
+
+	account := &Account{
+		ID:          9901,
+		Name:        "grok-oauth",
+		Platform:    PlatformGrok,
+		Type:        AccountTypeOAuth,
+		Status:      StatusActive,
+		Schedulable: true,
+		Concurrency: 2,
+		Credentials: map[string]any{
+			"access_token":  "oauth-token",
+			"refresh_token": "refresh-token",
+			"expires_at":    time.Now().Add(2 * grokTokenRefreshSkew).UTC().Format(time.RFC3339),
+			"base_url":      "https://api.x.ai/v1",
+		},
+	}
+	upstream := &httpUpstreamRecorder{responses: []*http.Response{{
+		StatusCode: http.StatusOK,
+		Header: http.Header{
+			"Content-Type":   []string{"application/json"},
+			"Xai-Request-Id": []string{"oauth-first-ok"},
+		},
+		Body: io.NopCloser(strings.NewReader(`{"id":"resp_oauth","object":"response","model":"grok-4.5","status":"completed","output":[],"usage":{"input_tokens":2,"output_tokens":1}}`)),
+	}}}
+	repo := &grokQuotaAccountRepo{mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
+		accountsByID: map[int64]*Account{account.ID: account},
+	}}
+	svc := &OpenAIGatewayService{
+		accountRepo:       repo,
+		grokTokenProvider: NewGrokTokenProvider(repo, nil),
+		httpUpstream:      upstream,
+	}
+
+	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", false, time.Now())
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Len(t, upstream.requests, 1)
+	require.Len(t, upstream.bodies, 1)
+	// First hop already stripped — no waste 400 retry.
+	require.False(t, gjson.GetBytes(upstream.bodies[0], "input.0.encrypted_content").Exists())
+	require.Equal(t, "keep this summary", gjson.GetBytes(upstream.bodies[0], "input.0.summary.0.text").String())
+}
+
+func TestForwardGrokResponsesRetriesInvalidCompactionBlobOnce(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	body := []byte(`{
+		"model":"grok",
+		"input":[
+			{"type":"reasoning","summary":[{"type":"summary_text","text":"keep this summary"}],"encrypted_content":"encrypted-reasoning"},
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"hi"}]}
+		],
+		"stream":false
+	}`)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
+	c.Set("api_key", &APIKey{ID: 9902})
+
+	account := &Account{
+		ID:          9902,
+		Name:        "grok-api-key",
+		Platform:    PlatformGrok,
+		Type:        AccountTypeAPIKey,
+		Status:      StatusActive,
+		Schedulable: true,
+		Concurrency: 2,
+		Credentials: map[string]any{
+			"api_key":  "same-token",
+			"base_url": "https://api.x.ai/v1",
+		},
+	}
+	upstream := &httpUpstreamRecorder{responses: []*http.Response{
+		{
+			StatusCode: http.StatusBadRequest,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"code":"invalid-argument","err":"Could not decode the compaction blob. Ensure it is unmodified from the compact response."}`)),
+		},
+		{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"Content-Type":   []string{"application/json"},
+				"Xai-Request-Id": []string{"compaction-recovered"},
+			},
+			Body: io.NopCloser(strings.NewReader(`{"id":"resp_recovered","object":"response","model":"grok-4.5","status":"completed","output":[],"usage":{"input_tokens":2,"output_tokens":1}}`)),
+		},
+	}}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+
+	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", false, time.Now())
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, "resp_recovered", result.ResponseID)
+	require.Len(t, upstream.requests, 2)
+	require.True(t, gjson.GetBytes(upstream.bodies[0], "input.0.encrypted_content").Exists())
+	require.False(t, gjson.GetBytes(upstream.bodies[1], "input.0.encrypted_content").Exists())
+}
+
 func TestForwardGrokResponsesInvalidEncryptedContentRecoveryDoesNotOvermatch(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -3213,7 +3359,7 @@ func TestOpenAIWSHTTPBridgeGrokSanitizesHTTPError(t *testing.T) {
 	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
 		context.Background(), nil, account, "token",
 		[]byte(`{"type":"response.create","model":"grok-4.3","input":"hi"}`),
-		64, "grok-4.3", "", "", "", "cache-id", 1,
+		64, "grok-4.3", "", "", "", "cache-id", 2,
 		func(message []byte) error {
 			events = append(events, append([]byte(nil), message...))
 			return nil
@@ -3279,7 +3425,7 @@ func TestOpenAIWSHTTPBridgeGrokSanitizesErrorEvent(t *testing.T) {
 	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
 		context.Background(), nil, account, "token",
 		[]byte(`{"type":"response.create","model":"grok-4.3","input":"hi"}`),
-		64, "grok-4.3", "", "", "", "cache-id", 1,
+		64, "grok-4.3", "", "", "", "cache-id", 2,
 		func(message []byte) error {
 			events = append(events, append([]byte(nil), message...))
 			return nil
