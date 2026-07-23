@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -30,7 +31,120 @@ const (
 	grokRateLimitSustainedCooldown         = 30 * time.Minute
 	grokRateLimitMaxAdaptiveCooldown       = time.Hour
 	grokRateLimitBackoffQuietPeriod        = time.Hour
+	// 402 exhaustion: default cooldown; prefer later of billing period / Retry-After.
+	grokPaymentRequiredFallbackDuration = 30 * time.Minute
+	grokPaymentRequiredMaxDuration      = 7 * 24 * time.Hour
+	grokAuthCooldownDuration           = 10 * time.Minute
+	grokForbiddenCooldownDuration      = 30 * time.Minute
+	grokTransientCooldownDuration      = 2 * time.Minute
+	grokModelRateLimitReason            = "grok_model_rate_limit"
+	grokQuotaBlockedUntilExtraKey       = "grok_quota_blocked_until"
+	grokQuotaBlockedReasonExtraKey      = "grok_quota_blocked_reason"
 )
+
+// grokUpstreamFailureClass classifies upstream failures for cooldown/failover policy.
+type grokUpstreamFailureClass string
+
+const (
+	grokFailContentPolicy grokUpstreamFailureClass = "content_policy"
+	grokFailAuth          grokUpstreamFailureClass = "auth"
+	grokFailPayment       grokUpstreamFailureClass = "payment"
+	grokFailForbidden     grokUpstreamFailureClass = "forbidden"
+	grokFailRateLimit     grokUpstreamFailureClass = "rate_limit"
+	grokFailTransient     grokUpstreamFailureClass = "transient"
+	grokFailUnknown       grokUpstreamFailureClass = "unknown"
+)
+
+func classifyGrokUpstreamFailure(statusCode int, responseBody []byte) grokUpstreamFailureClass {
+	if isGrokContentPolicyRejection(statusCode, responseBody) {
+		return grokFailContentPolicy
+	}
+	switch statusCode {
+	case http.StatusUnauthorized:
+		return grokFailAuth
+	case http.StatusPaymentRequired:
+		return grokFailPayment
+	case http.StatusForbidden:
+		return grokFailForbidden
+	case http.StatusTooManyRequests:
+		return grokFailRateLimit
+	case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		return grokFailTransient
+	default:
+		if statusCode >= 500 {
+			return grokFailTransient
+		}
+		return grokFailUnknown
+	}
+}
+
+// resolveGrokExhaustionUntil picks recovery time: max(Retry-After, billing period end, fallback), capped at 7d.
+// max(Retry-After, 账单 PeriodEnd/BillingPeriodEnd, fallback)，上限 7 天。
+// After until, temp_unschedulable expires and the account re-enters the pool (no worker needed).
+func resolveGrokExhaustionUntil(account *Account, headers http.Header, now time.Time) time.Time {
+	if now.IsZero() {
+		now = time.Now()
+	}
+	until := now.Add(grokPaymentRequiredFallbackDuration)
+
+	if headers != nil {
+		if ra := strings.TrimSpace(headers.Get("Retry-After")); ra != "" {
+			if secs, err := strconv.Atoi(ra); err == nil && secs > 0 {
+				candidate := now.Add(time.Duration(secs) * time.Second)
+				if candidate.After(until) {
+					until = candidate
+				}
+			} else if when, err := http.ParseTime(ra); err == nil && when.After(until) {
+				until = when
+			}
+		}
+	}
+
+	if periodEnd, ok := grokBillingPeriodEnd(account); ok && periodEnd.After(until) {
+		until = periodEnd
+	}
+
+	maxUntil := now.Add(grokPaymentRequiredMaxDuration)
+	if until.After(maxUntil) {
+		until = maxUntil
+	}
+	if !until.After(now) {
+		until = now.Add(grokPaymentRequiredFallbackDuration)
+	}
+	return until
+}
+
+func grokBillingPeriodEnd(account *Account) (time.Time, bool) {
+	if account == nil {
+		return time.Time{}, false
+	}
+	billing, err := grokBillingSnapshotFromExtra(account.Extra)
+	if err != nil || billing == nil {
+		return time.Time{}, false
+	}
+	for _, raw := range []string{billing.PeriodEnd, billing.BillingPeriodEnd} {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		if t, err := time.Parse(time.RFC3339, raw); err == nil && !t.IsZero() {
+			return t, true
+		}
+		if t, err := time.Parse(time.RFC3339Nano, raw); err == nil && !t.IsZero() {
+			return t, true
+		}
+	}
+	return time.Time{}, false
+}
+
+func firstGrokRequestedModel(requestedModel []string) string {
+	for _, m := range requestedModel {
+		if v := strings.TrimSpace(m); v != "" {
+			return v
+		}
+	}
+	return ""
+}
 
 func (s *OpenAIGatewayService) forwardGrokResponses(
 	ctx context.Context,
@@ -172,7 +286,7 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
 			Kind:               kind,
 			Message:            upstreamMsg,
 		})
-		s.handleGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
+		s.handleGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, originalModel)
 		if s.shouldFailoverGrokUpstreamError(resp.StatusCode, respBody) {
 			return nil, &UpstreamFailoverError{
 				StatusCode:             resp.StatusCode,
@@ -977,7 +1091,7 @@ func (s *OpenAIGatewayService) describeGrokComposerImage(
 			Kind:               kind,
 			Message:            upstreamMsg,
 		})
-		s.handleGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
+		s.handleGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, grokComposerImageBridgeVisionModel)
 		if s.shouldFailoverGrokUpstreamError(resp.StatusCode, respBody) {
 			return "", OpenAIUsage{}, &UpstreamFailoverError{
 				StatusCode:             resp.StatusCode,
@@ -1134,7 +1248,6 @@ func buildGrokResponsesRequest(ctx context.Context, c *gin.Context, account *Acc
 			req.Header.Set("OpenAI-Beta", v)
 		}
 	}
-	// 账号级请求头覆写最后应用，使配置值优先于上面的内置默认头；
 	// 打到官方 CLI 网关时身份头仍由共享传输层最终强制。
 	account.ApplyHeaderOverrides(req.Header)
 	return req, nil
@@ -1399,41 +1512,110 @@ func (s *OpenAIGatewayService) rateLimitGrok(ctx context.Context, account *Accou
 	persistGrokRateLimit(ctx, s.accountRepo, account, resetAt)
 }
 
-func (s *OpenAIGatewayService) handleGrokAccountUpstreamError(ctx context.Context, account *Account, statusCode int, headers http.Header, responseBody []byte) {
+func (s *OpenAIGatewayService) handleGrokAccountUpstreamError(ctx context.Context, account *Account, statusCode int, headers http.Header, responseBody []byte, requestedModel ...string) {
 	if s == nil || account == nil {
 		return
 	}
-	if isGrokContentPolicyRejection(statusCode, responseBody) {
+	class := classifyGrokUpstreamFailure(statusCode, responseBody)
+	if class == grokFailContentPolicy {
 		return
 	}
 	now := time.Now()
 	s.updateGrokUsageSnapshot(ctx, account, parseGrokQuotaSnapshot(headers, statusCode, now))
-	switch statusCode {
-	case http.StatusUnauthorized:
-		s.tempUnscheduleGrok(ctx, account, 10*time.Minute, "grok credentials unauthorized")
-	case http.StatusPaymentRequired:
-		// Upstream v0.1.164 cools down 402 accounts for 30m so they leave the selector.
-		s.tempUnscheduleGrok(ctx, account, 30*time.Minute, "grok payment required")
-	case http.StatusForbidden:
+	switch class {
+	case grokFailAuth:
+		s.tempUnscheduleGrokUntil(ctx, account, now.Add(grokAuthCooldownDuration), "grok credentials unauthorized")
+	case grokFailPayment:
+		// 402 exhaustion: billing/Retry-After aware cooldown; never SetError; auto re-enter pool.
+		until := resolveGrokExhaustionUntil(account, headers, now)
+		s.tempUnscheduleGrokUntil(ctx, account, until, "grok payment required")
+		s.persistGrokQuotaBlockMarker(ctx, account, until, "payment_required")
+	case grokFailForbidden:
 		if s.applyGrokForbiddenPolicy(ctx, account, responseBody) {
 			return
 		}
-		s.tempUnscheduleGrok(ctx, account, 30*time.Minute, "grok access or entitlement denied")
-	case http.StatusTooManyRequests:
-		// updateGrokUsageSnapshot installs both runtime and durable rate-limit state.
-	default:
-		if statusCode >= 500 {
-			s.tempUnscheduleGrok(ctx, account, 2*time.Minute, "grok upstream temporary error")
+		s.tempUnscheduleGrokUntil(ctx, account, now.Add(grokForbiddenCooldownDuration), "grok access or entitlement denied")
+	case grokFailRateLimit:
+		// Account-level rate-limit is installed by updateGrokUsageSnapshot; also isolate by model when known.
+		if model := firstGrokRequestedModel(requestedModel); model != "" {
+			s.modelRateLimitGrok(ctx, account, model, headers, now)
 		}
+	case grokFailTransient:
+		// Transient 5xx (incl. 502 false positives): short cooldown only, never mark error.
+		reason := "grok upstream temporary error"
+		if statusCode == http.StatusBadGateway {
+			reason = "grok upstream temporary error (502)"
+		}
+		s.tempUnscheduleGrokUntil(ctx, account, now.Add(grokTransientCooldownDuration), reason)
 	}
-	_ = responseBody
+}
+
+func (s *OpenAIGatewayService) modelRateLimitGrok(ctx context.Context, account *Account, requestedModel string, headers http.Header, now time.Time) {
+	if s == nil || account == nil || s.accountRepo == nil {
+		return
+	}
+	modelKey := strings.TrimSpace(account.GetMappedModel(requestedModel))
+	if modelKey == "" {
+		modelKey = strings.TrimSpace(requestedModel)
+	}
+	if modelKey == "" {
+		return
+	}
+	if now.IsZero() {
+		now = time.Now()
+	}
+	resetAt, limited := grokRateLimitResetAt(parseGrokQuotaSnapshot(headers, http.StatusTooManyRequests, now), now)
+	if !limited {
+		resetAt = now.Add(grokRateLimitFallbackCooldown)
+	}
+	resetAt = normalizeGrokRateLimitResetAt(account, resetAt, now)
+	stateCtx, cancel := openAIAccountStateContext(ctx)
+	defer cancel()
+	if err := s.accountRepo.SetModelRateLimit(stateCtx, account.ID, modelKey, resetAt, grokModelRateLimitReason); err != nil {
+		slog.Warn("grok_model_rate_limit_failed", "account_id", account.ID, "model", modelKey, "error", err)
+		return
+	}
+		// Account-level rate-limit is installed by updateGrokUsageSnapshot; also isolate by model when known.
+	if account.Extra == nil {
+		account.Extra = make(map[string]any)
+	}
+	limits, _ := account.Extra[modelRateLimitsKey].(map[string]any)
+	if limits == nil {
+		limits = make(map[string]any)
+		account.Extra[modelRateLimitsKey] = limits
+	}
+	limits[modelKey] = map[string]any{
+		"rate_limited_at":     now.UTC().Format(time.RFC3339),
+		"rate_limit_reset_at": resetAt.UTC().Format(time.RFC3339),
+		"reason":              grokModelRateLimitReason,
+	}
+}
+
+func (s *OpenAIGatewayService) persistGrokQuotaBlockMarker(ctx context.Context, account *Account, until time.Time, reason string) {
+	if s == nil || account == nil || s.accountRepo == nil || until.IsZero() {
+		return
+	}
+	stateCtx, cancel := openAIAccountStateContext(ctx)
+	defer cancel()
+	if err := s.accountRepo.UpdateExtra(stateCtx, account.ID, map[string]any{
+		grokQuotaBlockedUntilExtraKey:  until.UTC().Format(time.RFC3339),
+		grokQuotaBlockedReasonExtraKey: reason,
+	}); err != nil {
+		slog.Warn("grok_quota_block_marker_failed", "account_id", account.ID, "error", err)
+	}
 }
 
 func (s *OpenAIGatewayService) tempUnscheduleGrok(ctx context.Context, account *Account, cooldown time.Duration, reason string) {
+	s.tempUnscheduleGrokUntil(ctx, account, time.Now().Add(cooldown), reason)
+}
+
+func (s *OpenAIGatewayService) tempUnscheduleGrokUntil(ctx context.Context, account *Account, until time.Time, reason string) {
 	if s == nil || account == nil {
 		return
 	}
-	until := time.Now().Add(cooldown)
+	if until.IsZero() {
+		until = time.Now().Add(grokTransientCooldownDuration)
+	}
 	if account.TempUnschedulableUntil != nil && account.TempUnschedulableUntil.After(until) {
 		until = *account.TempUnschedulableUntil
 	}

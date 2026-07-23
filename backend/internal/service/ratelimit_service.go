@@ -352,6 +352,22 @@ func (s *RateLimitService) HandleUpstreamError(ctx context.Context, account *Acc
 			shouldDisable = true
 			break
 		}
+		// Grok 402 是额度/订阅耗尽，可恢复；只做临时不可调度，禁止永久 error。
+		// 探测路径有时把同类失败表现为 502，下游也不得 SetError（见 default 5xx）。
+		if account.Platform == PlatformGrok {
+			msg := "Grok payment required (402): credits or subscription exhausted"
+			if upstreamMsg != "" {
+				msg = "Grok payment required (402): " + upstreamMsg
+			}
+			// 账期/Retry-After 感知冷却；到期 temp_unschedulable 自动失效，无需 SetError。
+			until := resolveGrokExhaustionUntil(account, headers, time.Now())
+			s.notifyAccountSchedulingBlocked(account, until, "grok_payment_required")
+			if err := s.accountRepo.SetTempUnschedulable(ctx, account.ID, until, msg); err != nil {
+				slog.Warn("grok_402_set_temp_unschedulable_failed", "account_id", account.ID, "error", err)
+			}
+			shouldDisable = true
+			break
+		}
 		// 支付要求：余额不足或计费问题，停止调度
 		msg := "Payment required (402): insufficient balance or billing issue"
 		if upstreamMsg != "" {
