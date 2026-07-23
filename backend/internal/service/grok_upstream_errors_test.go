@@ -271,7 +271,7 @@ func TestHandleGrokAccountUpstreamErrorPaymentRequiredTempUnschedules(t *testing
 	)
 
 	require.Equal(t, 1, repo.tempUnschedCalls)
-	require.Equal(t, "grok credits or subscription exhausted", repo.lastTempUnschedReason)
+	require.Equal(t, "grok payment required", repo.lastTempUnschedReason)
 	require.Greater(t, repo.lastTempUnschedUntil, before.Add(29*time.Minute))
 	require.Less(t, repo.lastTempUnschedUntil, before.Add(31*time.Minute))
 	require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))
