@@ -1750,6 +1750,14 @@ func (stubGroupRepo) CreateFromSource(ctx context.Context, group *service.Group,
 	return errors.New("not implemented")
 }
 
+func (stubGroupRepo) ListGroupIDsByDefaultProxy(ctx context.Context, proxyID int64) ([]int64, error) {
+	return nil, nil
+}
+
+func (stubGroupRepo) SetDefaultProxyBoundGroups(ctx context.Context, proxyID int64, groupIDs []int64) error {
+	return nil
+}
+
 type stubAccountRepo struct {
 	bulkUpdateIDs []int64
 }
