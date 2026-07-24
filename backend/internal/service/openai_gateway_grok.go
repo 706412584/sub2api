@@ -34,9 +34,9 @@ const (
 	// 402 exhaustion: default cooldown; prefer later of billing period / Retry-After.
 	grokPaymentRequiredFallbackDuration = 30 * time.Minute
 	grokPaymentRequiredMaxDuration      = 7 * 24 * time.Hour
-	grokAuthCooldownDuration           = 10 * time.Minute
-	grokForbiddenCooldownDuration      = 30 * time.Minute
-	grokTransientCooldownDuration      = 2 * time.Minute
+	grokAuthCooldownDuration            = 10 * time.Minute
+	grokForbiddenCooldownDuration       = 30 * time.Minute
+	grokTransientCooldownDuration       = 2 * time.Minute
 	grokModelRateLimitReason            = "grok_model_rate_limit"
 	grokQuotaBlockedUntilExtraKey       = "grok_quota_blocked_until"
 	grokQuotaBlockedReasonExtraKey      = "grok_quota_blocked_reason"
@@ -1575,7 +1575,7 @@ func (s *OpenAIGatewayService) modelRateLimitGrok(ctx context.Context, account *
 		slog.Warn("grok_model_rate_limit_failed", "account_id", account.ID, "model", modelKey, "error", err)
 		return
 	}
-		// Account-level rate-limit is installed by updateGrokUsageSnapshot; also isolate by model when known.
+	// Account-level rate-limit is installed by updateGrokUsageSnapshot; also isolate by model when known.
 	if account.Extra == nil {
 		account.Extra = make(map[string]any)
 	}

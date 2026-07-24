@@ -198,8 +198,8 @@ func TestEventDecoderAndSharedResponseState(t *testing.T) {
 	if completedCount != 1 || len(got.ToolUses) != 1 || got.StopReason != "tool_use" {
 		t.Fatalf("tools = %#v, stop=%s", got.ToolUses, got.StopReason)
 	}
-	input := got.ToolUses[0].Input.(map[string]any)
-	if input["command"] != "ls" {
+	input, ok := got.ToolUses[0].Input.(map[string]any)
+	if !ok || input["command"] != "ls" {
 		t.Fatalf("tool input = %#v", input)
 	}
 	if got.Usage.InputTokens != 50000 || got.Usage.Credits != 0.75 {
