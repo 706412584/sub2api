@@ -31,7 +31,9 @@ func ProvidePricingService(cfg *config.Config, remoteClient PricingRemoteClient)
 	return svc, nil
 }
 
-// ProvideUpdateService creates UpdateService with BuildInfo
+// ProvideUpdateService creates UpdateService with BuildInfo.
+// Call SetProxyRetry after construction to enable one managed-proxy retry on
+// network errors during download/checksum.
 func ProvideUpdateService(cache UpdateCache, githubClient GitHubReleaseClient, buildInfo BuildInfo) *UpdateService {
 	return NewUpdateService(cache, githubClient, buildInfo.Version, buildInfo.BuildType)
 }

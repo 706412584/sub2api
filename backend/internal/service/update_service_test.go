@@ -3,8 +3,11 @@
 package service
 
 import (
+	"archive/zip"
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -215,4 +218,29 @@ func TestUpdateServiceRollbackToVersionAcceptsVPrefix(t *testing.T) {
 	require.Error(t, err)
 	require.NotErrorIs(t, err, ErrRollbackVersionNotAllowed)
 	require.Contains(t, err.Error(), "no compatible release found")
+}
+
+func TestExtractBinaryFromZipFindsExe(t *testing.T) {
+	dir := t.TempDir()
+	zipPath := filepath.Join(dir, "sub2api_0.1.166_windows_amd64.zip")
+	dest := filepath.Join(dir, "sub2api")
+
+	zf, err := os.Create(zipPath)
+	require.NoError(t, err)
+	zw := zip.NewWriter(zf)
+	w, err := zw.Create("sub2api.exe")
+	require.NoError(t, err)
+	_, err = w.Write([]byte("MZ-fake-binary"))
+	require.NoError(t, err)
+	// also add junk file
+	_, err = zw.Create("README.md")
+	require.NoError(t, err)
+	require.NoError(t, zw.Close())
+	require.NoError(t, zf.Close())
+
+	err = extractBinaryFromZip(zipPath, dest, 1024*1024)
+	require.NoError(t, err)
+	data, err := os.ReadFile(dest)
+	require.NoError(t, err)
+	require.Equal(t, "MZ-fake-binary", string(data))
 }

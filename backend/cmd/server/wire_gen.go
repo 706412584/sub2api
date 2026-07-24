@@ -231,6 +231,9 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	gitHubReleaseClient := repository.ProvideGitHubReleaseClient(configConfig)
 	serviceBuildInfo := provideServiceBuildInfo(buildInfo)
 	updateService := service.ProvideUpdateService(updateCache, gitHubReleaseClient, serviceBuildInfo)
+	updateService.SetProxyRetry(proxyRepository, func(proxyURL string) service.GitHubReleaseClient {
+		return repository.NewGitHubReleaseClient(proxyURL, configConfig.Security.ProxyFallback.AllowDirectOnError)
+	})
 	idempotencyRepository := repository.NewIdempotencyRepository(client, db)
 	systemOperationLockService := service.ProvideSystemOperationLockService(idempotencyRepository, configConfig)
 	systemHandler := handler.ProvideSystemHandler(updateService, systemOperationLockService)
