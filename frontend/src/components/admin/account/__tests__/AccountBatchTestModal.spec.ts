@@ -4,16 +4,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AccountBatchTestModal from '../AccountBatchTestModal.vue'
 import type { Account, ClaudeModel } from '@/types'
 
-const { batchTestAccounts, getAvailableModels } = vi.hoisted(() => ({
+const { batchTestAccounts, getAvailableModels, deleteAccount, bulkUpdate, batchClearError } = vi.hoisted(() => ({
   batchTestAccounts: vi.fn(),
-  getAvailableModels: vi.fn()
+  getAvailableModels: vi.fn(),
+  deleteAccount: vi.fn(),
+  bulkUpdate: vi.fn(),
+  batchClearError: vi.fn()
 }))
 
 vi.mock('@/api/admin', () => ({
   adminAPI: {
     accounts: {
       batchTestAccounts,
-      getAvailableModels
+      getAvailableModels,
+      delete: deleteAccount,
+      bulkUpdate,
+      batchClearError
     }
   }
 }))
@@ -65,11 +71,20 @@ const SelectStub = defineComponent({
   template: '<select class="select-stub" :disabled="disabled" />'
 })
 
-function makeAccount(id: number, platform: Account['platform']): Account {
+function makeAccount(
+  id: number,
+  platform: Account['platform'],
+  overrides: Partial<Account> = {}
+): Account {
   return {
     id,
     name: `account-${id}`,
-    platform
+    platform,
+    status: 'active',
+    schedulable: true,
+    rate_limit_reset_at: null,
+    temp_unschedulable_until: null,
+    ...overrides
   } as Account
 }
 
@@ -100,7 +115,14 @@ describe('AccountBatchTestModal', () => {
   beforeEach(() => {
     batchTestAccounts.mockReset()
     getAvailableModels.mockReset()
+    deleteAccount.mockReset()
+    bulkUpdate.mockReset()
+    batchClearError.mockReset()
     batchTestAccounts.mockResolvedValue(emptyResult)
+    deleteAccount.mockResolvedValue(undefined)
+    bulkUpdate.mockResolvedValue({ success: 1, failed: 0, results: [] })
+    batchClearError.mockResolvedValue({ success: 1, failed: 0, results: [] })
+    vi.stubGlobal('confirm', vi.fn(() => true))
   })
 
   it('跨页选择不请求当前页账号的模型，并用空 model_id 启动测试', async () => {
@@ -215,6 +237,90 @@ describe('AccountBatchTestModal', () => {
       },
       ...models
     ])
+
+    wrapper.unmount()
+  })
+
+  it('支持先按状态预选并只测活匹配账号', async () => {
+    const wrapper = mountModal(
+      [1, 2, 3],
+      [
+        makeAccount(1, 'openai', { status: 'active' }),
+        makeAccount(2, 'openai', { status: 'error' }),
+        makeAccount(3, 'openai', { status: 'error' })
+      ]
+    )
+
+    await wrapper.setProps({ visible: true })
+    await flushPromises()
+
+    const errorChip = wrapper.findAll('button').find(btn => btn.text().includes('admin.accounts.status.error'))
+    expect(errorChip).toBeTruthy()
+    await errorChip!.trigger('click')
+    await nextTick()
+
+    await wrapper.get('.btn-primary').trigger('click')
+    await flushPromises()
+
+    expect(batchTestAccounts).toHaveBeenCalledTimes(1)
+    expect(batchTestAccounts.mock.calls[0][0]).toEqual({
+      account_ids: [2, 3],
+      model_id: ''
+    })
+
+    wrapper.unmount()
+  })
+
+  it('测活结束后可重测/删除异常，并对成功账号立即启用', async () => {
+    batchTestAccounts.mockResolvedValue({
+      total: 3,
+      success: 1,
+      failed: 2,
+      items: [
+        { account_id: 1, name: 'ok', success: true, status: 'success', latency_ms: 10, error: '' },
+        { account_id: 2, name: 'bad-a', success: false, status: 'failed', latency_ms: 20, error: 'status 400 invalid_grant' },
+        { account_id: 3, name: 'bad-b', success: false, status: 'failed', latency_ms: 30, error: 'status 502 upstream' }
+      ]
+    })
+
+    const wrapper = mountModal(
+      [1, 2, 3],
+      [makeAccount(1, 'openai'), makeAccount(2, 'openai'), makeAccount(3, 'openai')]
+    )
+
+    await wrapper.setProps({ visible: true })
+    await flushPromises()
+    await wrapper.get('.btn-primary').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('admin.accounts.batchTest.retryFailed')
+    expect(wrapper.text()).toContain('admin.accounts.batchTest.deleteAllFailed')
+    expect(wrapper.text()).toContain('admin.accounts.batchTest.enableSuccessful')
+
+    const enableBtn = wrapper.findAll('button').find(btn => btn.text().includes('admin.accounts.batchTest.enableSuccessful'))
+    await enableBtn!.trigger('click')
+    await flushPromises()
+
+    expect(bulkUpdate).toHaveBeenCalledWith([1], { status: 'active', schedulable: true })
+    expect(batchClearError).toHaveBeenCalledWith([1])
+
+    const retryBtn = wrapper.findAll('button').find(btn => btn.text().includes('admin.accounts.batchTest.retryFailed'))
+    await retryBtn!.trigger('click')
+    await flushPromises()
+
+    expect(batchTestAccounts).toHaveBeenCalledTimes(2)
+    expect(batchTestAccounts.mock.calls[1][0]).toEqual({
+      account_ids: [2, 3],
+      model_id: ''
+    })
+
+    const deleteAllBtn = wrapper.findAll('button').find(btn => btn.text().includes('admin.accounts.batchTest.deleteAllFailed'))
+    await deleteAllBtn!.trigger('click')
+    await flushPromises()
+
+    expect(deleteAccount).toHaveBeenCalledWith(2)
+    expect(deleteAccount).toHaveBeenCalledWith(3)
+    expect(wrapper.emitted('completed')?.length).toBeGreaterThanOrEqual(2)
 
     wrapper.unmount()
   })
