@@ -117,7 +117,7 @@ type CreateGroupRequest struct {
 	ClaudeCodeOnly                  bool     `json:"claude_code_only"`
 	FallbackGroupID                 *int64   `json:"fallback_group_id"`
 	FallbackGroupIDOnInvalidRequest *int64   `json:"fallback_group_id_on_invalid_request"`
-	DefaultProxyID                 *int64   `json:"default_proxy_id"`
+	DefaultProxyID                  *int64   `json:"default_proxy_id"`
 	// 模型路由配置（仅 anthropic 平台使用）
 	ModelRouting        map[string][]int64 `json:"model_routing"`
 	ModelRoutingEnabled bool               `json:"model_routing_enabled"`
@@ -176,7 +176,7 @@ type UpdateGroupRequest struct {
 	ClaudeCodeOnly                  *bool    `json:"claude_code_only"`
 	FallbackGroupID                 *int64   `json:"fallback_group_id"`
 	FallbackGroupIDOnInvalidRequest *int64   `json:"fallback_group_id_on_invalid_request"`
-	DefaultProxyID                 *int64   `json:"default_proxy_id"`
+	DefaultProxyID                  *int64   `json:"default_proxy_id"`
 	// 模型路由配置（仅 anthropic 平台使用）
 	ModelRouting        map[string][]int64 `json:"model_routing"`
 	ModelRoutingEnabled *bool              `json:"model_routing_enabled"`

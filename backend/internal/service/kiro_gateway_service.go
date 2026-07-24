@@ -373,7 +373,7 @@ func extractClaudeText(raw json.RawMessage) string {
 		typ, _ := block["type"].(string)
 		if typ == "text" {
 			if text, ok := block["text"].(string); ok {
-				b.WriteString(text)
+				_, _ = b.WriteString(text)
 			}
 		}
 	}

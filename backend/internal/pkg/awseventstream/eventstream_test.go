@@ -11,11 +11,11 @@ import (
 
 func encodeStringHeader(name, value string) []byte {
 	var b bytes.Buffer
-	b.WriteByte(byte(len(name)))
-	b.WriteString(name)
-	b.WriteByte(byte(HeaderString))
+	_, _ = b.Write([]byte{byte(len(name))})
+	_, _ = b.WriteString(name)
+	_, _ = b.Write([]byte{byte(HeaderString)})
 	_ = binary.Write(&b, binary.BigEndian, uint16(len(value)))
-	b.WriteString(value)
+	_, _ = b.WriteString(value)
 	return b.Bytes()
 }
 
@@ -111,10 +111,10 @@ func TestReaderCRCTruncationFragmentationAndLimits(t *testing.T) {
 func TestParseTypedHeaders(t *testing.T) {
 	var data bytes.Buffer
 	write := func(name string, typ HeaderType, raw []byte) {
-		data.WriteByte(byte(len(name)))
-		data.WriteString(name)
-		data.WriteByte(byte(typ))
-		data.Write(raw)
+		_, _ = data.Write([]byte{byte(len(name))})
+		_, _ = data.WriteString(name)
+		_, _ = data.Write([]byte{byte(typ)})
+		_, _ = data.Write(raw)
 	}
 	write("t", HeaderBoolTrue, nil)
 	write("f", HeaderBoolFalse, nil)

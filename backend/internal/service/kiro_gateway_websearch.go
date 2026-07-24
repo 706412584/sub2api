@@ -204,11 +204,7 @@ func (s *KiroGatewayService) runWebSearchAgenticLoop(
 func toKiroToolUses(in []kiroprotocol.CompletedToolUse) []kiroprotocol.ToolUse {
 	out := make([]kiroprotocol.ToolUse, 0, len(in))
 	for _, t := range in {
-		out = append(out, kiroprotocol.ToolUse{
-			ToolUseID: t.ToolUseID,
-			Name:      t.Name,
-			Input:     t.Input,
-		})
+		out = append(out, kiroprotocol.ToolUse(t))
 	}
 	return out
 }

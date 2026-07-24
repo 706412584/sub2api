@@ -324,17 +324,17 @@ func ValidateKiroAccountCredentials(platform, accountType string, credentials ma
 	}
 	endpoint := strings.ToLower(strings.TrimSpace(credentialString(credentials, "endpoint")))
 	if endpoint != "" && endpoint != "ide" && endpoint != "cli" {
-		return errors.New("Kiro endpoint must be ide or cli")
+		return errors.New("kiro endpoint must be ide or cli")
 	}
 	if accountType != AccountTypeAPIKey {
 		return nil
 	}
 	if endpoint != "" && endpoint != "cli" {
-		return errors.New("Kiro API key accounts require the cli endpoint")
+		return errors.New("kiro API key accounts require the cli endpoint")
 	}
 	apiKey := strings.TrimSpace(credentialString(credentials, "kiro_api_key"))
 	if !strings.HasPrefix(apiKey, "ksk_") || len(apiKey) <= len("ksk_") {
-		return errors.New("Kiro API key must start with ksk_")
+		return errors.New("kiro API key must start with ksk_")
 	}
 	return nil
 }
