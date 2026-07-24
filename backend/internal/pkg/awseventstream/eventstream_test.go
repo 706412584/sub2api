@@ -144,10 +144,10 @@ func TestParseTypedHeaders(t *testing.T) {
 			t.Errorf("%s = %#v, want %#v", name, got, want)
 		}
 	}
-	if got := h["a"].Value.([]byte); !bytes.Equal(got, []byte{1, 2}) {
+	if got, ok := h["a"].Value.([]byte); !ok || !bytes.Equal(got, []byte{1, 2}) {
 		t.Errorf("byte array = %v", got)
 	}
-	if got := h["u"].Value.([16]byte); got[15] != 15 {
+	if got, ok := h["u"].Value.([16]byte); !ok || got[15] != 15 {
 		t.Errorf("uuid = %v", got)
 	}
 }

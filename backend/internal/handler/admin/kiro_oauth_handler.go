@@ -491,4 +491,3 @@ func inferKiroOAuthAccountName(account kiroAccountData) string {
 	}
 	return "kiro-account"
 }
-

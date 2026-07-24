@@ -60,7 +60,7 @@ func RefreshKiroAccountToken(ctx context.Context, account *Account) (*KiroTokenI
 		return nil, fmt.Errorf("account is nil")
 	}
 	if !account.IsKiroOAuth() {
-		return nil, fmt.Errorf("Kiro API key accounts cannot be refreshed")
+		return nil, fmt.Errorf("kiro API key accounts cannot be refreshed")
 	}
 	refreshToken := strings.TrimSpace(account.GetCredential("refresh_token"))
 	if refreshToken == "" {

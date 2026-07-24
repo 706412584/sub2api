@@ -85,13 +85,13 @@ func TestCredentialsAndEndpointRequests(t *testing.T) {
 			t.Fatal("CLI retained agentContinuationId")
 		}
 		currentMsg, _ := state["currentMessage"].(map[string]any)
-	current, _ := currentMsg["userInputMessage"].(map[string]any)
+		current, _ := currentMsg["userInputMessage"].(map[string]any)
 		if current["origin"] != OriginCLI {
 			t.Fatalf("origin = %v", current["origin"])
 		}
 		history, _ := state["history"].([]any)
-	history0, _ := history[0].(map[string]any)
-	historyUser, _ := history0["userInputMessage"].(map[string]any)
+		history0, _ := history[0].(map[string]any)
+		historyUser, _ := history0["userInputMessage"].(map[string]any)
 		if _, ok := historyUser["modelId"]; ok {
 			t.Fatal("CLI history retained modelId")
 		}
@@ -123,7 +123,9 @@ func TestCredentialsAndEndpointRequests(t *testing.T) {
 		if body["profileArn"] != "arn:real" {
 			t.Fatalf("profileArn = %v", body["profileArn"])
 		}
-		current := body["conversationState"].(map[string]any)["currentMessage"].(map[string]any)["userInputMessage"].(map[string]any)
+		state, _ := body["conversationState"].(map[string]any)
+		currentMsg, _ := state["currentMessage"].(map[string]any)
+		current, _ := currentMsg["userInputMessage"].(map[string]any)
 		if current["origin"] != OriginIDE {
 			t.Fatalf("origin = %v", current["origin"])
 		}
