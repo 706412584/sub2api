@@ -30,7 +30,9 @@ var (
 const (
 	updateCacheKey = "update_check_cache"
 	updateCacheTTL = 1200 // 20 minutes
-	githubRepo     = "Wei-Shaw/sub2api"
+	// defaultUpdateGitHubRepo is used when UPDATE_GITHUB_REPO is unset.
+	// Fork default so online updates track this fork's releases, not upstream.
+	defaultUpdateGitHubRepo = "706412584/sub2api"
 
 	// Security: allowed download domains for updates
 	allowedDownloadHost = "github.com"
@@ -65,6 +67,7 @@ type UpdateService struct {
 	githubClient   GitHubReleaseClient
 	currentVersion string
 	buildType      string // "source" for manual builds, "release" for CI builds
+	githubRepo     string // owner/name, from UPDATE_GITHUB_REPO or defaultUpdateGitHubRepo
 }
 
 // NewUpdateService creates a new UpdateService
@@ -74,7 +77,25 @@ func NewUpdateService(cache UpdateCache, githubClient GitHubReleaseClient, versi
 		githubClient:   githubClient,
 		currentVersion: version,
 		buildType:      buildType,
+		githubRepo:     resolveUpdateGitHubRepo(),
 	}
+}
+
+// resolveUpdateGitHubRepo returns owner/name for release checks.
+// Env UPDATE_GITHUB_REPO overrides the fork default (e.g. Wei-Shaw/sub2api).
+func resolveUpdateGitHubRepo() string {
+	repo := strings.TrimSpace(os.Getenv("UPDATE_GITHUB_REPO"))
+	if repo == "" {
+		return defaultUpdateGitHubRepo
+	}
+	// Accept owner/name only; strip accidental github.com prefixes.
+	repo = strings.TrimPrefix(repo, "https://github.com/")
+	repo = strings.TrimPrefix(repo, "http://github.com/")
+	repo = strings.Trim(repo, "/")
+	if strings.Count(repo, "/") != 1 || strings.Contains(repo, " ") {
+		return defaultUpdateGitHubRepo
+	}
+	return repo
 }
 
 // UpdateInfo contains update information
@@ -363,7 +384,7 @@ func (s *UpdateService) RollbackToVersion(ctx context.Context, version string) e
 // fetchRollbackCandidates fetches recent releases and keeps the newest
 // maxRollbackVersions entries strictly older than the current version.
 func (s *UpdateService) fetchRollbackCandidates(ctx context.Context) ([]*GitHubRelease, error) {
-	releases, err := s.githubClient.FetchRecentReleases(ctx, githubRepo, rollbackFetchPageSize)
+	releases, err := s.githubClient.FetchRecentReleases(ctx, s.githubRepo, rollbackFetchPageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -400,7 +421,7 @@ func (s *UpdateService) fetchRollbackCandidates(ctx context.Context) ([]*GitHubR
 }
 
 func (s *UpdateService) fetchLatestRelease(ctx context.Context) (*UpdateInfo, error) {
-	release, err := s.githubClient.FetchLatestRelease(ctx, githubRepo)
+	release, err := s.githubClient.FetchLatestRelease(ctx, s.githubRepo)
 	if err != nil {
 		return nil, err
 	}

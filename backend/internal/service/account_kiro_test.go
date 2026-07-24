@@ -2,6 +2,7 @@ package service
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -38,6 +39,41 @@ func TestKiroAccountCredentialHelpers(t *testing.T) {
 	require.Equal(t, "cli", apiKey.GetKiroEndpoint())
 	require.Equal(t, "us-east-1", apiKey.GetKiroAuthRegion())
 	require.Equal(t, "us-east-1", apiKey.GetKiroAPIRegion())
+}
+
+func TestGetCredentialAsTimeNormalizesMillisecondEpoch(t *testing.T) {
+	// Kiro manager and some exports store expiresAt in ms; stored as-is must still refresh.
+	account := &Account{
+		Credentials: map[string]any{
+			"expires_at": int64(1781595765599),
+		},
+	}
+	got := account.GetCredentialAsTime("expires_at")
+	require.NotNil(t, got)
+	require.Equal(t, int64(1781595765), got.Unix())
+
+	seconds := &Account{Credentials: map[string]any{"expires_at": int64(1781595765)}}
+	gotSec := seconds.GetCredentialAsTime("expires_at")
+	require.NotNil(t, gotSec)
+	require.Equal(t, int64(1781595765), gotSec.Unix())
+}
+
+func TestKiroTokenRefresherNeedsRefreshWithMillisecondExpiresAt(t *testing.T) {
+	refresher := NewKiroTokenRefresher()
+	// Already-expired token stored as ms epoch (past relative to now after normalization)
+	pastMs := time.Now().Add(-2 * time.Hour).UnixMilli()
+	account := &Account{
+		Platform: PlatformKiro,
+		Type:     AccountTypeOAuth,
+		Credentials: map[string]any{
+			"access_token":  "aoa",
+			"refresh_token": "aor",
+			"expires_at":    pastMs,
+			"auth_method":   "social",
+		},
+	}
+	require.True(t, refresher.CanRefresh(account))
+	require.True(t, refresher.NeedsRefresh(account, 30*time.Minute))
 }
 
 func TestValidateKiroAccountCredentials(t *testing.T) {

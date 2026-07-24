@@ -199,7 +199,7 @@ func kiroAccountFromMap(raw map[string]any) (kiroAccountData, bool) {
 		IssuerURL:     readKiroString(sources, "issuerUrl", "issuer_url"),
 		Scopes:        readKiroScopes(sources, "scopes", "scope"),
 		StartURL:      readKiroString(sources, "startUrl", "start_url"),
-		ExpiresAt:     readKiroInt64(sources, "expiresAt", "expires_at"),
+		ExpiresAt:     normalizeKiroUnixTimestamp(readKiroInt64(sources, "expiresAt", "expires_at")),
 		MachineID:     readKiroString(sources, "machineId", "machine_id"),
 		KiroAPIKey:    readKiroString(sources, "kiroApiKey", "kiro_api_key"),
 		Endpoint:      strings.ToLower(readKiroString(sources, "endpoint")),
@@ -396,6 +396,17 @@ func normalizeKiroAuthMethod(method string) string {
 	default:
 		return lower
 	}
+}
+
+// normalizeKiroUnixTimestamp converts Kiro manager millisecond epoch values to seconds.
+// Kiro Account Manager exports credentials.expiresAt as ms (e.g. 1781595765599).
+// Sub2API stores and compares expires_at as Unix seconds.
+func normalizeKiroUnixTimestamp(ts int64) int64 {
+	const msThreshold = int64(1_000_000_000_000)
+	if ts > msThreshold || ts < -msThreshold {
+		return ts / 1000
+	}
+	return ts
 }
 
 func inferKiroAuthMethod(account kiroAccountData) string {

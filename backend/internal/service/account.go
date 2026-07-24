@@ -414,6 +414,7 @@ func (a *Account) GetCredential(key string) string {
 // 兼容以下格式：
 //   - RFC3339 字符串: "2025-01-01T00:00:00Z"
 //   - Unix 时间戳字符串: "1735689600"
+//   - Unix 毫秒时间戳（Kiro manager 等导出常见）: "1735689600000"
 //   - Unix 时间戳数字: 1735689600 (float64/int64/json.Number)
 func (a *Account) GetCredentialAsTime(key string) *time.Time {
 	s := a.GetCredential(key)
@@ -424,12 +425,22 @@ func (a *Account) GetCredentialAsTime(key string) *time.Time {
 	if t, err := time.Parse(time.RFC3339, s); err == nil {
 		return &t
 	}
-	// 尝试 Unix 时间戳（纯数字字符串）
+	// 尝试 Unix 时间戳（纯数字字符串）；>1e12 视为毫秒
 	if ts, err := strconv.ParseInt(s, 10, 64); err == nil {
-		t := time.Unix(ts, 0)
+		t := time.Unix(normalizeUnixTimestampSeconds(ts), 0)
 		return &t
 	}
 	return nil
+}
+
+// normalizeUnixTimestampSeconds converts epoch seconds or milliseconds to seconds.
+// Values with magnitude > 1e12 are treated as milliseconds (Kiro manager expiresAt).
+func normalizeUnixTimestampSeconds(ts int64) int64 {
+	const msThreshold = int64(1_000_000_000_000) // ~2001-09-09 in ms; seconds stay below this for centuries
+	if ts > msThreshold || ts < -msThreshold {
+		return ts / 1000
+	}
+	return ts
 }
 
 // GetCredentialAsInt64 解析凭证中的 int64 字段

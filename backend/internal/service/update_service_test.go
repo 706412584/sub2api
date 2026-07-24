@@ -31,13 +31,16 @@ type updateServiceGitHubClientStub struct {
 	release        *GitHubRelease
 	recentReleases []*GitHubRelease
 	recentErr      error
+	lastRepo       string
 }
 
-func (s *updateServiceGitHubClientStub) FetchLatestRelease(context.Context, string) (*GitHubRelease, error) {
+func (s *updateServiceGitHubClientStub) FetchLatestRelease(_ context.Context, repo string) (*GitHubRelease, error) {
+	s.lastRepo = repo
 	return s.release, nil
 }
 
-func (s *updateServiceGitHubClientStub) FetchRecentReleases(context.Context, string, int) ([]*GitHubRelease, error) {
+func (s *updateServiceGitHubClientStub) FetchRecentReleases(_ context.Context, repo string, _ int) ([]*GitHubRelease, error) {
+	s.lastRepo = repo
 	return s.recentReleases, s.recentErr
 }
 
@@ -47,6 +50,34 @@ func (s *updateServiceGitHubClientStub) DownloadFile(context.Context, string, st
 
 func (s *updateServiceGitHubClientStub) FetchChecksumFile(context.Context, string) ([]byte, error) {
 	panic("FetchChecksumFile should not be called when no update is available")
+}
+
+func TestResolveUpdateGitHubRepoDefaultAndOverride(t *testing.T) {
+	t.Setenv("UPDATE_GITHUB_REPO", "")
+	require.Equal(t, defaultUpdateGitHubRepo, resolveUpdateGitHubRepo())
+
+	t.Setenv("UPDATE_GITHUB_REPO", "Wei-Shaw/sub2api")
+	require.Equal(t, "Wei-Shaw/sub2api", resolveUpdateGitHubRepo())
+
+	t.Setenv("UPDATE_GITHUB_REPO", "https://github.com/706412584/sub2api/")
+	require.Equal(t, "706412584/sub2api", resolveUpdateGitHubRepo())
+
+	t.Setenv("UPDATE_GITHUB_REPO", "not-a-repo")
+	require.Equal(t, defaultUpdateGitHubRepo, resolveUpdateGitHubRepo())
+}
+
+func TestUpdateServiceUsesConfiguredGitHubRepo(t *testing.T) {
+	t.Setenv("UPDATE_GITHUB_REPO", "example-owner/example-repo")
+	client := &updateServiceGitHubClientStub{
+		release: &GitHubRelease{TagName: "v0.1.200", Name: "v0.1.200"},
+	}
+	svc := NewUpdateService(&updateServiceCacheStub{}, client, "0.1.100", "release")
+
+	info, err := svc.CheckUpdate(context.Background(), true)
+	require.NoError(t, err)
+	require.Equal(t, "0.1.200", info.LatestVersion)
+	require.True(t, info.HasUpdate)
+	require.Equal(t, "example-owner/example-repo", client.lastRepo)
 }
 
 func TestUpdateServicePerformUpdateNoUpdateReturnsSentinel(t *testing.T) {
