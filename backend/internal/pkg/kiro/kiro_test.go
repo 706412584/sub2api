@@ -15,11 +15,11 @@ import (
 
 func eventHeader(name, value string) []byte {
 	var b bytes.Buffer
-	b.WriteByte(byte(len(name)))
-	b.WriteString(name)
-	b.WriteByte(byte(awseventstream.HeaderString))
+	_, _ = b.Write([]byte{byte(len(name))})
+	_, _ = b.WriteString(name)
+	_, _ = b.Write([]byte{byte(awseventstream.HeaderString)})
 	_ = binary.Write(&b, binary.BigEndian, uint16(len(value)))
-	b.WriteString(value)
+	_, _ = b.WriteString(value)
 	return b.Bytes()
 }
 
@@ -80,15 +80,18 @@ func TestCredentialsAndEndpointRequests(t *testing.T) {
 		if _, ok := body["profileArn"]; ok {
 			t.Fatal("API key request injected profileArn")
 		}
-		state := body["conversationState"].(map[string]any)
+		state, _ := body["conversationState"].(map[string]any)
 		if _, ok := state["agentContinuationId"]; ok {
 			t.Fatal("CLI retained agentContinuationId")
 		}
-		current := state["currentMessage"].(map[string]any)["userInputMessage"].(map[string]any)
+		currentMsg, _ := state["currentMessage"].(map[string]any)
+		current, _ := currentMsg["userInputMessage"].(map[string]any)
 		if current["origin"] != OriginCLI {
 			t.Fatalf("origin = %v", current["origin"])
 		}
-		historyUser := state["history"].([]any)[0].(map[string]any)["userInputMessage"].(map[string]any)
+		history, _ := state["history"].([]any)
+		history0, _ := history[0].(map[string]any)
+		historyUser, _ := history0["userInputMessage"].(map[string]any)
 		if _, ok := historyUser["modelId"]; ok {
 			t.Fatal("CLI history retained modelId")
 		}
@@ -120,7 +123,9 @@ func TestCredentialsAndEndpointRequests(t *testing.T) {
 		if body["profileArn"] != "arn:real" {
 			t.Fatalf("profileArn = %v", body["profileArn"])
 		}
-		current := body["conversationState"].(map[string]any)["currentMessage"].(map[string]any)["userInputMessage"].(map[string]any)
+		state, _ := body["conversationState"].(map[string]any)
+		currentMsg, _ := state["currentMessage"].(map[string]any)
+		current, _ := currentMsg["userInputMessage"].(map[string]any)
 		if current["origin"] != OriginIDE {
 			t.Fatalf("origin = %v", current["origin"])
 		}
@@ -193,8 +198,8 @@ func TestEventDecoderAndSharedResponseState(t *testing.T) {
 	if completedCount != 1 || len(got.ToolUses) != 1 || got.StopReason != "tool_use" {
 		t.Fatalf("tools = %#v, stop=%s", got.ToolUses, got.StopReason)
 	}
-	input := got.ToolUses[0].Input.(map[string]any)
-	if input["command"] != "ls" {
+	input, ok := got.ToolUses[0].Input.(map[string]any)
+	if !ok || input["command"] != "ls" {
 		t.Fatalf("tool input = %#v", input)
 	}
 	if got.Usage.InputTokens != 50000 || got.Usage.Credits != 0.75 {

@@ -8,22 +8,28 @@
         {{ t('admin.accounts.bulkEdit.title') }}
       </span>
       <template v-if="selectedIds.length > 0">
-      <button
-        @click="$emit('select-page')"
-        class="text-xs font-medium text-primary-700 hover:text-primary-800 dark:text-primary-300 dark:hover:text-primary-200"
-      >
-        {{ t('admin.accounts.bulkActions.selectCurrentPage') }}
-      </button>
-      <span class="text-gray-300 dark:text-primary-800">•</span>
-      <button
-        @click="$emit('clear')"
-        class="text-xs font-medium text-primary-700 hover:text-primary-800 dark:text-primary-300 dark:hover:text-primary-200"
-      >
-        {{ t('admin.accounts.bulkActions.clear') }}
-      </button>
+        <button
+          @click="$emit('select-page')"
+          class="text-xs font-medium text-primary-700 hover:text-primary-800 dark:text-primary-300 dark:hover:text-primary-200"
+        >
+          {{ t('admin.accounts.bulkActions.selectCurrentPage') }}
+        </button>
+        <span class="text-gray-300 dark:text-primary-800">•</span>
+        <button
+          @click="$emit('clear')"
+          class="text-xs font-medium text-primary-700 hover:text-primary-800 dark:text-primary-300 dark:hover:text-primary-200"
+        >
+          {{ t('admin.accounts.bulkActions.clear') }}
+        </button>
       </template>
+      <span
+        v-if="groupFilterLabel"
+        class="rounded bg-white/80 px-2 py-0.5 text-xs text-primary-700 dark:bg-dark-700 dark:text-primary-200"
+      >
+        {{ t('admin.accounts.bulkActions.currentGroup', { name: groupFilterLabel }) }}
+      </span>
     </div>
-    <div class="flex gap-2">
+    <div class="flex flex-wrap justify-end gap-2">
       <template v-if="selectedIds.length > 0">
         <button @click="$emit('delete')" class="btn btn-danger btn-sm">{{ t('admin.accounts.bulkActions.delete') }}</button>
         <button @click="$emit('reset-status')" class="btn btn-secondary btn-sm">{{ t('admin.accounts.bulkActions.resetStatus') }}</button>
@@ -34,8 +40,19 @@
         <button @click="$emit('toggle-schedulable', false)" class="btn btn-warning btn-sm">{{ t('admin.accounts.bulkActions.disableScheduling') }}</button>
         <button @click="$emit('edit-selected')" class="btn btn-primary btn-sm">{{ t('admin.accounts.bulkActions.edit') }}</button>
       </template>
-      <button @click="$emit('edit-filtered')" class="btn btn-primary btn-sm">
-        {{ t('admin.accounts.bulkEdit.submit') }}
+      <button
+        @click="$emit('batch-test-filtered')"
+        class="btn btn-secondary btn-sm"
+        :title="t('admin.accounts.bulkActions.batchTestFilteredHint')"
+      >
+        {{ hasGroupFilter ? t('admin.accounts.bulkActions.batchTestGroup') : t('admin.accounts.bulkActions.batchTestFiltered') }}
+      </button>
+      <button
+        @click="$emit('edit-filtered')"
+        class="btn btn-primary btn-sm"
+        :title="t('admin.accounts.bulkActions.editFilteredHint')"
+      >
+        {{ hasGroupFilter ? t('admin.accounts.bulkActions.editGroup') : t('admin.accounts.bulkEdit.submit') }}
       </button>
     </div>
   </div>
@@ -44,7 +61,18 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 
-defineProps<{ selectedIds: number[] }>()
+withDefaults(
+  defineProps<{
+    selectedIds: number[]
+    hasGroupFilter?: boolean
+    groupFilterLabel?: string
+  }>(),
+  {
+    hasGroupFilter: false,
+    groupFilterLabel: ''
+  }
+)
+
 defineEmits([
   'delete',
   'edit-selected',
@@ -55,7 +83,8 @@ defineEmits([
   'reset-status',
   'refresh-token',
   'probe-upstream-billing',
-  'batch-test'
+  'batch-test',
+  'batch-test-filtered'
 ])
 
 const { t } = useI18n()

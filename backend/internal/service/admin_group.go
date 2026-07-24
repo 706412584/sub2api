@@ -1264,7 +1264,6 @@ func (s *adminServiceImpl) ListGroupIDsByDefaultProxy(ctx context.Context, proxy
 	return s.mustAdminGroupRepo().ListGroupIDsByDefaultProxy(ctx, proxyID)
 }
 
-
 func (s *adminServiceImpl) mustAdminGroupRepo() AdminGroupRepository {
 	if repo, ok := s.groupRepo.(AdminGroupRepository); ok {
 		return repo

@@ -60,7 +60,7 @@ func RefreshKiroAccountToken(ctx context.Context, account *Account) (*KiroTokenI
 		return nil, fmt.Errorf("account is nil")
 	}
 	if !account.IsKiroOAuth() {
-		return nil, fmt.Errorf("Kiro API key accounts cannot be refreshed")
+		return nil, fmt.Errorf("kiro API key accounts cannot be refreshed")
 	}
 	refreshToken := strings.TrimSpace(account.GetCredential("refresh_token"))
 	if refreshToken == "" {
@@ -261,7 +261,11 @@ func newKiroExternalIDPHTTPClient(rawEndpoint string) (*http.Client, error) {
 		return nil, err
 	}
 	dialer := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
-	transport := http.DefaultTransport.(*http.Transport).Clone()
+	baseTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return nil, fmt.Errorf("http default transport is not *http.Transport")
+	}
+	transport := baseTransport.Clone()
 	transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
 		host, port, err := net.SplitHostPort(address)
 		if err != nil {

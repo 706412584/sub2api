@@ -214,7 +214,7 @@ func (s *KiroGatewayService) handleStreaming(c *gin.Context, resp *http.Response
 		case kiroprotocol.EventToolUse:
 			if completedTool == nil {
 				// Stream partial input if tool start just appeared.
-				if event.ToolUse != nil && event.ToolUse.Stop == false && event.ToolUse.Name != "" {
+				if event.ToolUse != nil && !event.ToolUse.Stop && event.ToolUse.Name != "" {
 					// open tool_use block on first chunk
 					if textStarted || thinkingStarted {
 						writeClaudeSSE(c, "content_block_stop", map[string]any{"type": "content_block_stop", "index": blockIndex})
@@ -400,8 +400,7 @@ func mapKiroUsage(result kiroprotocol.Response) ClaudeUsage {
 			usage.OutputTokens = 1
 		}
 	}
-	if usage.InputTokens == 0 && result.Usage.ContextUsagePercentage > 0 {
-		// without context window we cannot invert percentage; leave 0
-	}
+	// without context window we cannot invert percentage from ContextUsagePercentage; leave InputTokens as 0
+
 	return usage
 }

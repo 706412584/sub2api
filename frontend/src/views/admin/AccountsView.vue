@@ -177,11 +177,14 @@
       <template #table>
         <AccountBulkActionsBar
           :selected-ids="selIds"
+          :has-group-filter="Boolean(params.group)"
+          :group-filter-label="currentGroupFilterLabel"
           @delete="handleBulkDelete"
           @reset-status="handleBulkResetStatus"
           @refresh-token="handleBulkRefreshToken"
           @probe-upstream-billing="handleBulkProbeUpstreamBilling"
-          @batch-test="showBatchTest = true"
+          @batch-test="openBatchTestSelected"
+          @batch-test-filtered="openBatchTestFiltered"
           @edit-selected="openBulkEditSelected"
           @edit-filtered="openBulkEditFiltered"
           @clear="clearSelection"
@@ -451,7 +454,13 @@
     <ReAuthAccountModal :show="showReAuth" :account="reAuthAcc" @close="closeReAuthModal" @reauthorized="handleAccountUpdated" />
     <AccountTestModal :show="showTest" :account="testingAcc" @close="closeTestModal" />
     <KiroAccountDetailsModal :show="showKiroDetails" :account="kiroDetailsAcc" @close="closeKiroDetailsModal" />
-    <AccountBatchTestModal v-model:visible="showBatchTest" :account-ids="selIds" :accounts="selectedAccounts" @close="showBatchTest = false" @completed="reload" />
+    <AccountBatchTestModal
+      v-model:visible="showBatchTest"
+      :account-ids="batchTestAccountIds"
+      :accounts="batchTestAccounts"
+      @close="closeBatchTestModal"
+      @completed="reload"
+    />
     <AccountStatsModal :show="showStats" :account="statsAcc" @close="closeStatsModal" />
     <ScheduledTestsPanel :show="showSchedulePanel" :account-id="scheduleAcc?.id ?? null" :model-options="scheduleModelOptions" @close="closeSchedulePanel" />
     <AccountActionMenu :show="menu.show" :account="menu.acc" :position="menu.pos" @close="menu.show = false" @test="handleTest" @kiro-details="handleKiroDetails" @stats="handleViewStats" @schedule="handleSchedule" @duplicate="handleDuplicateAccount" @reauth="handleReAuth" @refresh-token="handleRefresh" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" @create-spark-shadow="handleCreateSparkShadow" />
@@ -599,6 +608,9 @@ const showReAuth = ref(false)
 const showTest = ref(false)
 const showKiroDetails = ref(false)
 const showBatchTest = ref(false)
+const batchTestAccountIds = ref<number[]>([])
+const batchTestAccounts = ref<Account[]>([])
+const BATCH_TEST_MAX = 100
 const showStats = ref(false)
 const showErrorPassthrough = ref(false)
 const showTLSFingerprintProfiles = ref(false)
@@ -1750,6 +1762,48 @@ const openBulkEditFiltered = async () => {
     selectedTypes
   }
   showBulkEdit.value = true
+}
+
+const currentGroupFilterLabel = computed(() => {
+  const group = String(params.group || '')
+  if (!group) return ''
+  if (group === 'ungrouped') return 'ungrouped'
+  const match = groups.value.find((g) => String(g.id) === group)
+  return match?.name || `#${group}`
+})
+
+const openBatchTestSelected = () => {
+  batchTestAccountIds.value = [...selIds.value]
+  batchTestAccounts.value = selectedAccounts.value
+  showBatchTest.value = true
+}
+
+const openBatchTestFiltered = async () => {
+  const filters = buildBulkEditFilterSnapshot()
+  try {
+    const preview = await adminAPI.accounts.list(1, BATCH_TEST_MAX, filters)
+    if (!preview.items.length) {
+      appStore.showWarning(t('admin.accounts.batchTest.emptyFilter'))
+      return
+    }
+    if (preview.total > BATCH_TEST_MAX) {
+      appStore.showWarning(
+        t('admin.accounts.batchTest.capped', { total: preview.total, count: BATCH_TEST_MAX })
+      )
+    }
+    batchTestAccountIds.value = preview.items.map((account) => account.id)
+    batchTestAccounts.value = preview.items
+    showBatchTest.value = true
+  } catch (error) {
+    console.error('Failed to load filtered accounts for batch test:', error)
+    appStore.showError(t('admin.accounts.batchTest.loadFailed'))
+  }
+}
+
+const closeBatchTestModal = () => {
+  showBatchTest.value = false
+  batchTestAccountIds.value = []
+  batchTestAccounts.value = []
 }
 
 const handleBulkUpdated = () => {

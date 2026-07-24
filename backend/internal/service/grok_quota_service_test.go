@@ -33,6 +33,11 @@ type grokQuotaAccountRepo struct {
 	lastTempUnschedID     int64
 	lastTempUnschedUntil  time.Time
 	lastTempUnschedReason string
+	modelRateLimitCalls   int
+	lastModelRateLimitID  int64
+	lastModelRateLimitKey string
+	lastModelRateLimitAt  time.Time
+	lastModelRateLimitReason string
 	recoveryClearCalls    int
 	recoveryObservedAt    time.Time
 	recoveryObservedReset time.Time
@@ -83,6 +88,17 @@ func (r *grokQuotaAccountRepo) SetTempUnschedulable(_ context.Context, id int64,
 	r.lastTempUnschedID = id
 	r.lastTempUnschedUntil = until
 	r.lastTempUnschedReason = reason
+	return nil
+}
+
+func (r *grokQuotaAccountRepo) SetModelRateLimit(_ context.Context, id int64, scope string, resetAt time.Time, reason ...string) error {
+	r.modelRateLimitCalls++
+	r.lastModelRateLimitID = id
+	r.lastModelRateLimitKey = scope
+	r.lastModelRateLimitAt = resetAt
+	if len(reason) > 0 {
+		r.lastModelRateLimitReason = reason[0]
+	}
 	return nil
 }
 

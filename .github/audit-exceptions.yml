@@ -35,3 +35,11 @@ exceptions:
     mitigation: "Proxy configuration not user-controlled; upgrade when axios releases fix"
     expires_on: "2026-07-10"
     owner: "security@your-domain"
+  - package: postcss
+    advisory: "GHSA-6g55-p6wh-862q"
+    severity: high
+    reason: "PostCSS is a build-time dep (Tailwind/Vite); attacker-controlled sourceMappingURL not present in our CSS pipeline"
+    mitigation: "No user-supplied CSS processed at runtime; plan pin/upgrade postcss when fixed release is available"
+    expires_on: "2026-10-24"
+    owner: "security@your-domain"
+

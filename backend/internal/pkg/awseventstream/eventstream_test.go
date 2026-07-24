@@ -11,11 +11,11 @@ import (
 
 func encodeStringHeader(name, value string) []byte {
 	var b bytes.Buffer
-	b.WriteByte(byte(len(name)))
-	b.WriteString(name)
-	b.WriteByte(byte(HeaderString))
+	_, _ = b.Write([]byte{byte(len(name))})
+	_, _ = b.WriteString(name)
+	_, _ = b.Write([]byte{byte(HeaderString)})
 	_ = binary.Write(&b, binary.BigEndian, uint16(len(value)))
-	b.WriteString(value)
+	_, _ = b.WriteString(value)
 	return b.Bytes()
 }
 
@@ -111,10 +111,10 @@ func TestReaderCRCTruncationFragmentationAndLimits(t *testing.T) {
 func TestParseTypedHeaders(t *testing.T) {
 	var data bytes.Buffer
 	write := func(name string, typ HeaderType, raw []byte) {
-		data.WriteByte(byte(len(name)))
-		data.WriteString(name)
-		data.WriteByte(byte(typ))
-		data.Write(raw)
+		_, _ = data.Write([]byte{byte(len(name))})
+		_, _ = data.WriteString(name)
+		_, _ = data.Write([]byte{byte(typ)})
+		_, _ = data.Write(raw)
 	}
 	write("t", HeaderBoolTrue, nil)
 	write("f", HeaderBoolFalse, nil)
@@ -144,10 +144,10 @@ func TestParseTypedHeaders(t *testing.T) {
 			t.Errorf("%s = %#v, want %#v", name, got, want)
 		}
 	}
-	if got := h["a"].Value.([]byte); !bytes.Equal(got, []byte{1, 2}) {
+	if got, ok := h["a"].Value.([]byte); !ok || !bytes.Equal(got, []byte{1, 2}) {
 		t.Errorf("byte array = %v", got)
 	}
-	if got := h["u"].Value.([16]byte); got[15] != 15 {
+	if got, ok := h["u"].Value.([16]byte); !ok || got[15] != 15 {
 		t.Errorf("uuid = %v", got)
 	}
 }

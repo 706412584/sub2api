@@ -863,6 +863,18 @@ func (s *AccountTestService) testGrokAccountConnection(c *gin.Context, account *
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
+		// Grok 测活副作用与网关一致：402 临时冷却；502/5xx 不标 error（502 常为额度类假阳性）。
+		if s.accountRepo != nil {
+			switch resp.StatusCode {
+			case http.StatusPaymentRequired:
+				until := time.Now().Add(30 * time.Minute)
+				_ = s.accountRepo.SetTempUnschedulable(ctx, account.ID, until, "grok payment required (test probe)")
+			case http.StatusTooManyRequests:
+				// rate limit already persisted above via parseGrokQuotaSnapshot
+			default:
+				// 明确禁止 502/5xx/其他失败路径写入 SetError
+			}
+		}
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Grok Responses API returned %d: %s", resp.StatusCode, string(body)))
 	}
 

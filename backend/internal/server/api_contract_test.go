@@ -379,6 +379,7 @@ func TestAPIContracts(t *testing.T) {
 						"allow_messages_dispatch": false,
 						"fallback_group_id": null,
 						"fallback_group_id_on_invalid_request": null,
+						"default_proxy_id": null,
 						"require_oauth_only": false,
 						"require_privacy_set": false,
 						"max_reasoning_effort": "",
@@ -1748,6 +1749,14 @@ func (stubGroupRepo) FindByDuplicateOperationID(ctx context.Context, operationID
 
 func (stubGroupRepo) CreateFromSource(ctx context.Context, group *service.Group, sourceGroupID int64) error {
 	return errors.New("not implemented")
+}
+
+func (stubGroupRepo) ListGroupIDsByDefaultProxy(ctx context.Context, proxyID int64) ([]int64, error) {
+	return nil, nil
+}
+
+func (stubGroupRepo) SetDefaultProxyBoundGroups(ctx context.Context, proxyID int64, groupIDs []int64) error {
+	return nil
 }
 
 type stubAccountRepo struct {

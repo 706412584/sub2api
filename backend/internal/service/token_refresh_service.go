@@ -621,6 +621,10 @@ func (s *TokenRefreshService) processCandidatePage(
 		if !state.registration.refresher.NeedsRefresh(account, refreshWindow) {
 			continue
 		}
+		// Grok background refresh uses stable per-account due-at jitter to avoid thundering herds.
+		if account.Platform == PlatformGrok && !grokBackgroundRefreshReady(account, refreshWindow, time.Now()) {
+			continue
+		}
 		stats.needsRefresh++
 		groups[account.Platform] = append(groups[account.Platform], account)
 	}

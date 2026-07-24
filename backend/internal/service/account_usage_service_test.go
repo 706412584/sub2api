@@ -121,7 +121,7 @@ func TestSnapshotUsageToAccountExtraPersistsExtendedFields(t *testing.T) {
 		}},
 		UserInfo: &kiroprotocol.UserInfo{Email: "  "},
 	})
-	minSnap := minimal["kiro_usage"].(map[string]any)
+	minSnap, _ := minimal["kiro_usage"].(map[string]any)
 	if _, exists := minSnap["email"]; exists {
 		t.Fatal("expected empty email to be omitted")
 	}
