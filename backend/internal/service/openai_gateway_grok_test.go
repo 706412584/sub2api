@@ -3073,8 +3073,8 @@ func TestHandleGrokAccountUpstreamError5xxRespectsPoolMode(t *testing.T) {
 		require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))
 		require.Equal(t, 1, repo.tempUnschedCalls)
 		require.Equal(t, account.ID, repo.lastTempUnschedID)
-		require.Equal(t, "grok upstream temporary error", repo.lastTempUnschedReason)
-		require.WithinDuration(t, before.Add(2*time.Minute), repo.lastTempUnschedUntil, time.Second)
+		require.Equal(t, "grok upstream temporary error (502)", repo.lastTempUnschedReason)
+		require.WithinDuration(t, before.Add(grokTransientCooldownDuration), repo.lastTempUnschedUntil, time.Second)
 	})
 }
 
