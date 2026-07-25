@@ -562,12 +562,12 @@ func DefaultOpenAIGrok429ExhaustionSettings() *OpenAIGrok429ExhaustionSettings {
 // DefaultAccountPoolProbeSettings 号池全局探测默认配置（低成本）。
 func DefaultAccountPoolProbeSettings() *AccountPoolProbeSettings {
 	return &AccountPoolProbeSettings{
-		Enabled:               true,
-		IntervalMinutes:       15,
-		BatchSize:             20,
-		MaxConcurrency:        2,
+		Enabled:                true,
+		IntervalMinutes:        15,
+		BatchSize:              20,
+		MaxConcurrency:         2,
 		AccountCooldownMinutes: 20,
-		Platforms:             []string{PlatformOpenAI, PlatformGrok},
+		Platforms:              []string{PlatformOpenAI, PlatformGrok},
 	}
 }
 

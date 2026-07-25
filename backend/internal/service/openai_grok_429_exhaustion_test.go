@@ -22,10 +22,10 @@ func TestGrokRateLimitResetAtForAccountWithPolicy_FreeFull24h(t *testing.T) {
 		},
 		Extra: map[string]any{
 			grokBillingExtraKey: &xai.BillingSummary{
-				StatusCode:        http.StatusOK,
-				MonthlyUpdatedAt:  now.Format(time.RFC3339),
-				Partial:           false,
-				FailedWindows:     nil,
+				StatusCode:       http.StatusOK,
+				MonthlyUpdatedAt: now.Format(time.RFC3339),
+				Partial:          false,
+				FailedWindows:    nil,
 			},
 		},
 	}

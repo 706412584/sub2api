@@ -197,9 +197,9 @@ func TestAccountTestService_Grok429WithoutQuotaHeadersUsesFallback(t *testing.T)
 
 	require.Error(t, err)
 	require.Equal(t, 1, repo.rateLimitedCalls)
-	require.WithinDuration(t, before.Add(grokRateLimitFallbackCooldown), repo.resetAt, time.Second)
+	// Default exhaustion policy uses NoResetDurationMinutes (60m) when no quota headers.
+	require.WithinDuration(t, before.Add(time.Duration(DefaultOpenAIGrok429ExhaustionSettings().NoResetDurationMinutes)*time.Minute), repo.resetAt, time.Second)
 }
-
 
 type grokAccountTestStateRepo struct {
 	*mockAccountRepoForGemini

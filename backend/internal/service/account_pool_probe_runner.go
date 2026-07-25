@@ -13,10 +13,10 @@ import (
 )
 
 const (
-	accountPoolProbeExtraKey          = "account_pool_probe_at"
-	accountPoolProbeDefaultTickCron   = "*/5 * * * *" // check settings every 5 minutes
-	accountPoolProbeRunTimeout        = 4 * time.Minute
-	accountPoolProbeSingleTimeout     = 45 * time.Second
+	accountPoolProbeExtraKey        = "account_pool_probe_at"
+	accountPoolProbeDefaultTickCron = "*/5 * * * *" // check settings every 5 minutes
+	accountPoolProbeRunTimeout      = 4 * time.Minute
+	accountPoolProbeSingleTimeout   = 45 * time.Second
 )
 
 // AccountPoolProbeRunner periodically probes a small batch of openai/grok accounts

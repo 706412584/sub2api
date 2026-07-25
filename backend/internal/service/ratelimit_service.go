@@ -964,10 +964,8 @@ func (s *RateLimitService) handle429(ctx context.Context, account *Account, head
 			slog.Info("openai_account_rate_limited", "account_id", account.ID, "reset_at", *resetAt)
 			return
 		}
-		// GPT/Grok 429 立即限流（默认开启）：无上游 reset 时按耗尽语义写入 rate_limit。
-		if s.applyOpenAIGrok429ExhaustionFallback(ctx, account, "openai_no_reset_time") {
-			return
-		}
+		// 无 header reset 时继续解析 body 的 resets_at；
+		// exhaustion fallback 必须在 body 解析失败之后，避免覆盖 usage_limit_reached。
 	}
 
 	// 2. Anthropic 平台：尝试解析 per-window 头（5h / 7d），选择实际触发的窗口
