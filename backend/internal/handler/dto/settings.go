@@ -394,6 +394,24 @@ type RateLimit429CooldownSettings struct {
 	CooldownSeconds int  `json:"cooldown_seconds"`
 }
 
+// OpenAIGrok429ExhaustionSettings GPT/Grok 429 立即限流配置 DTO
+type OpenAIGrok429ExhaustionSettings struct {
+	Enabled                  bool    `json:"enabled"`
+	FreeFullDurationHours    int     `json:"free_full_duration_hours"`
+	FreeFullThresholdPercent float64 `json:"free_full_threshold_percent"`
+	NoResetDurationMinutes   int     `json:"no_reset_duration_minutes"`
+}
+
+// AccountPoolProbeSettings 号池全局异步探测配置 DTO
+type AccountPoolProbeSettings struct {
+	Enabled                bool     `json:"enabled"`
+	IntervalMinutes        int      `json:"interval_minutes"`
+	BatchSize              int      `json:"batch_size"`
+	MaxConcurrency         int      `json:"max_concurrency"`
+	AccountCooldownMinutes int      `json:"account_cooldown_minutes"`
+	Platforms              []string `json:"platforms"`
+}
+
 // StreamTimeoutSettings 流超时处理配置 DTO
 type StreamTimeoutSettings struct {
 	Enabled                bool   `json:"enabled"`

@@ -1066,6 +1066,11 @@ func (s *AccountUsageService) getGrokUsage(ctx context.Context, account *Account
 				ctx, s.usageLogRepo, account.ID, usage.GrokBilling, time.Now().UTC(),
 			)
 		}
+		if s.usageLogRepo != nil {
+			if resetAt := grokFreeProgressResetAtFromExtra(account.Extra); !resetAt.IsZero() {
+				usage.GrokLocalUsage24h = grokLocalUsage24hFrom(ctx, s.usageLogRepo, account.ID, time.Now().UTC(), resetAt)
+			}
+		}
 		// 若 extra 已有模型路径 429/耗尽快照但 rate_limit_reset_at 缺失，补写调度限流，
 		// 保证列表刷新后状态列与额度格一致。billing 429 不在此路径（见 ProbeBilling 测试）。
 		reconcileGrokRateLimitFromSnapshot(ctx, s.accountRepo, account)
@@ -1090,7 +1095,7 @@ func reconcileGrokRateLimitFromSnapshot(ctx context.Context, repo AccountReposit
 	if err != nil || snapshot == nil {
 		return
 	}
-	resetAt, limited := grokRateLimitResetAtForAccount(account, snapshot, now)
+	resetAt, limited := grokRateLimitResetAtForAccountWithPolicy(account, snapshot, now, DefaultOpenAIGrok429ExhaustionSettings(), 0)
 	if !limited || !resetAt.After(now) {
 		return
 	}
@@ -1118,16 +1123,44 @@ func grokLocalUsageForQuota(
 }
 
 func grokLocalUsage24h(ctx context.Context, repo UsageLogRepository, accountID int64, now time.Time) *WindowStats {
+	return grokLocalUsage24hFrom(ctx, repo, accountID, now, time.Time{})
+}
+
+// grokLocalUsage24hFrom computes Free rolling usage from max(now-24h, progressResetAt).
+// progressResetAt is written when a prior 429 rate-limit is cleared by a successful probe/request.
+func grokLocalUsage24hFrom(ctx context.Context, repo UsageLogRepository, accountID int64, now, progressResetAt time.Time) *WindowStats {
 	if repo == nil || accountID <= 0 {
 		return nil
 	}
 	start := now.UTC().Add(-grokFreeQuotaWindow)
+	if !progressResetAt.IsZero() && progressResetAt.After(start) {
+		start = progressResetAt.UTC()
+	}
 	stats, err := repo.GetAccountWindowStats(ctx, accountID, start)
 	if err != nil {
 		slog.Warn("grok_rolling_24h_usage_query_failed", "account_id", accountID, "window_start", start, "error", err)
 		return nil
 	}
 	return windowStatsFromAccountStats(stats)
+}
+
+func grokFreeProgressResetAtFromExtra(extra map[string]any) time.Time {
+	if extra == nil {
+		return time.Time{}
+	}
+	raw, ok := extra[grokFreeProgressResetAtExtraKey]
+	if !ok || raw == nil {
+		return time.Time{}
+	}
+	switch v := raw.(type) {
+	case string:
+		if parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(v)); err == nil {
+			return parsed
+		}
+	case time.Time:
+		return v
+	}
+	return time.Time{}
 }
 
 func grokLocalUsageForBilling(

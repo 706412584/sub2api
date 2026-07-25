@@ -411,6 +411,366 @@
             </div>
           </div>
 
+          <!-- GPT/Grok 429 Exhaustion Settings -->
+          <div class="card">
+            <div
+              class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+            >
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ t("admin.settings.openaiGrok429Exhaustion.title") }}
+              </h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.openaiGrok429Exhaustion.description") }}
+              </p>
+            </div>
+            <div class="space-y-5 p-6">
+              <div
+                v-if="openaiGrok429ExhaustionLoading"
+                class="flex items-center gap-2 text-gray-500"
+              >
+                <div
+                  class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"
+                ></div>
+                {{ t("common.loading") }}
+              </div>
+
+              <template v-else>
+                <div class="flex items-center justify-between">
+                  <div>
+                    <label class="font-medium text-gray-900 dark:text-white">{{
+                      t("admin.settings.openaiGrok429Exhaustion.enabled")
+                    }}</label>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                      {{
+                        t("admin.settings.openaiGrok429Exhaustion.enabledHint")
+                      }}
+                    </p>
+                  </div>
+                  <Toggle v-model="openaiGrok429ExhaustionForm.enabled" />
+                </div>
+
+                <div
+                  v-if="openaiGrok429ExhaustionForm.enabled"
+                  class="space-y-4 border-t border-gray-100 pt-4 dark:border-dark-700"
+                >
+                  <div>
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{
+                        t(
+                          "admin.settings.openaiGrok429Exhaustion.freeFullDurationHours",
+                        )
+                      }}
+                    </label>
+                    <input
+                      v-model.number="
+                        openaiGrok429ExhaustionForm.free_full_duration_hours
+                      "
+                      type="number"
+                      min="1"
+                      max="72"
+                      class="input w-32"
+                    />
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{
+                        t(
+                          "admin.settings.openaiGrok429Exhaustion.freeFullDurationHoursHint",
+                        )
+                      }}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{
+                        t(
+                          "admin.settings.openaiGrok429Exhaustion.freeFullThresholdPercent",
+                        )
+                      }}
+                    </label>
+                    <input
+                      v-model.number="
+                        openaiGrok429ExhaustionForm.free_full_threshold_percent
+                      "
+                      type="number"
+                      min="50"
+                      max="100"
+                      step="0.1"
+                      class="input w-32"
+                    />
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{
+                        t(
+                          "admin.settings.openaiGrok429Exhaustion.freeFullThresholdPercentHint",
+                        )
+                      }}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{
+                        t(
+                          "admin.settings.openaiGrok429Exhaustion.noResetDurationMinutes",
+                        )
+                      }}
+                    </label>
+                    <input
+                      v-model.number="
+                        openaiGrok429ExhaustionForm.no_reset_duration_minutes
+                      "
+                      type="number"
+                      min="1"
+                      max="1440"
+                      class="input w-32"
+                    />
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{
+                        t(
+                          "admin.settings.openaiGrok429Exhaustion.noResetDurationMinutesHint",
+                        )
+                      }}
+                    </p>
+                  </div>
+                </div>
+
+                <div
+                  class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700"
+                >
+                  <button
+                    type="button"
+                    @click="saveOpenAIGrok429ExhaustionSettings"
+                    :disabled="openaiGrok429ExhaustionSaving"
+                    class="btn btn-primary btn-sm"
+                  >
+                    <svg
+                      v-if="openaiGrok429ExhaustionSaving"
+                      class="mr-1 h-4 w-4 animate-spin"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        class="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        stroke-width="4"
+                      ></circle>
+                      <path
+                        class="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    {{
+                      openaiGrok429ExhaustionSaving
+                        ? t("common.saving")
+                        : t("common.save")
+                    }}
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- Account Pool Probe Settings -->
+          <div class="card">
+            <div
+              class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+            >
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ t("admin.settings.accountPoolProbe.title") }}
+              </h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.accountPoolProbe.description") }}
+              </p>
+            </div>
+            <div class="space-y-5 p-6">
+              <div
+                v-if="accountPoolProbeLoading"
+                class="flex items-center gap-2 text-gray-500"
+              >
+                <div
+                  class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"
+                ></div>
+                {{ t("common.loading") }}
+              </div>
+
+              <template v-else>
+                <div class="flex items-center justify-between">
+                  <div>
+                    <label class="font-medium text-gray-900 dark:text-white">{{
+                      t("admin.settings.accountPoolProbe.enabled")
+                    }}</label>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.accountPoolProbe.enabledHint") }}
+                    </p>
+                  </div>
+                  <Toggle v-model="accountPoolProbeForm.enabled" />
+                </div>
+
+                <div
+                  v-if="accountPoolProbeForm.enabled"
+                  class="space-y-4 border-t border-gray-100 pt-4 dark:border-dark-700"
+                >
+                  <div>
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{
+                        t("admin.settings.accountPoolProbe.intervalMinutes")
+                      }}
+                    </label>
+                    <input
+                      v-model.number="accountPoolProbeForm.interval_minutes"
+                      type="number"
+                      min="10"
+                      max="60"
+                      class="input w-32"
+                    />
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{
+                        t(
+                          "admin.settings.accountPoolProbe.intervalMinutesHint",
+                        )
+                      }}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{ t("admin.settings.accountPoolProbe.batchSize") }}
+                    </label>
+                    <input
+                      v-model.number="accountPoolProbeForm.batch_size"
+                      type="number"
+                      min="1"
+                      max="200"
+                      class="input w-32"
+                    />
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.accountPoolProbe.batchSizeHint") }}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{
+                        t("admin.settings.accountPoolProbe.maxConcurrency")
+                      }}
+                    </label>
+                    <input
+                      v-model.number="accountPoolProbeForm.max_concurrency"
+                      type="number"
+                      min="1"
+                      max="10"
+                      class="input w-32"
+                    />
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{
+                        t(
+                          "admin.settings.accountPoolProbe.maxConcurrencyHint",
+                        )
+                      }}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{
+                        t(
+                          "admin.settings.accountPoolProbe.accountCooldownMinutes",
+                        )
+                      }}
+                    </label>
+                    <input
+                      v-model.number="
+                        accountPoolProbeForm.account_cooldown_minutes
+                      "
+                      type="number"
+                      min="10"
+                      max="240"
+                      class="input w-32"
+                    />
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{
+                        t(
+                          "admin.settings.accountPoolProbe.accountCooldownMinutesHint",
+                        )
+                      }}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{ t("admin.settings.accountPoolProbe.platforms") }}
+                    </label>
+                    <input
+                      v-model="accountPoolProbePlatformsText"
+                      type="text"
+                      class="input w-full max-w-md"
+                      placeholder="openai,grok"
+                    />
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.accountPoolProbe.platformsHint") }}
+                    </p>
+                  </div>
+                </div>
+
+                <div
+                  class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700"
+                >
+                  <button
+                    type="button"
+                    @click="saveAccountPoolProbeSettings"
+                    :disabled="accountPoolProbeSaving"
+                    class="btn btn-primary btn-sm"
+                  >
+                    <svg
+                      v-if="accountPoolProbeSaving"
+                      class="mr-1 h-4 w-4 animate-spin"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        class="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        stroke-width="4"
+                      ></circle>
+                      <path
+                        class="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    {{
+                      accountPoolProbeSaving
+                        ? t("common.saving")
+                        : t("common.save")
+                    }}
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
+
           <!-- Stream Timeout Settings -->
           <div class="card">
             <div
@@ -7952,6 +8312,29 @@ const rateLimit429CooldownForm = reactive({
   cooldown_seconds: 5,
 });
 
+// GPT/Grok 429 Exhaustion 状态
+const openaiGrok429ExhaustionLoading = ref(true);
+const openaiGrok429ExhaustionSaving = ref(false);
+const openaiGrok429ExhaustionForm = reactive({
+  enabled: true,
+  free_full_duration_hours: 24,
+  free_full_threshold_percent: 98,
+  no_reset_duration_minutes: 60,
+});
+
+// Account Pool Probe 状态
+const accountPoolProbeLoading = ref(true);
+const accountPoolProbeSaving = ref(false);
+const accountPoolProbeForm = reactive({
+  enabled: true,
+  interval_minutes: 15,
+  batch_size: 20,
+  max_concurrency: 2,
+  account_cooldown_minutes: 20,
+  platforms: ["openai", "grok"] as string[],
+});
+const accountPoolProbePlatformsText = ref("openai,grok");
+
 // Stream Timeout 状态
 const streamTimeoutLoading = ref(true);
 const streamTimeoutSaving = ref(false);
@@ -10651,6 +11034,91 @@ async function saveRateLimit429CooldownSettings() {
   }
 }
 
+// GPT/Grok 429 Exhaustion 方法
+async function loadOpenAIGrok429ExhaustionSettings() {
+  openaiGrok429ExhaustionLoading.value = true;
+  try {
+    const settings =
+      await adminAPI.settings.getOpenAIGrok429ExhaustionSettings();
+    Object.assign(openaiGrok429ExhaustionForm, settings);
+  } catch (_error: unknown) {
+    // Silent fail - settings will use defaults
+  } finally {
+    openaiGrok429ExhaustionLoading.value = false;
+  }
+}
+
+async function saveOpenAIGrok429ExhaustionSettings() {
+  openaiGrok429ExhaustionSaving.value = true;
+  try {
+    const updated =
+      await adminAPI.settings.updateOpenAIGrok429ExhaustionSettings({
+        enabled: openaiGrok429ExhaustionForm.enabled,
+        free_full_duration_hours:
+          openaiGrok429ExhaustionForm.free_full_duration_hours,
+        free_full_threshold_percent:
+          openaiGrok429ExhaustionForm.free_full_threshold_percent,
+        no_reset_duration_minutes:
+          openaiGrok429ExhaustionForm.no_reset_duration_minutes,
+      });
+    Object.assign(openaiGrok429ExhaustionForm, updated);
+    appStore.showSuccess(t("admin.settings.openaiGrok429Exhaustion.saved"));
+  } catch (error: unknown) {
+    appStore.showError(
+      extractApiErrorMessage(
+        error,
+        t("admin.settings.openaiGrok429Exhaustion.saveFailed"),
+      ),
+    );
+  } finally {
+    openaiGrok429ExhaustionSaving.value = false;
+  }
+}
+
+// Account Pool Probe 方法
+async function loadAccountPoolProbeSettings() {
+  accountPoolProbeLoading.value = true;
+  try {
+    const settings = await adminAPI.settings.getAccountPoolProbeSettings();
+    Object.assign(accountPoolProbeForm, settings);
+    accountPoolProbePlatformsText.value = (settings.platforms || []).join(",");
+  } catch (_error: unknown) {
+    // Silent fail - settings will use defaults
+  } finally {
+    accountPoolProbeLoading.value = false;
+  }
+}
+
+async function saveAccountPoolProbeSettings() {
+  accountPoolProbeSaving.value = true;
+  try {
+    const platforms = accountPoolProbePlatformsText.value
+      .split(",")
+      .map((p) => p.trim().toLowerCase())
+      .filter(Boolean);
+    const updated = await adminAPI.settings.updateAccountPoolProbeSettings({
+      enabled: accountPoolProbeForm.enabled,
+      interval_minutes: accountPoolProbeForm.interval_minutes,
+      batch_size: accountPoolProbeForm.batch_size,
+      max_concurrency: accountPoolProbeForm.max_concurrency,
+      account_cooldown_minutes: accountPoolProbeForm.account_cooldown_minutes,
+      platforms,
+    });
+    Object.assign(accountPoolProbeForm, updated);
+    accountPoolProbePlatformsText.value = (updated.platforms || []).join(",");
+    appStore.showSuccess(t("admin.settings.accountPoolProbe.saved"));
+  } catch (error: unknown) {
+    appStore.showError(
+      extractApiErrorMessage(
+        error,
+        t("admin.settings.accountPoolProbe.saveFailed"),
+      ),
+    );
+  } finally {
+    accountPoolProbeSaving.value = false;
+  }
+}
+
 // Stream Timeout 方法
 async function loadStreamTimeoutSettings() {
   streamTimeoutLoading.value = true;
@@ -11283,6 +11751,8 @@ onMounted(() => {
   loadOllamaCloudUsageSettings();
   loadOverloadCooldownSettings();
   loadRateLimit429CooldownSettings();
+  loadOpenAIGrok429ExhaustionSettings();
+  loadAccountPoolProbeSettings();
   loadStreamTimeoutSettings();
   loadRectifierSettings();
   loadBetaPolicySettings();

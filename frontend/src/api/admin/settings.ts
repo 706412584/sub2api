@@ -1206,6 +1206,60 @@ export async function updateRateLimit429CooldownSettings(
   return data;
 }
 
+// ==================== OpenAI/Grok 429 Exhaustion Settings ====================
+
+export interface OpenAIGrok429ExhaustionSettings {
+  enabled: boolean;
+  free_full_duration_hours: number;
+  free_full_threshold_percent: number;
+  no_reset_duration_minutes: number;
+}
+
+export async function getOpenAIGrok429ExhaustionSettings(): Promise<OpenAIGrok429ExhaustionSettings> {
+  const { data } = await apiClient.get<OpenAIGrok429ExhaustionSettings>(
+    "/admin/settings/openai-grok-429-exhaustion",
+  );
+  return data;
+}
+
+export async function updateOpenAIGrok429ExhaustionSettings(
+  settings: OpenAIGrok429ExhaustionSettings,
+): Promise<OpenAIGrok429ExhaustionSettings> {
+  const { data } = await apiClient.put<OpenAIGrok429ExhaustionSettings>(
+    "/admin/settings/openai-grok-429-exhaustion",
+    settings,
+  );
+  return data;
+}
+
+// ==================== Account Pool Probe Settings ====================
+
+export interface AccountPoolProbeSettings {
+  enabled: boolean;
+  interval_minutes: number;
+  batch_size: number;
+  max_concurrency: number;
+  account_cooldown_minutes: number;
+  platforms: string[];
+}
+
+export async function getAccountPoolProbeSettings(): Promise<AccountPoolProbeSettings> {
+  const { data } = await apiClient.get<AccountPoolProbeSettings>(
+    "/admin/settings/account-pool-probe",
+  );
+  return data;
+}
+
+export async function updateAccountPoolProbeSettings(
+  settings: AccountPoolProbeSettings,
+): Promise<AccountPoolProbeSettings> {
+  const { data } = await apiClient.put<AccountPoolProbeSettings>(
+    "/admin/settings/account-pool-probe",
+    settings,
+  );
+  return data;
+}
+
 // ==================== Stream Timeout Settings ====================
 
 /**
@@ -1433,6 +1487,10 @@ export const settingsAPI = {
   updateOverloadCooldownSettings,
   getRateLimit429CooldownSettings,
   updateRateLimit429CooldownSettings,
+  getOpenAIGrok429ExhaustionSettings,
+  updateOpenAIGrok429ExhaustionSettings,
+  getAccountPoolProbeSettings,
+  updateAccountPoolProbeSettings,
   getStreamTimeoutSettings,
   updateStreamTimeoutSettings,
   getRectifierSettings,

@@ -210,8 +210,11 @@ func ProvideGrokQuotaService(
 	httpUpstream HTTPUpstream,
 	cfg *config.Config,
 	usageLogRepo UsageLogRepository,
+	settingService *SettingService,
 ) *GrokQuotaService {
-	return NewGrokQuotaService(accountRepo, proxyRepo, tokenProvider, httpUpstream, cfg, usageLogRepo)
+	svc := NewGrokQuotaService(accountRepo, proxyRepo, tokenProvider, httpUpstream, cfg, usageLogRepo)
+	svc.SetSettingService(settingService)
+	return svc
 }
 
 // ProvideGeminiTokenProvider creates GeminiTokenProvider with OAuthRefreshAPI injection
@@ -510,6 +513,19 @@ func ProvideScheduledTestRunnerService(
 	return svc
 }
 
+// ProvideAccountPoolProbeRunner creates and starts the low-cost global account pool probe.
+func ProvideAccountPoolProbeRunner(
+	accountRepo AccountRepository,
+	settingService *SettingService,
+	usageService *AccountUsageService,
+	grokQuota *GrokQuotaService,
+	cfg *config.Config,
+) *AccountPoolProbeRunner {
+	svc := NewAccountPoolProbeRunner(accountRepo, settingService, usageService, grokQuota, cfg)
+	svc.Start()
+	return svc
+}
+
 // ProvideOpsScheduledReportService creates and starts OpsScheduledReportService.
 func ProvideOpsScheduledReportService(
 	opsService *OpsService,
@@ -784,6 +800,7 @@ var ProviderSet = wire.NewSet(
 	ProvideIdempotencyCleanupService,
 	ProvideScheduledTestService,
 	ProvideScheduledTestRunnerService,
+	ProvideAccountPoolProbeRunner,
 	NewGroupCapacityService,
 	NewChannelService,
 	NewModelPricingResolver,

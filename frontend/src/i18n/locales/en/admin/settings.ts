@@ -967,6 +967,38 @@ export default {
         saved: '429 default cooldown settings saved',
         saveFailed: 'Failed to save 429 default cooldown settings'
       },
+      openaiGrok429Exhaustion: {
+        title: 'GPT/Grok 429 Immediate Rate Limit',
+        description: 'Treat GPT/Grok 429 as quota exhaustion: rate-limit immediately; Grok Free near-full uses a longer window',
+        enabled: 'Enable GPT/Grok 429 Immediate Rate Limit',
+        enabledHint: 'When disabled, GPT/Grok fall back to the generic short 429 cooldown; other platforms are unchanged',
+        freeFullDurationHours: 'Free-full duration (hours)',
+        freeFullDurationHoursHint: 'Cooldown when Grok Free progress is near full and 429 is seen (1-72 hours)',
+        freeFullThresholdPercent: 'Free-full threshold (%)',
+        freeFullThresholdPercentHint: 'Treat local/upstream progress at or above this percent as full (50-100)',
+        noResetDurationMinutes: 'No-reset duration (minutes)',
+        noResetDurationMinutesHint: 'Cooldown when not free-full and upstream has no explicit reset (1-1440 minutes)',
+        saved: 'GPT/Grok 429 immediate rate-limit settings saved',
+        saveFailed: 'Failed to save GPT/Grok 429 immediate rate-limit settings'
+      },
+      accountPoolProbe: {
+        title: 'Account Pool Async Probe',
+        description: 'Low-cost background batch probes for OpenAI/Grok quota to mark 429 and recover on 200; never blocks manual probes',
+        enabled: 'Enable account pool auto probe',
+        enabledHint: 'Enabled by default; when off, only request-path and manual probes remain',
+        intervalMinutes: 'Probe interval (minutes)',
+        intervalMinutesHint: 'Minimum interval between auto-probe rounds (10-60 minutes)',
+        batchSize: 'Accounts per round',
+        batchSizeHint: 'Max accounts probed each round (1-200)',
+        maxConcurrency: 'Max concurrency',
+        maxConcurrencyHint: 'Concurrent probes within a round (1-10)',
+        accountCooldownMinutes: 'Per-account cooldown (minutes)',
+        accountCooldownMinutesHint: 'Minimum gap between auto probes of the same account (10-240 minutes); manual probes are never blocked',
+        platforms: 'Platforms',
+        platformsHint: 'Supports openai, grok (comma-separated)',
+        saved: 'Account pool probe settings saved',
+        saveFailed: 'Failed to save account pool probe settings'
+      },
       streamTimeout: {
         title: 'Stream Timeout Handling',
         description: 'Configure account handling strategy when upstream response times out',

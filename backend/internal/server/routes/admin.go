@@ -560,6 +560,12 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		// 429默认回避配置
 		adminSettings.GET("/rate-limit-429-cooldown", h.Admin.Setting.GetRateLimit429CooldownSettings)
 		adminSettings.PUT("/rate-limit-429-cooldown", h.Admin.Setting.UpdateRateLimit429CooldownSettings)
+		// GPT/Grok 429 立即限流配置
+		adminSettings.GET("/openai-grok-429-exhaustion", h.Admin.Setting.GetOpenAIGrok429ExhaustionSettings)
+		adminSettings.PUT("/openai-grok-429-exhaustion", h.Admin.Setting.UpdateOpenAIGrok429ExhaustionSettings)
+		// 号池全局异步探测配置
+		adminSettings.GET("/account-pool-probe", h.Admin.Setting.GetAccountPoolProbeSettings)
+		adminSettings.PUT("/account-pool-probe", h.Admin.Setting.UpdateAccountPoolProbeSettings)
 		// 流超时处理配置
 		adminSettings.GET("/stream-timeout", h.Admin.Setting.GetStreamTimeoutSettings)
 		adminSettings.PUT("/stream-timeout", h.Admin.Setting.UpdateStreamTimeoutSettings)
