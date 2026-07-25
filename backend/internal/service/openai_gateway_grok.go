@@ -1270,7 +1270,8 @@ func (s *OpenAIGatewayService) updateGrokUsageSnapshot(ctx context.Context, acco
 	}
 	accountID := account.ID
 	now := time.Now()
-	resetAt, hasActiveLimit := grokRateLimitResetAtForAccount(account, snapshot, now)
+	exhaustion := resolveOpenAIGrok429ExhaustionSettings(s.settingService)
+	resetAt, hasActiveLimit := grokRateLimitResetAtForAccountWithPolicy(account, snapshot, now, exhaustion, 0)
 	if hasActiveLimit {
 		normalizeGrokExhaustedWindowResets(snapshot, resetAt, now)
 	}
@@ -1356,8 +1357,15 @@ func normalizeGrokExhaustedWindowResets(snapshot *xai.QuotaSnapshot, resetAt, no
 }
 
 func grokRateLimitResetAt(snapshot *xai.QuotaSnapshot, now time.Time) (time.Time, bool) {
+	return grokRateLimitResetAtWithFallback(snapshot, now, grokRateLimitFallbackCooldown)
+}
+
+func grokRateLimitResetAtWithFallback(snapshot *xai.QuotaSnapshot, now time.Time, fallback time.Duration) (time.Time, bool) {
 	if snapshot == nil {
 		return time.Time{}, false
+	}
+	if fallback <= 0 {
+		fallback = grokRateLimitFallbackCooldown
 	}
 
 	// Retry-After is xAI's explicit retry boundary. Use the observation time so
@@ -1403,15 +1411,102 @@ func grokRateLimitResetAt(snapshot *xai.QuotaSnapshot, now time.Time) (time.Time
 		return time.Time{}, false
 	}
 	if exhausted || snapshot.StatusCode == http.StatusTooManyRequests {
-		return now.Add(grokRateLimitFallbackCooldown), true
+		return now.Add(fallback), true
 	}
 	return time.Time{}, false
 }
 
+// isGrokFreeQuotaFull reports whether Free rolling quota evidence looks exhausted.
+// Prefer remaining=0 windows / free token-limit remaining under threshold; optional
+// local 24h utilization can be supplied by callers that already have usage stats.
+func isGrokFreeQuotaFull(account *Account, snapshot *xai.QuotaSnapshot, thresholdPercent float64, localTokens int64) bool {
+	if !isKnownGrokFreeAccount(account) {
+		return false
+	}
+	if thresholdPercent <= 0 {
+		thresholdPercent = DefaultOpenAIGrok429ExhaustionSettings().FreeFullThresholdPercent
+	}
+	if snapshot != nil {
+		for _, window := range []*xai.QuotaWindow{snapshot.Requests, snapshot.Tokens} {
+			if window == nil || window.Remaining == nil {
+				continue
+			}
+			if *window.Remaining <= 0 {
+				return true
+			}
+			if window.Limit != nil && *window.Limit > 0 {
+				usedPercent := float64(*window.Limit-*window.Remaining) * 100 / float64(*window.Limit)
+				if usedPercent >= thresholdPercent {
+					return true
+				}
+			}
+		}
+	}
+	if localTokens > 0 {
+		limit := float64(xai.GrokFreeRolling24hTokenLimit)
+		if limit > 0 && float64(localTokens)*100/limit >= thresholdPercent {
+			return true
+		}
+	}
+	return false
+}
+
+func resolveOpenAIGrok429ExhaustionSettings(settingService *SettingService) *OpenAIGrok429ExhaustionSettings {
+	if settingService == nil {
+		return DefaultOpenAIGrok429ExhaustionSettings()
+	}
+	settings, err := settingService.GetOpenAIGrok429ExhaustionSettings(context.Background())
+	if err != nil || settings == nil {
+		return DefaultOpenAIGrok429ExhaustionSettings()
+	}
+	return settings
+}
+
 func grokRateLimitResetAtForAccount(account *Account, snapshot *xai.QuotaSnapshot, now time.Time) (time.Time, bool) {
-	resetAt, limited := grokRateLimitResetAt(snapshot, now)
-	if !limited || !isGrokOAuthAccount(account) || snapshot == nil || snapshot.StatusCode != http.StatusTooManyRequests {
-		return resetAt, limited
+	return grokRateLimitResetAtForAccountWithPolicy(account, snapshot, now, nil, 0)
+}
+
+// grokRateLimitResetAtForAccountWithPolicy applies GPT/Grok 429 exhaustion policy:
+// - Free + full progress + 429 → FreeFullDurationHours (default 24h)
+// - other 429 without authoritative reset → NoResetDurationMinutes (default 60m) when enabled
+// - adaptive repeat backoff still extends short cooldowns
+func grokRateLimitResetAtForAccountWithPolicy(
+	account *Account,
+	snapshot *xai.QuotaSnapshot,
+	now time.Time,
+	exhaustion *OpenAIGrok429ExhaustionSettings,
+	localTokens int64,
+) (time.Time, bool) {
+	if exhaustion == nil {
+		exhaustion = DefaultOpenAIGrok429ExhaustionSettings()
+	}
+
+	fallback := grokRateLimitFallbackCooldown
+	if exhaustion.Enabled && isGrokOAuthAccount(account) && snapshot != nil && snapshot.StatusCode == http.StatusTooManyRequests {
+		if isGrokFreeQuotaFull(account, snapshot, exhaustion.FreeFullThresholdPercent, localTokens) {
+			fallback = time.Duration(exhaustion.FreeFullDurationHours) * time.Hour
+		} else {
+			fallback = time.Duration(exhaustion.NoResetDurationMinutes) * time.Minute
+		}
+	}
+
+	resetAt, limited := grokRateLimitResetAtWithFallback(snapshot, now, fallback)
+	if !limited {
+		return resetAt, false
+	}
+
+	// Free full may still lose to a short Retry-After; force the official Free window.
+	if exhaustion.Enabled && isGrokOAuthAccount(account) && snapshot != nil &&
+		snapshot.StatusCode == http.StatusTooManyRequests &&
+		isGrokFreeQuotaFull(account, snapshot, exhaustion.FreeFullThresholdPercent, localTokens) {
+		freeFullResetAt := now.Add(time.Duration(exhaustion.FreeFullDurationHours) * time.Hour)
+		if freeFullResetAt.After(resetAt) {
+			resetAt = freeFullResetAt
+		}
+	}
+
+	if !isGrokOAuthAccount(account) || snapshot == nil || snapshot.StatusCode != http.StatusTooManyRequests {
+		return resetAt, true
 	}
 	if account.RateLimitedAt == nil || account.RateLimitResetAt == nil {
 		return resetAt, true
@@ -1432,6 +1527,7 @@ func grokRateLimitResetAtForAccount(account *Account, snapshot *xai.QuotaSnapsho
 	case previousCooldown >= grokRateLimitRepeatCooldown:
 		adaptiveCooldown = grokRateLimitSustainedCooldown
 	}
+	// Free-full 24h cooldowns should not be shortened by adaptive steps; only extend.
 	adaptiveResetAt := now.Add(adaptiveCooldown)
 	if adaptiveResetAt.After(resetAt) {
 		resetAt = adaptiveResetAt
@@ -1466,6 +1562,8 @@ func isSuccessfulGrokRateLimitRecovery(account *Account, snapshot *xai.QuotaSnap
 		snapshot.StatusCode < http.StatusMultipleChoices
 }
 
+const grokFreeProgressResetAtExtraKey = "grok_free_progress_reset_at"
+
 func clearGrokRateLimitAfterRecovery(ctx context.Context, repo AccountRepository, account *Account) {
 	if repo == nil || account == nil || account.RateLimitedAt == nil || account.RateLimitResetAt == nil || ctx.Err() != nil {
 		return
@@ -1474,9 +1572,28 @@ func clearGrokRateLimitAfterRecovery(ctx context.Context, repo AccountRepository
 	if !ok {
 		return
 	}
-	_, err := recoveryRepo.ClearRateLimitIfObserved(ctx, account.ID, *account.RateLimitedAt, *account.RateLimitResetAt)
+	cleared, err := recoveryRepo.ClearRateLimitIfObserved(ctx, account.ID, *account.RateLimitedAt, *account.RateLimitResetAt)
 	if err != nil {
 		slog.Warn("grok_rate_limit_recovery_clear_failed", "account_id", account.ID, "error", err)
+		return
+	}
+	if !cleared {
+		return
+	}
+	// Keep in-memory account consistent for same-request consumers / UI patch paths.
+	account.RateLimitedAt = nil
+	account.RateLimitResetAt = nil
+	// Free 进度条基于本地 24h 用量；探测/请求恢复 200 后写入 baseline，
+	// 让进度条从恢复时刻重新累计，而不是继续显示限流前的满条。
+	if isKnownGrokFreeAccount(account) {
+		resetAt := time.Now().UTC().Format(time.RFC3339)
+		if err := repo.UpdateExtra(ctx, account.ID, map[string]any{
+			grokFreeProgressResetAtExtraKey: resetAt,
+		}); err != nil {
+			slog.Warn("grok_free_progress_reset_persist_failed", "account_id", account.ID, "error", err)
+		} else {
+			mergeAccountExtra(account, map[string]any{grokFreeProgressResetAtExtraKey: resetAt})
+		}
 	}
 }
 

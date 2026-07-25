@@ -503,6 +503,36 @@ type RateLimit429CooldownSettings struct {
 	CooldownSeconds int `json:"cooldown_seconds"`
 }
 
+// OpenAIGrok429ExhaustionSettings GPT/Grok 429 立即限流（额度耗尽语义）配置。
+// 默认开启；关闭后 GPT/Grok 回退到旧的 429 处理策略。
+type OpenAIGrok429ExhaustionSettings struct {
+	// Enabled 是否对 GPT/Grok 的 429 立即写入 rate_limit_reset_at 并踢出调度
+	Enabled bool `json:"enabled"`
+	// FreeFullDurationHours Free 账号进度条满且 429 时的限流时长（小时）
+	FreeFullDurationHours int `json:"free_full_duration_hours"`
+	// FreeFullThresholdPercent 判定 Free 进度条“已满”的阈值（0-100）
+	FreeFullThresholdPercent float64 `json:"free_full_threshold_percent"`
+	// NoResetDurationMinutes 无上游 reset 时 GPT/Grok 的默认限流时长（分钟）
+	NoResetDurationMinutes int `json:"no_reset_duration_minutes"`
+}
+
+// AccountPoolProbeSettings 号池全局异步探测配置。
+// 设计目标：最小代价、不影响请求主路径；低并发 + 账号级冷却锁避免与手动探测打架。
+type AccountPoolProbeSettings struct {
+	// Enabled 是否启用全局定时探测（默认开启）
+	Enabled bool `json:"enabled"`
+	// IntervalMinutes 探测周期（分钟），建议 10-20
+	IntervalMinutes int `json:"interval_minutes"`
+	// BatchSize 每轮最多探测账号数
+	BatchSize int `json:"batch_size"`
+	// MaxConcurrency 每轮探测并发上限（保持很低）
+	MaxConcurrency int `json:"max_concurrency"`
+	// AccountCooldownMinutes 单号探测冷却锁（分钟），期间自动探测跳过该号；手动探测不受阻
+	AccountCooldownMinutes int `json:"account_cooldown_minutes"`
+	// Platforms 参与探测的平台（默认 openai,grok）
+	Platforms []string `json:"platforms"`
+}
+
 // DefaultOverloadCooldownSettings 返回默认的过载冷却配置（启用，10分钟）
 func DefaultOverloadCooldownSettings() *OverloadCooldownSettings {
 	return &OverloadCooldownSettings{
@@ -516,6 +546,28 @@ func DefaultRateLimit429CooldownSettings() *RateLimit429CooldownSettings {
 	return &RateLimit429CooldownSettings{
 		Enabled:         true,
 		CooldownSeconds: 5,
+	}
+}
+
+// DefaultOpenAIGrok429ExhaustionSettings GPT/Grok 429 立即限流默认配置。
+func DefaultOpenAIGrok429ExhaustionSettings() *OpenAIGrok429ExhaustionSettings {
+	return &OpenAIGrok429ExhaustionSettings{
+		Enabled:                  true,
+		FreeFullDurationHours:    24,
+		FreeFullThresholdPercent: 98,
+		NoResetDurationMinutes:   60,
+	}
+}
+
+// DefaultAccountPoolProbeSettings 号池全局探测默认配置（低成本）。
+func DefaultAccountPoolProbeSettings() *AccountPoolProbeSettings {
+	return &AccountPoolProbeSettings{
+		Enabled:                true,
+		IntervalMinutes:        15,
+		BatchSize:              20,
+		MaxConcurrency:         2,
+		AccountCooldownMinutes: 20,
+		Platforms:              []string{PlatformOpenAI, PlatformGrok},
 	}
 }
 

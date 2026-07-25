@@ -154,6 +154,132 @@ func (h *SettingHandler) UpdateRateLimit429CooldownSettings(c *gin.Context) {
 	})
 }
 
+// GetOpenAIGrok429ExhaustionSettings 获取 GPT/Grok 429 立即限流配置
+// GET /api/v1/admin/settings/openai-grok-429-exhaustion
+func (h *SettingHandler) GetOpenAIGrok429ExhaustionSettings(c *gin.Context) {
+	settings, err := h.settingService.GetOpenAIGrok429ExhaustionSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dto.OpenAIGrok429ExhaustionSettings{
+		Enabled:                  settings.Enabled,
+		FreeFullDurationHours:    settings.FreeFullDurationHours,
+		FreeFullThresholdPercent: settings.FreeFullThresholdPercent,
+		NoResetDurationMinutes:   settings.NoResetDurationMinutes,
+	})
+}
+
+// UpdateOpenAIGrok429ExhaustionSettingsRequest 更新 GPT/Grok 429 立即限流配置请求
+type UpdateOpenAIGrok429ExhaustionSettingsRequest struct {
+	Enabled                  bool    `json:"enabled"`
+	FreeFullDurationHours    int     `json:"free_full_duration_hours"`
+	FreeFullThresholdPercent float64 `json:"free_full_threshold_percent"`
+	NoResetDurationMinutes   int     `json:"no_reset_duration_minutes"`
+}
+
+// UpdateOpenAIGrok429ExhaustionSettings 更新 GPT/Grok 429 立即限流配置
+// PUT /api/v1/admin/settings/openai-grok-429-exhaustion
+func (h *SettingHandler) UpdateOpenAIGrok429ExhaustionSettings(c *gin.Context) {
+	var req UpdateOpenAIGrok429ExhaustionSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	settings := &service.OpenAIGrok429ExhaustionSettings{
+		Enabled:                  req.Enabled,
+		FreeFullDurationHours:    req.FreeFullDurationHours,
+		FreeFullThresholdPercent: req.FreeFullThresholdPercent,
+		NoResetDurationMinutes:   req.NoResetDurationMinutes,
+	}
+	if err := h.settingService.SetOpenAIGrok429ExhaustionSettings(c.Request.Context(), settings); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	updated, err := h.settingService.GetOpenAIGrok429ExhaustionSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dto.OpenAIGrok429ExhaustionSettings{
+		Enabled:                  updated.Enabled,
+		FreeFullDurationHours:    updated.FreeFullDurationHours,
+		FreeFullThresholdPercent: updated.FreeFullThresholdPercent,
+		NoResetDurationMinutes:   updated.NoResetDurationMinutes,
+	})
+}
+
+// GetAccountPoolProbeSettings 获取号池全局异步探测配置
+// GET /api/v1/admin/settings/account-pool-probe
+func (h *SettingHandler) GetAccountPoolProbeSettings(c *gin.Context) {
+	settings, err := h.settingService.GetAccountPoolProbeSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	platforms := settings.Platforms
+	if platforms == nil {
+		platforms = []string{}
+	}
+	response.Success(c, dto.AccountPoolProbeSettings{
+		Enabled:                settings.Enabled,
+		IntervalMinutes:        settings.IntervalMinutes,
+		BatchSize:              settings.BatchSize,
+		MaxConcurrency:         settings.MaxConcurrency,
+		AccountCooldownMinutes: settings.AccountCooldownMinutes,
+		Platforms:              platforms,
+	})
+}
+
+// UpdateAccountPoolProbeSettingsRequest 更新号池全局异步探测配置请求
+type UpdateAccountPoolProbeSettingsRequest struct {
+	Enabled                bool     `json:"enabled"`
+	IntervalMinutes        int      `json:"interval_minutes"`
+	BatchSize              int      `json:"batch_size"`
+	MaxConcurrency         int      `json:"max_concurrency"`
+	AccountCooldownMinutes int      `json:"account_cooldown_minutes"`
+	Platforms              []string `json:"platforms"`
+}
+
+// UpdateAccountPoolProbeSettings 更新号池全局异步探测配置
+// PUT /api/v1/admin/settings/account-pool-probe
+func (h *SettingHandler) UpdateAccountPoolProbeSettings(c *gin.Context) {
+	var req UpdateAccountPoolProbeSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	settings := &service.AccountPoolProbeSettings{
+		Enabled:                req.Enabled,
+		IntervalMinutes:        req.IntervalMinutes,
+		BatchSize:              req.BatchSize,
+		MaxConcurrency:         req.MaxConcurrency,
+		AccountCooldownMinutes: req.AccountCooldownMinutes,
+		Platforms:              req.Platforms,
+	}
+	if err := h.settingService.SetAccountPoolProbeSettings(c.Request.Context(), settings); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	updated, err := h.settingService.GetAccountPoolProbeSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	platforms := updated.Platforms
+	if platforms == nil {
+		platforms = []string{}
+	}
+	response.Success(c, dto.AccountPoolProbeSettings{
+		Enabled:                updated.Enabled,
+		IntervalMinutes:        updated.IntervalMinutes,
+		BatchSize:              updated.BatchSize,
+		MaxConcurrency:         updated.MaxConcurrency,
+		AccountCooldownMinutes: updated.AccountCooldownMinutes,
+		Platforms:              platforms,
+	})
+}
+
 // GetStreamTimeoutSettings 获取流超时处理配置
 // GET /api/v1/admin/settings/stream-timeout
 func (h *SettingHandler) GetStreamTimeoutSettings(c *gin.Context) {

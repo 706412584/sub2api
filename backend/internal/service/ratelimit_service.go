@@ -964,6 +964,8 @@ func (s *RateLimitService) handle429(ctx context.Context, account *Account, head
 			slog.Info("openai_account_rate_limited", "account_id", account.ID, "reset_at", *resetAt)
 			return
 		}
+		// 无 header reset 时继续解析 body 的 resets_at；
+		// exhaustion fallback 必须在 body 解析失败之后，避免覆盖 usage_limit_reached。
 	}
 
 	// 2. Anthropic 平台：尝试解析 per-window 头（5h / 7d），选择实际触发的窗口
@@ -1004,6 +1006,9 @@ func (s *RateLimitService) handle429(ctx context.Context, account *Account, head
 					return
 				}
 				slog.Info("account_rate_limited", "account_id", account.ID, "platform", account.Platform, "reset_at", resetTime, "reset_in", time.Until(resetTime).Truncate(time.Second))
+				return
+			}
+			if s.applyOpenAIGrok429ExhaustionFallback(ctx, account, "openai_body_no_reset_time") {
 				return
 			}
 		case PlatformGemini, PlatformAntigravity:
@@ -1066,6 +1071,11 @@ func (s *RateLimitService) handle429(ctx context.Context, account *Account, head
 }
 
 func (s *RateLimitService) apply429FallbackRateLimit(ctx context.Context, account *Account, reason string) {
+	if account != nil && (account.Platform == PlatformOpenAI || account.Platform == PlatformGrok) {
+		if s.applyOpenAIGrok429ExhaustionFallback(ctx, account, reason) {
+			return
+		}
+	}
 	cooldown, enabled := s.get429FallbackCooldown(ctx, account)
 	if !enabled {
 		slog.Info("rate_limit_429_fallback_ignored", "account_id", account.ID, "platform", account.Platform, "reason", reason)
@@ -1078,6 +1088,46 @@ func (s *RateLimitService) apply429FallbackRateLimit(ctx context.Context, accoun
 	if err := s.accountRepo.SetRateLimited(ctx, account.ID, resetAt); err != nil {
 		slog.Warn("rate_limit_set_failed", "account_id", account.ID, "error", err)
 	}
+}
+
+// applyOpenAIGrok429ExhaustionFallback immediately rate-limits GPT/Grok accounts
+// when exhaustion policy is enabled and no authoritative reset time is available.
+func (s *RateLimitService) applyOpenAIGrok429ExhaustionFallback(ctx context.Context, account *Account, reason string) bool {
+	if s == nil || account == nil {
+		return false
+	}
+	if account.Platform != PlatformOpenAI && account.Platform != PlatformGrok {
+		return false
+	}
+	settings := resolveOpenAIGrok429ExhaustionSettings(s.settingService)
+	if settings == nil || !settings.Enabled {
+		return false
+	}
+	minutes := settings.NoResetDurationMinutes
+	if minutes < 1 {
+		minutes = DefaultOpenAIGrok429ExhaustionSettings().NoResetDurationMinutes
+	}
+	// Grok Free 满额走 24h；OpenAI 与 Grok 非 Free 走 no-reset 分钟级。
+	duration := time.Duration(minutes) * time.Minute
+	if account.Platform == PlatformGrok && isKnownGrokFreeAccount(account) {
+		snapshot, _ := grokQuotaSnapshotFromExtra(account.Extra)
+		if isGrokFreeQuotaFull(account, snapshot, settings.FreeFullThresholdPercent, 0) {
+			duration = time.Duration(settings.FreeFullDurationHours) * time.Hour
+		}
+	}
+	resetAt := time.Now().Add(duration)
+	slog.Info("openai_grok_429_exhaustion_rate_limited",
+		"account_id", account.ID,
+		"platform", account.Platform,
+		"reason", reason,
+		"reset_at", resetAt.UTC(),
+		"duration", duration.String(),
+	)
+	s.notifyAccountSchedulingBlocked(account, resetAt, "429_exhaustion")
+	if err := s.accountRepo.SetRateLimited(ctx, account.ID, resetAt); err != nil {
+		slog.Warn("rate_limit_set_failed", "account_id", account.ID, "error", err)
+	}
+	return true
 }
 
 func (s *RateLimitService) get429FallbackCooldown(ctx context.Context, account *Account) (time.Duration, bool) {

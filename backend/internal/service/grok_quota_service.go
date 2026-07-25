@@ -51,13 +51,14 @@ type GrokQuotaResetResult struct {
 }
 
 type GrokQuotaService struct {
-	accountRepo   AccountRepository
-	proxyRepo     ProxyRepository
-	tokenProvider *GrokTokenProvider
-	httpUpstream  HTTPUpstream
-	usageLogRepo  UsageLogRepository
-	cfg           *config.Config
-	probeFlight   singleflight.Group
+	accountRepo    AccountRepository
+	proxyRepo      ProxyRepository
+	tokenProvider  *GrokTokenProvider
+	httpUpstream   HTTPUpstream
+	usageLogRepo   UsageLogRepository
+	settingService *SettingService
+	cfg            *config.Config
+	probeFlight    singleflight.Group
 }
 
 func NewGrokQuotaService(
@@ -80,6 +81,14 @@ func NewGrokQuotaService(
 		usageLogRepo:  usageLogRepo,
 		cfg:           cfg,
 	}
+}
+
+// SetSettingService injects system settings used by Free-full / 429 exhaustion policy.
+func (s *GrokQuotaService) SetSettingService(settingService *SettingService) {
+	if s == nil {
+		return
+	}
+	s.settingService = settingService
 }
 
 // QueryQuota combines xAI billing data with an active quota-header probe for
@@ -178,9 +187,18 @@ func (s *GrokQuotaService) probeUsage(ctx context.Context, accountID int64) (*Gr
 	defer func() { _ = resp.Body.Close() }()
 
 	snapshot := xai.ObserveQuotaHeaders(resp.Header, resp.StatusCode, "active_probe")
-	resetAt, limited := grokRateLimitResetAtForAccount(account, snapshot, time.Now())
+	now := time.Now()
+	exhaustion := resolveOpenAIGrok429ExhaustionSettings(s.settingService)
+	var localTokens int64
+	// Only pay for local 24h stats on Free 429 paths (Free-full duration decision).
+	if s.usageLogRepo != nil && isKnownGrokFreeAccount(account) && snapshot.StatusCode == http.StatusTooManyRequests {
+		if local := grokLocalUsage24h(ctx, s.usageLogRepo, account.ID, now); local != nil {
+			localTokens = local.Tokens
+		}
+	}
+	resetAt, limited := grokRateLimitResetAtForAccountWithPolicy(account, snapshot, now, exhaustion, localTokens)
 	if limited {
-		normalizeGrokExhaustedWindowResets(snapshot, resetAt, time.Now())
+		normalizeGrokExhaustedWindowResets(snapshot, resetAt, now)
 	}
 	persistErr := s.accountRepo.UpdateExtra(ctx, account.ID, map[string]any{
 		grokQuotaSnapshotExtraKey: snapshot,

@@ -13,6 +13,10 @@ const {
   getOverloadCooldownSettings,
   getRateLimit429CooldownSettings,
   updateRateLimit429CooldownSettings,
+  getOpenAIGrok429ExhaustionSettings,
+  updateOpenAIGrok429ExhaustionSettings,
+  getAccountPoolProbeSettings,
+  updateAccountPoolProbeSettings,
   getStreamTimeoutSettings,
   getRectifierSettings,
   getBetaPolicySettings,
@@ -39,6 +43,10 @@ const {
   getOverloadCooldownSettings: vi.fn(),
   getRateLimit429CooldownSettings: vi.fn(),
   updateRateLimit429CooldownSettings: vi.fn(),
+  getOpenAIGrok429ExhaustionSettings: vi.fn(),
+  updateOpenAIGrok429ExhaustionSettings: vi.fn(),
+  getAccountPoolProbeSettings: vi.fn(),
+  updateAccountPoolProbeSettings: vi.fn(),
   getStreamTimeoutSettings: vi.fn(),
   getRectifierSettings: vi.fn(),
   getBetaPolicySettings: vi.fn(),
@@ -77,6 +85,10 @@ vi.mock("@/api", () => ({
       getOverloadCooldownSettings,
       getRateLimit429CooldownSettings,
       updateRateLimit429CooldownSettings,
+      getOpenAIGrok429ExhaustionSettings,
+      updateOpenAIGrok429ExhaustionSettings,
+      getAccountPoolProbeSettings,
+      updateAccountPoolProbeSettings,
       getStreamTimeoutSettings,
       getRectifierSettings,
       getBetaPolicySettings,
@@ -576,6 +588,10 @@ describe("admin SettingsView payment visible method controls", () => {
     getAdminApiKey.mockReset();
     getOverloadCooldownSettings.mockReset();
     getRateLimit429CooldownSettings.mockReset();
+    getOpenAIGrok429ExhaustionSettings.mockReset();
+    updateOpenAIGrok429ExhaustionSettings.mockReset();
+    getAccountPoolProbeSettings.mockReset();
+    updateAccountPoolProbeSettings.mockReset();
     updateRateLimit429CooldownSettings.mockReset();
     getStreamTimeoutSettings.mockReset();
     getRectifierSettings.mockReset();
@@ -620,6 +636,34 @@ describe("admin SettingsView payment visible method controls", () => {
     getRateLimit429CooldownSettings.mockResolvedValue({
       enabled: true,
       cooldown_seconds: 5,
+    });
+    getOpenAIGrok429ExhaustionSettings.mockResolvedValue({
+      enabled: true,
+      free_full_duration_hours: 24,
+      free_full_threshold_percent: 98,
+      no_reset_duration_minutes: 60,
+    });
+    updateOpenAIGrok429ExhaustionSettings.mockResolvedValue({
+      enabled: true,
+      free_full_duration_hours: 24,
+      free_full_threshold_percent: 98,
+      no_reset_duration_minutes: 60,
+    });
+    getAccountPoolProbeSettings.mockResolvedValue({
+      enabled: true,
+      interval_minutes: 15,
+      batch_size: 20,
+      max_concurrency: 2,
+      account_cooldown_minutes: 20,
+      platforms: ["openai", "grok"],
+    });
+    updateAccountPoolProbeSettings.mockResolvedValue({
+      enabled: true,
+      interval_minutes: 15,
+      batch_size: 20,
+      max_concurrency: 2,
+      account_cooldown_minutes: 20,
+      platforms: ["openai", "grok"],
     });
     updateRateLimit429CooldownSettings.mockImplementation(async (payload) => payload);
     getStreamTimeoutSettings.mockResolvedValue({
@@ -1169,6 +1213,10 @@ describe("admin SettingsView wechat connect controls", () => {
     getAdminApiKey.mockReset();
     getOverloadCooldownSettings.mockReset();
     getRateLimit429CooldownSettings.mockReset();
+    getOpenAIGrok429ExhaustionSettings.mockReset();
+    updateOpenAIGrok429ExhaustionSettings.mockReset();
+    getAccountPoolProbeSettings.mockReset();
+    updateAccountPoolProbeSettings.mockReset();
     updateRateLimit429CooldownSettings.mockReset();
     getStreamTimeoutSettings.mockReset();
     getRectifierSettings.mockReset();
@@ -1212,6 +1260,34 @@ describe("admin SettingsView wechat connect controls", () => {
     getRateLimit429CooldownSettings.mockResolvedValue({
       enabled: true,
       cooldown_seconds: 5,
+    });
+    getOpenAIGrok429ExhaustionSettings.mockResolvedValue({
+      enabled: true,
+      free_full_duration_hours: 24,
+      free_full_threshold_percent: 98,
+      no_reset_duration_minutes: 60,
+    });
+    updateOpenAIGrok429ExhaustionSettings.mockResolvedValue({
+      enabled: true,
+      free_full_duration_hours: 24,
+      free_full_threshold_percent: 98,
+      no_reset_duration_minutes: 60,
+    });
+    getAccountPoolProbeSettings.mockResolvedValue({
+      enabled: true,
+      interval_minutes: 15,
+      batch_size: 20,
+      max_concurrency: 2,
+      account_cooldown_minutes: 20,
+      platforms: ["openai", "grok"],
+    });
+    updateAccountPoolProbeSettings.mockResolvedValue({
+      enabled: true,
+      interval_minutes: 15,
+      batch_size: 20,
+      max_concurrency: 2,
+      account_cooldown_minutes: 20,
+      platforms: ["openai", "grok"],
     });
     updateRateLimit429CooldownSettings.mockImplementation(async (payload) => payload);
     getStreamTimeoutSettings.mockResolvedValue({
@@ -1415,6 +1491,10 @@ describe("admin SettingsView platform quota matrix", () => {
     getAdminApiKey.mockReset();
     getOverloadCooldownSettings.mockReset();
     getRateLimit429CooldownSettings.mockReset();
+    getOpenAIGrok429ExhaustionSettings.mockReset();
+    updateOpenAIGrok429ExhaustionSettings.mockReset();
+    getAccountPoolProbeSettings.mockReset();
+    updateAccountPoolProbeSettings.mockReset();
     updateRateLimit429CooldownSettings.mockReset();
     getStreamTimeoutSettings.mockReset();
     getRectifierSettings.mockReset();
@@ -1441,6 +1521,10 @@ describe("admin SettingsView platform quota matrix", () => {
     getAdminApiKey.mockResolvedValue({ exists: false, masked_key: "" });
     getOverloadCooldownSettings.mockResolvedValue({});
     getRateLimit429CooldownSettings.mockResolvedValue({});
+    getOpenAIGrok429ExhaustionSettings.mockResolvedValue({});
+    updateOpenAIGrok429ExhaustionSettings.mockResolvedValue({});
+    getAccountPoolProbeSettings.mockResolvedValue({});
+    updateAccountPoolProbeSettings.mockResolvedValue({});
     updateRateLimit429CooldownSettings.mockResolvedValue({});
     getStreamTimeoutSettings.mockResolvedValue({});
     getRectifierSettings.mockResolvedValue({});

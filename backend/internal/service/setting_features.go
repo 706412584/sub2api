@@ -625,6 +625,160 @@ func (s *SettingService) SetRateLimit429CooldownSettings(ctx context.Context, se
 	return s.settingRepo.Set(ctx, SettingKeyRateLimit429CooldownSettings, string(data))
 }
 
+// GetOpenAIGrok429ExhaustionSettings 获取 GPT/Grok 429 立即限流配置。
+func (s *SettingService) GetOpenAIGrok429ExhaustionSettings(ctx context.Context) (*OpenAIGrok429ExhaustionSettings, error) {
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyOpenAIGrok429ExhaustionSettings)
+	if err != nil {
+		if errors.Is(err, ErrSettingNotFound) {
+			return DefaultOpenAIGrok429ExhaustionSettings(), nil
+		}
+		return nil, fmt.Errorf("get openai/grok 429 exhaustion settings: %w", err)
+	}
+	if value == "" {
+		return DefaultOpenAIGrok429ExhaustionSettings(), nil
+	}
+
+	var settings OpenAIGrok429ExhaustionSettings
+	if err := json.Unmarshal([]byte(value), &settings); err != nil {
+		return DefaultOpenAIGrok429ExhaustionSettings(), nil
+	}
+	return normalizeOpenAIGrok429ExhaustionSettings(&settings), nil
+}
+
+// SetOpenAIGrok429ExhaustionSettings 设置 GPT/Grok 429 立即限流配置。
+func (s *SettingService) SetOpenAIGrok429ExhaustionSettings(ctx context.Context, settings *OpenAIGrok429ExhaustionSettings) error {
+	if settings == nil {
+		return fmt.Errorf("settings cannot be nil")
+	}
+	normalized := normalizeOpenAIGrok429ExhaustionSettings(settings)
+	if settings.Enabled {
+		if settings.FreeFullDurationHours < 1 || settings.FreeFullDurationHours > 168 {
+			return fmt.Errorf("free_full_duration_hours must be between 1-168")
+		}
+		if settings.FreeFullThresholdPercent < 50 || settings.FreeFullThresholdPercent > 100 {
+			return fmt.Errorf("free_full_threshold_percent must be between 50-100")
+		}
+		if settings.NoResetDurationMinutes < 1 || settings.NoResetDurationMinutes > 10080 {
+			return fmt.Errorf("no_reset_duration_minutes must be between 1-10080")
+		}
+	}
+	data, err := json.Marshal(normalized)
+	if err != nil {
+		return fmt.Errorf("marshal openai/grok 429 exhaustion settings: %w", err)
+	}
+	return s.settingRepo.Set(ctx, SettingKeyOpenAIGrok429ExhaustionSettings, string(data))
+}
+
+func normalizeOpenAIGrok429ExhaustionSettings(settings *OpenAIGrok429ExhaustionSettings) *OpenAIGrok429ExhaustionSettings {
+	defaults := DefaultOpenAIGrok429ExhaustionSettings()
+	if settings == nil {
+		return defaults
+	}
+	out := *settings
+	if out.FreeFullDurationHours < 1 || out.FreeFullDurationHours > 168 {
+		out.FreeFullDurationHours = defaults.FreeFullDurationHours
+	}
+	if out.FreeFullThresholdPercent < 50 || out.FreeFullThresholdPercent > 100 {
+		out.FreeFullThresholdPercent = defaults.FreeFullThresholdPercent
+	}
+	if out.NoResetDurationMinutes < 1 || out.NoResetDurationMinutes > 10080 {
+		out.NoResetDurationMinutes = defaults.NoResetDurationMinutes
+	}
+	return &out
+}
+
+// GetAccountPoolProbeSettings 获取号池全局异步探测配置。
+func (s *SettingService) GetAccountPoolProbeSettings(ctx context.Context) (*AccountPoolProbeSettings, error) {
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyAccountPoolProbeSettings)
+	if err != nil {
+		if errors.Is(err, ErrSettingNotFound) {
+			return DefaultAccountPoolProbeSettings(), nil
+		}
+		return nil, fmt.Errorf("get account pool probe settings: %w", err)
+	}
+	if value == "" {
+		return DefaultAccountPoolProbeSettings(), nil
+	}
+	var settings AccountPoolProbeSettings
+	if err := json.Unmarshal([]byte(value), &settings); err != nil {
+		return DefaultAccountPoolProbeSettings(), nil
+	}
+	return normalizeAccountPoolProbeSettings(&settings), nil
+}
+
+// SetAccountPoolProbeSettings 设置号池全局异步探测配置。
+func (s *SettingService) SetAccountPoolProbeSettings(ctx context.Context, settings *AccountPoolProbeSettings) error {
+	if settings == nil {
+		return fmt.Errorf("settings cannot be nil")
+	}
+	normalized := normalizeAccountPoolProbeSettings(settings)
+	if settings.Enabled {
+		if settings.IntervalMinutes < 10 || settings.IntervalMinutes > 60 {
+			return fmt.Errorf("interval_minutes must be between 10-60")
+		}
+		if settings.BatchSize < 1 || settings.BatchSize > 50 {
+			return fmt.Errorf("batch_size must be between 1-50")
+		}
+		if settings.MaxConcurrency < 1 || settings.MaxConcurrency > 5 {
+			return fmt.Errorf("max_concurrency must be between 1-5")
+		}
+		if settings.AccountCooldownMinutes < 10 || settings.AccountCooldownMinutes > 120 {
+			return fmt.Errorf("account_cooldown_minutes must be between 10-120")
+		}
+	}
+	data, err := json.Marshal(normalized)
+	if err != nil {
+		return fmt.Errorf("marshal account pool probe settings: %w", err)
+	}
+	return s.settingRepo.Set(ctx, SettingKeyAccountPoolProbeSettings, string(data))
+}
+
+func normalizeAccountPoolProbeSettings(settings *AccountPoolProbeSettings) *AccountPoolProbeSettings {
+	defaults := DefaultAccountPoolProbeSettings()
+	if settings == nil {
+		return defaults
+	}
+	out := *settings
+	if out.IntervalMinutes < 10 || out.IntervalMinutes > 60 {
+		out.IntervalMinutes = defaults.IntervalMinutes
+	}
+	if out.BatchSize < 1 || out.BatchSize > 50 {
+		out.BatchSize = defaults.BatchSize
+	}
+	if out.MaxConcurrency < 1 || out.MaxConcurrency > 5 {
+		out.MaxConcurrency = defaults.MaxConcurrency
+	}
+	if out.AccountCooldownMinutes < 10 || out.AccountCooldownMinutes > 120 {
+		out.AccountCooldownMinutes = defaults.AccountCooldownMinutes
+	}
+	if len(out.Platforms) == 0 {
+		out.Platforms = append([]string(nil), defaults.Platforms...)
+	} else {
+		allowed := map[string]struct{}{
+			PlatformOpenAI: {},
+			PlatformGrok:   {},
+		}
+		cleaned := make([]string, 0, len(out.Platforms))
+		seen := make(map[string]struct{}, len(out.Platforms))
+		for _, platform := range out.Platforms {
+			platform = strings.ToLower(strings.TrimSpace(platform))
+			if _, ok := allowed[platform]; !ok {
+				continue
+			}
+			if _, dup := seen[platform]; dup {
+				continue
+			}
+			seen[platform] = struct{}{}
+			cleaned = append(cleaned, platform)
+		}
+		if len(cleaned) == 0 {
+			cleaned = append([]string(nil), defaults.Platforms...)
+		}
+		out.Platforms = cleaned
+	}
+	return &out
+}
+
 // GetStreamTimeoutSettings 获取流超时处理配置
 func (s *SettingService) GetStreamTimeoutSettings(ctx context.Context) (*StreamTimeoutSettings, error) {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyStreamTimeoutSettings)

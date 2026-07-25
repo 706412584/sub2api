@@ -961,6 +961,38 @@ export default {
         saved: '429 默认回避设置保存成功',
         saveFailed: '保存 429 默认回避设置失败'
       },
+      openaiGrok429Exhaustion: {
+        title: 'GPT/Grok 429 立即限流',
+        description: '将 GPT/Grok 的 429 视为额度耗尽：立即限流；Grok Free 进度条满时按配置挂起更长时间',
+        enabled: '启用 GPT/Grok 429 立即限流',
+        enabledHint: '关闭后 GPT/Grok 仍走通用 429 短回避；其他平台不受影响',
+        freeFullDurationHours: 'Free 满额限流时长（小时）',
+        freeFullDurationHoursHint: 'Grok Free 进度接近满且收到 429 时的限流时长（1-72 小时）',
+        freeFullThresholdPercent: 'Free 满额判定阈值（%）',
+        freeFullThresholdPercentHint: '本地/上游进度达到该百分比即视为满额（50-100）',
+        noResetDurationMinutes: '无 Reset 时限流时长（分钟）',
+        noResetDurationMinutesHint: '非 Free 满额场景、且上游无明确 reset 时的限流时长（1-1440 分钟）',
+        saved: 'GPT/Grok 429 立即限流设置保存成功',
+        saveFailed: '保存 GPT/Grok 429 立即限流设置失败'
+      },
+      accountPoolProbe: {
+        title: '号池异步自动探测',
+        description: '后台低代价批量探测 OpenAI/Grok 账号额度，用于及时标记 429 与 200 恢复；不阻塞手动探测',
+        enabled: '启用号池自动探测',
+        enabledHint: '默认开启；关闭后仅保留请求路径与手动探测',
+        intervalMinutes: '探测轮询间隔（分钟）',
+        intervalMinutesHint: '两轮自动探测的最小间隔（10-60 分钟）',
+        batchSize: '每轮探测账号数',
+        batchSizeHint: '每轮最多探测的账号数量（1-200）',
+        maxConcurrency: '最大并发',
+        maxConcurrencyHint: '单轮内同时探测的账号数（1-10）',
+        accountCooldownMinutes: '账号冷却（分钟）',
+        accountCooldownMinutesHint: '同一账号两次自动探测的最小间隔（10-240 分钟）；不影响手动探测',
+        platforms: '探测平台',
+        platformsHint: '当前支持 openai、grok（逗号分隔）',
+        saved: '号池自动探测设置保存成功',
+        saveFailed: '保存号池自动探测设置失败'
+      },
       streamTimeout: {
         title: '流超时处理',
         description: '配置上游响应超时时的账户处理策略，避免问题账户持续被选中',

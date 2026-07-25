@@ -3054,7 +3054,8 @@ func TestHandleGrokAccountUpstreamError429UsesFallbackReset(t *testing.T) {
 	svc.handleGrokAccountUpstreamError(context.Background(), account, http.StatusTooManyRequests, nil, nil)
 
 	require.Equal(t, 1, repo.rateLimitedCalls)
-	require.WithinDuration(t, before.Add(grokRateLimitFallbackCooldown), repo.lastRateLimitResetAt, time.Second)
+	// Default exhaustion: no-reset 429 uses NoResetDurationMinutes (60m).
+	require.WithinDuration(t, before.Add(time.Duration(DefaultOpenAIGrok429ExhaustionSettings().NoResetDurationMinutes)*time.Minute), repo.lastRateLimitResetAt, time.Second)
 	require.Zero(t, repo.tempUnschedCalls)
 }
 
@@ -3278,7 +3279,9 @@ func TestUpdateGrokUsageFromResponseHeaderlessSuccessClearsObservedCooldown(t *t
 	require.Equal(t, 1, repo.recoveryClearCalls)
 	require.Equal(t, limitedAt, repo.recoveryObservedAt)
 	require.Equal(t, observedResetAt, repo.recoveryObservedReset)
-	require.Same(t, &observedResetAt, account.RateLimitResetAt, "shared account snapshots must not be mutated in place")
+	// Recovery clears in-memory rate-limit fields so same-request UI/state stays consistent.
+	require.Nil(t, account.RateLimitedAt)
+	require.Nil(t, account.RateLimitResetAt)
 }
 
 func TestUpdateGrokUsageFromResponseRecoveryRespectsCancellationAndAPIKeyBoundary(t *testing.T) {

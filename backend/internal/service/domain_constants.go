@@ -400,6 +400,14 @@ const (
 	// SettingKeyRateLimit429CooldownSettings stores JSON config for 429 fallback cooldown handling.
 	SettingKeyRateLimit429CooldownSettings = "rate_limit_429_cooldown_settings"
 
+	// SettingKeyOpenAIGrok429ExhaustionSettings stores JSON config for treating
+	// OpenAI/Grok upstream 429 as immediate scheduling rate-limits (quota exhaustion).
+	SettingKeyOpenAIGrok429ExhaustionSettings = "openai_grok_429_exhaustion_settings"
+
+	// SettingKeyAccountPoolProbeSettings stores JSON config for the global
+	// asynchronous account-pool quota probe runner.
+	SettingKeyAccountPoolProbeSettings = "account_pool_probe_settings"
+
 	// =========================
 	// Stream Timeout Handling
 	// =========================
