@@ -190,7 +190,8 @@ func (s *GrokQuotaService) probeUsage(ctx context.Context, accountID int64) (*Gr
 	now := time.Now()
 	exhaustion := resolveOpenAIGrok429ExhaustionSettings(s.settingService)
 	var localTokens int64
-	if s.usageLogRepo != nil && isKnownGrokFreeAccount(account) {
+	// Only pay for local 24h stats on Free 429 paths (Free-full duration decision).
+	if s.usageLogRepo != nil && isKnownGrokFreeAccount(account) && snapshot.StatusCode == http.StatusTooManyRequests {
 		if local := grokLocalUsage24h(ctx, s.usageLogRepo, account.ID, now); local != nil {
 			localTokens = local.Tokens
 		}
