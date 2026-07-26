@@ -524,10 +524,6 @@ func findWindowsPatchAssets(assets []Asset, from, to string) (meta, patch, hpatc
 			full = a
 		}
 	}
-	// Allow meta-declared asset names if present.
-	if meta != nil {
-		// already matched by convention
-	}
 	return meta, patch, hpatch, full
 }
 
