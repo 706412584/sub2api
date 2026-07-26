@@ -123,6 +123,8 @@ CLAUDE.md
 scripts
 !backend/scripts/
 !backend/scripts/resolve-version.sh
+!.github/scripts/
+!.github/scripts/**
 .code-review-state
 #openspec/
 code-reviews/

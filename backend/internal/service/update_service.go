@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -48,7 +49,14 @@ const (
 	maxRollbackVersions = 3
 	// Fetch a few extra releases so filtering (current/newer/prerelease) still leaves enough candidates
 	rollbackFetchPageSize = 15
+
+	// Windows binary delta (hdiff): only use patch when clearly smaller than full zip.
+	// P0 (0.1.165→0.1.167) measured ~18%; keep a conservative gate for worse diffs.
+	windowsPatchSizeRatioThreshold = 0.5
 )
+
+// errWindowsPatchUnavailable means the patch path is not applicable; callers fall back to full package.
+var errWindowsPatchUnavailable = errors.New("windows patch unavailable")
 
 // UpdateCache defines cache operations for update service
 type UpdateCache interface {
@@ -211,6 +219,15 @@ func (s *UpdateService) PerformUpdate(ctx context.Context) error {
 	if !info.HasUpdate {
 		return ErrNoUpdateAvailable
 	}
+	if info.ReleaseInfo == nil {
+		return fmt.Errorf("missing release info")
+	}
+
+	// Windows amd64: prefer N→latest hdiff patch when base hash + size gate pass.
+	// Any patch failure falls through to the full archive path.
+	if err := s.tryApplyWindowsPatch(ctx, info); err == nil {
+		return nil
+	}
 
 	return s.applyReleaseAssets(ctx, info.ReleaseInfo.Assets)
 }
@@ -225,11 +242,12 @@ func (s *UpdateService) applyReleaseAssets(ctx context.Context, releaseAssets []
 	var checksumURL string
 
 	for _, asset := range releaseAssets {
-		if strings.Contains(asset.Name, archiveName) && !strings.HasSuffix(asset.Name, ".txt") {
-			downloadURL = asset.DownloadURL
-		}
 		if asset.Name == "checksums.txt" {
 			checksumURL = asset.DownloadURL
+			continue
+		}
+		if isPlatformFullArchive(asset.Name, archiveName) {
+			downloadURL = asset.DownloadURL
 		}
 	}
 
@@ -291,10 +309,33 @@ func (s *UpdateService) applyReleaseAssets(ctx context.Context, releaseAssets []
 		return fmt.Errorf("chmod failed: %w", err)
 	}
 
-	// Atomic replacement using rename pattern:
-	// 1. Rename current -> backup (atomic on Unix)
-	// 2. Rename new -> current (atomic on Unix, same filesystem)
-	// If step 2 fails, restore backup
+	return replaceExecutableAtomically(exePath, newBinaryPath)
+}
+
+// isPlatformFullArchive reports whether name is the full platform release archive
+// (zip/tar.gz), excluding patch/sidecar assets that also contain os_arch tokens.
+func isPlatformFullArchive(name, archiveName string) bool {
+	lower := strings.ToLower(strings.TrimSpace(name))
+	if lower == "" || !strings.Contains(lower, strings.ToLower(archiveName)) {
+		return false
+	}
+	switch {
+	case strings.HasSuffix(lower, ".txt"),
+		strings.HasSuffix(lower, ".hdiff"),
+		strings.HasSuffix(lower, ".patch.json"),
+		strings.Contains(lower, "hpatchz"),
+		strings.Contains(lower, "windows-patch-checksums"):
+		return false
+	}
+	return strings.HasSuffix(lower, ".zip") ||
+		strings.HasSuffix(lower, ".tar.gz") ||
+		strings.HasSuffix(lower, ".tgz") ||
+		strings.HasSuffix(lower, ".tar")
+}
+
+// replaceExecutableAtomically renames current -> .backup, then new -> current.
+// On failure of the second step it restores the backup.
+func replaceExecutableAtomically(exePath, newBinaryPath string) error {
 	backupPath := exePath + ".backup"
 
 	// Remove old backup if exists
@@ -316,6 +357,227 @@ func (s *UpdateService) applyReleaseAssets(ctx context.Context, releaseAssets []
 
 	// Success - backup file is kept for rollback capability
 	// It will be cleaned up on next successful update
+	return nil
+}
+
+// windowsPatchMeta is the JSON sidecar uploaded by .github/scripts/generate-windows-hdiff-patch.sh
+type windowsPatchMeta struct {
+	From         string `json:"from"`
+	To           string `json:"to"`
+	OS           string `json:"os"`
+	Arch         string `json:"arch"`
+	BaseSHA256   string `json:"base_sha256"`
+	ResultSHA256 string `json:"result_sha256"`
+	PatchSize    int64  `json:"patch_size"`
+	FullSize     int64  `json:"full_size"`
+	Tool         string `json:"tool"`
+	ToolVersion  string `json:"tool_version"`
+	HPatchzAsset string `json:"hpatchz_asset"`
+	PatchAsset   string `json:"patch_asset"`
+}
+
+// tryApplyWindowsPatch attempts an N→latest hdiff update on windows/amd64.
+// Returns nil on success. Returns errWindowsPatchUnavailable (or any error)
+// when the patch path is not used; callers fall back to full package.
+func (s *UpdateService) tryApplyWindowsPatch(ctx context.Context, info *UpdateInfo) error {
+	if runtime.GOOS != "windows" || runtime.GOARCH != "amd64" {
+		return errWindowsPatchUnavailable
+	}
+	if info == nil || info.ReleaseInfo == nil || len(info.ReleaseInfo.Assets) == 0 {
+		return errWindowsPatchUnavailable
+	}
+
+	from := strings.TrimPrefix(strings.TrimSpace(s.currentVersion), "v")
+	to := strings.TrimPrefix(strings.TrimSpace(info.LatestVersion), "v")
+	if from == "" || to == "" || from == to {
+		return errWindowsPatchUnavailable
+	}
+
+	metaAsset, patchAsset, hpatchAsset, fullAsset := findWindowsPatchAssets(info.ReleaseInfo.Assets, from, to)
+	if metaAsset == nil || patchAsset == nil || hpatchAsset == nil || fullAsset == nil {
+		return errWindowsPatchUnavailable
+	}
+
+	// Size gate before downloading anything heavy: prefer meta sizes, else asset sizes.
+	// Download meta first (tiny) for authoritative hashes + sizes.
+	exePath, err := os.Executable()
+	if err != nil {
+		return errWindowsPatchUnavailable
+	}
+	if resolved, err := filepath.EvalSymlinks(exePath); err == nil {
+		exePath = resolved
+	}
+	exeDir := filepath.Dir(exePath)
+
+	tempDir, err := os.MkdirTemp(exeDir, ".sub2api-update-*")
+	if err != nil {
+		return errWindowsPatchUnavailable
+	}
+	defer func() { _ = os.RemoveAll(tempDir) }()
+
+	metaPath := filepath.Join(tempDir, filepath.Base(metaAsset.Name))
+	if err := s.downloadFileWithProxyRetry(ctx, metaAsset.DownloadURL, metaPath); err != nil {
+		return errWindowsPatchUnavailable
+	}
+	metaBytes, err := os.ReadFile(metaPath)
+	if err != nil {
+		return errWindowsPatchUnavailable
+	}
+	var meta windowsPatchMeta
+	if err := json.Unmarshal(metaBytes, &meta); err != nil {
+		return errWindowsPatchUnavailable
+	}
+	if !windowsPatchMetaMatches(meta, from, to) {
+		return errWindowsPatchUnavailable
+	}
+
+	patchSize := meta.PatchSize
+	if patchSize <= 0 {
+		patchSize = patchAsset.Size
+	}
+	fullSize := meta.FullSize
+	if fullSize <= 0 {
+		fullSize = fullAsset.Size
+	}
+	if fullSize <= 0 || patchSize <= 0 || float64(patchSize) >= float64(fullSize)*windowsPatchSizeRatioThreshold {
+		return errWindowsPatchUnavailable
+	}
+
+	baseHash, err := fileSHA256Hex(exePath)
+	if err != nil || !strings.EqualFold(baseHash, meta.BaseSHA256) {
+		// Local binary is not the expected base (manual replace / skipped versions).
+		return errWindowsPatchUnavailable
+	}
+
+	for _, a := range []*Asset{metaAsset, patchAsset, hpatchAsset} {
+		if err := validateDownloadURL(a.DownloadURL); err != nil {
+			return errWindowsPatchUnavailable
+		}
+	}
+
+	patchPath := filepath.Join(tempDir, filepath.Base(patchAsset.Name))
+	if err := s.downloadFileWithProxyRetry(ctx, patchAsset.DownloadURL, patchPath); err != nil {
+		return fmt.Errorf("patch download failed: %w", err)
+	}
+	hpatchPath := filepath.Join(tempDir, "hpatchz.exe")
+	if err := s.downloadFileWithProxyRetry(ctx, hpatchAsset.DownloadURL, hpatchPath); err != nil {
+		return fmt.Errorf("hpatchz download failed: %w", err)
+	}
+
+	// Copy current exe as immutable base input (Windows may lock the running image for some ops).
+	baseCopy := filepath.Join(tempDir, "base.exe")
+	if err := copyFile(exePath, baseCopy); err != nil {
+		return errWindowsPatchUnavailable
+	}
+	outPath := filepath.Join(tempDir, "sub2api.new.exe")
+	if err := runHPatchz(ctx, hpatchPath, baseCopy, patchPath, outPath); err != nil {
+		return fmt.Errorf("hpatch failed: %w", err)
+	}
+
+	outHash, err := fileSHA256Hex(outPath)
+	if err != nil || !strings.EqualFold(outHash, meta.ResultSHA256) {
+		return fmt.Errorf("patched binary checksum mismatch")
+	}
+	if err := os.Chmod(outPath, 0755); err != nil {
+		return fmt.Errorf("chmod failed: %w", err)
+	}
+	return replaceExecutableAtomically(exePath, outPath)
+}
+
+func windowsPatchMetaMatches(meta windowsPatchMeta, from, to string) bool {
+	if !strings.EqualFold(strings.TrimSpace(meta.OS), "windows") {
+		return false
+	}
+	if !strings.EqualFold(strings.TrimSpace(meta.Arch), "amd64") {
+		return false
+	}
+	if strings.TrimPrefix(strings.TrimSpace(meta.From), "v") != from {
+		return false
+	}
+	if strings.TrimPrefix(strings.TrimSpace(meta.To), "v") != to {
+		return false
+	}
+	if strings.TrimSpace(meta.BaseSHA256) == "" || strings.TrimSpace(meta.ResultSHA256) == "" {
+		return false
+	}
+	return true
+}
+
+// findWindowsPatchAssets locates meta/patch/hpatchz/full zip for from→to on windows_amd64.
+func findWindowsPatchAssets(assets []Asset, from, to string) (meta, patch, hpatch, full *Asset) {
+	wantMeta := fmt.Sprintf("sub2api_%s_to_%s_windows_amd64.patch.json", from, to)
+	wantPatch := fmt.Sprintf("sub2api_%s_to_%s_windows_amd64.hdiff", from, to)
+	wantHPatch := "hpatchz_windows_amd64.exe"
+	archiveToken := "windows_amd64"
+
+	for i := range assets {
+		a := &assets[i]
+		name := a.Name
+		switch {
+		case name == wantMeta || strings.HasSuffix(name, wantMeta):
+			meta = a
+		case name == wantPatch || strings.HasSuffix(name, wantPatch):
+			patch = a
+		case name == wantHPatch || strings.EqualFold(name, wantHPatch):
+			hpatch = a
+		case isPlatformFullArchive(name, archiveToken):
+			full = a
+		}
+	}
+	// Allow meta-declared asset names if present.
+	if meta != nil {
+		// already matched by convention
+	}
+	return meta, patch, hpatch, full
+}
+
+func fileSHA256Hex(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = f.Close() }()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = in.Close() }()
+
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = out.Close() }()
+
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	return out.Close()
+}
+
+func runHPatchz(ctx context.Context, hpatchzPath, oldPath, patchPath, outPath string) error {
+	cmd := exec.CommandContext(ctx, hpatchzPath, oldPath, patchPath, outPath)
+	// Avoid flashing a console window on Windows when possible; SysProcAttr is platform-specific
+	// and left default here for portability across GOOS build tags.
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		msg := strings.TrimSpace(string(output))
+		if msg == "" {
+			return err
+		}
+		return fmt.Errorf("%w: %s", err, msg)
+	}
+	if _, err := os.Stat(outPath); err != nil {
+		return fmt.Errorf("hpatchz produced no output: %w", err)
+	}
 	return nil
 }
 
