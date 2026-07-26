@@ -185,6 +185,19 @@ jobs:
           GITHUB_REPO_NAME: ${{ github.event.repository.name }}
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME || 'skip' }}
 
+      # Windows amd64 binary delta (hdiff). Best-effort: never fails the release.
+      - name: Generate Windows hdiff patch
+        if: ${{ env.SIMPLE_RELEASE != 'true' }}
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          SIMPLE_RELEASE: ${{ env.SIMPLE_RELEASE }}
+        run: |
+          chmod +x .github/scripts/generate-windows-hdiff-patch.sh
+          .github/scripts/generate-windows-hdiff-patch.sh
+
       # Update DockerHub description
       - name: Update DockerHub description
         if: ${{ env.SIMPLE_RELEASE != 'true' && env.DOCKERHUB_USERNAME != '' }}

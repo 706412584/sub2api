@@ -244,3 +244,47 @@ func TestExtractBinaryFromZipFindsExe(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "MZ-fake-binary", string(data))
 }
+
+func TestIsPlatformFullArchive(t *testing.T) {
+	require.True(t, isPlatformFullArchive("sub2api_0.1.167_windows_amd64.zip", "windows_amd64"))
+	require.True(t, isPlatformFullArchive("sub2api_0.1.167_linux_amd64.tar.gz", "linux_amd64"))
+	require.False(t, isPlatformFullArchive("sub2api_0.1.165_to_0.1.167_windows_amd64.hdiff", "windows_amd64"))
+	require.False(t, isPlatformFullArchive("sub2api_0.1.165_to_0.1.167_windows_amd64.patch.json", "windows_amd64"))
+	require.False(t, isPlatformFullArchive("hpatchz_windows_amd64.exe", "windows_amd64"))
+	require.False(t, isPlatformFullArchive("windows-patch-checksums.txt", "windows_amd64"))
+	require.False(t, isPlatformFullArchive("checksums.txt", "windows_amd64"))
+}
+
+func TestWindowsPatchMetaMatches(t *testing.T) {
+	meta := windowsPatchMeta{
+		From: "0.1.165", To: "0.1.167", OS: "windows", Arch: "amd64",
+		BaseSHA256: "aaa", ResultSHA256: "bbb",
+	}
+	require.True(t, windowsPatchMetaMatches(meta, "0.1.165", "0.1.167"))
+	require.False(t, windowsPatchMetaMatches(meta, "0.1.166", "0.1.167"))
+	require.False(t, windowsPatchMetaMatches(meta, "0.1.165", "0.1.168"))
+	meta.OS = "linux"
+	require.False(t, windowsPatchMetaMatches(meta, "0.1.165", "0.1.167"))
+}
+
+func TestFindWindowsPatchAssets(t *testing.T) {
+	assets := []Asset{
+		{Name: "sub2api_0.1.167_windows_amd64.zip", DownloadURL: "https://github.com/x/y/full.zip", Size: 34_000_000},
+		{Name: "sub2api_0.1.165_to_0.1.167_windows_amd64.hdiff", DownloadURL: "https://github.com/x/y/p.hdiff", Size: 6_000_000},
+		{Name: "sub2api_0.1.165_to_0.1.167_windows_amd64.patch.json", DownloadURL: "https://github.com/x/y/p.json", Size: 400},
+		{Name: "hpatchz_windows_amd64.exe", DownloadURL: "https://github.com/x/y/hpatchz.exe", Size: 500_000},
+		{Name: "checksums.txt", DownloadURL: "https://github.com/x/y/checksums.txt", Size: 500},
+	}
+	meta, patch, hpatch, full := findWindowsPatchAssets(assets, "0.1.165", "0.1.167")
+	require.NotNil(t, meta)
+	require.NotNil(t, patch)
+	require.NotNil(t, hpatch)
+	require.NotNil(t, full)
+	require.Equal(t, "sub2api_0.1.167_windows_amd64.zip", full.Name)
+
+	meta, patch, hpatch, full = findWindowsPatchAssets(assets, "0.1.160", "0.1.167")
+	require.Nil(t, meta)
+	require.Nil(t, patch)
+	require.NotNil(t, hpatch)
+	require.NotNil(t, full)
+}
