@@ -13,6 +13,7 @@ import (
 type OpenAIMessagesDispatchModelConfig = domain.OpenAIMessagesDispatchModelConfig
 type GroupModelsListConfig = domain.GroupModelsListConfig
 type ReasoningEffortMapping = domain.ReasoningEffortMapping
+type GroupPromptPolicy = domain.GroupPromptPolicy
 
 type Group struct {
 	ID             int64
@@ -100,6 +101,9 @@ type Group struct {
 	MaxReasoningEffort string
 	// ReasoningEffortMappings rewrites explicit request values before applying the ceiling.
 	ReasoningEffortMappings []ReasoningEffortMapping
+
+	// 分组提示词策略：仅启用时在网关入口处理指定文本字段。
+	PromptPolicy GroupPromptPolicy
 
 	CreatedAt time.Time
 	UpdatedAt time.Time

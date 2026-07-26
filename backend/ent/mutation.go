@@ -21924,6 +21924,7 @@ type GroupMutation struct {
 	max_reasoning_effort                    *string
 	reasoning_effort_mappings               *[]domain.ReasoningEffortMapping
 	appendreasoning_effort_mappings         []domain.ReasoningEffortMapping
+	prompt_policy                           *domain.GroupPromptPolicy
 	clearedFields                           map[string]struct{}
 	api_keys                                map[int64]struct{}
 	removedapi_keys                         map[int64]struct{}
@@ -24658,6 +24659,42 @@ func (m *GroupMutation) ResetReasoningEffortMappings() {
 	m.appendreasoning_effort_mappings = nil
 }
 
+// SetPromptPolicy sets the "prompt_policy" field.
+func (m *GroupMutation) SetPromptPolicy(dpp domain.GroupPromptPolicy) {
+	m.prompt_policy = &dpp
+}
+
+// PromptPolicy returns the value of the "prompt_policy" field in the mutation.
+func (m *GroupMutation) PromptPolicy() (r domain.GroupPromptPolicy, exists bool) {
+	v := m.prompt_policy
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPromptPolicy returns the old "prompt_policy" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldPromptPolicy(ctx context.Context) (v domain.GroupPromptPolicy, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPromptPolicy is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPromptPolicy requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPromptPolicy: %w", err)
+	}
+	return oldValue.PromptPolicy, nil
+}
+
+// ResetPromptPolicy resets all changes to the "prompt_policy" field.
+func (m *GroupMutation) ResetPromptPolicy() {
+	m.prompt_policy = nil
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by ids.
 func (m *GroupMutation) AddAPIKeyIDs(ids ...int64) {
 	if m.api_keys == nil {
@@ -25016,7 +25053,7 @@ func (m *GroupMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *GroupMutation) Fields() []string {
-	fields := make([]string, 0, 53)
+	fields := make([]string, 0, 54)
 	if m.created_at != nil {
 		fields = append(fields, group.FieldCreatedAt)
 	}
@@ -25176,6 +25213,9 @@ func (m *GroupMutation) Fields() []string {
 	if m.reasoning_effort_mappings != nil {
 		fields = append(fields, group.FieldReasoningEffortMappings)
 	}
+	if m.prompt_policy != nil {
+		fields = append(fields, group.FieldPromptPolicy)
+	}
 	return fields
 }
 
@@ -25290,6 +25330,8 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.MaxReasoningEffort()
 	case group.FieldReasoningEffortMappings:
 		return m.ReasoningEffortMappings()
+	case group.FieldPromptPolicy:
+		return m.PromptPolicy()
 	}
 	return nil, false
 }
@@ -25405,6 +25447,8 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldMaxReasoningEffort(ctx)
 	case group.FieldReasoningEffortMappings:
 		return m.OldReasoningEffortMappings(ctx)
+	case group.FieldPromptPolicy:
+		return m.OldPromptPolicy(ctx)
 	}
 	return nil, fmt.Errorf("unknown Group field %s", name)
 }
@@ -25784,6 +25828,13 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetReasoningEffortMappings(v)
+		return nil
+	case group.FieldPromptPolicy:
+		v, ok := value.(domain.GroupPromptPolicy)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPromptPolicy(v)
 		return nil
 	}
 	return fmt.Errorf("unknown Group field %s", name)
@@ -26364,6 +26415,9 @@ func (m *GroupMutation) ResetField(name string) error {
 		return nil
 	case group.FieldReasoningEffortMappings:
 		m.ResetReasoningEffortMappings()
+		return nil
+	case group.FieldPromptPolicy:
+		m.ResetPromptPolicy()
 		return nil
 	}
 	return fmt.Errorf("unknown Group field %s", name)

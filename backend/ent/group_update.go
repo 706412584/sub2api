@@ -980,6 +980,20 @@ func (_u *GroupUpdate) AppendReasoningEffortMappings(v []domain.ReasoningEffortM
 	return _u
 }
 
+// SetPromptPolicy sets the "prompt_policy" field.
+func (_u *GroupUpdate) SetPromptPolicy(v domain.GroupPromptPolicy) *GroupUpdate {
+	_u.mutation.SetPromptPolicy(v)
+	return _u
+}
+
+// SetNillablePromptPolicy sets the "prompt_policy" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillablePromptPolicy(v *domain.GroupPromptPolicy) *GroupUpdate {
+	if v != nil {
+		_u.SetPromptPolicy(*v)
+	}
+	return _u
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_u *GroupUpdate) AddAPIKeyIDs(ids ...int64) *GroupUpdate {
 	_u.mutation.AddAPIKeyIDs(ids...)
@@ -1579,6 +1593,9 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		_spec.AddModifier(func(u *sql.UpdateBuilder) {
 			sqljson.Append(u, group.FieldReasoningEffortMappings, value)
 		})
+	}
+	if value, ok := _u.mutation.PromptPolicy(); ok {
+		_spec.SetField(group.FieldPromptPolicy, field.TypeJSON, value)
 	}
 	if _u.mutation.APIKeysCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -2838,6 +2855,20 @@ func (_u *GroupUpdateOne) AppendReasoningEffortMappings(v []domain.ReasoningEffo
 	return _u
 }
 
+// SetPromptPolicy sets the "prompt_policy" field.
+func (_u *GroupUpdateOne) SetPromptPolicy(v domain.GroupPromptPolicy) *GroupUpdateOne {
+	_u.mutation.SetPromptPolicy(v)
+	return _u
+}
+
+// SetNillablePromptPolicy sets the "prompt_policy" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillablePromptPolicy(v *domain.GroupPromptPolicy) *GroupUpdateOne {
+	if v != nil {
+		_u.SetPromptPolicy(*v)
+	}
+	return _u
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_u *GroupUpdateOne) AddAPIKeyIDs(ids ...int64) *GroupUpdateOne {
 	_u.mutation.AddAPIKeyIDs(ids...)
@@ -3467,6 +3498,9 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 		_spec.AddModifier(func(u *sql.UpdateBuilder) {
 			sqljson.Append(u, group.FieldReasoningEffortMappings, value)
 		})
+	}
+	if value, ok := _u.mutation.PromptPolicy(); ok {
+		_spec.SetField(group.FieldPromptPolicy, field.TypeJSON, value)
 	}
 	if _u.mutation.APIKeysCleared() {
 		edge := &sqlgraph.EdgeSpec{

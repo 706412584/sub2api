@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
@@ -248,6 +249,17 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	// 失败仍走 JSON+状态码链路；未标记客户端流式或间隔为 0 时是 no-op。
 	stopCompactKeepalive := service.StartOpenAICompactSSEKeepalive(c, h.openAICompactKeepaliveInterval())
 	defer stopCompactKeepalive()
+
+	// 在安全审计、模型映射和会话粘性前应用分组提示词策略。
+	body, blocked, err := applyGroupPromptPolicy(apiKey, body, domain.GroupPromptPolicyEndpointResponses)
+	if err != nil {
+		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to apply group prompt policy")
+		return
+	}
+	if blocked {
+		h.errorResponse(c, http.StatusForbidden, "permission_error", "Request blocked by group prompt policy")
+		return
+	}
 
 	// 校验请求体 JSON 合法性
 	if !gjson.ValidBytes(body) {
@@ -869,6 +881,17 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 	if !gjson.ValidBytes(body) {
 		logRequestBodyParseFailure(reqLog, body, nil)
 		h.anthropicErrorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
+		return
+	}
+
+	// Apply the group prompt policy before audit, routing, and session handling.
+	body, blocked, err := applyGroupPromptPolicy(apiKey, body, domain.GroupPromptPolicyEndpointMessages)
+	if err != nil {
+		h.anthropicErrorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to apply group prompt policy")
+		return
+	}
+	if blocked {
+		h.anthropicErrorResponse(c, http.StatusForbidden, "permission_error", "Request blocked by group prompt policy")
 		return
 	}
 

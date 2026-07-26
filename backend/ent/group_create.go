@@ -739,6 +739,20 @@ func (_c *GroupCreate) SetReasoningEffortMappings(v []domain.ReasoningEffortMapp
 	return _c
 }
 
+// SetPromptPolicy sets the "prompt_policy" field.
+func (_c *GroupCreate) SetPromptPolicy(v domain.GroupPromptPolicy) *GroupCreate {
+	_c.mutation.SetPromptPolicy(v)
+	return _c
+}
+
+// SetNillablePromptPolicy sets the "prompt_policy" field if the given value is not nil.
+func (_c *GroupCreate) SetNillablePromptPolicy(v *domain.GroupPromptPolicy) *GroupCreate {
+	if v != nil {
+		_c.SetPromptPolicy(*v)
+	}
+	return _c
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_c *GroupCreate) AddAPIKeyIDs(ids ...int64) *GroupCreate {
 	_c.mutation.AddAPIKeyIDs(ids...)
@@ -1012,6 +1026,10 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultReasoningEffortMappings
 		_c.mutation.SetReasoningEffortMappings(v)
 	}
+	if _, ok := _c.mutation.PromptPolicy(); !ok {
+		v := group.DefaultPromptPolicy
+		_c.mutation.SetPromptPolicy(v)
+	}
 	return nil
 }
 
@@ -1169,6 +1187,9 @@ func (_c *GroupCreate) check() error {
 	}
 	if _, ok := _c.mutation.ReasoningEffortMappings(); !ok {
 		return &ValidationError{Name: "reasoning_effort_mappings", err: errors.New(`ent: missing required field "Group.reasoning_effort_mappings"`)}
+	}
+	if _, ok := _c.mutation.PromptPolicy(); !ok {
+		return &ValidationError{Name: "prompt_policy", err: errors.New(`ent: missing required field "Group.prompt_policy"`)}
 	}
 	return nil
 }
@@ -1408,6 +1429,10 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.ReasoningEffortMappings(); ok {
 		_spec.SetField(group.FieldReasoningEffortMappings, field.TypeJSON, value)
 		_node.ReasoningEffortMappings = value
+	}
+	if value, ok := _c.mutation.PromptPolicy(); ok {
+		_spec.SetField(group.FieldPromptPolicy, field.TypeJSON, value)
+		_node.PromptPolicy = value
 	}
 	if nodes := _c.mutation.APIKeysIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -2402,6 +2427,18 @@ func (u *GroupUpsert) SetReasoningEffortMappings(v []domain.ReasoningEffortMappi
 // UpdateReasoningEffortMappings sets the "reasoning_effort_mappings" field to the value that was provided on create.
 func (u *GroupUpsert) UpdateReasoningEffortMappings() *GroupUpsert {
 	u.SetExcluded(group.FieldReasoningEffortMappings)
+	return u
+}
+
+// SetPromptPolicy sets the "prompt_policy" field.
+func (u *GroupUpsert) SetPromptPolicy(v domain.GroupPromptPolicy) *GroupUpsert {
+	u.Set(group.FieldPromptPolicy, v)
+	return u
+}
+
+// UpdatePromptPolicy sets the "prompt_policy" field to the value that was provided on create.
+func (u *GroupUpsert) UpdatePromptPolicy() *GroupUpsert {
+	u.SetExcluded(group.FieldPromptPolicy)
 	return u
 }
 
@@ -3430,6 +3467,20 @@ func (u *GroupUpsertOne) SetReasoningEffortMappings(v []domain.ReasoningEffortMa
 func (u *GroupUpsertOne) UpdateReasoningEffortMappings() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateReasoningEffortMappings()
+	})
+}
+
+// SetPromptPolicy sets the "prompt_policy" field.
+func (u *GroupUpsertOne) SetPromptPolicy(v domain.GroupPromptPolicy) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetPromptPolicy(v)
+	})
+}
+
+// UpdatePromptPolicy sets the "prompt_policy" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdatePromptPolicy() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdatePromptPolicy()
 	})
 }
 
@@ -4624,6 +4675,20 @@ func (u *GroupUpsertBulk) SetReasoningEffortMappings(v []domain.ReasoningEffortM
 func (u *GroupUpsertBulk) UpdateReasoningEffortMappings() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateReasoningEffortMappings()
+	})
+}
+
+// SetPromptPolicy sets the "prompt_policy" field.
+func (u *GroupUpsertBulk) SetPromptPolicy(v domain.GroupPromptPolicy) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetPromptPolicy(v)
+	})
+}
+
+// UpdatePromptPolicy sets the "prompt_policy" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdatePromptPolicy() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdatePromptPolicy()
 	})
 }
 

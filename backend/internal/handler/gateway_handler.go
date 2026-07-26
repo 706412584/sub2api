@@ -162,6 +162,19 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 
 	setOpsRequestContext(c, "", false)
 
+	if apiKey.Group != nil {
+		var blocked bool
+		body, blocked, err = applyGroupPromptPolicy(apiKey, body, domain.GroupPromptPolicyEndpointMessages)
+		if err != nil {
+			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to apply group prompt policy")
+			return
+		}
+		if blocked {
+			h.errorResponse(c, http.StatusForbidden, "permission_error", "Request blocked by group prompt policy")
+			return
+		}
+	}
+
 	bodyRef := service.NewRequestBodyRef(body)
 	parsedReq, err := service.ParseGatewayRequest(bodyRef, domain.PlatformAnthropic)
 	if err != nil {

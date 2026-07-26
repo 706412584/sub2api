@@ -617,6 +617,7 @@
           v-model:max-effort="createForm.max_reasoning_effort"
           v-model:mappings="createForm.reasoning_effort_mappings"
         />
+        <GroupPromptPolicyFields v-model="createForm.prompt_policy" />
         <div
           v-if="createForm.subscription_type !== 'subscription'"
           data-tour="group-form-exclusive"
@@ -2170,6 +2171,7 @@
           v-model:max-effort="editForm.max_reasoning_effort"
           v-model:mappings="editForm.reasoning_effort_mappings"
         />
+        <GroupPromptPolicyFields v-model="editForm.prompt_policy" />
         <div v-if="editForm.subscription_type !== 'subscription'">
           <div class="mb-1.5 flex items-center gap-1">
             <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -4070,6 +4072,7 @@ import GroupRateMultipliersModal from "@/components/admin/group/GroupRateMultipl
 import GroupRPMOverridesModal from "@/components/admin/group/GroupRPMOverridesModal.vue";
 import GroupCapacityBadge from "@/components/common/GroupCapacityBadge.vue";
 import ReasoningEffortPolicyFields from "@/components/admin/group/ReasoningEffortPolicyFields.vue";
+import GroupPromptPolicyFields from "@/components/admin/group/GroupPromptPolicyFields.vue";
 import { VueDraggable } from "vue-draggable-plus";
 import { createStableObjectKeyResolver } from "@/utils/stableObjectKey";
 import { extractApiErrorMessage } from "@/utils/apiError";
@@ -4644,6 +4647,10 @@ const createForm = reactive({
   rpm_limit: 0 as number,
   max_reasoning_effort: "",
   reasoning_effort_mappings: [] as ReasoningEffortMappingRow[],
+  prompt_policy: {
+    enabled: false,
+    rules: [],
+  } as import("@/types").GroupPromptPolicy,
 });
 
 // 简单账号类型（用于模型路由选择）
@@ -4995,6 +5002,10 @@ const editForm = reactive({
   rpm_limit: 0 as number,
   max_reasoning_effort: "",
   reasoning_effort_mappings: [] as ReasoningEffortMappingRow[],
+  prompt_policy: {
+    enabled: false,
+    rules: [],
+  } as import("@/types").GroupPromptPolicy,
 });
 
 type ImagePricingFormState = {
@@ -5629,6 +5640,9 @@ const handleEdit = async (group: AdminGroup) => {
     group.reasoning_effort_mappings,
     group.platform,
   );
+  editForm.prompt_policy = structuredClone(
+    group.prompt_policy ?? { enabled: false, rules: [] },
+  );
   resetModelsListState(editModelsListState, group.models_list_config);
   // 加载模型路由规则（异步加载账号名称）
   editModelRoutingRules.value = await convertApiFormatToRoutingRules(
@@ -5647,6 +5661,7 @@ const closeEditModal = () => {
   editingGroup.value = null;
   editForm.max_reasoning_effort = "";
   editForm.reasoning_effort_mappings = [];
+  editForm.prompt_policy = { enabled: false, rules: [] };
   editReasoningEffortPolicyRef.value?.resetValidation();
   editModelRoutingRules.value = [];
   editForm.copy_accounts_from_group_ids = [];

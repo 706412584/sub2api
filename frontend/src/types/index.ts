@@ -517,6 +517,7 @@ export interface Group {
   rpm_limit?: number // Group-level RPM cap (0 = unlimited); overrides user-level rpm_limit when set
   max_reasoning_effort?: string // OpenAI/Codex reasoning ceiling; empty means unlimited
   reasoning_effort_mappings?: ReasoningEffortMapping[]
+  prompt_policy?: GroupPromptPolicy
   is_exclusive: boolean
   status: 'active' | 'inactive'
   subscription_type: SubscriptionType
@@ -561,6 +562,30 @@ export interface Group {
   require_privacy_set: boolean
   created_at: string
   updated_at: string
+}
+
+
+export type GroupPromptPolicyEndpoint = 'chat_completions' | 'messages' | 'responses'
+export type GroupPromptPolicyTarget = 'system' | 'instructions' | 'message_text'
+export type GroupPromptPolicyMode = 'replace' | 'block' | 'prepend' | 'append'
+export type GroupPromptPolicyMatchKind = 'literal' | 'regex'
+
+export interface GroupPromptPolicyRule {
+  enabled: boolean
+  endpoints: GroupPromptPolicyEndpoint[]
+  targets: GroupPromptPolicyTarget[]
+  mode: GroupPromptPolicyMode
+  match: {
+    kind: GroupPromptPolicyMatchKind
+    value: string
+    case_sensitive: boolean
+  }
+  value: string
+}
+
+export interface GroupPromptPolicy {
+  enabled: boolean
+  rules: GroupPromptPolicyRule[]
 }
 
 export interface AdminGroup extends Group {
@@ -755,6 +780,7 @@ export interface CreateGroupRequest {
   rpm_limit?: number
   max_reasoning_effort?: string
   reasoning_effort_mappings?: ReasoningEffortMapping[]
+  prompt_policy?: GroupPromptPolicy
   require_oauth_only?: boolean
   require_privacy_set?: boolean
   // 从指定分组复制账号
@@ -807,6 +833,7 @@ export interface UpdateGroupRequest {
   rpm_limit?: number
   max_reasoning_effort?: string
   reasoning_effort_mappings?: ReasoningEffortMapping[]
+  prompt_policy?: GroupPromptPolicy
   require_oauth_only?: boolean
   require_privacy_set?: boolean
   copy_accounts_from_group_ids?: number[]

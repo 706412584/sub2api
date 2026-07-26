@@ -122,6 +122,8 @@ const (
 	FieldMaxReasoningEffort = "max_reasoning_effort"
 	// FieldReasoningEffortMappings holds the string denoting the reasoning_effort_mappings field in the database.
 	FieldReasoningEffortMappings = "reasoning_effort_mappings"
+	// FieldPromptPolicy holds the string denoting the prompt_policy field in the database.
+	FieldPromptPolicy = "prompt_policy"
 	// EdgeAPIKeys holds the string denoting the api_keys edge name in mutations.
 	EdgeAPIKeys = "api_keys"
 	// EdgeRedeemCodes holds the string denoting the redeem_codes edge name in mutations.
@@ -250,6 +252,7 @@ var Columns = []string{
 	FieldRpmLimit,
 	FieldMaxReasoningEffort,
 	FieldReasoningEffortMappings,
+	FieldPromptPolicy,
 }
 
 var (
@@ -369,6 +372,8 @@ var (
 	MaxReasoningEffortValidator func(string) error
 	// DefaultReasoningEffortMappings holds the default value on creation for the "reasoning_effort_mappings" field.
 	DefaultReasoningEffortMappings []domain.ReasoningEffortMapping
+	// DefaultPromptPolicy holds the default value on creation for the "prompt_policy" field.
+	DefaultPromptPolicy domain.GroupPromptPolicy
 )
 
 // OrderOption defines the ordering options for the Group queries.
