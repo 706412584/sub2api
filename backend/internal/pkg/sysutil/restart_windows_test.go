@@ -26,7 +26,9 @@ func TestBuildWindowsRestartScriptPrefersNativeControl(t *testing.T) {
 
 	require.Contains(t, script, "$targetPid = 4242")
 	require.Contains(t, script, "native-control.ps1")
+	require.Contains(t, script, "restart-app")
 	require.Contains(t, script, "start")
+	require.Contains(t, script, "Stop-Process -Id $targetPid -Force")
 	require.NotContains(t, script, "Start-Process -FilePath")
 }
 

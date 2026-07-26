@@ -68,16 +68,20 @@ func platformRestart() error {
 }
 
 // buildWindowsRestartScript waits for the current PID to exit, then starts the
-// service again. Prefer native-control.ps1 (preserves env + log redirection +
-// pid file); otherwise re-launch the binary in the same working directory.
+// service again. Prefer native-control.ps1 restart-app (app-only, keeps DB/Redis);
+// fall back to start; otherwise re-launch the binary in the same working directory.
 func buildWindowsRestartScript(pid int, exe, workDir string) string {
 	exeDir := filepath.Dir(exe)
 	nativeControl := filepath.Join(exeDir, "native-control.ps1")
 
 	var relaunch string
 	if _, err := os.Stat(nativeControl); err == nil {
+		// Prefer restart-app (only cycles sub2api). Older scripts without that
+		// action fall back to start (safe when the old process has already exited).
 		relaunch = fmt.Sprintf(
-			`& %s start; if ($LASTEXITCODE -ne 0) { throw "native-control start failed: $LASTEXITCODE" }`,
+			`& %s restart-app; if ($LASTEXITCODE -ne 0) { & %s start }; `+
+				`if ($LASTEXITCODE -ne 0) { throw "native-control restart/start failed: $LASTEXITCODE" }`,
+			psQuote(nativeControl),
 			psQuote(nativeControl),
 		)
 	} else {
@@ -94,14 +98,18 @@ func buildWindowsRestartScript(pid int, exe, workDir string) string {
 		)
 	}
 
-	// Wait until the old process is gone, then give handles a moment to release
-	// (important when stdout/stderr log files are still locked on Windows).
+	// Wait until the old process is gone; force-kill if it ignores graceful exit
+	// (stuck handlers). Then give handles a moment to release log file locks.
 	return fmt.Sprintf(
 		`$ErrorActionPreference = 'Stop'; `+
 			`$targetPid = %d; `+
-			`for ($i = 0; $i -lt 150; $i++) { `+
+			`for ($i = 0; $i -lt 100; $i++) { `+
 			`if (-not (Get-Process -Id $targetPid -ErrorAction SilentlyContinue)) { break }; `+
 			`Start-Sleep -Milliseconds 200 `+
+			`}; `+
+			`if (Get-Process -Id $targetPid -ErrorAction SilentlyContinue) { `+
+			`Stop-Process -Id $targetPid -Force -ErrorAction SilentlyContinue; `+
+			`Start-Sleep -Milliseconds 500 `+
 			`}; `+
 			`if (Get-Process -Id $targetPid -ErrorAction SilentlyContinue) { `+
 			`throw "timed out waiting for process $targetPid to exit" `+
