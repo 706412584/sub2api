@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -39,6 +40,10 @@ const (
 	openAIQuotaHeadroomSnapshotStaleAfter      = 8 * time.Hour
 	openAIUpstreamCostNeutralFactor            = 0.5
 	defaultOpenAIOAuthSchedulingRateMultiplier = 1.0
+	// Grok Free 剩余额度软加分：不依赖 QuotaHeadroom 权重，避免默认 0 时仍优先撞满额 free 号。
+	openAIGrokFreeHeadroomWeight        = 1.0
+	openAIGrokFreeSnapshotStaleAfter    = 24 * time.Hour
+	openAIGrokFreeHeadroomLowRemain     = 0.05
 )
 
 type cachedOpenAIAdvancedSchedulerSetting struct {
@@ -959,7 +964,8 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlan(
 			weights.TTFT*ttftFactor +
 			weights.Reset*resetFactor +
 			weights.QuotaHeadroom*quotaHeadroomFactor +
-			weights.UpstreamCost*(upstreamCostFactor-openAIUpstreamCostNeutralFactor)
+			weights.UpstreamCost*(upstreamCostFactor-openAIUpstreamCostNeutralFactor) +
+			openAIGrokFreeHeadroomWeight*grokFreeHeadroomFactor(item.account, now)
 		if req.StickyWeighted {
 			if req.PreviousResponseCanMove && req.StickyPreviousAccountID > 0 && item.account.ID == req.StickyPreviousAccountID {
 				item.score += weights.Previous
@@ -1383,6 +1389,21 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 	}
 	if len(filtered) == 0 {
 		return nil, 0, 0, 0, noAvailableOpenAISelectionError(req.RequestedModel, false, filterStats.summary(""))
+	}
+
+	// Grok Free：有非满额候选时硬过滤已观察 free 满额号，减少首次 429 撞号。
+	// 若全部 free-full / 无快照，保持原池，避免把流量打空。
+	if normalizeOpenAICompatiblePlatform(req.Platform) == PlatformGrok {
+		if preferred := preferGrokAccountsWithFreeHeadroom(filtered, time.Now()); len(preferred) > 0 && len(preferred) < len(filtered) {
+			filtered = preferred
+			loadReq = loadReq[:0]
+			for _, account := range filtered {
+				loadReq = append(loadReq, AccountWithConcurrency{
+					ID:             account.ID,
+					MaxConcurrency: account.EffectiveLoadFactor(),
+				})
+			}
+		}
 	}
 
 	loadMap := map[int64]*AccountLoadInfo{}
@@ -2525,7 +2546,8 @@ func buildOpenAIAccountSchedulerScoreSnapshot(
 			weights.TTFT*ttftFactor +
 			weights.Reset*resetFactor +
 			weights.QuotaHeadroom*quotaHeadroomFactor +
-			weights.UpstreamCost*(upstreamCostFactor-openAIUpstreamCostNeutralFactor)
+			weights.UpstreamCost*(upstreamCostFactor-openAIUpstreamCostNeutralFactor) +
+			openAIGrokFreeHeadroomWeight*grokFreeHeadroomFactor(candidate.account, now)
 		score := OpenAIAccountSchedulerScoreSnapshot{
 			BaseScore:             baseScore,
 			StickyWeightedEnabled: stickyWeightedEnabled,
@@ -2696,6 +2718,109 @@ func openAIQuotaHeadroomFactor(account *Account, now time.Time) float64 {
 		}
 	}
 	return factor
+}
+
+// preferGrokAccountsWithFreeHeadroom drops observed free-full Grok accounts when any
+// non-exhausted candidate remains. Unknown/stale/non-free accounts stay preferred.
+func preferGrokAccountsWithFreeHeadroom(accounts []*Account, now time.Time) []*Account {
+	if len(accounts) == 0 {
+		return accounts
+	}
+	preferred := make([]*Account, 0, len(accounts))
+	for _, account := range accounts {
+		if account == nil {
+			continue
+		}
+		if isGrokFreeQuotaExhaustedForScheduling(account, now) {
+			continue
+		}
+		preferred = append(preferred, account)
+	}
+	return preferred
+}
+
+// isGrokFreeQuotaExhaustedForScheduling reports free-full only from fresh snapshots.
+// Fail-open on missing/stale data so we never empty the pool by accident.
+func isGrokFreeQuotaExhaustedForScheduling(account *Account, now time.Time) bool {
+	if account == nil || !isKnownGrokFreeAccount(account) {
+		return false
+	}
+	snapshot, err := grokQuotaSnapshotFromExtra(account.Extra)
+	if err != nil || snapshot == nil || grokQuotaSnapshotStale(snapshot, now) {
+		return false
+	}
+	threshold := DefaultOpenAIGrok429ExhaustionSettings().FreeFullThresholdPercent
+	return isGrokFreeQuotaFull(account, snapshot, threshold, 0)
+}
+
+func grokQuotaSnapshotStale(snapshot *xai.QuotaSnapshot, now time.Time) bool {
+	if snapshot == nil {
+		return true
+	}
+	updatedAt, err := parseTime(strings.TrimSpace(snapshot.UpdatedAt))
+	if err != nil || updatedAt.IsZero() {
+		// Fall back to last headers / probe timestamps when UpdatedAt is missing.
+		for _, raw := range []string{snapshot.LastHeadersSeenAt, snapshot.LastProbeAt} {
+			if t, e := parseTime(strings.TrimSpace(raw)); e == nil && !t.IsZero() {
+				updatedAt = t
+				err = nil
+				break
+			}
+		}
+	}
+	if err != nil || updatedAt.IsZero() {
+		return true
+	}
+	return now.Sub(updatedAt) >= openAIGrokFreeSnapshotStaleAfter
+}
+
+// grokFreeHeadroomFactor ranks Grok accounts by free-quota headroom.
+// Non-Grok → 0. Paid Grok → 1. Free exhausted → 0. Free high remaining → ~1.
+func grokFreeHeadroomFactor(account *Account, now time.Time) float64 {
+	if account == nil || !isGrokOAuthAccount(account) {
+		return 0
+	}
+	// Paid / non-free Grok is not free-capped; give full soft bonus.
+	if !isKnownGrokFreeAccount(account) {
+		return 1
+	}
+	snapshot, err := grokQuotaSnapshotFromExtra(account.Extra)
+	if err != nil || snapshot == nil || grokQuotaSnapshotStale(snapshot, now) {
+		return openAIQuotaHeadroomNeutralFactor
+	}
+	threshold := DefaultOpenAIGrok429ExhaustionSettings().FreeFullThresholdPercent
+	if isGrokFreeQuotaFull(account, snapshot, threshold, 0) {
+		return 0
+	}
+	remainingRatio := grokFreeRemainingRatio(snapshot)
+	if remainingRatio < 0 {
+		return openAIQuotaHeadroomNeutralFactor
+	}
+	if remainingRatio < openAIGrokFreeHeadroomLowRemain {
+		return remainingRatio
+	}
+	return clamp01(remainingRatio)
+}
+
+// grokFreeRemainingRatio returns min remaining/limit across request/token windows, or -1 if unknown.
+func grokFreeRemainingRatio(snapshot *xai.QuotaSnapshot) float64 {
+	if snapshot == nil {
+		return -1
+	}
+	ratio := -1.0
+	for _, window := range []*xai.QuotaWindow{snapshot.Requests, snapshot.Tokens} {
+		if window == nil || window.Remaining == nil || window.Limit == nil || *window.Limit <= 0 {
+			continue
+		}
+		r := float64(*window.Remaining) / float64(*window.Limit)
+		if r < 0 {
+			r = 0
+		}
+		if ratio < 0 || r < ratio {
+			ratio = r
+		}
+	}
+	return ratio
 }
 
 func openAIQuotaHeadroomSnapshotStale(extra map[string]any, now time.Time) bool {
