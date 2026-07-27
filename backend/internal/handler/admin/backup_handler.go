@@ -1,6 +1,12 @@
 package admin
 
 import (
+	"fmt"
+	"io"
+	"net/http"
+	"path/filepath"
+	"strconv"
+
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -153,12 +159,42 @@ func (h *BackupHandler) GetDownloadURL(c *gin.Context) {
 		response.BadRequest(c, "backup ID is required")
 		return
 	}
-	url, err := h.backupService.GetBackupDownloadURL(c.Request.Context(), backupID)
+	info, err := h.backupService.GetBackupDownloadInfo(c.Request.Context(), backupID)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, gin.H{"url": url})
+	response.Success(c, info)
+}
+
+// DownloadBackup 通过鉴权代理流式下载备份（本地存储或需要代理的场景）。
+func (h *BackupHandler) DownloadBackup(c *gin.Context) {
+	backupID := c.Param("id")
+	if backupID == "" {
+		response.BadRequest(c, "backup ID is required")
+		return
+	}
+	body, record, err := h.backupService.OpenBackupDownload(c.Request.Context(), backupID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	defer body.Close()
+
+	fileName := record.FileName
+	if fileName == "" {
+		fileName = backupID + ".sql.gz"
+	}
+	// 仅保留文件名，避免 Content-Disposition 注入路径片段。
+	fileName = filepath.Base(fileName)
+
+	c.Header("Content-Type", "application/gzip")
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename=%q`, fileName))
+	if record.SizeBytes > 0 {
+		c.Header("Content-Length", strconv.FormatInt(record.SizeBytes, 10))
+	}
+	c.Status(http.StatusOK)
+	_, _ = io.Copy(c.Writer, body)
 }
 
 // ─── 恢复操作（需要重新输入管理员密码） ───

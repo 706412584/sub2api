@@ -82,12 +82,13 @@ export default {
 
     backup: {
       title: 'Database Backup',
-      description: 'Full database backup to S3-compatible storage with scheduled backup and restore',
+      description: 'Full database backup; uses local server directory when S3 is not configured, with scheduled backup and restore',
       s3: {
-        title: 'S3 Storage Configuration',
-        description: 'Configure S3-compatible storage (supports Cloudflare R2)',
-        descriptionPrefix: 'Configure S3-compatible storage (supports',
+        title: 'S3 Storage Configuration (Optional)',
+        description: 'Configure S3-compatible storage (supports Cloudflare R2); falls back to local directory when unset',
+        descriptionPrefix: 'Optionally configure S3-compatible storage (supports',
         descriptionSuffix: ')',
+        localFallbackHint: 'When not configured, backups are stored under the server data/backups directory and can be downloaded from the admin UI.',
         enabled: 'Enable S3 Storage',
         endpoint: 'Endpoint',
         region: 'Region',
@@ -143,11 +144,16 @@ export default {
       columns: {
         status: 'Status',
         fileName: 'File Name',
+        storage: 'Storage',
         size: 'Size',
         expiresAt: 'Expires At',
         triggeredBy: 'Triggered By',
         startedAt: 'Started At',
         actions: 'Actions'
+      },
+      storage: {
+        s3: 'S3 / Object storage',
+        local: 'Local directory',
       },
       status: {
         pending: 'Pending',

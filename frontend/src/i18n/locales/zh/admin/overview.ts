@@ -82,12 +82,13 @@ export default {
 
     backup: {
       title: '数据库备份',
-      description: '全量数据库备份到 S3 兼容存储，支持定时备份与恢复',
+      description: '全量数据库备份；未配置 S3 时自动使用服务器本地目录，支持定时备份与恢复',
       s3: {
-        title: 'S3 存储配置',
-        description: '配置 S3 兼容存储（支持 Cloudflare R2）',
-        descriptionPrefix: '配置 S3 兼容存储（支持',
+        title: 'S3 存储配置（可选）',
+        description: '配置 S3 兼容存储（支持 Cloudflare R2）；不配置则使用本地目录',
+        descriptionPrefix: '可选配置 S3 兼容存储（支持',
         descriptionSuffix: '）',
+        localFallbackHint: '未配置时，备份将保存到服务器本地 data/backups 目录，可通过管理后台下载。',
         enabled: '启用 S3 存储',
         endpoint: '端点地址',
         region: '区域',
@@ -143,11 +144,16 @@ export default {
       columns: {
         status: '状态',
         fileName: '文件名',
+        storage: '存储位置',
         size: '大小',
         expiresAt: '过期时间',
         triggeredBy: '触发方式',
         startedAt: '开始时间',
         actions: '操作'
+      },
+      storage: {
+        s3: 'S3/对象存储',
+        local: '本地目录',
       },
       status: {
         pending: '等待中',

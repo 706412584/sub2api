@@ -23,6 +23,8 @@ export interface BackupRecord {
   backup_type: string
   file_name: string
   s3_key: string
+  /** s3 | local；旧记录可能为空，前端按 s3 兼容处理 */
+  storage?: string
   size_bytes: number
   triggered_by: string
   error_message?: string
@@ -33,6 +35,12 @@ export interface BackupRecord {
   restore_status?: string
   restore_error?: string
   restored_at?: string
+}
+
+export interface BackupDownloadInfo {
+  mode: 'presign' | 'proxy'
+  url?: string
+  storage: string
 }
 
 export interface CreateBackupRequest {
@@ -137,8 +145,18 @@ export async function deleteBackup(id: string): Promise<void> {
   await apiClient.delete(`/admin/backups/${id}`)
 }
 
-export async function getDownloadURL(id: string): Promise<{ url: string }> {
-  const { data } = await apiClient.get<{ url: string }>(`/admin/backups/${id}/download-url`)
+export async function getDownloadURL(id: string): Promise<BackupDownloadInfo> {
+  const { data } = await apiClient.get<BackupDownloadInfo>(`/admin/backups/${id}/download-url`)
+  return data
+}
+
+/** 鉴权代理下载本地备份（返回 blob，由调用方触发浏览器保存） */
+export async function downloadBackupFile(id: string): Promise<Blob> {
+  const { data } = await apiClient.get<Blob>(`/admin/backups/${id}/download`, {
+    responseType: 'blob',
+    // 备份可能较大，放宽超时
+    timeout: 10 * 60 * 1000,
+  })
   return data
 }
 
@@ -162,6 +180,7 @@ export const backupAPI = {
   getBackup,
   deleteBackup,
   getDownloadURL,
+  downloadBackupFile,
   restoreBackup,
 }
 

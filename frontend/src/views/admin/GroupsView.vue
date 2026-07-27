@@ -5575,84 +5575,102 @@ const handleCreateGroup = async () => {
   }
 };
 
+// clonePromptPolicy 深拷贝策略，兼容 Vue reactive Proxy（structuredClone 会抛错）。
+const clonePromptPolicy = (
+  policy?: import("@/types").GroupPromptPolicy | null,
+): import("@/types").GroupPromptPolicy => {
+  const source = policy ?? { enabled: false, rules: [] };
+  try {
+    return JSON.parse(JSON.stringify(source)) as import("@/types").GroupPromptPolicy;
+  } catch {
+    return { enabled: false, rules: [] };
+  }
+};
+
 const handleEdit = async (group: AdminGroup) => {
-  editingGroup.value = group;
-  editForm.name = group.name;
-  editForm.description = group.description || "";
-  editForm.platform = group.platform;
-  editForm.rate_multiplier = group.rate_multiplier;
-  editForm.is_exclusive = group.is_exclusive;
-  editForm.status = group.status;
-  editForm.subscription_type = group.subscription_type || "standard";
-  editForm.daily_limit_usd = group.daily_limit_usd;
-  editForm.weekly_limit_usd = group.weekly_limit_usd;
-  editForm.monthly_limit_usd = group.monthly_limit_usd;
-  editForm.allow_image_generation = group.allow_image_generation ?? false;
-  editForm.allow_batch_image_generation =
-    group.allow_batch_image_generation ?? false;
-  editForm.image_rate_independent = group.image_rate_independent ?? false;
-  editForm.image_rate_multiplier = group.image_rate_multiplier ?? 1;
-  editForm.batch_image_discount_multiplier =
-    group.batch_image_discount_multiplier ?? 0.5;
-  editForm.batch_image_hold_multiplier = group.batch_image_hold_multiplier ?? 0.6;
-  editForm.image_price_1k = group.image_price_1k;
-  editForm.image_price_2k = group.image_price_2k;
-  editForm.image_price_4k = group.image_price_4k;
-  editForm.video_rate_independent = group.video_rate_independent ?? false;
-  editForm.video_rate_multiplier = group.video_rate_multiplier ?? 1;
-  editForm.video_price_480p = group.video_price_480p;
-  editForm.video_price_720p = group.video_price_720p;
-  editForm.video_price_1080p = group.video_price_1080p;
-  editForm.web_search_price_per_call = group.web_search_price_per_call ?? null;
-  editForm.peak_rate_enabled = group.peak_rate_enabled ?? false;
-  editForm.peak_start = group.peak_start ?? "";
-  editForm.peak_end = group.peak_end ?? "";
-  editForm.peak_rate_multiplier = group.peak_rate_multiplier ?? 1.0;
-  editForm.claude_code_only = group.claude_code_only || false;
-  editForm.fallback_group_id = group.fallback_group_id;
-  editForm.fallback_group_id_on_invalid_request =
-    group.fallback_group_id_on_invalid_request;
-  const messagesDispatchFormState = messagesDispatchConfigToFormState(
-    group.messages_dispatch_model_config,
-  );
-  editForm.allow_messages_dispatch =
-    group.allow_messages_dispatch ||
-    messagesDispatchFormState.allow_messages_dispatch;
-  editForm.allow_live = group.allow_live ?? false;
-  editForm.opus_mapped_model = messagesDispatchFormState.opus_mapped_model;
-  editForm.sonnet_mapped_model = messagesDispatchFormState.sonnet_mapped_model;
-  editForm.haiku_mapped_model = messagesDispatchFormState.haiku_mapped_model;
-  editForm.exact_model_mappings =
-    messagesDispatchFormState.exact_model_mappings;
-  editForm.require_oauth_only = group.require_oauth_only ?? false;
-  editForm.require_privacy_set = group.require_privacy_set ?? false;
-  editForm.model_routing_enabled = group.model_routing_enabled || false;
-  editForm.supported_model_scopes = group.supported_model_scopes || [
-    "claude",
-    "gemini_text",
-    "gemini_image",
-  ];
-  editForm.mcp_xml_inject = group.mcp_xml_inject ?? true;
-  editForm.copy_accounts_from_group_ids = []; // 复制账号字段每次编辑时重置为空
-  editForm.rpm_limit = group.rpm_limit ?? 0;
-  editForm.max_reasoning_effort = normalizeReasoningEffortForPlatform(
-    group.platform,
-    group.max_reasoning_effort,
-  );
-  editForm.reasoning_effort_mappings = reasoningEffortMappingsToRows(
-    group.reasoning_effort_mappings,
-    group.platform,
-  );
-  editForm.prompt_policy = structuredClone(
-    group.prompt_policy ?? { enabled: false, rules: [] },
-  );
-  resetModelsListState(editModelsListState, group.models_list_config);
-  // 加载模型路由规则（异步加载账号名称）
-  editModelRoutingRules.value = await convertApiFormatToRoutingRules(
-    group.model_routing,
-  );
-  loadModelsListCandidates("edit", group.id, group.platform);
-  showEditModal.value = true;
+  try {
+    editingGroup.value = group;
+    editForm.name = group.name;
+    editForm.description = group.description || "";
+    editForm.platform = group.platform;
+    editForm.rate_multiplier = group.rate_multiplier;
+    editForm.is_exclusive = group.is_exclusive;
+    editForm.status = group.status;
+    editForm.subscription_type = group.subscription_type || "standard";
+    editForm.daily_limit_usd = group.daily_limit_usd;
+    editForm.weekly_limit_usd = group.weekly_limit_usd;
+    editForm.monthly_limit_usd = group.monthly_limit_usd;
+    editForm.allow_image_generation = group.allow_image_generation ?? false;
+    editForm.allow_batch_image_generation =
+      group.allow_batch_image_generation ?? false;
+    editForm.image_rate_independent = group.image_rate_independent ?? false;
+    editForm.image_rate_multiplier = group.image_rate_multiplier ?? 1;
+    editForm.batch_image_discount_multiplier =
+      group.batch_image_discount_multiplier ?? 0.5;
+    editForm.batch_image_hold_multiplier =
+      group.batch_image_hold_multiplier ?? 0.6;
+    editForm.image_price_1k = group.image_price_1k;
+    editForm.image_price_2k = group.image_price_2k;
+    editForm.image_price_4k = group.image_price_4k;
+    editForm.video_rate_independent = group.video_rate_independent ?? false;
+    editForm.video_rate_multiplier = group.video_rate_multiplier ?? 1;
+    editForm.video_price_480p = group.video_price_480p;
+    editForm.video_price_720p = group.video_price_720p;
+    editForm.video_price_1080p = group.video_price_1080p;
+    editForm.web_search_price_per_call = group.web_search_price_per_call ?? null;
+    editForm.peak_rate_enabled = group.peak_rate_enabled ?? false;
+    editForm.peak_start = group.peak_start ?? "";
+    editForm.peak_end = group.peak_end ?? "";
+    editForm.peak_rate_multiplier = group.peak_rate_multiplier ?? 1.0;
+    editForm.claude_code_only = group.claude_code_only || false;
+    editForm.fallback_group_id = group.fallback_group_id;
+    editForm.fallback_group_id_on_invalid_request =
+      group.fallback_group_id_on_invalid_request;
+    const messagesDispatchFormState = messagesDispatchConfigToFormState(
+      group.messages_dispatch_model_config,
+    );
+    editForm.allow_messages_dispatch =
+      group.allow_messages_dispatch ||
+      messagesDispatchFormState.allow_messages_dispatch;
+    editForm.allow_live = group.allow_live ?? false;
+    editForm.opus_mapped_model = messagesDispatchFormState.opus_mapped_model;
+    editForm.sonnet_mapped_model = messagesDispatchFormState.sonnet_mapped_model;
+    editForm.haiku_mapped_model = messagesDispatchFormState.haiku_mapped_model;
+    editForm.exact_model_mappings =
+      messagesDispatchFormState.exact_model_mappings;
+    editForm.require_oauth_only = group.require_oauth_only ?? false;
+    editForm.require_privacy_set = group.require_privacy_set ?? false;
+    editForm.model_routing_enabled = group.model_routing_enabled || false;
+    editForm.supported_model_scopes = group.supported_model_scopes || [
+      "claude",
+      "gemini_text",
+      "gemini_image",
+    ];
+    editForm.mcp_xml_inject = group.mcp_xml_inject ?? true;
+    editForm.copy_accounts_from_group_ids = []; // 复制账号字段每次编辑时重置为空
+    editForm.rpm_limit = group.rpm_limit ?? 0;
+    editForm.max_reasoning_effort = normalizeReasoningEffortForPlatform(
+      group.platform,
+      group.max_reasoning_effort,
+    );
+    editForm.reasoning_effort_mappings = reasoningEffortMappingsToRows(
+      group.reasoning_effort_mappings,
+      group.platform,
+    );
+    editForm.prompt_policy = clonePromptPolicy(group.prompt_policy);
+    resetModelsListState(editModelsListState, group.models_list_config);
+    // 加载模型路由规则（异步加载账号名称）
+    editModelRoutingRules.value = await convertApiFormatToRoutingRules(
+      group.model_routing,
+    );
+    loadModelsListCandidates("edit", group.id, group.platform);
+    showEditModal.value = true;
+  } catch (error) {
+    console.error("Error opening edit group modal:", error);
+    appStore.showError(
+      error instanceof Error ? error.message : t("admin.groups.failedToCreate"),
+    );
+  }
 };
 
 const closeEditModal = () => {

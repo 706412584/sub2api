@@ -218,7 +218,32 @@ func newTestBackupService(repo *mockSettingRepo, dumper DBDumper, store *mockObj
 	factory := func(_ context.Context, _ *BackupS3Config) (BackupObjectStore, error) {
 		return store, nil
 	}
-	return NewBackupService(repo, cfg, &plainEncryptor{}, factory, dumper)
+	svc := NewBackupService(repo, cfg, &plainEncryptor{}, factory, dumper)
+	// 测试默认注入本地存储工厂，覆盖无 S3 时的回退路径。
+	svc.localStoreFactory = func(_ string) (BackupObjectStore, error) {
+		return store, nil
+	}
+	return svc
+}
+
+func newTestBackupServiceWithLocal(repo *mockSettingRepo, dumper DBDumper, s3Store, localStore *mockObjectStore) *BackupService {
+	cfg := &config.Config{
+		Database: config.DatabaseConfig{
+			Host:   "localhost",
+			Port:   5432,
+			User:   "test",
+			DBName: "testdb",
+		},
+		Totp: config.TotpConfig{EncryptionKeyConfigured: true},
+	}
+	factory := func(_ context.Context, _ *BackupS3Config) (BackupObjectStore, error) {
+		return s3Store, nil
+	}
+	svc := NewBackupService(repo, cfg, &plainEncryptor{}, factory, dumper)
+	svc.localStoreFactory = func(_ string) (BackupObjectStore, error) {
+		return localStore, nil
+	}
+	return svc
 }
 
 // newTestBackupServiceEphemeralKey mirrors a deployment that never set
@@ -396,6 +421,7 @@ func TestBackupService_CreateBackup_Streaming(t *testing.T) {
 	record, err := svc.CreateBackup(context.Background(), "manual", 14)
 	require.NoError(t, err)
 	require.Equal(t, "completed", record.Status)
+	require.Equal(t, "s3", record.Storage)
 	require.Greater(t, record.SizeBytes, int64(0))
 	require.NotEmpty(t, record.S3Key)
 
@@ -419,12 +445,61 @@ func TestBackupService_CreateBackup_DumpFailure(t *testing.T) {
 	require.Contains(t, record.ErrorMsg, "pg_dump")
 }
 
-func TestBackupService_CreateBackup_NoS3Config(t *testing.T) {
+func TestBackupService_CreateBackup_NoS3Config_FallsBackToLocal(t *testing.T) {
 	repo := newMockSettingRepo()
-	svc := newTestBackupService(repo, &mockDumper{}, newMockObjectStore())
+	dumpContent := "-- PostgreSQL dump\nCREATE TABLE test (id int);\n"
+	dumper := &mockDumper{dumpData: []byte(dumpContent)}
+	localStore := newMockObjectStore()
+	// s3 factory 返回另一个 store，但未配置 S3 时不应被使用
+	s3Store := newMockObjectStore()
+	svc := newTestBackupServiceWithLocal(repo, dumper, s3Store, localStore)
 
-	_, err := svc.CreateBackup(context.Background(), "manual", 14)
-	require.ErrorIs(t, err, ErrBackupS3NotConfigured)
+	record, err := svc.CreateBackup(context.Background(), "manual", 14)
+	require.NoError(t, err)
+	require.Equal(t, "completed", record.Status)
+	require.Equal(t, "local", record.Storage)
+	require.NotEmpty(t, record.S3Key)
+	require.True(t, strings.HasPrefix(record.S3Key, "local/"))
+
+	localStore.mu.Lock()
+	require.Len(t, localStore.objects, 1)
+	localStore.mu.Unlock()
+	s3Store.mu.Lock()
+	require.Len(t, s3Store.objects, 0)
+	s3Store.mu.Unlock()
+}
+
+func TestBackupService_LocalBackup_DownloadAndDelete(t *testing.T) {
+	repo := newMockSettingRepo()
+	dumper := &mockDumper{dumpData: []byte("local-dump")}
+	localStore := newMockObjectStore()
+	svc := newTestBackupServiceWithLocal(repo, dumper, newMockObjectStore(), localStore)
+
+	record, err := svc.CreateBackup(context.Background(), "manual", 0)
+	require.NoError(t, err)
+	require.Equal(t, "local", record.Storage)
+
+	info, err := svc.GetBackupDownloadInfo(context.Background(), record.ID)
+	require.NoError(t, err)
+	require.Equal(t, "proxy", info.Mode)
+	require.Equal(t, "local", info.Storage)
+	require.Empty(t, info.URL)
+
+	_, err = svc.GetBackupDownloadURL(context.Background(), record.ID)
+	require.Error(t, err)
+
+	body, opened, err := svc.OpenBackupDownload(context.Background(), record.ID)
+	require.NoError(t, err)
+	require.Equal(t, record.ID, opened.ID)
+	data, err := io.ReadAll(body)
+	require.NoError(t, err)
+	_ = body.Close()
+	require.NotEmpty(t, data)
+
+	require.NoError(t, svc.DeleteBackup(context.Background(), record.ID))
+	localStore.mu.Lock()
+	require.Len(t, localStore.objects, 0)
+	localStore.mu.Unlock()
 }
 
 func TestBackupService_CreateBackup_ConcurrentBlocked(t *testing.T) {

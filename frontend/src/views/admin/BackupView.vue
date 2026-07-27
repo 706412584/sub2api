@@ -11,6 +11,7 @@
               {{ t('admin.backup.s3.descriptionPrefix') }}
               <button type="button" class="text-primary-600 underline hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300" @click="showR2Guide = true">Cloudflare R2</button>
               {{ t('admin.backup.s3.descriptionSuffix') }}
+              {{ t('admin.backup.s3.localFallbackHint') }}
             </p>
           </div>
         </div>
@@ -199,6 +200,7 @@
                 <th class="py-2 pr-4">ID</th>
                 <th class="py-2 pr-4">{{ t('admin.backup.columns.status') }}</th>
                 <th class="py-2 pr-4">{{ t('admin.backup.columns.fileName') }}</th>
+                <th class="py-2 pr-4">{{ t('admin.backup.columns.storage') }}</th>
                 <th class="py-2 pr-4">{{ t('admin.backup.columns.size') }}</th>
                 <th class="py-2 pr-4">{{ t('admin.backup.columns.expiresAt') }}</th>
                 <th class="py-2 pr-4">{{ t('admin.backup.columns.triggeredBy') }}</th>
@@ -220,6 +222,9 @@
                   </span>
                 </td>
                 <td class="py-3 pr-4 text-xs">{{ record.file_name }}</td>
+                <td class="py-3 pr-4 text-xs">
+                  {{ record.storage === 'local' ? t('admin.backup.storage.local') : t('admin.backup.storage.s3') }}
+                </td>
                 <td class="py-3 pr-4 text-xs">{{ formatSize(record.size_bytes) }}</td>
                 <td class="py-3 pr-4 text-xs">
                   {{ record.expires_at ? formatDate(record.expires_at) : t('admin.backup.neverExpire') }}
@@ -258,7 +263,7 @@
                 </td>
               </tr>
               <tr v-if="backups.length === 0">
-                <td colspan="8" class="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                <td colspan="9" class="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
                   {{ t('admin.backup.empty') }}
                 </td>
               </tr>
@@ -714,13 +719,28 @@ async function createBackup() {
 
 async function downloadBackup(id: string) {
   try {
-    const result = await backupStepUp.run(() => adminAPI.backup.getDownloadURL(id))
-    // 预签名 URL 带 attachment disposition，同页 anchor 导航直接触发下载；
-    // 不用 window.open：step-up 弹窗 await 会耗尽瞬态用户激活，新标签页会被浏览器拦截。
+    const info = await backupStepUp.run(() => adminAPI.backup.getDownloadURL(id))
+    if (info.mode === 'presign' && info.url) {
+      // 预签名 URL 带 attachment disposition，同页 anchor 导航直接触发下载；
+      // 不用 window.open：step-up 弹窗 await 会耗尽瞬态用户激活，新标签页会被浏览器拦截。
+      const link = document.createElement('a')
+      link.href = info.url
+      link.rel = 'noopener'
+      link.click()
+      return
+    }
+
+    // 本地备份：经鉴权代理下载为 blob 后触发浏览器保存
+    const blob = await backupStepUp.run(() => adminAPI.backup.downloadBackupFile(id))
+    const record = backups.value.find((r) => r.id === id)
+    const fileName = record?.file_name || `backup-${id}.sql.gz`
+    const objectUrl = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
-    link.href = result.url
+    link.href = objectUrl
+    link.download = fileName
     link.rel = 'noopener'
     link.click()
+    window.URL.revokeObjectURL(objectUrl)
   } catch (error) {
     if (isStepUpCancelled(error)) return
     if (reportStepUpBlocked(error)) return
