@@ -197,7 +197,6 @@ func TestBuildOpenAIAccountLoadPlan_QuotaHeadroomZeroNoEffect(t *testing.T) {
 	require.Equal(t, scores[1], scores[2], "quota_headroom 权重为 0 时不应影响打分")
 }
 
-
 func grokFreeQuotaInt64(v int64) *int64 { return &v }
 
 func grokFreeTestAccount(id int64, remaining, limit int64, updatedAt time.Time) *Account {

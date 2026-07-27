@@ -41,9 +41,9 @@ const (
 	openAIUpstreamCostNeutralFactor            = 0.5
 	defaultOpenAIOAuthSchedulingRateMultiplier = 1.0
 	// Grok Free 剩余额度软加分：不依赖 QuotaHeadroom 权重，避免默认 0 时仍优先撞满额 free 号。
-	openAIGrokFreeHeadroomWeight        = 1.0
-	openAIGrokFreeSnapshotStaleAfter    = 24 * time.Hour
-	openAIGrokFreeHeadroomLowRemain     = 0.05
+	openAIGrokFreeHeadroomWeight     = 1.0
+	openAIGrokFreeSnapshotStaleAfter = 24 * time.Hour
+	openAIGrokFreeHeadroomLowRemain  = 0.05
 )
 
 type cachedOpenAIAdvancedSchedulerSetting struct {
