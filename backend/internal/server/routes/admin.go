@@ -568,6 +568,8 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		adminSettings.GET("/account-pool-probe", h.Admin.Setting.GetAccountPoolProbeSettings)
 		adminSettings.PUT("/account-pool-probe", h.Admin.Setting.UpdateAccountPoolProbeSettings)
 		// 流超时处理配置
+		adminSettings.GET("/panel-rate-limit", h.Admin.Setting.GetPanelRateLimitSettings)
+		adminSettings.PUT("/panel-rate-limit", h.Admin.Setting.UpdatePanelRateLimitSettings)
 		adminSettings.GET("/stream-timeout", h.Admin.Setting.GetStreamTimeoutSettings)
 		adminSettings.PUT("/stream-timeout", h.Admin.Setting.UpdateStreamTimeoutSettings)
 		// 请求整流器配置
