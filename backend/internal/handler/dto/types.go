@@ -147,6 +147,8 @@ type Group struct {
 	MaxReasoningEffort string `json:"max_reasoning_effort"`
 	// ReasoningEffortMappings OpenAI/Codex 推理强度精确映射。
 	ReasoningEffortMappings []domain.ReasoningEffortMapping `json:"reasoning_effort_mappings"`
+	// PromptPolicy 分组级请求提示词处理策略。
+	PromptPolicy domain.GroupPromptPolicy `json:"prompt_policy"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

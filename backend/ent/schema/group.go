@@ -240,6 +240,12 @@ func (Group) Fields() []ent.Field {
 			Default([]domain.ReasoningEffortMapping{}).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
 			Comment("OpenAI reasoning effort 自定义精确映射；先映射再应用上限"),
+
+		// Prompt policy only changes or blocks request text when enabled.
+		field.JSON("prompt_policy", domain.GroupPromptPolicy{}).
+			Default(domain.GroupPromptPolicy{}).
+			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
+			Comment("Group prompt policy"),
 	}
 }
 

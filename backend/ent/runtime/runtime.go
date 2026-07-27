@@ -1181,6 +1181,10 @@ func init() {
 	groupDescReasoningEffortMappings := groupFields[49].Descriptor()
 	// group.DefaultReasoningEffortMappings holds the default value on creation for the reasoning_effort_mappings field.
 	group.DefaultReasoningEffortMappings = groupDescReasoningEffortMappings.Default.([]domain.ReasoningEffortMapping)
+	// groupDescPromptPolicy is the schema descriptor for prompt_policy field.
+	groupDescPromptPolicy := groupFields[50].Descriptor()
+	// group.DefaultPromptPolicy holds the default value on creation for the prompt_policy field.
+	group.DefaultPromptPolicy = groupDescPromptPolicy.Default.(domain.GroupPromptPolicy)
 	idempotencyrecordMixin := schema.IdempotencyRecord{}.Mixin()
 	idempotencyrecordMixinFields0 := idempotencyrecordMixin[0].Fields()
 	_ = idempotencyrecordMixinFields0
