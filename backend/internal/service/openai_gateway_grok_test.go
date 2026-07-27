@@ -2507,7 +2507,8 @@ func TestAccountTestServiceGrokOAuthPaymentRequiredTemporarilyUnschedulesAccount
 	require.Error(t, err)
 	require.Equal(t, 1, repo.tempUnschedCalls)
 	require.Equal(t, account.ID, repo.lastTempUnschedID)
-	require.Equal(t, "grok payment required", repo.lastTempUnschedReason)
+	// Account-test path tags the reason so it is distinguishable from gateway 402 handling.
+	require.Equal(t, "grok payment required (test probe)", repo.lastTempUnschedReason)
 	require.WithinDuration(t, before.Add(30*time.Minute), repo.lastTempUnschedUntil, time.Second)
 	require.Contains(t, recorder.Body.String(), `"type":"error"`)
 	require.Contains(t, recorder.Body.String(), "Grok Responses API returned 402")
