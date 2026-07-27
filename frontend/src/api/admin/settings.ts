@@ -1260,6 +1260,38 @@ export async function updateAccountPoolProbeSettings(
   return data;
 }
 
+// ==================== Panel Rate Limit Settings ====================
+
+/**
+ * Panel API rate limit settings.
+ * Authenticated panel endpoints are limited per user account (reverse-proxy
+ * safe); public endpoints are limited per publicly routable client IP.
+ */
+export interface PanelRateLimitSettings {
+  enabled: boolean;
+  user_rpm: number;
+  heavy_rpm: number;
+  exempt_admin: boolean;
+  public_ip_rpm: number;
+}
+
+export async function getPanelRateLimitSettings(): Promise<PanelRateLimitSettings> {
+  const { data } = await apiClient.get<PanelRateLimitSettings>(
+    "/admin/settings/panel-rate-limit",
+  );
+  return data;
+}
+
+export async function updatePanelRateLimitSettings(
+  settings: PanelRateLimitSettings,
+): Promise<PanelRateLimitSettings> {
+  const { data } = await apiClient.put<PanelRateLimitSettings>(
+    "/admin/settings/panel-rate-limit",
+    settings,
+  );
+  return data;
+}
+
 // ==================== Stream Timeout Settings ====================
 
 /**
@@ -1491,6 +1523,8 @@ export const settingsAPI = {
   updateOpenAIGrok429ExhaustionSettings,
   getAccountPoolProbeSettings,
   updateAccountPoolProbeSettings,
+  getPanelRateLimitSettings,
+  updatePanelRateLimitSettings,
   getStreamTimeoutSettings,
   updateStreamTimeoutSettings,
   getRectifierSettings,
