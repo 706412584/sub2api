@@ -36,11 +36,21 @@ func TestApplyGroupPromptPolicy(t *testing.T) {
 
 	var request map[string]any
 	require.NoError(t, json.Unmarshal(result.Body, &request))
-	messages := request["messages"].([]any)
-	require.Equal(t, "NEW system", messages[0].(map[string]any)["content"])
-	content := messages[1].(map[string]any)["content"].([]any)
-	require.Equal(t, "NEW user!", content[0].(map[string]any)["text"])
-	require.Equal(t, "image_url", content[1].(map[string]any)["type"])
+	messages, ok := request["messages"].([]any)
+	require.True(t, ok)
+	firstMessage, ok := messages[0].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "NEW system", firstMessage["content"])
+	secondMessage, ok := messages[1].(map[string]any)
+	require.True(t, ok)
+	content, ok := secondMessage["content"].([]any)
+	require.True(t, ok)
+	firstContent, ok := content[0].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "NEW user!", firstContent["text"])
+	secondContent, ok := content[1].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "image_url", secondContent["type"])
 }
 
 func TestApplyGroupPromptPolicyMessagesAndResponses(t *testing.T) {

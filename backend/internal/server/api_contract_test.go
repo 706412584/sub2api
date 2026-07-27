@@ -385,7 +385,11 @@ func TestAPIContracts(t *testing.T) {
 						"require_privacy_set": false,
 						"max_reasoning_effort": "",
 						"reasoning_effort_mappings": null,
-						"rpm_limit": 0,
+							"prompt_policy": {
+								"enabled": false,
+								"rules": null
+							},
+							"rpm_limit": 0,
 						"created_at": "2025-01-02T03:04:05Z",
 						"updated_at": "2025-01-02T03:04:05Z"
 					}
