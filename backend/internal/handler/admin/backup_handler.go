@@ -179,7 +179,7 @@ func (h *BackupHandler) DownloadBackup(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	defer body.Close()
+	defer func() { _ = body.Close() }()
 
 	fileName := record.FileName
 	if fileName == "" {

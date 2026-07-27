@@ -99,11 +99,11 @@ type BackupScheduleConfig struct {
 
 // BackupRecord 备份记录
 type BackupRecord struct {
-	ID            string `json:"id"`
-	Status        string `json:"status"`      // pending, running, completed, failed
-	BackupType    string `json:"backup_type"` // postgres
-	FileName      string `json:"file_name"`
-	S3Key         string `json:"s3_key"`
+	ID         string `json:"id"`
+	Status     string `json:"status"`      // pending, running, completed, failed
+	BackupType string `json:"backup_type"` // postgres
+	FileName   string `json:"file_name"`
+	S3Key      string `json:"s3_key"`
 	// Storage 标识备份落点：s3 或 local。空值兼容旧记录，按 s3 处理。
 	Storage       string `json:"storage,omitempty"`
 	SizeBytes     int64  `json:"size_bytes"`
@@ -145,10 +145,10 @@ type BackupService struct {
 	backingUp bool
 	restoring bool
 
-	storeMu    sync.Mutex // 保护 store/s3Cfg/local 缓存
-	store      BackupObjectStore
-	storeKind  string // s3 | local
-	s3Cfg      *BackupS3Config
+	storeMu   sync.Mutex // 保护 store/s3Cfg/local 缓存
+	store     BackupObjectStore
+	storeKind string // s3 | local
+	s3Cfg     *BackupS3Config
 
 	recordsMu sync.Mutex // 保护 records 的 load/save 操作
 
@@ -1043,14 +1043,6 @@ func (s *BackupService) loadS3Config(ctx context.Context) (*BackupS3Config, erro
 	return &cfg, nil
 }
 
-func (s *BackupService) getOrCreateStore(ctx context.Context, cfg *BackupS3Config) (BackupObjectStore, error) {
-	if cfg == nil || !cfg.IsConfigured() {
-		return nil, ErrBackupS3NotConfigured
-	}
-	store, _, _, err := s.resolveObjectStore(ctx, "s3")
-	return store, err
-}
-
 // resolveObjectStore 按 preferred 选择存储：s3 优先；未配置 S3 时回退本地目录。
 // preferred 为空表示自动选择。
 func (s *BackupService) resolveObjectStore(ctx context.Context, preferred string) (BackupObjectStore, string, string, error) {
@@ -1159,16 +1151,6 @@ func (s *BackupService) buildObjectKey(storage, fileName string) string {
 	prefix := "backups"
 	if s.s3Cfg != nil {
 		if p := strings.TrimRight(s.s3Cfg.Prefix, "/"); p != "" {
-			prefix = p
-		}
-	}
-	return fmt.Sprintf("%s/%s/%s", prefix, time.Now().Format("2006/01/02"), fileName)
-}
-
-func (s *BackupService) buildS3Key(cfg *BackupS3Config, fileName string) string {
-	prefix := "backups"
-	if cfg != nil {
-		if p := strings.TrimRight(cfg.Prefix, "/"); p != "" {
 			prefix = p
 		}
 	}
