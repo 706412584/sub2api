@@ -4,10 +4,23 @@ import {
   createDefaultMessagesDispatchFormState,
   messagesDispatchConfigToFormState,
   messagesDispatchFormStateToConfig,
+  normalizeGrokMessagesProtocolForPlatform,
   resetMessagesDispatchFormState,
 } from "../groupsMessagesDispatch";
 
 describe("groupsMessagesDispatch", () => {
+  it("normalizes the Grok Messages protocol by platform", () => {
+    expect(normalizeGrokMessagesProtocolForPlatform("grok", undefined)).toBe(
+      "chat_completions",
+    );
+    expect(normalizeGrokMessagesProtocolForPlatform("grok", "responses")).toBe(
+      "responses",
+    );
+    expect(
+      normalizeGrokMessagesProtocolForPlatform("openai", "chat_completions"),
+    ).toBe("responses");
+  });
+
   it("returns the expected default form state", () => {
     expect(createDefaultMessagesDispatchFormState()).toEqual({
       allow_messages_dispatch: false,

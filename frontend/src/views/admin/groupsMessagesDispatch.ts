@@ -1,4 +1,16 @@
-import type { OpenAIMessagesDispatchModelConfig } from "@/types";
+import type {
+  GrokMessagesProtocol,
+  GroupPlatform,
+  OpenAIMessagesDispatchModelConfig,
+} from "@/types";
+
+export function normalizeGrokMessagesProtocolForPlatform(
+  platform: GroupPlatform,
+  protocol?: GrokMessagesProtocol | string,
+): GrokMessagesProtocol {
+  if (platform !== "grok") return "responses";
+  return protocol === "responses" ? "responses" : "chat_completions";
+}
 
 export interface MessagesDispatchMappingRow {
   claude_model: string;
