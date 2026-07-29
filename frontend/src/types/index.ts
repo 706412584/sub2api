@@ -558,15 +558,12 @@ export interface Group {
   allow_live: boolean
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
-  grok_messages_protocol?: GrokMessagesProtocol
   require_oauth_only: boolean
   require_privacy_set: boolean
   created_at: string
   updated_at: string
 }
 
-
-export type GrokMessagesProtocol = 'chat_completions' | 'responses'
 
 export type GroupPromptPolicyEndpoint = 'chat_completions' | 'messages' | 'responses'
 export type GroupPromptPolicyTarget = 'system' | 'instructions' | 'message_text'
@@ -611,7 +608,6 @@ export interface AdminGroup extends Group {
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
   models_list_config?: ModelsListConfig
-  grok_messages_protocol?: GrokMessagesProtocol
 
   // 分组排序
   sort_order: number
@@ -779,7 +775,6 @@ export interface CreateGroupRequest {
   allow_live?: boolean
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
-  grok_messages_protocol?: GrokMessagesProtocol
   model_routing?: Record<string, number[]> | null
   model_routing_enabled?: boolean
   rpm_limit?: number
@@ -833,7 +828,6 @@ export interface UpdateGroupRequest {
   allow_live?: boolean
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
-  grok_messages_protocol?: GrokMessagesProtocol
   model_routing?: Record<string, number[]> | null
   model_routing_enabled?: boolean
   rpm_limit?: number

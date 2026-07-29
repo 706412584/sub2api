@@ -42,20 +42,6 @@ func TestAPIKeyService_RejectsV10AuthSnapshotWithoutModelsListConfig(t *testing.
 	}
 }
 
-func TestAPIKeyService_RejectsV17AuthSnapshotWithoutGrokMessagesProtocol(t *testing.T) {
-	svc := &APIKeyService{}
-
-	apiKey, ok, err := svc.applyAuthCacheEntry("k-legacy-grok-messages-protocol", &APIKeyAuthCacheEntry{
-		Snapshot: &APIKeyAuthSnapshot{Version: 17},
-	})
-	if err != nil {
-		t.Fatalf("expected stale snapshot to be ignored without error, got %v", err)
-	}
-	if ok || apiKey != nil {
-		t.Fatalf("expected v17 snapshot to be rejected, got ok=%v apiKey=%#v", ok, apiKey)
-	}
-}
-
 func TestAPIKeyService_RejectsV15AuthSnapshotWithoutReasoningEffortPolicy(t *testing.T) {
 	svc := &APIKeyService{}
 

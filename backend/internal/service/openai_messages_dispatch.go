@@ -10,9 +10,6 @@ const (
 	defaultOpenAIMessagesDispatchOpusMappedModel   = "gpt-5.4"
 	defaultOpenAIMessagesDispatchSonnetMappedModel = "gpt-5.3-codex"
 	defaultOpenAIMessagesDispatchHaikuMappedModel  = "gpt-5.4-mini"
-
-	GrokMessagesProtocolChatCompletions = "chat_completions"
-	GrokMessagesProtocolResponses       = "responses"
 )
 
 func normalizeOpenAIMessagesDispatchMappedModel(model string) string {
@@ -105,24 +102,10 @@ func (g *Group) ResolveMessagesDispatchModel(requestedModel string) string {
 }
 
 func sanitizeGroupMessagesDispatchFields(g *Group) {
-	if g == nil {
-		return
-	}
-	g.GrokMessagesProtocol = NormalizeGrokMessagesProtocol(g.Platform, g.GrokMessagesProtocol)
-	if g.Platform == PlatformOpenAI {
+	if g == nil || g.Platform == PlatformOpenAI {
 		return
 	}
 	g.AllowMessagesDispatch = false
 	g.DefaultMappedModel = ""
 	g.MessagesDispatchModelConfig = OpenAIMessagesDispatchModelConfig{}
-}
-
-func NormalizeGrokMessagesProtocol(platform, protocol string) string {
-	if platform != PlatformGrok {
-		return GrokMessagesProtocolResponses
-	}
-	if strings.TrimSpace(protocol) == GrokMessagesProtocolResponses {
-		return GrokMessagesProtocolResponses
-	}
-	return GrokMessagesProtocolChatCompletions
 }

@@ -104,7 +104,6 @@ const sourceGroup: AdminGroup = {
   allow_messages_dispatch: false,
   default_mapped_model: '',
   messages_dispatch_model_config: undefined,
-  grok_messages_protocol: 'responses',
   require_oauth_only: false,
   require_privacy_set: false,
   created_at: '2026-07-16T00:00:00Z',

@@ -225,10 +225,6 @@ func (Group) Fields() []ent.Field {
 			Default(domain.GroupModelsListConfig{}).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
 			Comment("自定义 /v1/models 展示列表配置；仅影响模型列表响应，不影响调度"),
-		field.String("grok_messages_protocol").
-			MaxLen(32).
-			Default("chat_completions").
-			Comment("Grok 分组处理 /v1/messages 时使用的上游协议：chat_completions 或 responses"),
 
 		// 分组级每分钟请求数上限（0 = 不限制）。设置后优先于用户级兜底生效。
 		field.Int("rpm_limit").

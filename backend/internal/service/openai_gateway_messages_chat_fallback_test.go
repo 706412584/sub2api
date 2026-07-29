@@ -45,78 +45,6 @@ func (r *errTailReader) Read(p []byte) (int, error) {
 
 func (r *errTailReader) Close() error { return nil }
 
-func TestForwardAsAnthropic_GrokChatProtocolStreamingReturnsThinking(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	body := []byte(`{"model":"claude-sonnet-4-5","max_tokens":64,"thinking":{"type":"enabled","budget_tokens":32},"messages":[{"role":"user","content":"hello"}],"stream":true}`)
-	rec := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(rec)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
-	c.Set("api_key", &APIKey{ID: 901})
-
-	upstreamBody := strings.Join([]string{
-		`data: {"id":"chatcmpl_grok","object":"chat.completion.chunk","model":"grok-4.5","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}`,
-		"",
-		`data: {"id":"chatcmpl_grok","object":"chat.completion.chunk","model":"grok-4.5","choices":[{"index":0,"delta":{"reasoning_content":"visible reasoning"},"finish_reason":null}]}`,
-		"",
-		`data: {"id":"chatcmpl_grok","object":"chat.completion.chunk","model":"grok-4.5","choices":[{"index":0,"delta":{"content":"answer"},"finish_reason":"stop"}]}`,
-		"",
-		`data: {"id":"chatcmpl_grok","object":"chat.completion.chunk","model":"grok-4.5","choices":[],"usage":{"prompt_tokens":4,"completion_tokens":5,"total_tokens":9}}`,
-		"",
-		"data: [DONE]",
-		"",
-	}, "\n")
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
-		StatusCode: http.StatusOK,
-		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
-		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
-	}}
-	account := grokChatBridgeTestAccount(902)
-	svc := &OpenAIGatewayService{
-		cfg:               rawChatCompletionsTestConfig(),
-		httpUpstream:      upstream,
-		grokTokenProvider: NewGrokTokenProvider(nil, nil),
-	}
-
-	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "grok-4.5", GrokMessagesProtocolChatCompletions)
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	require.Equal(t, grokChatRawEndpoint, result.UpstreamEndpoint)
-	require.Equal(t, "https://cli-chat-proxy.grok.com/v1/chat/completions", upstream.lastReq.URL.String())
-	require.Equal(t, "Bearer access-token", upstream.lastReq.Header.Get("Authorization"))
-	require.Equal(t, grokCLIVersion, upstream.lastReq.Header.Get("X-Grok-Client-Version"))
-	require.Equal(t, "grok-4.5", gjson.GetBytes(upstream.lastBody, "model").String())
-	require.NotEmpty(t, gjson.GetBytes(upstream.lastBody, "reasoning_effort").String())
-	require.Contains(t, rec.Body.String(), `"type":"thinking_delta"`)
-	require.Contains(t, rec.Body.String(), `"type":"text_delta"`)
-	require.Contains(t, rec.Body.String(), "event: message_stop")
-	require.NotContains(t, rec.Body.String(), `"type":"signature_delta"`)
-}
-
-func TestForwardAsAnthropic_GrokAPIKeyChatProtocolUsesXAIChatEndpoint(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	body := []byte(`{"model":"claude-sonnet-4-5","max_tokens":32,"messages":[{"role":"user","content":"hello"}],"stream":false}`)
-	rec := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(rec)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
-		StatusCode: http.StatusOK,
-		Header:     http.Header{"Content-Type": []string{"application/json"}},
-		Body:       io.NopCloser(strings.NewReader(`{"id":"chatcmpl_grok_key","object":"chat.completion","model":"grok-4.5","choices":[{"index":0,"message":{"role":"assistant","content":"ok","reasoning_content":"thought"},"finish_reason":"stop"}],"usage":{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5}}`)),
-	}}
-	account := grokProtocolAPIKeyAccount(904)
-	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
-
-	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "grok-4.5", GrokMessagesProtocolChatCompletions)
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	require.Equal(t, "https://api.x.ai/v1/chat/completions", upstream.lastReq.URL.String())
-	require.Equal(t, "Bearer xai-protocol-key", upstream.lastReq.Header.Get("Authorization"))
-	require.Equal(t, "thinking", gjson.Get(rec.Body.String(), "content.0.type").String())
-	require.Equal(t, "thought", gjson.Get(rec.Body.String(), "content.0.thinking").String())
-}
-
 func TestForwardAsAnthropic_ForceChatCompletionsNonStreaming(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -420,30 +348,6 @@ func TestForwardAsAnthropic_ForceChatCompletionsStreamReadErrorSkipsFinalize(t *
 
 // Gate regression: an API-key account whose upstream is confirmed to support
 // the Responses API must keep using /v1/responses, never the CC fallback.
-func TestForwardAsAnthropic_GrokResponsesProtocolKeepsResponsesEndpoint(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	body := []byte(`{"model":"claude-sonnet-4-5","max_tokens":16,"messages":[{"role":"user","content":"hello"}],"stream":false}`)
-	rec := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(rec)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
-	upstreamBody := "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_grok\",\"object\":\"response\",\"model\":\"grok-4.5\",\"status\":\"completed\",\"output\":[{\"type\":\"message\",\"id\":\"msg_1\",\"role\":\"assistant\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\",\"text\":\"ok\"}]}],\"usage\":{\"input_tokens\":5,\"output_tokens\":2,\"total_tokens\":7}}}\n\ndata: [DONE]\n\n"
-	upstream := &httpUpstreamRecorder{resp: &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(upstreamBody))}}
-	account := grokChatBridgeTestAccount(903)
-	svc := &OpenAIGatewayService{
-		cfg:               rawChatCompletionsTestConfig(),
-		httpUpstream:      upstream,
-		grokTokenProvider: NewGrokTokenProvider(nil, nil),
-	}
-
-	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "grok-4.5", GrokMessagesProtocolResponses)
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	require.True(t, strings.HasSuffix(upstream.lastReq.URL.Path, "/responses"))
-	require.True(t, gjson.GetBytes(upstream.lastBody, "input").Exists())
-	require.False(t, gjson.GetBytes(upstream.lastBody, "messages").Exists())
-}
-
 func TestForwardAsAnthropic_ResponsesSupportedAccountStillUsesResponsesEndpoint(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

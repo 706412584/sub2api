@@ -933,20 +933,6 @@ func (_u *GroupUpdate) SetNillableModelsListConfig(v *domain.GroupModelsListConf
 	return _u
 }
 
-// SetGrokMessagesProtocol sets the "grok_messages_protocol" field.
-func (_u *GroupUpdate) SetGrokMessagesProtocol(v string) *GroupUpdate {
-	_u.mutation.SetGrokMessagesProtocol(v)
-	return _u
-}
-
-// SetNillableGrokMessagesProtocol sets the "grok_messages_protocol" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableGrokMessagesProtocol(v *string) *GroupUpdate {
-	if v != nil {
-		_u.SetGrokMessagesProtocol(*v)
-	}
-	return _u
-}
-
 // SetRpmLimit sets the "rpm_limit" field.
 func (_u *GroupUpdate) SetRpmLimit(v int) *GroupUpdate {
 	_u.mutation.ResetRpmLimit()
@@ -1308,11 +1294,6 @@ func (_u *GroupUpdate) check() error {
 			return &ValidationError{Name: "default_mapped_model", err: fmt.Errorf(`ent: validator failed for field "Group.default_mapped_model": %w`, err)}
 		}
 	}
-	if v, ok := _u.mutation.GrokMessagesProtocol(); ok {
-		if err := group.GrokMessagesProtocolValidator(v); err != nil {
-			return &ValidationError{Name: "grok_messages_protocol", err: fmt.Errorf(`ent: validator failed for field "Group.grok_messages_protocol": %w`, err)}
-		}
-	}
 	if v, ok := _u.mutation.MaxReasoningEffort(); ok {
 		if err := group.MaxReasoningEffortValidator(v); err != nil {
 			return &ValidationError{Name: "max_reasoning_effort", err: fmt.Errorf(`ent: validator failed for field "Group.max_reasoning_effort": %w`, err)}
@@ -1595,9 +1576,6 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.ModelsListConfig(); ok {
 		_spec.SetField(group.FieldModelsListConfig, field.TypeJSON, value)
-	}
-	if value, ok := _u.mutation.GrokMessagesProtocol(); ok {
-		_spec.SetField(group.FieldGrokMessagesProtocol, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)
@@ -2830,20 +2808,6 @@ func (_u *GroupUpdateOne) SetNillableModelsListConfig(v *domain.GroupModelsListC
 	return _u
 }
 
-// SetGrokMessagesProtocol sets the "grok_messages_protocol" field.
-func (_u *GroupUpdateOne) SetGrokMessagesProtocol(v string) *GroupUpdateOne {
-	_u.mutation.SetGrokMessagesProtocol(v)
-	return _u
-}
-
-// SetNillableGrokMessagesProtocol sets the "grok_messages_protocol" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableGrokMessagesProtocol(v *string) *GroupUpdateOne {
-	if v != nil {
-		_u.SetGrokMessagesProtocol(*v)
-	}
-	return _u
-}
-
 // SetRpmLimit sets the "rpm_limit" field.
 func (_u *GroupUpdateOne) SetRpmLimit(v int) *GroupUpdateOne {
 	_u.mutation.ResetRpmLimit()
@@ -3218,11 +3182,6 @@ func (_u *GroupUpdateOne) check() error {
 			return &ValidationError{Name: "default_mapped_model", err: fmt.Errorf(`ent: validator failed for field "Group.default_mapped_model": %w`, err)}
 		}
 	}
-	if v, ok := _u.mutation.GrokMessagesProtocol(); ok {
-		if err := group.GrokMessagesProtocolValidator(v); err != nil {
-			return &ValidationError{Name: "grok_messages_protocol", err: fmt.Errorf(`ent: validator failed for field "Group.grok_messages_protocol": %w`, err)}
-		}
-	}
 	if v, ok := _u.mutation.MaxReasoningEffort(); ok {
 		if err := group.MaxReasoningEffortValidator(v); err != nil {
 			return &ValidationError{Name: "max_reasoning_effort", err: fmt.Errorf(`ent: validator failed for field "Group.max_reasoning_effort": %w`, err)}
@@ -3522,9 +3481,6 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if value, ok := _u.mutation.ModelsListConfig(); ok {
 		_spec.SetField(group.FieldModelsListConfig, field.TypeJSON, value)
-	}
-	if value, ok := _u.mutation.GrokMessagesProtocol(); ok {
-		_spec.SetField(group.FieldGrokMessagesProtocol, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)

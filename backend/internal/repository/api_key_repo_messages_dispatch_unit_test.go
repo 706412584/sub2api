@@ -34,39 +34,6 @@ func TestGroupEntityToService_PreservesMessagesDispatchModelConfig(t *testing.T)
 	require.Equal(t, group.MessagesDispatchModelConfig, got.MessagesDispatchModelConfig)
 }
 
-func TestGroupEntityToService_NormalizesGrokMessagesProtocol(t *testing.T) {
-	group := &dbent.Group{Platform: service.PlatformGrok, GrokMessagesProtocol: "invalid"}
-
-	got := groupEntityToService(group)
-
-	require.NotNil(t, got)
-	require.Equal(t, service.GrokMessagesProtocolChatCompletions, got.GrokMessagesProtocol)
-}
-
-func TestAPIKeyRepository_GetByKeyForAuth_PreservesGrokMessagesProtocol_SQLite(t *testing.T) {
-	repo, client := newAPIKeyRepoSQLite(t)
-	ctx := context.Background()
-	user := mustCreateAPIKeyRepoUser(t, ctx, client, "getbykey-auth-grok-protocol-unit@test.com")
-
-	group, err := client.Group.Create().
-		SetName("g-auth-grok-protocol-unit").
-		SetPlatform(service.PlatformGrok).
-		SetStatus(service.StatusActive).
-		SetSubscriptionType(service.SubscriptionTypeStandard).
-		SetRateMultiplier(1).
-		SetGrokMessagesProtocol(service.GrokMessagesProtocolResponses).
-		Save(ctx)
-	require.NoError(t, err)
-
-	key := &service.APIKey{UserID: user.ID, Key: "sk-getbykey-auth-grok-protocol-unit", Name: "Grok Protocol Key", GroupID: &group.ID, Status: service.StatusActive}
-	require.NoError(t, repo.Create(ctx, key))
-
-	got, err := repo.GetByKeyForAuth(ctx, key.Key)
-	require.NoError(t, err)
-	require.NotNil(t, got.Group)
-	require.Equal(t, service.GrokMessagesProtocolResponses, got.Group.GrokMessagesProtocol)
-}
-
 func TestAPIKeyRepository_GetByKeyForAuth_PreservesMessagesDispatchModelConfig_SQLite(t *testing.T) {
 	repo, client := newAPIKeyRepoSQLite(t)
 	ctx := context.Background()
