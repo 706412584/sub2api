@@ -32,12 +32,17 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	body []byte,
 	promptCacheKey string,
 	defaultMappedModel string,
+	grokMessagesProtocol ...string,
 ) (*OpenAIForwardResult, error) {
-	// 入口分流：APIKey 账号 + 上游不支持 Responses API → 走 CC 直转（与
-	// ForwardAsChatCompletions 对称）。缺少此分流时，/v1/messages 入站请求
-	// 会被无条件转为 Responses 格式发往上游 /v1/responses，导致只支持
-	// /v1/chat/completions 的第三方 OpenAI 兼容上游全部 400。
-	if account.Type == AccountTypeAPIKey && !openai_compat.ShouldUseResponsesAPI(account.Extra) {
+	// Grok 分组可显式选择原生 /v1/messages 的上游协议。未传该选项时保留
+	// 旧调用方的 Responses 行为，只有 handler 从已鉴权 group 传入设置才启用。
+	if account.Platform == PlatformGrok && len(grokMessagesProtocol) > 0 {
+		if NormalizeGrokMessagesProtocol(PlatformGrok, grokMessagesProtocol[0]) == GrokMessagesProtocolChatCompletions {
+			return s.forwardAnthropicViaRawChatCompletions(ctx, c, account, body, defaultMappedModel)
+		}
+	} else if account.Type == AccountTypeAPIKey && !openai_compat.ShouldUseResponsesAPI(account.Extra) {
+		// 非 Grok APIKey 账号 + 上游不支持 Responses API → 走 CC 直转
+		//（与 ForwardAsChatCompletions 对称）。
 		return s.forwardAnthropicViaRawChatCompletions(ctx, c, account, body, defaultMappedModel)
 	}
 

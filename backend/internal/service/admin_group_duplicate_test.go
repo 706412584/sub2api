@@ -173,6 +173,7 @@ func TestDuplicateGroupCopiesConfigurationDeeplyAndResetsRuntimeState(t *testing
 			ExactModelMappings: map[string]string{"claude-special": "gpt-special"},
 		},
 		ModelsListConfig:        GroupModelsListConfig{Enabled: true, Models: []string{"gpt-5.4", "gpt-5-mini"}},
+		GrokMessagesProtocol:    GrokMessagesProtocolResponses,
 		RPMLimit:                99,
 		MaxReasoningEffort:      "medium",
 		ReasoningEffortMappings: []ReasoningEffortMapping{{From: "max", To: "xhigh"}},
@@ -209,6 +210,7 @@ func TestDuplicateGroupCopiesConfigurationDeeplyAndResetsRuntimeState(t *testing
 	require.Equal(t, source.ModelRouting, duplicate.ModelRouting)
 	require.Equal(t, source.MessagesDispatchModelConfig, duplicate.MessagesDispatchModelConfig)
 	require.Equal(t, source.ModelsListConfig, duplicate.ModelsListConfig)
+	require.Equal(t, source.GrokMessagesProtocol, duplicate.GrokMessagesProtocol)
 	require.Equal(t, source.RPMLimit, duplicate.RPMLimit)
 	require.Equal(t, source.MaxReasoningEffort, duplicate.MaxReasoningEffort)
 	require.Equal(t, source.ReasoningEffortMappings, duplicate.ReasoningEffortMappings)
