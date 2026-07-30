@@ -353,6 +353,28 @@ func TestExtractOpenAIUsage_CapturesImageInputTokens(t *testing.T) {
 	require.Zero(t, tu.ImageInputTokens)
 }
 
+func TestExtractOpenAIUsage_CapturesReasoningTokens(t *testing.T) {
+	// Chat Completions style
+	body := []byte(`{"usage":{"prompt_tokens":10,"completion_tokens":50,"completion_tokens_details":{"reasoning_tokens":32},"total_tokens":60}}`)
+	usage, ok := extractOpenAIUsageFromJSONBytes(body)
+	require.True(t, ok)
+	require.Equal(t, 10, usage.InputTokens)
+	require.Equal(t, 50, usage.OutputTokens)
+	require.Equal(t, 32, usage.ReasoningTokens)
+
+	// Responses API style
+	respStyle := []byte(`{"usage":{"input_tokens":12,"output_tokens":80,"output_tokens_details":{"reasoning_tokens":45,"image_tokens":0}}}`)
+	ru, ok := extractOpenAIUsageFromJSONBytes(respStyle)
+	require.True(t, ok)
+	require.Equal(t, 45, ru.ReasoningTokens)
+
+	// No reasoning details
+	textOnly := []byte(`{"usage":{"input_tokens":5,"output_tokens":7}}`)
+	tu, ok := extractOpenAIUsageFromJSONBytes(textOnly)
+	require.True(t, ok)
+	require.Zero(t, tu.ReasoningTokens)
+}
+
 func TestOpenAIGatewayService_BindHTTPResponseAccount(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()

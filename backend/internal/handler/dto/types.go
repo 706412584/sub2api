@@ -490,6 +490,8 @@ type UsageLog struct {
 	OutputTokens        int `json:"output_tokens"`
 	CacheCreationTokens int `json:"cache_creation_tokens"`
 	CacheReadTokens     int `json:"cache_read_tokens"`
+	// ReasoningTokens is upstream reasoning/thinking tokens when reported; 0 = unknown.
+	ReasoningTokens int `json:"reasoning_tokens"`
 
 	CacheCreation5mTokens int `json:"cache_creation_5m_tokens"`
 	CacheCreation1hTokens int `json:"cache_creation_1h_tokens"`

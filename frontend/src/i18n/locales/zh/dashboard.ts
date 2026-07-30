@@ -301,6 +301,7 @@ export default {
     requestedModel: '请求',
     upstreamModel: '上游',
     reasoningEffort: '推理强度',
+    reasoningTokens: '推理',
     endpoint: '端点',
     endpointDistribution: '端点分布',
     inbound: '入站',
