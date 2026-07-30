@@ -1,7 +1,36 @@
 <template>
   <AppLayout>
     <TablePageLayout>
-      <template #filters>
+      <template #actions>
+        <div class="flex items-center gap-1 border-b border-gray-200 dark:border-dark-600">
+          <button
+            type="button"
+            :class="[
+              '-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors',
+              activeTab === 'proxies'
+                ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+            ]"
+            @click="activeTab = 'proxies'"
+          >
+            {{ t('admin.proxies.tabs.proxies') }}
+          </button>
+          <button
+            type="button"
+            :class="[
+              '-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors',
+              activeTab === 'subscriptions'
+                ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+            ]"
+            @click="switchToSubscriptions"
+          >
+            {{ t('admin.proxies.tabs.subscriptions') }}
+          </button>
+        </div>
+      </template>
+
+      <template v-if="activeTab === 'proxies'" #filters>
         <div class="flex flex-wrap items-center gap-3">
           <!-- Left: Search + Filters -->
           <div class="relative w-full sm:w-64">
@@ -88,7 +117,11 @@
       </template>
 
       <template #table>
-        <div ref="proxyTableRef" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <SubscriptionPanel
+          v-if="activeTab === 'subscriptions'"
+          @synced="onSubscriptionSynced"
+        />
+        <div v-else ref="proxyTableRef" class="flex min-h-0 flex-1 flex-col overflow-hidden">
         <DataTable
           :columns="columns"
           :data="proxies"
@@ -354,7 +387,7 @@
         </div>
       </template>
 
-      <template #pagination>
+      <template v-if="activeTab === 'proxies'" #pagination>
         <Pagination
           v-if="pagination.total > 0"
           :page="pagination.page"
@@ -984,6 +1017,7 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import ImportDataModal from '@/components/admin/proxy/ImportDataModal.vue'
+import SubscriptionPanel from '@/components/admin/proxy/SubscriptionPanel.vue'
 import Select from '@/components/common/Select.vue'
 import GroupSelector from '@/components/common/GroupSelector.vue'
 import ProxyAdBanner from '@/components/common/ProxyAdBanner.vue'
@@ -999,6 +1033,17 @@ import { proxyExpiryBadgeClass, proxyExpiryLabelKey } from '@/utils/proxyExpiry'
 const { t } = useI18n()
 const appStore = useAppStore()
 const { copyToClipboard } = useClipboard()
+
+const activeTab = ref<'proxies' | 'subscriptions'>('proxies')
+
+function switchToSubscriptions() {
+  activeTab.value = 'subscriptions'
+}
+
+function onSubscriptionSynced() {
+  // Refresh proxy list so newly upserted sidecar-* rows appear when switching back.
+  void loadProxies()
+}
 
 const columns = computed<Column[]>(() => [
   { key: 'select', label: '', sortable: false },

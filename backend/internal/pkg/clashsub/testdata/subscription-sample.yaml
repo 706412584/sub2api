@@ -1,0 +1,24 @@
+proxies:
+  - name: "US-QA-1"
+    type: ss
+    server: 203.0.113.10
+    port: 8388
+    cipher: aes-128-gcm
+    password: "test-only"
+  - name: "JP-QA-2"
+    type: trojan
+    server: 203.0.113.20
+    port: 443
+    password: "test-only"
+  - name: "剩余流量展示"
+    type: vmess
+    server: 203.0.113.30
+    port: 443
+    uuid: "00000000-0000-0000-0000-000000000000"
+  - name: "SG-QA-3"
+    type: vmess
+    server: 203.0.113.40
+    port: 443
+    uuid: "00000000-0000-0000-0000-000000000002"
+    alterId: 0
+    cipher: auto

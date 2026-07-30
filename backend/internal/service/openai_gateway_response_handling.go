@@ -1059,6 +1059,13 @@ func openAIUsageFromGJSON(value gjson.Result) (OpenAIUsage, bool) {
 		value.Get("input_tokens_details.image_tokens"),
 		value.Get("prompt_tokens_details.image_tokens"),
 	)
+	// Reasoning/thinking tokens: Chat Completions uses completion_tokens_details,
+	// Responses API uses output_tokens_details. Display-only; not double-billed.
+	reasoningTokens := firstPositiveGJSONInt(
+		value.Get("completion_tokens_details.reasoning_tokens"),
+		value.Get("output_tokens_details.reasoning_tokens"),
+		value.Get("reasoning_tokens"),
+	)
 	return OpenAIUsage{
 		InputTokens:              int(inputTokens),
 		ImageInputTokens:         imageInputTokens,
@@ -1066,6 +1073,7 @@ func openAIUsageFromGJSON(value gjson.Result) (OpenAIUsage, bool) {
 		CacheCreationInputTokens: cacheCreationTokens,
 		CacheReadInputTokens:     cacheReadTokens,
 		ImageOutputTokens:        int(imageOutputTokens),
+		ReasoningTokens:          reasoningTokens,
 	}, true
 }
 

@@ -1584,6 +1584,8 @@ export interface UsageLog {
   output_tokens: number
   cache_creation_tokens: number
   cache_read_tokens: number
+  /** Upstream reasoning/thinking tokens; 0 means unknown/not reported. */
+  reasoning_tokens: number
   cache_creation_5m_tokens: number
   cache_creation_1h_tokens: number
 

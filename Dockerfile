@@ -112,6 +112,10 @@ LABEL maintainer="Wei-Shaw <github.com/Wei-Shaw>"
 LABEL description="Sub2API - AI API Gateway Platform"
 LABEL org.opencontainers.image.source="https://github.com/Wei-Shaw/sub2api"
 
+# Pin mihomo for embedded proxy-subscription engine (loopback mixed listeners).
+ARG MIHOMO_VERSION=v1.19.29
+ARG TARGETARCH=amd64
+
 # Install runtime dependencies
 RUN apk add --no-cache \
     ca-certificates \
@@ -124,6 +128,21 @@ RUN apk add --no-cache \
     libldap \
     libedit \
     && rm -rf /var/cache/apk/*
+
+# Bundle static mihomo so Docker deploys can sync airport subscriptions out of the box.
+RUN set -eux; \
+    case "${TARGETARCH}" in \
+      amd64) MIHOMO_ASSET="mihomo-linux-amd64-compatible-${MIHOMO_VERSION}.gz" ;; \
+      arm64) MIHOMO_ASSET="mihomo-linux-arm64-${MIHOMO_VERSION}.gz" ;; \
+      *) echo "unsupported TARGETARCH=${TARGETARCH} for mihomo" >&2; exit 1 ;; \
+    esac; \
+    wget -qO /tmp/mihomo.gz \
+      "https://github.com/MetaCubeX/mihomo/releases/download/${MIHOMO_VERSION}/${MIHOMO_ASSET}"; \
+    gunzip -c /tmp/mihomo.gz > /usr/local/bin/mihomo; \
+    rm -f /tmp/mihomo.gz; \
+    chmod 755 /usr/local/bin/mihomo; \
+    ln -sf mihomo /usr/local/bin/clash-meta; \
+    /usr/local/bin/mihomo -v
 
 # Copy pg_dump and psql from the same postgres image used in docker-compose
 # This ensures version consistency between backup tools and the database server
@@ -144,6 +163,10 @@ COPY --from=backend-builder --chown=sub2api:sub2api /app/backend/resources /app/
 
 # Create data directory
 RUN mkdir -p /app/data && chown sub2api:sub2api /app/data
+
+# Embedded proxy subscription defaults (override via compose/env if needed)
+ENV PROXY_SUBSCRIPTION_MIHOMO_BINARY=/usr/local/bin/mihomo \
+    PROXY_SUBSCRIPTION_DATA_DIR=/app/data/proxy-subscriptions
 
 # Copy entrypoint script (fixes volume permissions then drops to sub2api)
 COPY deploy/docker-entrypoint.sh /app/docker-entrypoint.sh

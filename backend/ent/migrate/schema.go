@@ -1431,6 +1431,54 @@ var (
 			},
 		},
 	}
+	// ProxySubscriptionsColumns holds the columns for the "proxy_subscriptions" table.
+	ProxySubscriptionsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "name", Type: field.TypeString, Size: 100},
+		{Name: "enabled", Type: field.TypeBool, Default: true},
+		{Name: "source_type", Type: field.TypeString, Size: 20, Default: "url"},
+		{Name: "subscription_url", Type: field.TypeString, Nullable: true, Size: 2000, Default: ""},
+		{Name: "inline_body", Type: field.TypeString, Nullable: true, Size: 2147483647, Default: ""},
+		{Name: "name_prefix", Type: field.TypeString, Size: 40, Default: "sidecar-a-"},
+		{Name: "protocol", Type: field.TypeString, Size: 20, Default: "socks5"},
+		{Name: "bind_address", Type: field.TypeString, Size: 64, Default: "127.0.0.1"},
+		{Name: "base_port", Type: field.TypeInt, Default: 21080},
+		{Name: "max_ports", Type: field.TypeInt, Default: 10},
+		{Name: "sync_interval_sec", Type: field.TypeInt, Default: 300},
+		{Name: "node_allow_contains", Type: field.TypeJSON},
+		{Name: "last_sync_at", Type: field.TypeTime, Nullable: true},
+		{Name: "last_sync_status", Type: field.TypeString, Nullable: true, Size: 40, Default: ""},
+		{Name: "last_sync_error", Type: field.TypeString, Nullable: true, Size: 2147483647, Default: ""},
+		{Name: "last_config_hash", Type: field.TypeString, Nullable: true, Size: 64, Default: ""},
+		{Name: "desired_count", Type: field.TypeInt, Default: 0},
+		{Name: "created_by", Type: field.TypeInt64, Nullable: true, Default: 0},
+		{Name: "next_due_at", Type: field.TypeTime, Nullable: true},
+	}
+	// ProxySubscriptionsTable holds the schema information for the "proxy_subscriptions" table.
+	ProxySubscriptionsTable = &schema.Table{
+		Name:       "proxy_subscriptions",
+		Columns:    ProxySubscriptionsColumns,
+		PrimaryKey: []*schema.Column{ProxySubscriptionsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "proxysubscription_enabled_next_due_at",
+				Unique:  false,
+				Columns: []*schema.Column{ProxySubscriptionsColumns[4], ProxySubscriptionsColumns[21]},
+			},
+			{
+				Name:    "proxysubscription_name_prefix",
+				Unique:  false,
+				Columns: []*schema.Column{ProxySubscriptionsColumns[8]},
+			},
+			{
+				Name:    "proxysubscription_enabled",
+				Unique:  false,
+				Columns: []*schema.Column{ProxySubscriptionsColumns[4]},
+			},
+		},
+	}
 	// RedeemCodesColumns holds the columns for the "redeem_codes" table.
 	RedeemCodesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -2091,6 +2139,7 @@ var (
 		PromoCodesTable,
 		PromoCodeUsagesTable,
 		ProxiesTable,
+		ProxySubscriptionsTable,
 		RedeemCodesTable,
 		SecuritySecretsTable,
 		SettingsTable,
@@ -2206,6 +2255,9 @@ func init() {
 	ProxiesTable.ForeignKeys[0].RefTable = ProxiesTable
 	ProxiesTable.Annotation = &entsql.Annotation{
 		Table: "proxies",
+	}
+	ProxySubscriptionsTable.Annotation = &entsql.Annotation{
+		Table: "proxy_subscriptions",
 	}
 	RedeemCodesTable.ForeignKeys[0].RefTable = GroupsTable
 	RedeemCodesTable.ForeignKeys[1].RefTable = UsersTable

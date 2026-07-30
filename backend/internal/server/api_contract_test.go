@@ -602,6 +602,7 @@ func TestAPIContracts(t *testing.T) {
 						"total_cost": 0.5,
 						"actual_cost": 0.5,
 						"rate_multiplier": 1,
+						"reasoning_tokens": 0,
 						"long_context_billing_applied": false,
 						"billing_type": 0,
 							"stream": true,
@@ -2012,6 +2013,10 @@ func (stubProxyRepo) ListActive(ctx context.Context) ([]service.Proxy, error) {
 }
 
 func (stubProxyRepo) ListActiveWithAccountCount(ctx context.Context) ([]service.ProxyWithAccountCount, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (stubProxyRepo) ListOwnedByPrefix(ctx context.Context, namePrefix string) ([]service.ProxyWithAccountCount, error) {
 	return nil, errors.New("not implemented")
 }
 

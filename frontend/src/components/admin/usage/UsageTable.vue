@@ -73,9 +73,17 @@
         </template>
 
         <template #cell-reasoning_effort="{ row }">
-          <span class="text-sm text-gray-900 dark:text-white">
-            {{ formatReasoningEffort(row.reasoning_effort) }}
-          </span>
+          <div class="space-y-0.5 text-sm">
+            <div class="font-medium text-gray-900 dark:text-white">
+              {{ formatReasoningEffort(row.reasoning_effort) }}
+            </div>
+            <div
+              v-if="(row.reasoning_tokens ?? 0) > 0"
+              class="text-xs font-medium tabular-nums text-violet-600 dark:text-violet-400"
+            >
+              {{ row.reasoning_tokens.toLocaleString() }}
+            </div>
+          </div>
         </template>
 
         <template #cell-endpoint="{ row }">
@@ -275,6 +283,10 @@
             <div v-if="tokenTooltipData && hasImageOutputTokens(tokenTooltipData)" class="flex items-center justify-between gap-4">
               <span class="text-gray-400">{{ t('usage.imageOutputTokens') }}</span>
               <span class="font-medium text-pink-300">{{ tokenTooltipData.image_output_tokens.toLocaleString() }}</span>
+            </div>
+            <div v-if="tokenTooltipData && (tokenTooltipData.reasoning_tokens ?? 0) > 0" class="flex items-center justify-between gap-4">
+              <span class="text-gray-400">{{ t('usage.reasoningTokens') }}</span>
+              <span class="font-medium text-violet-300">{{ tokenTooltipData.reasoning_tokens.toLocaleString() }}</span>
             </div>
             <div v-if="tokenTooltipData && tokenTooltipData.cache_creation_tokens > 0">
               <!-- 有 5m/1h 明细时，展开显示 -->

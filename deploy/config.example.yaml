@@ -1274,3 +1274,19 @@ image_storage:
   presign_expiry_hours: 24
   # 当上游返回的是图片 url 时，下载该图片再转存的字节上限（默认 32MB）
   max_download_bytes: 33554432
+
+# -----------------------------------------------------------------------------
+# Embedded proxy subscription (机场订阅 → 进程内 mihomo → sidecar-* 代理)
+# Docker 正式镜像默认已带 mihomo；请保持单副本部署（loopback 端口不可跨实例共享）。
+# -----------------------------------------------------------------------------
+proxy_subscription:
+  # Path or name of mihomo/clash-meta. Empty = look up on PATH.
+  mihomo_binary: ""
+  # Per-source config/workdir (relative paths are under process CWD; Docker uses /app/data/...)
+  data_dir: "data/proxy-subscriptions"
+  # Allow non-localhost http:// subscription URLs (default false)
+  allow_insecure_subscription: false
+  # Allow bind_address outside loopback (default false)
+  allow_non_local_bind: false
+  # Background due-scan interval in seconds
+  runner_interval_sec: 30

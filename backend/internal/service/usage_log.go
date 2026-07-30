@@ -140,6 +140,9 @@ type UsageLog struct {
 	OutputTokens        int
 	CacheCreationTokens int
 	CacheReadTokens     int
+	// ReasoningTokens is the upstream reasoning/thinking token count when available.
+	// 0 means unknown/not reported (including historical rows). Display-only.
+	ReasoningTokens int
 
 	CacheCreation5mTokens int `gorm:"column:cache_creation_5m_tokens"`
 	CacheCreation1hTokens int `gorm:"column:cache_creation_1h_tokens"`

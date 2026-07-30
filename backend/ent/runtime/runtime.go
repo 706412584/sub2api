@@ -31,6 +31,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/promocode"
 	"github.com/Wei-Shaw/sub2api/ent/promocodeusage"
 	"github.com/Wei-Shaw/sub2api/ent/proxy"
+	"github.com/Wei-Shaw/sub2api/ent/proxysubscription"
 	"github.com/Wei-Shaw/sub2api/ent/redeemcode"
 	"github.com/Wei-Shaw/sub2api/ent/schema"
 	"github.com/Wei-Shaw/sub2api/ent/securitysecret"
@@ -1679,6 +1680,117 @@ func init() {
 	proxyDescExpiryWarnDays := proxyFields[10].Descriptor()
 	// proxy.DefaultExpiryWarnDays holds the default value on creation for the expiry_warn_days field.
 	proxy.DefaultExpiryWarnDays = proxyDescExpiryWarnDays.Default.(int)
+	proxysubscriptionMixin := schema.ProxySubscription{}.Mixin()
+	proxysubscriptionMixinFields0 := proxysubscriptionMixin[0].Fields()
+	_ = proxysubscriptionMixinFields0
+	proxysubscriptionFields := schema.ProxySubscription{}.Fields()
+	_ = proxysubscriptionFields
+	// proxysubscriptionDescCreatedAt is the schema descriptor for created_at field.
+	proxysubscriptionDescCreatedAt := proxysubscriptionMixinFields0[0].Descriptor()
+	// proxysubscription.DefaultCreatedAt holds the default value on creation for the created_at field.
+	proxysubscription.DefaultCreatedAt = proxysubscriptionDescCreatedAt.Default.(func() time.Time)
+	// proxysubscriptionDescUpdatedAt is the schema descriptor for updated_at field.
+	proxysubscriptionDescUpdatedAt := proxysubscriptionMixinFields0[1].Descriptor()
+	// proxysubscription.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	proxysubscription.DefaultUpdatedAt = proxysubscriptionDescUpdatedAt.Default.(func() time.Time)
+	// proxysubscription.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	proxysubscription.UpdateDefaultUpdatedAt = proxysubscriptionDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// proxysubscriptionDescName is the schema descriptor for name field.
+	proxysubscriptionDescName := proxysubscriptionFields[0].Descriptor()
+	// proxysubscription.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	proxysubscription.NameValidator = func() func(string) error {
+		validators := proxysubscriptionDescName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name string) error {
+			for _, fn := range fns {
+				if err := fn(name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// proxysubscriptionDescEnabled is the schema descriptor for enabled field.
+	proxysubscriptionDescEnabled := proxysubscriptionFields[1].Descriptor()
+	// proxysubscription.DefaultEnabled holds the default value on creation for the enabled field.
+	proxysubscription.DefaultEnabled = proxysubscriptionDescEnabled.Default.(bool)
+	// proxysubscriptionDescSourceType is the schema descriptor for source_type field.
+	proxysubscriptionDescSourceType := proxysubscriptionFields[2].Descriptor()
+	// proxysubscription.DefaultSourceType holds the default value on creation for the source_type field.
+	proxysubscription.DefaultSourceType = proxysubscriptionDescSourceType.Default.(string)
+	// proxysubscription.SourceTypeValidator is a validator for the "source_type" field. It is called by the builders before save.
+	proxysubscription.SourceTypeValidator = proxysubscriptionDescSourceType.Validators[0].(func(string) error)
+	// proxysubscriptionDescSubscriptionURL is the schema descriptor for subscription_url field.
+	proxysubscriptionDescSubscriptionURL := proxysubscriptionFields[3].Descriptor()
+	// proxysubscription.DefaultSubscriptionURL holds the default value on creation for the subscription_url field.
+	proxysubscription.DefaultSubscriptionURL = proxysubscriptionDescSubscriptionURL.Default.(string)
+	// proxysubscription.SubscriptionURLValidator is a validator for the "subscription_url" field. It is called by the builders before save.
+	proxysubscription.SubscriptionURLValidator = proxysubscriptionDescSubscriptionURL.Validators[0].(func(string) error)
+	// proxysubscriptionDescInlineBody is the schema descriptor for inline_body field.
+	proxysubscriptionDescInlineBody := proxysubscriptionFields[4].Descriptor()
+	// proxysubscription.DefaultInlineBody holds the default value on creation for the inline_body field.
+	proxysubscription.DefaultInlineBody = proxysubscriptionDescInlineBody.Default.(string)
+	// proxysubscriptionDescNamePrefix is the schema descriptor for name_prefix field.
+	proxysubscriptionDescNamePrefix := proxysubscriptionFields[5].Descriptor()
+	// proxysubscription.DefaultNamePrefix holds the default value on creation for the name_prefix field.
+	proxysubscription.DefaultNamePrefix = proxysubscriptionDescNamePrefix.Default.(string)
+	// proxysubscription.NamePrefixValidator is a validator for the "name_prefix" field. It is called by the builders before save.
+	proxysubscription.NamePrefixValidator = proxysubscriptionDescNamePrefix.Validators[0].(func(string) error)
+	// proxysubscriptionDescProtocol is the schema descriptor for protocol field.
+	proxysubscriptionDescProtocol := proxysubscriptionFields[6].Descriptor()
+	// proxysubscription.DefaultProtocol holds the default value on creation for the protocol field.
+	proxysubscription.DefaultProtocol = proxysubscriptionDescProtocol.Default.(string)
+	// proxysubscription.ProtocolValidator is a validator for the "protocol" field. It is called by the builders before save.
+	proxysubscription.ProtocolValidator = proxysubscriptionDescProtocol.Validators[0].(func(string) error)
+	// proxysubscriptionDescBindAddress is the schema descriptor for bind_address field.
+	proxysubscriptionDescBindAddress := proxysubscriptionFields[7].Descriptor()
+	// proxysubscription.DefaultBindAddress holds the default value on creation for the bind_address field.
+	proxysubscription.DefaultBindAddress = proxysubscriptionDescBindAddress.Default.(string)
+	// proxysubscription.BindAddressValidator is a validator for the "bind_address" field. It is called by the builders before save.
+	proxysubscription.BindAddressValidator = proxysubscriptionDescBindAddress.Validators[0].(func(string) error)
+	// proxysubscriptionDescBasePort is the schema descriptor for base_port field.
+	proxysubscriptionDescBasePort := proxysubscriptionFields[8].Descriptor()
+	// proxysubscription.DefaultBasePort holds the default value on creation for the base_port field.
+	proxysubscription.DefaultBasePort = proxysubscriptionDescBasePort.Default.(int)
+	// proxysubscriptionDescMaxPorts is the schema descriptor for max_ports field.
+	proxysubscriptionDescMaxPorts := proxysubscriptionFields[9].Descriptor()
+	// proxysubscription.DefaultMaxPorts holds the default value on creation for the max_ports field.
+	proxysubscription.DefaultMaxPorts = proxysubscriptionDescMaxPorts.Default.(int)
+	// proxysubscriptionDescSyncIntervalSec is the schema descriptor for sync_interval_sec field.
+	proxysubscriptionDescSyncIntervalSec := proxysubscriptionFields[10].Descriptor()
+	// proxysubscription.DefaultSyncIntervalSec holds the default value on creation for the sync_interval_sec field.
+	proxysubscription.DefaultSyncIntervalSec = proxysubscriptionDescSyncIntervalSec.Default.(int)
+	// proxysubscriptionDescNodeAllowContains is the schema descriptor for node_allow_contains field.
+	proxysubscriptionDescNodeAllowContains := proxysubscriptionFields[11].Descriptor()
+	// proxysubscription.DefaultNodeAllowContains holds the default value on creation for the node_allow_contains field.
+	proxysubscription.DefaultNodeAllowContains = proxysubscriptionDescNodeAllowContains.Default.([]string)
+	// proxysubscriptionDescLastSyncStatus is the schema descriptor for last_sync_status field.
+	proxysubscriptionDescLastSyncStatus := proxysubscriptionFields[13].Descriptor()
+	// proxysubscription.DefaultLastSyncStatus holds the default value on creation for the last_sync_status field.
+	proxysubscription.DefaultLastSyncStatus = proxysubscriptionDescLastSyncStatus.Default.(string)
+	// proxysubscription.LastSyncStatusValidator is a validator for the "last_sync_status" field. It is called by the builders before save.
+	proxysubscription.LastSyncStatusValidator = proxysubscriptionDescLastSyncStatus.Validators[0].(func(string) error)
+	// proxysubscriptionDescLastSyncError is the schema descriptor for last_sync_error field.
+	proxysubscriptionDescLastSyncError := proxysubscriptionFields[14].Descriptor()
+	// proxysubscription.DefaultLastSyncError holds the default value on creation for the last_sync_error field.
+	proxysubscription.DefaultLastSyncError = proxysubscriptionDescLastSyncError.Default.(string)
+	// proxysubscriptionDescLastConfigHash is the schema descriptor for last_config_hash field.
+	proxysubscriptionDescLastConfigHash := proxysubscriptionFields[15].Descriptor()
+	// proxysubscription.DefaultLastConfigHash holds the default value on creation for the last_config_hash field.
+	proxysubscription.DefaultLastConfigHash = proxysubscriptionDescLastConfigHash.Default.(string)
+	// proxysubscription.LastConfigHashValidator is a validator for the "last_config_hash" field. It is called by the builders before save.
+	proxysubscription.LastConfigHashValidator = proxysubscriptionDescLastConfigHash.Validators[0].(func(string) error)
+	// proxysubscriptionDescDesiredCount is the schema descriptor for desired_count field.
+	proxysubscriptionDescDesiredCount := proxysubscriptionFields[16].Descriptor()
+	// proxysubscription.DefaultDesiredCount holds the default value on creation for the desired_count field.
+	proxysubscription.DefaultDesiredCount = proxysubscriptionDescDesiredCount.Default.(int)
+	// proxysubscriptionDescCreatedBy is the schema descriptor for created_by field.
+	proxysubscriptionDescCreatedBy := proxysubscriptionFields[17].Descriptor()
+	// proxysubscription.DefaultCreatedBy holds the default value on creation for the created_by field.
+	proxysubscription.DefaultCreatedBy = proxysubscriptionDescCreatedBy.Default.(int64)
 	redeemcodeFields := schema.RedeemCode{}.Fields()
 	_ = redeemcodeFields
 	// redeemcodeDescCode is the schema descriptor for code field.

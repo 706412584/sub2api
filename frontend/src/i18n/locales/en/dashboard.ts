@@ -296,6 +296,7 @@ export default {
     requestedModel: 'Requested',
     upstreamModel: 'Upstream',
     reasoningEffort: 'Reasoning Effort',
+    reasoningTokens: 'Reasoning',
     endpoint: 'Endpoint',
     endpointDistribution: 'Endpoint Distribution',
     inbound: 'Inbound',

@@ -98,6 +98,21 @@ type Config struct {
 	Idempotency             IdempotencyConfig             `mapstructure:"idempotency"`
 	BatchImage              BatchImageConfig              `mapstructure:"batch_image"`
 	ImageStorage            ImageStorageConfig            `mapstructure:"image_storage"`
+	ProxySubscription       ProxySubscriptionConfig       `mapstructure:"proxy_subscription"`
+}
+
+// ProxySubscriptionConfig controls embedded Clash/share-link subscription sync + in-process mihomo.
+type ProxySubscriptionConfig struct {
+	// MihomoBinary is path or name of the mihomo/clash-meta binary. Empty = look up on PATH.
+	MihomoBinary string `mapstructure:"mihomo_binary"`
+	// DataDir holds per-source config/workdir (default: data/proxy-subscriptions).
+	DataDir string `mapstructure:"data_dir"`
+	// AllowInsecureSubscription permits non-localhost http:// subscription URLs.
+	AllowInsecureSubscription bool `mapstructure:"allow_insecure_subscription"`
+	// AllowNonLocalBind permits bind_address outside loopback.
+	AllowNonLocalBind bool `mapstructure:"allow_non_local_bind"`
+	// RunnerIntervalSec is background due-scan interval (default 30).
+	RunnerIntervalSec int `mapstructure:"runner_interval_sec"`
 }
 
 type LogConfig struct {
@@ -1645,6 +1660,21 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	// 环境变量支持
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	if err := viper.BindEnv("proxy_subscription.mihomo_binary", "PROXY_SUBSCRIPTION_MIHOMO_BINARY"); err != nil {
+		return nil, fmt.Errorf("bind env PROXY_SUBSCRIPTION_MIHOMO_BINARY: %w", err)
+	}
+	if err := viper.BindEnv("proxy_subscription.data_dir", "PROXY_SUBSCRIPTION_DATA_DIR"); err != nil {
+		return nil, fmt.Errorf("bind env PROXY_SUBSCRIPTION_DATA_DIR: %w", err)
+	}
+	if err := viper.BindEnv("proxy_subscription.allow_insecure_subscription", "PROXY_SUBSCRIPTION_ALLOW_INSECURE"); err != nil {
+		return nil, fmt.Errorf("bind env PROXY_SUBSCRIPTION_ALLOW_INSECURE: %w", err)
+	}
+	if err := viper.BindEnv("proxy_subscription.allow_non_local_bind", "PROXY_SUBSCRIPTION_ALLOW_NON_LOCAL_BIND"); err != nil {
+		return nil, fmt.Errorf("bind env PROXY_SUBSCRIPTION_ALLOW_NON_LOCAL_BIND: %w", err)
+	}
+	if err := viper.BindEnv("proxy_subscription.runner_interval_sec", "PROXY_SUBSCRIPTION_RUNNER_INTERVAL_SEC"); err != nil {
+		return nil, fmt.Errorf("bind env PROXY_SUBSCRIPTION_RUNNER_INTERVAL_SEC: %w", err)
+	}
 	if err := viper.BindEnv("server.enable_server_timing", "ENABLE_SERVER_TIMING"); err != nil {
 		return nil, fmt.Errorf("bind ENABLE_SERVER_TIMING: %w", err)
 	}
@@ -2078,6 +2108,13 @@ func setDefaults() {
 	viper.SetDefault("image_storage.access_key_id", "")
 	viper.SetDefault("image_storage.secret_access_key", "")
 	viper.SetDefault("image_storage.public_base_url", "")
+
+	// Embedded proxy subscription (mihomo in-process)
+	viper.SetDefault("proxy_subscription.mihomo_binary", "")
+	viper.SetDefault("proxy_subscription.data_dir", "data/proxy-subscriptions")
+	viper.SetDefault("proxy_subscription.allow_insecure_subscription", false)
+	viper.SetDefault("proxy_subscription.allow_non_local_bind", false)
+	viper.SetDefault("proxy_subscription.runner_interval_sec", 30)
 
 	// Ops (vNext)
 	viper.SetDefault("ops.enabled", true)
