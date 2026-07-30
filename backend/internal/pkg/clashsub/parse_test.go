@@ -3,6 +3,8 @@ package clashsub
 import (
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -39,7 +41,7 @@ proxies:
 	}
 	// Sorted by identity, not original order.
 	names := []string{nodes[0].Name, nodes[1].Name}
-	if !(names[0] == "JP-Beta" && names[1] == "US-Alpha") && !(names[0] == "US-Alpha" && names[1] == "JP-Beta") {
+	if (names[0] != "JP-Beta" || names[1] != "US-Alpha") && (names[0] != "US-Alpha" || names[1] != "JP-Beta") {
 		t.Fatalf("unexpected names: %+v", names)
 	}
 }
@@ -77,20 +79,19 @@ func TestSelectNodesFailClosed(t *testing.T) {
 func TestStableNameNoPortAndStable(t *testing.T) {
 	n := Node{Name: "A", Type: "ss", Identity: "ss|1|1|A"}
 	name := StableProxyName("sidecar-a-", n.Identity, n.Name)
-	if name == "" || name[:9] != "sidecar-a" {
+	if !strings.HasPrefix(name, "sidecar-a-") {
 		t.Fatalf("bad name %q", name)
 	}
 	if name != StableProxyName("sidecar-a-", n.Identity, n.Name) {
 		t.Fatal("unstable")
 	}
-	// must not embed a -pPORT suffix contract
-	for i := 0; i < len(name)-2; i++ {
-		if name[i] == '-' && name[i+1] == 'p' {
-			// allow hash fragments; ensure not trailing -pdigits only pattern from old design
-		}
+	if matched, _ := regexp.MatchString(`-p\d+$`, name); matched {
+		t.Fatalf("name still looks port-suffixed: %q", name)
 	}
-	if filepath.Ext(name) != "" {
-		// no-op; keep linter calm if needed
+	rest := strings.TrimPrefix(name, "sidecar-a-")
+	parts := strings.SplitN(rest, "-", 2)
+	if len(parts) < 1 || len(parts[0]) != 8 {
+		t.Fatalf("expected 8-char hash prefix in name %q", name)
 	}
 }
 

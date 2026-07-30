@@ -54,28 +54,28 @@ type proxySubscriptionUpdateRequest struct {
 }
 
 type proxySubscriptionResponse struct {
-	ID                   int64     `json:"id"`
-	Name                 string    `json:"name"`
-	Enabled              bool      `json:"enabled"`
-	SourceType           string    `json:"source_type"`
+	ID                    int64    `json:"id"`
+	Name                  string   `json:"name"`
+	Enabled               bool     `json:"enabled"`
+	SourceType            string   `json:"source_type"`
 	SubscriptionURLMasked string   `json:"subscription_url_masked"`
-	HasInlineBody        bool      `json:"has_inline_body"`
-	NamePrefix           string    `json:"name_prefix"`
-	Protocol             string    `json:"protocol"`
-	BindAddress          string    `json:"bind_address"`
-	BasePort             int       `json:"base_port"`
-	MaxPorts             int       `json:"max_ports"`
-	SyncIntervalSec      int       `json:"sync_interval_sec"`
-	NodeAllowContains    []string  `json:"node_allow_contains"`
-	LastSyncAt           *string   `json:"last_sync_at"`
-	LastSyncStatus       string    `json:"last_sync_status"`
-	LastSyncError        string    `json:"last_sync_error"`
-	LastConfigHash       string    `json:"last_config_hash"`
-	DesiredCount         int       `json:"desired_count"`
-	CreatedBy            int64     `json:"created_by"`
-	NextDueAt            *string   `json:"next_due_at"`
-	CreatedAt            string    `json:"created_at"`
-	UpdatedAt            string    `json:"updated_at"`
+	HasInlineBody         bool     `json:"has_inline_body"`
+	NamePrefix            string   `json:"name_prefix"`
+	Protocol              string   `json:"protocol"`
+	BindAddress           string   `json:"bind_address"`
+	BasePort              int      `json:"base_port"`
+	MaxPorts              int      `json:"max_ports"`
+	SyncIntervalSec       int      `json:"sync_interval_sec"`
+	NodeAllowContains     []string `json:"node_allow_contains"`
+	LastSyncAt            *string  `json:"last_sync_at"`
+	LastSyncStatus        string   `json:"last_sync_status"`
+	LastSyncError         string   `json:"last_sync_error"`
+	LastConfigHash        string   `json:"last_config_hash"`
+	DesiredCount          int      `json:"desired_count"`
+	CreatedBy             int64    `json:"created_by"`
+	NextDueAt             *string  `json:"next_due_at"`
+	CreatedAt             string   `json:"created_at"`
+	UpdatedAt             string   `json:"updated_at"`
 }
 
 // List GET /admin/proxy-subscriptions

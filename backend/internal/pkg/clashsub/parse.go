@@ -233,9 +233,9 @@ func sanitizeNameFragment(s string, max int) string {
 	for _, r := range s {
 		switch {
 		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
-			b.WriteRune(r)
+			_, _ = b.WriteRune(r)
 		case r == '-' || r == '_':
-			b.WriteRune(r)
+			_, _ = b.WriteRune(r)
 		}
 		if b.Len() >= max {
 			break

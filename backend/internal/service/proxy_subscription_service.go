@@ -28,11 +28,11 @@ const (
 
 // ProxySubscriptionService manages CRUD + sync for embedded subscription sources.
 type ProxySubscriptionService struct {
-	repo      ProxySubscriptionRepository
-	proxyRepo ProxyRepository
-	engine    *MihomoEngine
-	httpClient *http.Client
-	allowInsecureSub bool
+	repo              ProxySubscriptionRepository
+	proxyRepo         ProxyRepository
+	engine            *MihomoEngine
+	httpClient        *http.Client
+	allowInsecureSub  bool
 	allowNonLocalBind bool
 }
 
@@ -473,7 +473,7 @@ func (s *ProxySubscriptionService) fetchBody(ctx context.Context, m *ProxySubscr
 		if err != nil {
 			return nil, fmt.Errorf("fetch subscription: %w", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode >= 400 {
 			b, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 			return nil, fmt.Errorf("fetch subscription HTTP %d: %s", resp.StatusCode, string(b))
