@@ -3,6 +3,8 @@ package clash
 import (
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -77,20 +79,21 @@ func TestSelectNodesFailClosed(t *testing.T) {
 func TestStableNameNoPortAndStable(t *testing.T) {
 	n := Node{Name: "A", Type: "ss", Identity: "ss|1|1|A"}
 	name := StableProxyName("sidecar-a-", n.Identity, n.Name)
-	if name == "" || name[:9] != "sidecar-a" {
+	if !strings.HasPrefix(name, "sidecar-a-") {
 		t.Fatalf("bad name %q", name)
 	}
 	if name != StableProxyName("sidecar-a-", n.Identity, n.Name) {
 		t.Fatal("unstable")
 	}
-	// must not embed a -pPORT suffix contract
-	for i := 0; i < len(name)-2; i++ {
-		if name[i] == '-' && name[i+1] == 'p' {
-			// allow hash fragments; ensure not trailing -pdigits only pattern from old design
-		}
+	// Old design used -pPORT; names must not end with that pattern.
+	if matched, _ := regexp.MatchString(`-p\d+$`, name); matched {
+		t.Fatalf("name still looks port-suffixed: %q", name)
 	}
-	if filepath.Ext(name) != "" {
-		// no-op; keep linter calm if needed
+	// Hash segment is 8 hex chars after prefix.
+	rest := strings.TrimPrefix(name, "sidecar-a-")
+	parts := strings.SplitN(rest, "-", 2)
+	if len(parts) < 1 || len(parts[0]) != 8 {
+		t.Fatalf("expected 8-char hash prefix in name %q", name)
 	}
 }
 

@@ -74,3 +74,20 @@ func TestLoadAcceptsHTTPProtocol(t *testing.T) {
 		t.Fatalf("%+v", cfg)
 	}
 }
+
+func TestLoadRejectsNonPositiveSyncInterval(t *testing.T) {
+	t.Setenv("SIDECAR_SUBSCRIPTION_FILE", "x.yaml")
+	t.Setenv("SIDECAR_DRY_RUN", "1")
+	t.Setenv("SIDECAR_NAME_PREFIX", "sidecar-a-")
+	t.Setenv("SIDECAR_BIND_ADDRESS", "127.0.0.1")
+	t.Setenv("SIDECAR_SYNC_INTERVAL", "0s")
+	_, err := Load()
+	if err == nil {
+		t.Fatal("expected error for zero sync interval")
+	}
+	t.Setenv("SIDECAR_SYNC_INTERVAL", "-1s")
+	_, err = Load()
+	if err == nil {
+		t.Fatal("expected error for negative sync interval")
+	}
+}

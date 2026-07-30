@@ -45,13 +45,15 @@ type CreateProxyRequest struct {
 }
 
 // UpdateProxyRequest only includes fields the sidecar is allowed to touch.
-// Backend UpdateProxy overwrites expiry/fallback from zero values — we avoid sending those keys
-// by using a dedicated minimal JSON map in UpdateProxyMinimal.
+// Backend UpdateProxy overwrites expiry/fallback from zero values — UpdateProxy
+// sends an explicit minimal JSON map of these fields only (not this struct).
+// Port has no omitempty so port 0 can still be represented when intentionally set;
+// callers always send a concrete network port for sidecar-managed proxies.
 type UpdateProxyRequest struct {
 	Name     string `json:"name,omitempty"`
 	Protocol string `json:"protocol,omitempty"`
 	Host     string `json:"host,omitempty"`
-	Port     int    `json:"port,omitempty"`
+	Port     int    `json:"port"`
 	Status   string `json:"status,omitempty"`
 }
 

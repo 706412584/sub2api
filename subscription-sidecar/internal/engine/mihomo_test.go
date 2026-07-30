@@ -40,12 +40,8 @@ func TestBuildBindingsAndWriteConfig(t *testing.T) {
 	if len(hash) != 64 {
 		t.Fatalf("hash %q", hash)
 	}
-	st, err := os.Stat(path)
-	if err != nil {
+	if _, err := os.Stat(path); err != nil {
 		t.Fatal(err)
-	}
-	if st.Mode().Perm()&0o077 != 0 {
-		// on Windows perm bits may not match; only assert content
 	}
 	raw, err := os.ReadFile(path)
 	if err != nil {

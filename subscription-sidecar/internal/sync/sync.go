@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -40,20 +39,10 @@ type HTTPFetcher struct {
 func (f HTTPFetcher) Fetch(ctx context.Context) ([]byte, error) {
 	u, err := url.Parse(f.URL)
 	if err != nil {
-		return nil, fmt.Errorf("subscription url: %w", err)
+		return nil, fmt.Errorf("subscription url: parse failed")
 	}
-	switch strings.ToLower(u.Scheme) {
-	case "https":
-		// ok
-	case "http":
-		if !f.AllowInsecureLocal {
-			host := u.Hostname()
-			if host != "127.0.0.1" && host != "localhost" && host != "::1" {
-				return nil, fmt.Errorf("http subscription URL only allowed for localhost unless SIDECAR_ALLOW_INSECURE_SUBSCRIPTION=1")
-			}
-		}
-	default:
-		return nil, fmt.Errorf("unsupported subscription scheme %q", u.Scheme)
+	if err := validateSubscriptionURL(u, f.AllowInsecureLocal); err != nil {
+		return nil, err
 	}
 
 	client := f.Client
@@ -64,25 +53,68 @@ func (f HTTPFetcher) Fetch(ctx context.Context) ([]byte, error) {
 				if len(via) >= 3 {
 					return fmt.Errorf("too many redirects")
 				}
+				if err := validateSubscriptionURL(req.URL, f.AllowInsecureLocal); err != nil {
+					return fmt.Errorf("redirect rejected: %w", err)
+				}
 				return nil
 			},
 		}
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, f.URL, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("subscription request: create failed")
 	}
 	req.Header.Set("User-Agent", "sub2api-subscription-sidecar/0.1")
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, sanitizeFetchError(err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		return nil, fmt.Errorf("fetch subscription HTTP %d: %s", resp.StatusCode, string(b))
 	}
-	return io.ReadAll(io.LimitReader(resp.Body, maxSubscriptionBytes))
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxSubscriptionBytes))
+	if err != nil {
+		return nil, fmt.Errorf("read subscription body: %w", err)
+	}
+	return data, nil
+}
+
+func validateSubscriptionURL(u *url.URL, allowInsecureLocal bool) error {
+	if u == nil {
+		return fmt.Errorf("subscription url is empty")
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "https":
+		return nil
+	case "http":
+		if allowInsecureLocal {
+			return nil
+		}
+		host := u.Hostname()
+		if host != "127.0.0.1" && host != "localhost" && host != "::1" {
+			return fmt.Errorf("http subscription URL only allowed for localhost unless SIDECAR_ALLOW_INSECURE_SUBSCRIPTION=1")
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported subscription scheme %q", u.Scheme)
+	}
+}
+
+// sanitizeFetchError strips URL query/credentials from transport errors so
+// subscription tokens are not written to logs.
+func sanitizeFetchError(err error) error {
+	if err == nil {
+		return nil
+	}
+	msg := err.Error()
+	if idx := strings.Index(msg, "?"); idx >= 0 {
+		// Drop query string and anything that looks like a full URL tail.
+		msg = msg[:idx] + "?[redacted]"
+	}
+	msg = strings.ReplaceAll(msg, "\n", " ")
+	return fmt.Errorf("fetch subscription failed: %s", msg)
 }
 
 type AdminClient interface {
@@ -242,24 +274,4 @@ func (s *Service) RunOnce(ctx context.Context) (*Result, error) {
 	}
 
 	return res, nil
-}
-
-// ValidateLoopbackBind returns error if bind is non-loopback without override.
-func ValidateLoopbackBind(addr string, allowNonLocal bool) error {
-	if allowNonLocal {
-		return nil
-	}
-	host := addr
-	if strings.Contains(addr, ":") && net.ParseIP(addr) == nil {
-		// host: not expected here; BindAddress is host only
-		host = addr
-	}
-	ip := net.ParseIP(host)
-	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
-		return nil
-	}
-	if ip != nil && ip.IsLoopback() {
-		return nil
-	}
-	return fmt.Errorf("SIDECAR_BIND_ADDRESS %q must be loopback unless SIDECAR_ALLOW_NON_LOCAL_BIND=1", addr)
 }

@@ -111,6 +111,9 @@ func (c *Config) Validate() error {
 	if c.BasePort+c.MaxPorts-1 > 65535 {
 		return fmt.Errorf("port range exceeds 65535")
 	}
+	if c.SyncInterval <= 0 {
+		return fmt.Errorf("SIDECAR_SYNC_INTERVAL must be greater than 0")
+	}
 	if !strings.HasPrefix(c.NamePrefix, "sidecar-") {
 		return fmt.Errorf("SIDECAR_NAME_PREFIX must start with sidecar-")
 	}
