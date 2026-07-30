@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
@@ -814,6 +815,9 @@ var ProviderSet = wire.NewSet(
 	ProvideChannelMonitorRunner,
 	NewChannelMonitorRequestTemplateService,
 	ProvideUserPlatformQuotaUsageFlusher,
+	ProvideMihomoEngine,
+	ProvideProxySubscriptionService,
+	ProvideProxySubscriptionRunner,
 )
 
 // ProvideUserPlatformQuotaUsageFlusher 创建并启动 UserPlatformQuotaUsageFlusher。
@@ -867,6 +871,51 @@ func ProvideChannelMonitorService(
 func ProvideChannelMonitorRunner(svc *ChannelMonitorService, settingService *SettingService) *ChannelMonitorRunner {
 	r := NewChannelMonitorRunner(svc, settingService)
 	svc.SetScheduler(r)
+	r.Start()
+	return r
+}
+
+// ProvideMihomoEngine creates the in-process mihomo process manager.
+func ProvideMihomoEngine(cfg *config.Config) *MihomoEngine {
+	binary := ""
+	dataDir := "data/proxy-subscriptions"
+	if cfg != nil {
+		binary = strings.TrimSpace(cfg.ProxySubscription.MihomoBinary)
+		if d := strings.TrimSpace(cfg.ProxySubscription.DataDir); d != "" {
+			dataDir = d
+		}
+	}
+	return NewMihomoEngine(binary, dataDir)
+}
+
+// ProvideProxySubscriptionService creates CRUD + sync service for embedded subscriptions.
+func ProvideProxySubscriptionService(
+	repo ProxySubscriptionRepository,
+	proxyRepo ProxyRepository,
+	engine *MihomoEngine,
+	cfg *config.Config,
+) *ProxySubscriptionService {
+	svc := NewProxySubscriptionService(repo, proxyRepo, engine)
+	if cfg != nil {
+		svc.SetAllowInsecureSubscription(cfg.ProxySubscription.AllowInsecureSubscription)
+		svc.SetAllowNonLocalBind(cfg.ProxySubscription.AllowNonLocalBind)
+	}
+	return svc
+}
+
+// ProvideProxySubscriptionRunner creates and starts the due-sync background runner.
+func ProvideProxySubscriptionRunner(
+	svc *ProxySubscriptionService,
+	cfg *config.Config,
+	lockCache LeaderLockCache,
+	db *sql.DB,
+) *ProxySubscriptionRunner {
+	interval := 30 * time.Second
+	if cfg != nil && cfg.ProxySubscription.RunnerIntervalSec > 0 {
+		interval = time.Duration(cfg.ProxySubscription.RunnerIntervalSec) * time.Second
+	}
+	r := NewProxySubscriptionRunner(svc, interval)
+	r.SetLeaderLock(lockCache, db)
 	r.Start()
 	return r
 }

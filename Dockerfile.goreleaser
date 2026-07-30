@@ -16,6 +16,11 @@ LABEL maintainer="Wei-Shaw <github.com/Wei-Shaw>"
 LABEL description="Sub2API - AI API Gateway Platform"
 LABEL org.opencontainers.image.source="https://github.com/Wei-Shaw/sub2api"
 
+# Pin mihomo for embedded proxy-subscription engine (loopback mixed listeners).
+ARG MIHOMO_VERSION=v1.19.29
+# GoReleaser/buildx set TARGETARCH (amd64/arm64). Default amd64 for local builds.
+ARG TARGETARCH=amd64
+
 # Install runtime dependencies
 RUN apk add --no-cache \
     ca-certificates \
@@ -29,6 +34,22 @@ RUN apk add --no-cache \
     libldap \
     libedit \
     && rm -rf /var/cache/apk/*
+
+# Bundle static mihomo so Docker deploys can sync airport subscriptions out of the box.
+# Assets: https://github.com/MetaCubeX/mihomo/releases (compatible amd64 for broader hosts)
+RUN set -eux; \
+    case "${TARGETARCH}" in \
+      amd64) MIHOMO_ASSET="mihomo-linux-amd64-compatible-${MIHOMO_VERSION}.gz" ;; \
+      arm64) MIHOMO_ASSET="mihomo-linux-arm64-${MIHOMO_VERSION}.gz" ;; \
+      *) echo "unsupported TARGETARCH=${TARGETARCH} for mihomo" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/MetaCubeX/mihomo/releases/download/${MIHOMO_VERSION}/${MIHOMO_ASSET}" \
+      -o /tmp/mihomo.gz; \
+    gunzip -c /tmp/mihomo.gz > /usr/local/bin/mihomo; \
+    rm -f /tmp/mihomo.gz; \
+    chmod 755 /usr/local/bin/mihomo; \
+    ln -sf mihomo /usr/local/bin/clash-meta; \
+    /usr/local/bin/mihomo -v
 
 # Copy pg_dump and psql from a version-matched PostgreSQL image so backup and
 # restore work in the runtime container without requiring Docker socket access.
@@ -47,6 +68,10 @@ COPY sub2api /app/sub2api
 
 # Create data directory
 RUN mkdir -p /app/data && chown -R sub2api:sub2api /app
+
+# Embedded proxy subscription defaults (override via compose/env if needed)
+ENV PROXY_SUBSCRIPTION_MIHOMO_BINARY=/usr/local/bin/mihomo \
+    PROXY_SUBSCRIPTION_DATA_DIR=/app/data/proxy-subscriptions
 
 # Copy entrypoint script (fixes volume permissions then drops to sub2api)
 COPY deploy/docker-entrypoint.sh /app/docker-entrypoint.sh

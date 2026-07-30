@@ -173,6 +173,17 @@ services:
       - GATEWAY_IMAGE_CONCURRENCY_OVERFLOW_MODE=${GATEWAY_IMAGE_CONCURRENCY_OVERFLOW_MODE:-reject}
       - GATEWAY_IMAGE_CONCURRENCY_WAIT_TIMEOUT_SECONDS=${GATEWAY_IMAGE_CONCURRENCY_WAIT_TIMEOUT_SECONDS:-30}
       - GATEWAY_IMAGE_CONCURRENCY_MAX_WAITING_REQUESTS=${GATEWAY_IMAGE_CONCURRENCY_MAX_WAITING_REQUESTS:-100}
+
+      # =======================================================================
+      # Embedded proxy subscription (airport → in-process mihomo → sidecar-*)
+      # Official images ship mihomo at /usr/local/bin/mihomo.
+      # Use a single sub2api replica: mixed ports bind 127.0.0.1 inside the container.
+      # =======================================================================
+      - PROXY_SUBSCRIPTION_MIHOMO_BINARY=${PROXY_SUBSCRIPTION_MIHOMO_BINARY:-/usr/local/bin/mihomo}
+      - PROXY_SUBSCRIPTION_DATA_DIR=${PROXY_SUBSCRIPTION_DATA_DIR:-/app/data/proxy-subscriptions}
+      - PROXY_SUBSCRIPTION_ALLOW_INSECURE=${PROXY_SUBSCRIPTION_ALLOW_INSECURE:-false}
+      - PROXY_SUBSCRIPTION_ALLOW_NON_LOCAL_BIND=${PROXY_SUBSCRIPTION_ALLOW_NON_LOCAL_BIND:-false}
+      - PROXY_SUBSCRIPTION_RUNNER_INTERVAL_SEC=${PROXY_SUBSCRIPTION_RUNNER_INTERVAL_SEC:-30}
     depends_on:
       postgres:
         condition: service_healthy

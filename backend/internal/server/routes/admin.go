@@ -114,6 +114,9 @@ func RegisterAdminRoutes(
 		// 渠道监控
 		registerChannelMonitorRoutes(admin, h)
 
+		// Embedded proxy subscriptions (mihomo)
+		registerProxySubscriptionRoutes(admin, h)
+
 		// 风控中心
 		registerContentModerationRoutes(admin, h)
 
@@ -798,5 +801,18 @@ func registerAffiliateRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 			users.PUT("/:user_id", h.Admin.Affiliate.UpdateUserSettings)
 			users.DELETE("/:user_id", h.Admin.Affiliate.ClearUserSettings)
 		}
+	}
+}
+
+func registerProxySubscriptionRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	subs := admin.Group("/proxy-subscriptions")
+	{
+		subs.GET("/engine/status", h.Admin.ProxySubscription.EngineStatus)
+		subs.GET("", h.Admin.ProxySubscription.List)
+		subs.POST("", h.Admin.ProxySubscription.Create)
+		subs.GET("/:id", h.Admin.ProxySubscription.Get)
+		subs.PUT("/:id", h.Admin.ProxySubscription.Update)
+		subs.DELETE("/:id", h.Admin.ProxySubscription.Delete)
+		subs.POST("/:id/sync", h.Admin.ProxySubscription.Sync)
 	}
 }

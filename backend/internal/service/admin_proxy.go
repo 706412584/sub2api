@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
@@ -68,6 +69,10 @@ func (s *adminServiceImpl) CreateProxy(ctx context.Context, input *CreateProxyIn
 	if input.ExpiryWarnDays < 0 {
 		return nil, infraerrors.BadRequest("PROXY_WARN_DAYS_INVALID", "expiry_warn_days must be >= 0")
 	}
+	// Managed prefix reserved for embedded subscription sync.
+	if strings.HasPrefix(strings.TrimSpace(input.Name), ManagedProxyNamePrefix) {
+		return nil, infraerrors.BadRequest("PROXY_NAME_RESERVED", "proxy name prefix sidecar- is reserved for subscription-managed proxies")
+	}
 
 	proxy := &Proxy{
 		Name:           input.Name,
@@ -114,6 +119,11 @@ func (s *adminServiceImpl) UpdateProxy(ctx context.Context, id int64, input *Upd
 	}
 
 	if input.Name != "" {
+		// Manual rename into managed prefix is not allowed.
+		if strings.HasPrefix(strings.TrimSpace(input.Name), ManagedProxyNamePrefix) &&
+			!strings.HasPrefix(proxy.Name, ManagedProxyNamePrefix) {
+			return nil, infraerrors.BadRequest("PROXY_NAME_RESERVED", "proxy name prefix sidecar- is reserved for subscription-managed proxies")
+		}
 		proxy.Name = input.Name
 	}
 	if input.Protocol != "" {

@@ -450,6 +450,37 @@ func (r *proxyRepository) ListActive(ctx context.Context) ([]service.Proxy, erro
 	return outProxies, nil
 }
 
+// ListOwnedByPrefix returns proxies owned by an embedded subscription name prefix.
+func (r *proxyRepository) ListOwnedByPrefix(ctx context.Context, namePrefix string) ([]service.ProxyWithAccountCount, error) {
+	namePrefix = strings.TrimSpace(namePrefix)
+	if namePrefix == "" {
+		return []service.ProxyWithAccountCount{}, nil
+	}
+	proxies, err := r.client.Proxy.Query().
+		Where(proxy.NameHasPrefix(namePrefix)).
+		Order(dbent.Asc(proxy.FieldID)).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	counts, err := r.GetAccountCountsForProxies(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]service.ProxyWithAccountCount, 0, len(proxies))
+	for i := range proxies {
+		p := proxyEntityToService(proxies[i])
+		if p == nil {
+			continue
+		}
+		out = append(out, service.ProxyWithAccountCount{
+			Proxy:        *p,
+			AccountCount: counts[p.ID],
+		})
+	}
+	return out, nil
+}
+
 // ExistsByHostPortAuth checks if a proxy with the same host, port, username, and password exists
 func (r *proxyRepository) ExistsByHostPortAuth(ctx context.Context, host string, port int, username, password string) (bool, error) {
 	q := r.client.Proxy.Query().

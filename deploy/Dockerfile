@@ -88,6 +88,13 @@ LABEL maintainer="Wei-Shaw <github.com/Wei-Shaw>"
 LABEL description="Sub2API - AI API Gateway Platform"
 LABEL org.opencontainers.image.source="https://github.com/Wei-Shaw/sub2api"
 
+# Prefer building from the repo-root Dockerfile (multi-arch + pg client + mihomo).
+# This deploy/Dockerfile is kept for older scripts; keep mihomo in parity.
+
+# Pin mihomo for embedded proxy-subscription engine (loopback mixed listeners).
+ARG MIHOMO_VERSION=v1.19.29
+ARG TARGETARCH=amd64
+
 # Install runtime dependencies
 RUN apk add --no-cache \
     ca-certificates \
@@ -95,6 +102,21 @@ RUN apk add --no-cache \
     curl \
     su-exec \
     && rm -rf /var/cache/apk/*
+
+# Bundle static mihomo (same assets as root Dockerfile / Dockerfile.goreleaser).
+RUN set -eux; \
+    case "${TARGETARCH}" in \
+      amd64) MIHOMO_ASSET="mihomo-linux-amd64-compatible-${MIHOMO_VERSION}.gz" ;; \
+      arm64) MIHOMO_ASSET="mihomo-linux-arm64-${MIHOMO_VERSION}.gz" ;; \
+      *) echo "unsupported TARGETARCH=${TARGETARCH} for mihomo" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/MetaCubeX/mihomo/releases/download/${MIHOMO_VERSION}/${MIHOMO_ASSET}" \
+      -o /tmp/mihomo.gz; \
+    gunzip -c /tmp/mihomo.gz > /usr/local/bin/mihomo; \
+    rm -f /tmp/mihomo.gz; \
+    chmod 755 /usr/local/bin/mihomo; \
+    ln -sf mihomo /usr/local/bin/clash-meta; \
+    /usr/local/bin/mihomo -v
 
 # Create non-root user
 RUN addgroup -g 1000 sub2api && \
@@ -108,6 +130,10 @@ COPY --from=backend-builder /app/sub2api /app/sub2api
 
 # Create data directory
 RUN mkdir -p /app/data && chown -R sub2api:sub2api /app
+
+# Embedded proxy subscription defaults
+ENV PROXY_SUBSCRIPTION_MIHOMO_BINARY=/usr/local/bin/mihomo \
+    PROXY_SUBSCRIPTION_DATA_DIR=/app/data/proxy-subscriptions
 
 # Copy entrypoint script (fixes volume permissions then drops to sub2api)
 COPY deploy/docker-entrypoint.sh /app/docker-entrypoint.sh
