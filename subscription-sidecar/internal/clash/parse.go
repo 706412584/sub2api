@@ -21,29 +21,47 @@ type Node struct {
 
 var defaultDenyName = regexp.MustCompile(`(?i)(过期|到期|剩余|流量|官网|机场|重置|expire|traffic|remain|deprecated|invalid)`)
 
-// ParseSubscription decodes raw Clash body (plain YAML or base64-wrapped YAML).
+// ParseSubscription decodes Clash YAML, base64 Clash YAML, or base64/plain share-link lists
+// (vless:// vmess:// trojan:// ss://).
 func ParseSubscription(body []byte) ([]Node, error) {
 	raw := strings.TrimSpace(string(body))
 	if raw == "" {
 		return nil, fmt.Errorf("empty subscription body")
 	}
 
+	// 1) Share-link list (common airport export): plain or base64.
+	if nodes, err := parseShareLinkSubscription(raw); err == nil && len(nodes) > 0 {
+		return finalizeNodes(nodes)
+	}
+
+	// 2) Clash YAML (plain or base64-wrapped).
 	yamlText := raw
 	if !looksLikeClashYAML(raw) {
 		decoded, err := decodeBase64Flexible(raw)
 		if err != nil {
-			return nil, fmt.Errorf("subscription is neither clash yaml nor base64: %w", err)
+			// Fall through with original text for a clearer error below.
+		} else {
+			yamlText = strings.TrimSpace(string(decoded))
+			if nodes, err := parseShareLinkSubscription(yamlText); err == nil && len(nodes) > 0 {
+				return finalizeNodes(nodes)
+			}
 		}
-		yamlText = strings.TrimSpace(string(decoded))
 	}
 
 	var doc map[string]any
 	if err := yaml.Unmarshal([]byte(yamlText), &doc); err != nil {
+		// Last attempt: share links on original raw for better diagnostics.
+		if nodes, linkErr := parseShareLinkSubscription(raw); linkErr == nil && len(nodes) > 0 {
+			return finalizeNodes(nodes)
+		}
 		return nil, fmt.Errorf("parse clash yaml: %w", err)
 	}
 
 	proxiesAny, ok := doc["proxies"]
 	if !ok {
+		if nodes, err := parseShareLinkSubscription(yamlText); err == nil && len(nodes) > 0 {
+			return finalizeNodes(nodes)
+		}
 		return nil, fmt.Errorf("clash document missing proxies")
 	}
 	list, ok := proxiesAny.([]any)
@@ -84,7 +102,13 @@ func ParseSubscription(body []byte) ([]Node, error) {
 	if len(out) == 0 {
 		return nil, fmt.Errorf("no usable proxy nodes in subscription")
 	}
-	// Stable order for port assignment across syncs.
+	return finalizeNodes(out)
+}
+
+func finalizeNodes(out []Node) ([]Node, error) {
+	if len(out) == 0 {
+		return nil, fmt.Errorf("no usable proxy nodes in subscription")
+	}
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].Identity == out[j].Identity {
 			return out[i].Name < out[j].Name
