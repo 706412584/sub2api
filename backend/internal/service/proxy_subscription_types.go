@@ -95,24 +95,24 @@ type ProxySubscriptionUpdateParams struct {
 
 // ProxySubscriptionSyncResult is the outcome of one sync cycle.
 type ProxySubscriptionSyncResult struct {
-	DesiredCount int    `json:"desired_count"`
-	ConfigHash   string `json:"config_hash"`
-	Created      int    `json:"created"`
-	Updated      int    `json:"updated"`
-	Unchanged    int    `json:"unchanged"`
-	Deleted      int    `json:"deleted"`
-	Skipped      int    `json:"skipped"`
-	EngineRunning bool  `json:"engine_running"`
-	EngineSkipped bool  `json:"engine_skipped"`
-	Message      string `json:"message,omitempty"`
+	DesiredCount  int    `json:"desired_count"`
+	ConfigHash    string `json:"config_hash"`
+	Created       int    `json:"created"`
+	Updated       int    `json:"updated"`
+	Unchanged     int    `json:"unchanged"`
+	Deleted       int    `json:"deleted"`
+	Skipped       int    `json:"skipped"`
+	EngineRunning bool   `json:"engine_running"`
+	EngineSkipped bool   `json:"engine_skipped"`
+	Message       string `json:"message,omitempty"`
 }
 
 // ProxySubscriptionEngineStatus reports in-process mihomo state.
 type ProxySubscriptionEngineStatus struct {
-	BinaryPath   string `json:"binary_path"`
-	BinaryFound  bool   `json:"binary_found"`
-	DataDir      string `json:"data_dir"`
-	RunningCount int    `json:"running_count"`
+	BinaryPath   string                                `json:"binary_path"`
+	BinaryFound  bool                                  `json:"binary_found"`
+	DataDir      string                                `json:"data_dir"`
+	RunningCount int                                   `json:"running_count"`
 	Sources      []ProxySubscriptionEngineSourceStatus `json:"sources"`
 }
 
