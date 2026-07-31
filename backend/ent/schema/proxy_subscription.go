@@ -71,6 +71,9 @@ func (ProxySubscription) Fields() []ent.Field {
 		field.JSON("node_allow_contains", []string{}).
 			Default([]string{}).
 			Comment("Optional node-name substring allowlist; fail-closed when non-empty"),
+		field.JSON("node_identity_allowlist", []string{}).
+			Default([]string{}).
+			Comment("Optional exact node identity allowlist (type|server|port|name); fail-closed when non-empty"),
 		field.Time("last_sync_at").
 			Optional().
 			Nillable(),

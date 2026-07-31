@@ -234,6 +234,18 @@ func (_u *ProxySubscriptionUpdate) AppendNodeAllowContains(v []string) *ProxySub
 	return _u
 }
 
+// SetNodeIdentityAllowlist sets the "node_identity_allowlist" field.
+func (_u *ProxySubscriptionUpdate) SetNodeIdentityAllowlist(v []string) *ProxySubscriptionUpdate {
+	_u.mutation.SetNodeIdentityAllowlist(v)
+	return _u
+}
+
+// AppendNodeIdentityAllowlist appends value to the "node_identity_allowlist" field.
+func (_u *ProxySubscriptionUpdate) AppendNodeIdentityAllowlist(v []string) *ProxySubscriptionUpdate {
+	_u.mutation.AppendNodeIdentityAllowlist(v)
+	return _u
+}
+
 // SetLastSyncAt sets the "last_sync_at" field.
 func (_u *ProxySubscriptionUpdate) SetLastSyncAt(v time.Time) *ProxySubscriptionUpdate {
 	_u.mutation.SetLastSyncAt(v)
@@ -539,6 +551,14 @@ func (_u *ProxySubscriptionUpdate) sqlSave(ctx context.Context) (_node int, err 
 			sqljson.Append(u, proxysubscription.FieldNodeAllowContains, value)
 		})
 	}
+	if value, ok := _u.mutation.NodeIdentityAllowlist(); ok {
+		_spec.SetField(proxysubscription.FieldNodeIdentityAllowlist, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedNodeIdentityAllowlist(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, proxysubscription.FieldNodeIdentityAllowlist, value)
+		})
+	}
 	if value, ok := _u.mutation.LastSyncAt(); ok {
 		_spec.SetField(proxysubscription.FieldLastSyncAt, field.TypeTime, value)
 	}
@@ -806,6 +826,18 @@ func (_u *ProxySubscriptionUpdateOne) SetNodeAllowContains(v []string) *ProxySub
 // AppendNodeAllowContains appends value to the "node_allow_contains" field.
 func (_u *ProxySubscriptionUpdateOne) AppendNodeAllowContains(v []string) *ProxySubscriptionUpdateOne {
 	_u.mutation.AppendNodeAllowContains(v)
+	return _u
+}
+
+// SetNodeIdentityAllowlist sets the "node_identity_allowlist" field.
+func (_u *ProxySubscriptionUpdateOne) SetNodeIdentityAllowlist(v []string) *ProxySubscriptionUpdateOne {
+	_u.mutation.SetNodeIdentityAllowlist(v)
+	return _u
+}
+
+// AppendNodeIdentityAllowlist appends value to the "node_identity_allowlist" field.
+func (_u *ProxySubscriptionUpdateOne) AppendNodeIdentityAllowlist(v []string) *ProxySubscriptionUpdateOne {
+	_u.mutation.AppendNodeIdentityAllowlist(v)
 	return _u
 }
 
@@ -1142,6 +1174,14 @@ func (_u *ProxySubscriptionUpdateOne) sqlSave(ctx context.Context) (_node *Proxy
 	if value, ok := _u.mutation.AppendedNodeAllowContains(); ok {
 		_spec.AddModifier(func(u *sql.UpdateBuilder) {
 			sqljson.Append(u, proxysubscription.FieldNodeAllowContains, value)
+		})
+	}
+	if value, ok := _u.mutation.NodeIdentityAllowlist(); ok {
+		_spec.SetField(proxysubscription.FieldNodeIdentityAllowlist, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedNodeIdentityAllowlist(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, proxysubscription.FieldNodeIdentityAllowlist, value)
 		})
 	}
 	if value, ok := _u.mutation.LastSyncAt(); ok {

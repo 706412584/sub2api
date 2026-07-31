@@ -28,28 +28,29 @@ var (
 
 // ProxySubscription is the service-layer model for an embedded subscription source.
 type ProxySubscription struct {
-	ID                int64
-	Name              string
-	Enabled           bool
-	SourceType        string
-	SubscriptionURL   string
-	InlineBody        string
-	NamePrefix        string
-	Protocol          string
-	BindAddress       string
-	BasePort          int
-	MaxPorts          int
-	SyncIntervalSec   int
-	NodeAllowContains []string
-	LastSyncAt        *time.Time
-	LastSyncStatus    string
-	LastSyncError     string
-	LastConfigHash    string
-	DesiredCount      int
-	CreatedBy         int64
-	NextDueAt         *time.Time
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	ID                    int64
+	Name                  string
+	Enabled               bool
+	SourceType            string
+	SubscriptionURL       string
+	InlineBody            string
+	NamePrefix            string
+	Protocol              string
+	BindAddress           string
+	BasePort              int
+	MaxPorts              int
+	SyncIntervalSec       int
+	NodeAllowContains     []string
+	NodeIdentityAllowlist []string
+	LastSyncAt            *time.Time
+	LastSyncStatus        string
+	LastSyncError         string
+	LastConfigHash        string
+	DesiredCount          int
+	CreatedBy             int64
+	NextDueAt             *time.Time
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
 }
 
 // ProxySubscriptionListParams filters list queries.
@@ -62,35 +63,61 @@ type ProxySubscriptionListParams struct {
 
 // ProxySubscriptionCreateParams creates a source.
 type ProxySubscriptionCreateParams struct {
-	Name              string
-	Enabled           *bool
-	SourceType        string
-	SubscriptionURL   string
-	InlineBody        string
-	NamePrefix        string
-	Protocol          string
-	BindAddress       string
-	BasePort          int
-	MaxPorts          int
-	SyncIntervalSec   int
-	NodeAllowContains []string
-	CreatedBy         int64
+	Name                  string
+	Enabled               *bool
+	SourceType            string
+	SubscriptionURL       string
+	InlineBody            string
+	NamePrefix            string
+	Protocol              string
+	BindAddress           string
+	BasePort              int
+	MaxPorts              int
+	SyncIntervalSec       int
+	NodeAllowContains     []string
+	NodeIdentityAllowlist []string
+	CreatedBy             int64
 }
 
 // ProxySubscriptionUpdateParams updates a source. Nil pointer means leave unchanged.
 type ProxySubscriptionUpdateParams struct {
-	Name              *string
-	Enabled           *bool
-	SourceType        *string
-	SubscriptionURL   *string
-	InlineBody        *string
-	NamePrefix        *string
-	Protocol          *string
-	BindAddress       *string
-	BasePort          *int
-	MaxPorts          *int
-	SyncIntervalSec   *int
-	NodeAllowContains *[]string
+	Name                  *string
+	Enabled               *bool
+	SourceType            *string
+	SubscriptionURL       *string
+	InlineBody            *string
+	NamePrefix            *string
+	Protocol              *string
+	BindAddress           *string
+	BasePort              *int
+	MaxPorts              *int
+	SyncIntervalSec       *int
+	NodeAllowContains     *[]string
+	NodeIdentityAllowlist *[]string
+}
+
+// ProxySubscriptionPreviewNode is a sanitized node entry for admin UI selection.
+type ProxySubscriptionPreviewNode struct {
+	Identity string `json:"identity"`
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Server   string `json:"server"`
+	Port     string `json:"port"`
+}
+
+// ProxySubscriptionPreviewResult is the outcome of preview-nodes.
+type ProxySubscriptionPreviewResult struct {
+	Nodes              []ProxySubscriptionPreviewNode `json:"nodes"`
+	Total              int                            `json:"total"`
+	SelectedIdentities []string                       `json:"selected_identities"`
+}
+
+// ProxySubscriptionPreviewParams previews nodes from draft source fields (unsaved).
+type ProxySubscriptionPreviewParams struct {
+	SourceType        string
+	SubscriptionURL   string
+	InlineBody        string
+	NodeAllowContains []string
 }
 
 // ProxySubscriptionSyncResult is the outcome of one sync cycle.

@@ -144,6 +144,9 @@ func (s *ProxySubscriptionService) Update(ctx context.Context, id int64, p Proxy
 	if p.NodeAllowContains != nil {
 		m.NodeAllowContains = *p.NodeAllowContains
 	}
+	if p.NodeIdentityAllowlist != nil {
+		m.NodeIdentityAllowlist = *p.NodeIdentityAllowlist
+	}
 	if err := s.validateModel(ctx, m, id); err != nil {
 		return nil, err
 	}
@@ -171,6 +174,99 @@ func (s *ProxySubscriptionService) Delete(ctx context.Context, id int64) error {
 		s.engine.StopSource(id)
 	}
 	return s.repo.Delete(ctx, id)
+}
+
+// PreviewNodes fetches and parses an existing source without writing proxies/engine.
+func (s *ProxySubscriptionService) PreviewNodes(ctx context.Context, id int64) (*ProxySubscriptionPreviewResult, error) {
+	m, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	res, err := s.previewFromModel(ctx, m)
+	if err != nil {
+		return nil, err
+	}
+	res.SelectedIdentities = append([]string(nil), m.NodeIdentityAllowlist...)
+	return res, nil
+}
+
+// PreviewNodesDraft fetches and parses unsaved source fields without writing proxies/engine.
+func (s *ProxySubscriptionService) PreviewNodesDraft(ctx context.Context, p ProxySubscriptionPreviewParams) (*ProxySubscriptionPreviewResult, error) {
+	m, err := s.buildFromCreate(ProxySubscriptionCreateParams{
+		Name:              "preview",
+		SourceType:        p.SourceType,
+		SubscriptionURL:   p.SubscriptionURL,
+		InlineBody:        p.InlineBody,
+		NodeAllowContains: p.NodeAllowContains,
+	})
+	if err != nil {
+		return nil, err
+	}
+	// Skip full validateModel (prefix uniqueness etc.); only need fetchable source.
+	st := strings.ToLower(strings.TrimSpace(m.SourceType))
+	switch st {
+	case ProxySubscriptionSourceURL, ProxySubscriptionSourceInline:
+		m.SourceType = st
+	default:
+		return nil, infraerrors.BadRequest("PROXY_SUBSCRIPTION_SOURCE_TYPE", "source_type must be url or inline")
+	}
+	if st == ProxySubscriptionSourceURL && strings.TrimSpace(m.SubscriptionURL) == "" {
+		return nil, infraerrors.BadRequest("PROXY_SUBSCRIPTION_URL_REQUIRED", "subscription_url is required for url source")
+	}
+	if st == ProxySubscriptionSourceInline && strings.TrimSpace(m.InlineBody) == "" {
+		return nil, infraerrors.BadRequest("PROXY_SUBSCRIPTION_EMPTY_BODY", "inline_body is required for inline source")
+	}
+	return s.previewFromModel(ctx, m)
+}
+
+func (s *ProxySubscriptionService) previewFromModel(ctx context.Context, m *ProxySubscription) (*ProxySubscriptionPreviewResult, error) {
+	body, err := s.fetchBody(ctx, m)
+	if err != nil {
+		return nil, err
+	}
+	nodes, err := clashsub.ParseSubscription(body)
+	if err != nil {
+		return nil, infraerrors.BadRequest("PROXY_SUBSCRIPTION_PARSE", err.Error())
+	}
+	// Apply optional name filter for display, but do not apply identity allowlist
+	// so the UI can still re-select nodes.
+	if len(m.NodeAllowContains) > 0 {
+		filtered, err := clashsub.SelectNodes(nodes, len(nodes), m.NodeAllowContains, nil)
+		if err != nil {
+			return nil, infraerrors.BadRequest("PROXY_SUBSCRIPTION_FILTER", err.Error())
+		}
+		nodes = filtered
+	}
+	out := make([]ProxySubscriptionPreviewNode, 0, len(nodes))
+	for _, n := range nodes {
+		server := ""
+		port := ""
+		if n.Raw != nil {
+			if v, ok := n.Raw["server"]; ok {
+				server = fmt.Sprintf("%v", v)
+			}
+			if server == "" {
+				if v, ok := n.Raw["servername"]; ok {
+					server = fmt.Sprintf("%v", v)
+				}
+			}
+			if v, ok := n.Raw["port"]; ok {
+				port = fmt.Sprintf("%v", v)
+			}
+		}
+		out = append(out, ProxySubscriptionPreviewNode{
+			Identity: n.Identity,
+			Name:     n.Name,
+			Type:     n.Type,
+			Server:   server,
+			Port:     port,
+		})
+	}
+	return &ProxySubscriptionPreviewResult{
+		Nodes:              out,
+		Total:              len(out),
+		SelectedIdentities: []string{},
+	}, nil
 }
 
 // SyncNow runs one full sync for a source.
@@ -278,6 +374,7 @@ func (s *ProxySubscriptionService) syncOne(ctx context.Context, m *ProxySubscrip
 		m.BasePort,
 		m.MaxPorts,
 		m.NodeAllowContains,
+		m.NodeIdentityAllowlist,
 	)
 	if err != nil {
 		s.markSyncError(ctx, m, now, fmt.Errorf("bind: %w", err))
@@ -532,19 +629,20 @@ func (s *ProxySubscriptionService) buildFromCreate(p ProxySubscriptionCreatePara
 		interval = defaultSyncIntervalSec
 	}
 	return &ProxySubscription{
-		Name:              strings.TrimSpace(p.Name),
-		Enabled:           enabled,
-		SourceType:        sourceType,
-		SubscriptionURL:   strings.TrimSpace(p.SubscriptionURL),
-		InlineBody:        p.InlineBody,
-		NamePrefix:        prefix,
-		Protocol:          protocol,
-		BindAddress:       bind,
-		BasePort:          basePort,
-		MaxPorts:          maxPorts,
-		SyncIntervalSec:   interval,
-		NodeAllowContains: append([]string(nil), p.NodeAllowContains...),
-		CreatedBy:         p.CreatedBy,
+		Name:                  strings.TrimSpace(p.Name),
+		Enabled:               enabled,
+		SourceType:            sourceType,
+		SubscriptionURL:       strings.TrimSpace(p.SubscriptionURL),
+		InlineBody:            p.InlineBody,
+		NamePrefix:            prefix,
+		Protocol:              protocol,
+		BindAddress:           bind,
+		BasePort:              basePort,
+		MaxPorts:              maxPorts,
+		SyncIntervalSec:       interval,
+		NodeAllowContains:     append([]string(nil), p.NodeAllowContains...),
+		NodeIdentityAllowlist: append([]string(nil), p.NodeIdentityAllowlist...),
+		CreatedBy:             p.CreatedBy,
 	}, nil
 }
 
@@ -552,6 +650,8 @@ func (s *ProxySubscriptionService) validateModel(ctx context.Context, m *ProxySu
 	if m == nil {
 		return ErrProxySubscriptionInvalid
 	}
+	m.NodeAllowContains = normalizeStringList(m.NodeAllowContains, 64, 128)
+	m.NodeIdentityAllowlist = normalizeStringList(m.NodeIdentityAllowlist, 64, 256)
 	if strings.TrimSpace(m.Name) == "" {
 		return infraerrors.BadRequest("PROXY_SUBSCRIPTION_NAME", "name is required")
 	}
@@ -663,4 +763,31 @@ func MaskSubscriptionURL(raw string) string {
 		return s[:120] + "…"
 	}
 	return s
+}
+
+func normalizeStringList(in []string, maxItems, maxLen int) []string {
+	if len(in) == 0 {
+		return []string{}
+	}
+	out := make([]string, 0, len(in))
+	seen := map[string]struct{}{}
+	for _, raw := range in {
+		s := strings.TrimSpace(raw)
+		if s == "" {
+			continue
+		}
+		if maxLen > 0 && len(s) > maxLen {
+			s = s[:maxLen]
+		}
+		key := strings.ToLower(s)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, s)
+		if maxItems > 0 && len(out) >= maxItems {
+			break
+		}
+	}
+	return out
 }

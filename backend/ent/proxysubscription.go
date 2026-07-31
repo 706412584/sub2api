@@ -46,6 +46,8 @@ type ProxySubscription struct {
 	SyncIntervalSec int `json:"sync_interval_sec,omitempty"`
 	// Optional node-name substring allowlist; fail-closed when non-empty
 	NodeAllowContains []string `json:"node_allow_contains,omitempty"`
+	// Optional exact node identity allowlist (type|server|port|name); fail-closed when non-empty
+	NodeIdentityAllowlist []string `json:"node_identity_allowlist,omitempty"`
 	// LastSyncAt holds the value of the "last_sync_at" field.
 	LastSyncAt *time.Time `json:"last_sync_at,omitempty"`
 	// LastSyncStatus holds the value of the "last_sync_status" field.
@@ -68,7 +70,7 @@ func (*ProxySubscription) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case proxysubscription.FieldNodeAllowContains:
+		case proxysubscription.FieldNodeAllowContains, proxysubscription.FieldNodeIdentityAllowlist:
 			values[i] = new([]byte)
 		case proxysubscription.FieldEnabled:
 			values[i] = new(sql.NullBool)
@@ -183,6 +185,14 @@ func (_m *ProxySubscription) assignValues(columns []string, values []any) error 
 			} else if value != nil && len(*value) > 0 {
 				if err := json.Unmarshal(*value, &_m.NodeAllowContains); err != nil {
 					return fmt.Errorf("unmarshal field node_allow_contains: %w", err)
+				}
+			}
+		case proxysubscription.FieldNodeIdentityAllowlist:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field node_identity_allowlist", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.NodeIdentityAllowlist); err != nil {
+					return fmt.Errorf("unmarshal field node_identity_allowlist: %w", err)
 				}
 			}
 		case proxysubscription.FieldLastSyncAt:
@@ -304,6 +314,9 @@ func (_m *ProxySubscription) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("node_allow_contains=")
 	builder.WriteString(fmt.Sprintf("%v", _m.NodeAllowContains))
+	builder.WriteString(", ")
+	builder.WriteString("node_identity_allowlist=")
+	builder.WriteString(fmt.Sprintf("%v", _m.NodeIdentityAllowlist))
 	builder.WriteString(", ")
 	if v := _m.LastSyncAt; v != nil {
 		builder.WriteString("last_sync_at=")

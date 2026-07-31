@@ -37540,40 +37540,42 @@ func (m *ProxyMutation) ResetEdge(name string) error {
 // ProxySubscriptionMutation represents an operation that mutates the ProxySubscription nodes in the graph.
 type ProxySubscriptionMutation struct {
 	config
-	op                        Op
-	typ                       string
-	id                        *int64
-	created_at                *time.Time
-	updated_at                *time.Time
-	name                      *string
-	enabled                   *bool
-	source_type               *string
-	subscription_url          *string
-	inline_body               *string
-	name_prefix               *string
-	protocol                  *string
-	bind_address              *string
-	base_port                 *int
-	addbase_port              *int
-	max_ports                 *int
-	addmax_ports              *int
-	sync_interval_sec         *int
-	addsync_interval_sec      *int
-	node_allow_contains       *[]string
-	appendnode_allow_contains []string
-	last_sync_at              *time.Time
-	last_sync_status          *string
-	last_sync_error           *string
-	last_config_hash          *string
-	desired_count             *int
-	adddesired_count          *int
-	created_by                *int64
-	addcreated_by             *int64
-	next_due_at               *time.Time
-	clearedFields             map[string]struct{}
-	done                      bool
-	oldValue                  func(context.Context) (*ProxySubscription, error)
-	predicates                []predicate.ProxySubscription
+	op                            Op
+	typ                           string
+	id                            *int64
+	created_at                    *time.Time
+	updated_at                    *time.Time
+	name                          *string
+	enabled                       *bool
+	source_type                   *string
+	subscription_url              *string
+	inline_body                   *string
+	name_prefix                   *string
+	protocol                      *string
+	bind_address                  *string
+	base_port                     *int
+	addbase_port                  *int
+	max_ports                     *int
+	addmax_ports                  *int
+	sync_interval_sec             *int
+	addsync_interval_sec          *int
+	node_allow_contains           *[]string
+	appendnode_allow_contains     []string
+	node_identity_allowlist       *[]string
+	appendnode_identity_allowlist []string
+	last_sync_at                  *time.Time
+	last_sync_status              *string
+	last_sync_error               *string
+	last_config_hash              *string
+	desired_count                 *int
+	adddesired_count              *int
+	created_by                    *int64
+	addcreated_by                 *int64
+	next_due_at                   *time.Time
+	clearedFields                 map[string]struct{}
+	done                          bool
+	oldValue                      func(context.Context) (*ProxySubscription, error)
+	predicates                    []predicate.ProxySubscription
 }
 
 var _ ent.Mutation = (*ProxySubscriptionMutation)(nil)
@@ -38279,6 +38281,57 @@ func (m *ProxySubscriptionMutation) ResetNodeAllowContains() {
 	m.appendnode_allow_contains = nil
 }
 
+// SetNodeIdentityAllowlist sets the "node_identity_allowlist" field.
+func (m *ProxySubscriptionMutation) SetNodeIdentityAllowlist(s []string) {
+	m.node_identity_allowlist = &s
+	m.appendnode_identity_allowlist = nil
+}
+
+// NodeIdentityAllowlist returns the value of the "node_identity_allowlist" field in the mutation.
+func (m *ProxySubscriptionMutation) NodeIdentityAllowlist() (r []string, exists bool) {
+	v := m.node_identity_allowlist
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNodeIdentityAllowlist returns the old "node_identity_allowlist" field's value of the ProxySubscription entity.
+// If the ProxySubscription object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ProxySubscriptionMutation) OldNodeIdentityAllowlist(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNodeIdentityAllowlist is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNodeIdentityAllowlist requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNodeIdentityAllowlist: %w", err)
+	}
+	return oldValue.NodeIdentityAllowlist, nil
+}
+
+// AppendNodeIdentityAllowlist adds s to the "node_identity_allowlist" field.
+func (m *ProxySubscriptionMutation) AppendNodeIdentityAllowlist(s []string) {
+	m.appendnode_identity_allowlist = append(m.appendnode_identity_allowlist, s...)
+}
+
+// AppendedNodeIdentityAllowlist returns the list of values that were appended to the "node_identity_allowlist" field in this mutation.
+func (m *ProxySubscriptionMutation) AppendedNodeIdentityAllowlist() ([]string, bool) {
+	if len(m.appendnode_identity_allowlist) == 0 {
+		return nil, false
+	}
+	return m.appendnode_identity_allowlist, true
+}
+
+// ResetNodeIdentityAllowlist resets all changes to the "node_identity_allowlist" field.
+func (m *ProxySubscriptionMutation) ResetNodeIdentityAllowlist() {
+	m.node_identity_allowlist = nil
+	m.appendnode_identity_allowlist = nil
+}
+
 // SetLastSyncAt sets the "last_sync_at" field.
 func (m *ProxySubscriptionMutation) SetLastSyncAt(t time.Time) {
 	m.last_sync_at = &t
@@ -38684,7 +38737,7 @@ func (m *ProxySubscriptionMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ProxySubscriptionMutation) Fields() []string {
-	fields := make([]string, 0, 21)
+	fields := make([]string, 0, 22)
 	if m.created_at != nil {
 		fields = append(fields, proxysubscription.FieldCreatedAt)
 	}
@@ -38726,6 +38779,9 @@ func (m *ProxySubscriptionMutation) Fields() []string {
 	}
 	if m.node_allow_contains != nil {
 		fields = append(fields, proxysubscription.FieldNodeAllowContains)
+	}
+	if m.node_identity_allowlist != nil {
+		fields = append(fields, proxysubscription.FieldNodeIdentityAllowlist)
 	}
 	if m.last_sync_at != nil {
 		fields = append(fields, proxysubscription.FieldLastSyncAt)
@@ -38784,6 +38840,8 @@ func (m *ProxySubscriptionMutation) Field(name string) (ent.Value, bool) {
 		return m.SyncIntervalSec()
 	case proxysubscription.FieldNodeAllowContains:
 		return m.NodeAllowContains()
+	case proxysubscription.FieldNodeIdentityAllowlist:
+		return m.NodeIdentityAllowlist()
 	case proxysubscription.FieldLastSyncAt:
 		return m.LastSyncAt()
 	case proxysubscription.FieldLastSyncStatus:
@@ -38835,6 +38893,8 @@ func (m *ProxySubscriptionMutation) OldField(ctx context.Context, name string) (
 		return m.OldSyncIntervalSec(ctx)
 	case proxysubscription.FieldNodeAllowContains:
 		return m.OldNodeAllowContains(ctx)
+	case proxysubscription.FieldNodeIdentityAllowlist:
+		return m.OldNodeIdentityAllowlist(ctx)
 	case proxysubscription.FieldLastSyncAt:
 		return m.OldLastSyncAt(ctx)
 	case proxysubscription.FieldLastSyncStatus:
@@ -38955,6 +39015,13 @@ func (m *ProxySubscriptionMutation) SetField(name string, value ent.Value) error
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetNodeAllowContains(v)
+		return nil
+	case proxysubscription.FieldNodeIdentityAllowlist:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNodeIdentityAllowlist(v)
 		return nil
 	case proxysubscription.FieldLastSyncAt:
 		v, ok := value.(time.Time)
@@ -39209,6 +39276,9 @@ func (m *ProxySubscriptionMutation) ResetField(name string) error {
 		return nil
 	case proxysubscription.FieldNodeAllowContains:
 		m.ResetNodeAllowContains()
+		return nil
+	case proxysubscription.FieldNodeIdentityAllowlist:
+		m.ResetNodeIdentityAllowlist()
 		return nil
 	case proxysubscription.FieldLastSyncAt:
 		m.ResetLastSyncAt()

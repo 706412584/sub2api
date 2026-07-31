@@ -23,6 +23,7 @@ export interface ProxySubscription {
   max_ports: number
   sync_interval_sec: number
   node_allow_contains: string[]
+  node_identity_allowlist: string[]
   last_sync_at: string | null
   last_sync_status: ProxySubscriptionSyncStatus | string
   last_sync_error: string
@@ -62,6 +63,7 @@ export interface ProxySubscriptionCreateParams {
   max_ports?: number
   sync_interval_sec?: number
   node_allow_contains?: string[]
+  node_identity_allowlist?: string[]
 }
 
 export type ProxySubscriptionUpdateParams = Partial<ProxySubscriptionCreateParams>
@@ -151,6 +153,48 @@ export async function engineStatus(options?: {
   return data
 }
 
+
+export interface ProxySubscriptionPreviewNode {
+  identity: string
+  name: string
+  type: string
+  server: string
+  port: string
+}
+
+export interface ProxySubscriptionPreviewResult {
+  nodes: ProxySubscriptionPreviewNode[]
+  total: number
+  selected_identities: string[]
+}
+
+export interface ProxySubscriptionPreviewDraftParams {
+  source_type?: ProxySubscriptionSourceType
+  subscription_url?: string
+  inline_body?: string
+  node_allow_contains?: string[]
+}
+
+export async function previewNodes(id: number): Promise<ProxySubscriptionPreviewResult> {
+  const { data } = await apiClient.post<ProxySubscriptionPreviewResult>(
+    `/admin/proxy-subscriptions/${id}/preview-nodes`,
+    undefined,
+    { timeout: 180000 }
+  )
+  return data
+}
+
+export async function previewNodesDraft(
+  params: ProxySubscriptionPreviewDraftParams
+): Promise<ProxySubscriptionPreviewResult> {
+  const { data } = await apiClient.post<ProxySubscriptionPreviewResult>(
+    '/admin/proxy-subscriptions/preview-nodes',
+    params,
+    { timeout: 180000 }
+  )
+  return data
+}
+
 export const proxySubscriptionsAPI = {
   list,
   get,
@@ -158,7 +202,9 @@ export const proxySubscriptionsAPI = {
   update,
   del,
   sync,
-  engineStatus
+  engineStatus,
+  previewNodes,
+  previewNodesDraft
 }
 
 export default proxySubscriptionsAPI

@@ -305,10 +305,22 @@ export default {
           maxPorts: '最大端口数',
           syncInterval: '同步间隔（秒）',
           syncIntervalHint: '最小 60 秒，最大 86400 秒',
-          enabled: '启用此订阅源',
-          nodeAllow: '节点名称包含过滤',
-          nodeAllowPlaceholder: '例如：香港, 日本（逗号分隔，留空=全部）',
-          nodeAllowHint: 'fail-closed：填写后仅保留名称包含任一关键字的节点'
+          enabled: '启用此订阅源',          nodeAllow: '节点名称包含过滤',
+          nodeAllowPlaceholder: '例如：香港, 日本（逗号分隔；空=全部）',
+          nodeAllowHint: '可选粗过滤，加载节点前生效；填写后 fail-closed。',
+          nodeWhitelist: '节点白名单',
+          nodeWhitelistHint:
+            '加载节点后勾选要生成的项。白名单为空则仍按 max_ports 自动选取。机场改名可能导致已存 identity 失效。',
+          loadNodes: '加载节点',
+          loadingNodes: '正在加载节点…',
+          selectAllNodes: '全选',
+          clearNodeSelection: '清空选择',
+          selectedCount: '已选 {selected} / 上限 {max}',
+          nodeSearchPlaceholder: '筛选已加载节点…',
+          noNodesLoaded: '尚未加载节点',
+          nodesLoadFailed: '加载节点失败',
+          missingFromPreview: '已保存但当前预览中不存在',
+          whitelistCount: '白名单 {count}'
         }
       },
     },

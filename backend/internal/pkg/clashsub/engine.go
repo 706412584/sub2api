@@ -32,8 +32,8 @@ type Binding struct {
 }
 
 // BuildBindings assigns ports by stable identity order and names without port suffix.
-func BuildBindings(nodes []Node, prefix, host, protocol string, basePort, max int, allowContains []string) ([]Binding, error) {
-	selected, err := SelectNodes(nodes, max, allowContains)
+func BuildBindings(nodes []Node, prefix, host, protocol string, basePort, max int, allowContains, identityAllow []string) ([]Binding, error) {
+	selected, err := SelectNodes(nodes, max, allowContains, identityAllow)
 	if err != nil {
 		return nil, err
 	}

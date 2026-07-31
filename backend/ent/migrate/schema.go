@@ -1448,6 +1448,7 @@ var (
 		{Name: "max_ports", Type: field.TypeInt, Default: 10},
 		{Name: "sync_interval_sec", Type: field.TypeInt, Default: 300},
 		{Name: "node_allow_contains", Type: field.TypeJSON},
+		{Name: "node_identity_allowlist", Type: field.TypeJSON},
 		{Name: "last_sync_at", Type: field.TypeTime, Nullable: true},
 		{Name: "last_sync_status", Type: field.TypeString, Nullable: true, Size: 40, Default: ""},
 		{Name: "last_sync_error", Type: field.TypeString, Nullable: true, Size: 2147483647, Default: ""},
@@ -1465,7 +1466,7 @@ var (
 			{
 				Name:    "proxysubscription_enabled_next_due_at",
 				Unique:  false,
-				Columns: []*schema.Column{ProxySubscriptionsColumns[4], ProxySubscriptionsColumns[21]},
+				Columns: []*schema.Column{ProxySubscriptionsColumns[4], ProxySubscriptionsColumns[22]},
 			},
 			{
 				Name:    "proxysubscription_name_prefix",
