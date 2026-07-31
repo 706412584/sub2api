@@ -105,6 +105,9 @@
               <div class="font-medium text-gray-900 dark:text-white">{{ row.name }}</div>
               <div class="mt-0.5 text-xs text-gray-400">
                 {{ t('admin.proxies.subscriptions.desiredCount', { count: row.desired_count }) }}
+                <span v-if="(row.node_identity_allowlist || []).length > 0">
+                  · {{ t('admin.proxies.subscriptions.form.whitelistCount', { count: row.node_identity_allowlist.length }) }}
+                </span>
                 · {{ row.protocol }}
               </div>
             </td>
@@ -305,6 +308,132 @@
               {{ t('admin.proxies.subscriptions.form.nodeAllowHint') }}
             </p>
           </div>
+
+          <div class="sm:col-span-2 space-y-2">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <label class="label mb-0">{{ t('admin.proxies.subscriptions.form.nodeWhitelist') }}</label>
+              <div class="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-sm"
+                  :disabled="previewLoading"
+                  @click="loadPreviewNodes"
+                >
+                  <Icon name="refresh" size="sm" :class="previewLoading ? 'animate-spin' : ''" />
+                  <span class="ml-1">{{
+                    previewLoading
+                      ? t('admin.proxies.subscriptions.form.loadingNodes')
+                      : t('admin.proxies.subscriptions.form.loadNodes')
+                  }}</span>
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-sm"
+                  :disabled="previewNodes.length === 0"
+                  @click="selectAllPreviewNodes"
+                >
+                  {{ t('admin.proxies.subscriptions.form.selectAllNodes') }}
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-sm"
+                  :disabled="selectedIdentities.size === 0"
+                  @click="clearPreviewSelection"
+                >
+                  {{ t('admin.proxies.subscriptions.form.clearNodeSelection') }}
+                </button>
+              </div>
+            </div>
+            <p class="text-xs text-gray-400">
+              {{ t('admin.proxies.subscriptions.form.nodeWhitelistHint') }}
+            </p>
+            <div class="flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+              <span>
+                {{
+                  t('admin.proxies.subscriptions.form.selectedCount', {
+                    selected: selectedIdentities.size,
+                    max: form.max_ports || 0
+                  })
+                }}
+              </span>
+              <input
+                v-if="previewNodes.length > 0 || missingSelectedIdentities.length > 0"
+                v-model="nodeSearch"
+                type="text"
+                class="input input-sm max-w-xs"
+                :placeholder="t('admin.proxies.subscriptions.form.nodeSearchPlaceholder')"
+              />
+            </div>
+            <div
+              v-if="missingSelectedIdentities.length > 0"
+              class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200"
+            >
+              <div class="mb-1 font-medium">
+                {{ t('admin.proxies.subscriptions.form.missingFromPreview') }}
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <label
+                  v-for="id in missingSelectedIdentities"
+                  :key="'missing-' + id"
+                  class="inline-flex max-w-full items-center gap-1 truncate"
+                >
+                  <input
+                    type="checkbox"
+                    class="h-3.5 w-3.5 rounded border-gray-300 text-primary-600"
+                    :checked="selectedIdentities.has(id)"
+                    @change="onIdentityCheckbox(id, $event)"
+                  />
+                  <code class="truncate font-mono">{{ id }}</code>
+                </label>
+              </div>
+            </div>
+            <div
+              class="max-h-56 overflow-auto rounded-lg border border-gray-200 dark:border-dark-600"
+            >
+              <div
+                v-if="previewLoading"
+                class="px-3 py-6 text-center text-xs text-gray-400"
+              >
+                {{ t('admin.proxies.subscriptions.form.loadingNodes') }}
+              </div>
+              <div
+                v-else-if="previewNodes.length === 0"
+                class="px-3 py-6 text-center text-xs text-gray-400"
+              >
+                {{ t('admin.proxies.subscriptions.form.noNodesLoaded') }}
+              </div>
+              <table v-else class="min-w-full divide-y divide-gray-100 text-xs dark:divide-dark-700">
+                <tbody class="divide-y divide-gray-50 dark:divide-dark-800">
+                  <tr
+                    v-for="node in filteredPreviewNodes"
+                    :key="node.identity"
+                    class="hover:bg-gray-50 dark:hover:bg-dark-800/60"
+                  >
+                    <td class="w-8 px-3 py-2">
+                      <input
+                        type="checkbox"
+                        class="h-3.5 w-3.5 rounded border-gray-300 text-primary-600"
+                        :checked="selectedIdentities.has(node.identity)"
+                        @change="onIdentityCheckbox(node.identity, $event)"
+                      />
+                    </td>
+                    <td class="px-2 py-2 font-medium text-gray-900 dark:text-gray-100">
+                      {{ node.name }}
+                    </td>
+                    <td class="px-2 py-2 text-gray-500">{{ node.type }}</td>
+                    <td class="px-2 py-2 font-mono text-gray-500">
+                      {{ node.server }}{{ node.port ? ':' + node.port : '' }}
+                    </td>
+                  </tr>
+                  <tr v-if="filteredPreviewNodes.length === 0">
+                    <td colspan="4" class="px-3 py-4 text-center text-gray-400">
+                      {{ t('admin.proxies.subscriptions.form.noNodesLoaded') }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
 
         <div class="flex justify-end gap-2 border-t border-gray-200 pt-4 dark:border-dark-600">
@@ -339,6 +468,7 @@ import type {
   ProxySubscription,
   ProxySubscriptionCreateParams,
   ProxySubscriptionEngineStatus,
+  ProxySubscriptionPreviewNode,
   ProxySubscriptionSourceType,
   ProxySubscriptionUpdateParams
 } from '@/api/admin/proxySubscriptions'
@@ -393,6 +523,26 @@ const form = reactive({
   max_ports: 8,
   sync_interval_sec: 3600,
   node_allow_text: ''
+})
+
+const previewNodes = ref<ProxySubscriptionPreviewNode[]>([])
+const previewLoading = ref(false)
+const selectedIdentities = ref<Set<string>>(new Set())
+const nodeSearch = ref('')
+
+const filteredPreviewNodes = computed(() => {
+  const q = nodeSearch.value.trim().toLowerCase()
+  if (!q) return previewNodes.value
+  return previewNodes.value.filter((n) => {
+    const hay = `${n.name} ${n.type} ${n.server} ${n.port} ${n.identity}`.toLowerCase()
+    return hay.includes(q)
+  })
+})
+
+const missingSelectedIdentities = computed(() => {
+  if (selectedIdentities.value.size === 0) return [] as string[]
+  const present = new Set(previewNodes.value.map((n) => n.identity))
+  return [...selectedIdentities.value].filter((id) => !present.has(id))
 })
 
 const sourceTypeOptions = computed(() => [
@@ -485,6 +635,9 @@ function resetForm() {
   form.max_ports = 8
   form.sync_interval_sec = 3600
   form.node_allow_text = ''
+  previewNodes.value = []
+  selectedIdentities.value = new Set()
+  nodeSearch.value = ''
 }
 
 function openCreate() {
@@ -507,6 +660,9 @@ function openEdit(row: ProxySubscription) {
   form.max_ports = row.max_ports
   form.sync_interval_sec = row.sync_interval_sec
   form.node_allow_text = (row.node_allow_contains || []).join(', ')
+  previewNodes.value = []
+  nodeSearch.value = ''
+  selectedIdentities.value = new Set(row.node_identity_allowlist || [])
   showForm.value = true
 }
 
@@ -577,6 +733,65 @@ function onPageSizeChange(size: number) {
   void loadList()
 }
 
+function toggleIdentity(identity: string, checked: boolean) {
+  const next = new Set(selectedIdentities.value)
+  if (checked) next.add(identity)
+  else next.delete(identity)
+  selectedIdentities.value = next
+}
+
+function onIdentityCheckbox(identity: string, event: Event) {
+  const target = event.target as HTMLInputElement | null
+  toggleIdentity(identity, !!target?.checked)
+}
+
+function selectAllPreviewNodes() {
+  const next = new Set(selectedIdentities.value)
+  for (const n of filteredPreviewNodes.value) next.add(n.identity)
+  selectedIdentities.value = next
+}
+
+function clearPreviewSelection() {
+  selectedIdentities.value = new Set()
+}
+
+async function loadPreviewNodes() {
+  previewLoading.value = true
+  try {
+    const allow = parseAllowList(form.node_allow_text)
+    let res
+    if (editing.value) {
+      res = await adminAPI.proxySubscriptions.previewNodes(editing.value.id)
+    } else {
+      if (form.source_type === 'url' && !form.subscription_url.trim()) {
+        appStore.showError(t('admin.proxies.subscriptions.urlRequired'))
+        return
+      }
+      if (form.source_type === 'inline' && !form.inline_body.trim()) {
+        appStore.showError(t('admin.proxies.subscriptions.inlineRequired'))
+        return
+      }
+      res = await adminAPI.proxySubscriptions.previewNodesDraft({
+        source_type: form.source_type,
+        subscription_url: form.source_type === 'url' ? form.subscription_url.trim() : undefined,
+        inline_body: form.source_type === 'inline' ? form.inline_body : undefined,
+        node_allow_contains: allow
+      })
+    }
+    previewNodes.value = res.nodes || []
+    // Keep existing selection; if server returned selected_identities on edit and local empty, use it.
+    if (selectedIdentities.value.size === 0 && (res.selected_identities || []).length > 0) {
+      selectedIdentities.value = new Set(res.selected_identities)
+    }
+  } catch (error: any) {
+    appStore.showError(
+      extractApiErrorMessage(error, t('admin.proxies.subscriptions.form.nodesLoadFailed'))
+    )
+  } finally {
+    previewLoading.value = false
+  }
+}
+
 async function submitForm() {
   const name = form.name.trim()
   if (!name) {
@@ -612,7 +827,8 @@ async function submitForm() {
         base_port: Number(form.base_port),
         max_ports: Number(form.max_ports),
         sync_interval_sec: Number(form.sync_interval_sec),
-        node_allow_contains: allow
+        node_allow_contains: allow,
+        node_identity_allowlist: [...selectedIdentities.value]
       }
       if (form.source_type === 'url' && form.subscription_url.trim()) {
         params.subscription_url = form.subscription_url.trim()
@@ -633,7 +849,8 @@ async function submitForm() {
         base_port: Number(form.base_port),
         max_ports: Number(form.max_ports),
         sync_interval_sec: Number(form.sync_interval_sec),
-        node_allow_contains: allow
+        node_allow_contains: allow,
+        node_identity_allowlist: [...selectedIdentities.value]
       }
       if (form.source_type === 'url') {
         params.subscription_url = form.subscription_url.trim()

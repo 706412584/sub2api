@@ -13,7 +13,7 @@ func TestBuildBindingsAndWriteConfig(t *testing.T) {
 		{Name: "N2", Type: "trojan", Identity: "trojan|b|2|N2", Raw: map[string]any{"name": "N2", "type": "trojan", "server": "2.2.2.2", "port": 443}},
 		{Name: "N3", Type: "vmess", Identity: "vmess|c|3|N3", Raw: map[string]any{"name": "N3", "type": "vmess", "server": "3.3.3.3", "port": 443}},
 	}
-	bindings, err := BuildBindings(nodes, "sidecar-a-", "127.0.0.1", "socks5", 21080, 2, nil)
+	bindings, err := BuildBindings(nodes, "sidecar-a-", "127.0.0.1", "socks5", 21080, 2, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,8 +61,30 @@ func TestBuildBindingsAllowFailClosed(t *testing.T) {
 	nodes := []Node{
 		{Name: "US-1", Type: "ss", Identity: "ss|a|1|US-1", Raw: map[string]any{"name": "US-1", "type": "ss"}},
 	}
-	_, err := BuildBindings(nodes, "sidecar-a-", "127.0.0.1", "socks5", 21080, 5, []string{"JP"})
+	_, err := BuildBindings(nodes, "sidecar-a-", "127.0.0.1", "socks5", 21080, 5, []string{"JP"}, nil)
 	if err == nil {
 		t.Fatal("expected allow filter error")
+	}
+}
+
+func TestBuildBindingsIdentityAllowlist(t *testing.T) {
+	nodes := []Node{
+		{Name: "N1", Type: "ss", Identity: "ss|a|1|N1", Raw: map[string]any{"name": "N1", "type": "ss", "server": "1.1.1.1", "port": 443}},
+		{Name: "N2", Type: "trojan", Identity: "trojan|b|2|N2", Raw: map[string]any{"name": "N2", "type": "trojan", "server": "2.2.2.2", "port": 443}},
+		{Name: "N3", Type: "vmess", Identity: "vmess|c|3|N3", Raw: map[string]any{"name": "N3", "type": "vmess", "server": "3.3.3.3", "port": 443}},
+	}
+	bindings, err := BuildBindings(nodes, "sidecar-a-", "127.0.0.1", "socks5", 21080, 5, nil, []string{"vmess|c|3|N3", "ss|a|1|N1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(bindings) != 2 {
+		t.Fatalf("got %d", len(bindings))
+	}
+	// Stable identity order: ss|... before vmess|...
+	if bindings[0].Node.Name != "N1" || bindings[1].Node.Name != "N3" {
+		t.Fatalf("order %+v %+v", bindings[0].Node.Name, bindings[1].Node.Name)
+	}
+	if bindings[0].Port != 21080 || bindings[1].Port != 21081 {
+		t.Fatalf("ports %+v", bindings)
 	}
 }

@@ -24,33 +24,35 @@ func NewProxySubscriptionHandler(svc *service.ProxySubscriptionService) *ProxySu
 }
 
 type proxySubscriptionCreateRequest struct {
-	Name              string   `json:"name" binding:"required,max=100"`
-	Enabled           *bool    `json:"enabled"`
-	SourceType        string   `json:"source_type" binding:"omitempty,oneof=url inline"`
-	SubscriptionURL   string   `json:"subscription_url" binding:"omitempty,max=2000"`
-	InlineBody        string   `json:"inline_body"`
-	NamePrefix        string   `json:"name_prefix" binding:"omitempty,max=40"`
-	Protocol          string   `json:"protocol" binding:"omitempty,oneof=socks5 socks5h http https"`
-	BindAddress       string   `json:"bind_address" binding:"omitempty,max=64"`
-	BasePort          int      `json:"base_port" binding:"omitempty,min=1024,max=65535"`
-	MaxPorts          int      `json:"max_ports" binding:"omitempty,min=1,max=64"`
-	SyncIntervalSec   int      `json:"sync_interval_sec" binding:"omitempty,min=60,max=86400"`
-	NodeAllowContains []string `json:"node_allow_contains"`
+	Name                  string   `json:"name" binding:"required,max=100"`
+	Enabled               *bool    `json:"enabled"`
+	SourceType            string   `json:"source_type" binding:"omitempty,oneof=url inline"`
+	SubscriptionURL       string   `json:"subscription_url" binding:"omitempty,max=2000"`
+	InlineBody            string   `json:"inline_body"`
+	NamePrefix            string   `json:"name_prefix" binding:"omitempty,max=40"`
+	Protocol              string   `json:"protocol" binding:"omitempty,oneof=socks5 socks5h http https"`
+	BindAddress           string   `json:"bind_address" binding:"omitempty,max=64"`
+	BasePort              int      `json:"base_port" binding:"omitempty,min=1024,max=65535"`
+	MaxPorts              int      `json:"max_ports" binding:"omitempty,min=1,max=64"`
+	SyncIntervalSec       int      `json:"sync_interval_sec" binding:"omitempty,min=60,max=86400"`
+	NodeAllowContains     []string `json:"node_allow_contains"`
+	NodeIdentityAllowlist []string `json:"node_identity_allowlist"`
 }
 
 type proxySubscriptionUpdateRequest struct {
-	Name              *string   `json:"name" binding:"omitempty,max=100"`
-	Enabled           *bool     `json:"enabled"`
-	SourceType        *string   `json:"source_type" binding:"omitempty,oneof=url inline"`
-	SubscriptionURL   *string   `json:"subscription_url" binding:"omitempty,max=2000"`
-	InlineBody        *string   `json:"inline_body"`
-	NamePrefix        *string   `json:"name_prefix" binding:"omitempty,max=40"`
-	Protocol          *string   `json:"protocol" binding:"omitempty,oneof=socks5 socks5h http https"`
-	BindAddress       *string   `json:"bind_address" binding:"omitempty,max=64"`
-	BasePort          *int      `json:"base_port" binding:"omitempty,min=1024,max=65535"`
-	MaxPorts          *int      `json:"max_ports" binding:"omitempty,min=1,max=64"`
-	SyncIntervalSec   *int      `json:"sync_interval_sec" binding:"omitempty,min=60,max=86400"`
-	NodeAllowContains *[]string `json:"node_allow_contains"`
+	Name                  *string   `json:"name" binding:"omitempty,max=100"`
+	Enabled               *bool     `json:"enabled"`
+	SourceType            *string   `json:"source_type" binding:"omitempty,oneof=url inline"`
+	SubscriptionURL       *string   `json:"subscription_url" binding:"omitempty,max=2000"`
+	InlineBody            *string   `json:"inline_body"`
+	NamePrefix            *string   `json:"name_prefix" binding:"omitempty,max=40"`
+	Protocol              *string   `json:"protocol" binding:"omitempty,oneof=socks5 socks5h http https"`
+	BindAddress           *string   `json:"bind_address" binding:"omitempty,max=64"`
+	BasePort              *int      `json:"base_port" binding:"omitempty,min=1024,max=65535"`
+	MaxPorts              *int      `json:"max_ports" binding:"omitempty,min=1,max=64"`
+	SyncIntervalSec       *int      `json:"sync_interval_sec" binding:"omitempty,min=60,max=86400"`
+	NodeAllowContains     *[]string `json:"node_allow_contains"`
+	NodeIdentityAllowlist *[]string `json:"node_identity_allowlist"`
 }
 
 type proxySubscriptionResponse struct {
@@ -67,6 +69,7 @@ type proxySubscriptionResponse struct {
 	MaxPorts              int      `json:"max_ports"`
 	SyncIntervalSec       int      `json:"sync_interval_sec"`
 	NodeAllowContains     []string `json:"node_allow_contains"`
+	NodeIdentityAllowlist []string `json:"node_identity_allowlist"`
 	LastSyncAt            *string  `json:"last_sync_at"`
 	LastSyncStatus        string   `json:"last_sync_status"`
 	LastSyncError         string   `json:"last_sync_error"`
@@ -115,19 +118,20 @@ func (h *ProxySubscriptionHandler) Create(c *gin.Context) {
 		createdBy = subject.UserID
 	}
 	m, err := h.svc.Create(c.Request.Context(), service.ProxySubscriptionCreateParams{
-		Name:              req.Name,
-		Enabled:           req.Enabled,
-		SourceType:        req.SourceType,
-		SubscriptionURL:   req.SubscriptionURL,
-		InlineBody:        req.InlineBody,
-		NamePrefix:        req.NamePrefix,
-		Protocol:          req.Protocol,
-		BindAddress:       req.BindAddress,
-		BasePort:          req.BasePort,
-		MaxPorts:          req.MaxPorts,
-		SyncIntervalSec:   req.SyncIntervalSec,
-		NodeAllowContains: req.NodeAllowContains,
-		CreatedBy:         createdBy,
+		Name:                  req.Name,
+		Enabled:               req.Enabled,
+		SourceType:            req.SourceType,
+		SubscriptionURL:       req.SubscriptionURL,
+		InlineBody:            req.InlineBody,
+		NamePrefix:            req.NamePrefix,
+		Protocol:              req.Protocol,
+		BindAddress:           req.BindAddress,
+		BasePort:              req.BasePort,
+		MaxPorts:              req.MaxPorts,
+		SyncIntervalSec:       req.SyncIntervalSec,
+		NodeAllowContains:     req.NodeAllowContains,
+		NodeIdentityAllowlist: req.NodeIdentityAllowlist,
+		CreatedBy:             createdBy,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -164,18 +168,19 @@ func (h *ProxySubscriptionHandler) Update(c *gin.Context) {
 		return
 	}
 	m, err := h.svc.Update(c.Request.Context(), id, service.ProxySubscriptionUpdateParams{
-		Name:              req.Name,
-		Enabled:           req.Enabled,
-		SourceType:        req.SourceType,
-		SubscriptionURL:   req.SubscriptionURL,
-		InlineBody:        req.InlineBody,
-		NamePrefix:        req.NamePrefix,
-		Protocol:          req.Protocol,
-		BindAddress:       req.BindAddress,
-		BasePort:          req.BasePort,
-		MaxPorts:          req.MaxPorts,
-		SyncIntervalSec:   req.SyncIntervalSec,
-		NodeAllowContains: req.NodeAllowContains,
+		Name:                  req.Name,
+		Enabled:               req.Enabled,
+		SourceType:            req.SourceType,
+		SubscriptionURL:       req.SubscriptionURL,
+		InlineBody:            req.InlineBody,
+		NamePrefix:            req.NamePrefix,
+		Protocol:              req.Protocol,
+		BindAddress:           req.BindAddress,
+		BasePort:              req.BasePort,
+		MaxPorts:              req.MaxPorts,
+		SyncIntervalSec:       req.SyncIntervalSec,
+		NodeAllowContains:     req.NodeAllowContains,
+		NodeIdentityAllowlist: req.NodeIdentityAllowlist,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -236,6 +241,10 @@ func toProxySubscriptionResponse(m *service.ProxySubscription) proxySubscription
 	if allow == nil {
 		allow = []string{}
 	}
+	ident := m.NodeIdentityAllowlist
+	if ident == nil {
+		ident = []string{}
+	}
 	return proxySubscriptionResponse{
 		ID:                    m.ID,
 		Name:                  m.Name,
@@ -250,6 +259,7 @@ func toProxySubscriptionResponse(m *service.ProxySubscription) proxySubscription
 		MaxPorts:              m.MaxPorts,
 		SyncIntervalSec:       m.SyncIntervalSec,
 		NodeAllowContains:     allow,
+		NodeIdentityAllowlist: ident,
 		LastSyncAt:            formatTimePtr(m.LastSyncAt),
 		LastSyncStatus:        m.LastSyncStatus,
 		LastSyncError:         m.LastSyncError,
@@ -260,6 +270,48 @@ func toProxySubscriptionResponse(m *service.ProxySubscription) proxySubscription
 		CreatedAt:             m.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:             m.UpdatedAt.UTC().Format(time.RFC3339),
 	}
+}
+
+type proxySubscriptionPreviewDraftRequest struct {
+	SourceType        string   `json:"source_type" binding:"omitempty,oneof=url inline"`
+	SubscriptionURL   string   `json:"subscription_url" binding:"omitempty,max=2000"`
+	InlineBody        string   `json:"inline_body"`
+	NodeAllowContains []string `json:"node_allow_contains"`
+}
+
+// PreviewNodes POST /admin/proxy-subscriptions/:id/preview-nodes
+func (h *ProxySubscriptionHandler) PreviewNodes(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		response.BadRequest(c, "invalid id")
+		return
+	}
+	res, err := h.svc.PreviewNodes(c.Request.Context(), id)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, res)
+}
+
+// PreviewNodesDraft POST /admin/proxy-subscriptions/preview-nodes
+func (h *ProxySubscriptionHandler) PreviewNodesDraft(c *gin.Context) {
+	var req proxySubscriptionPreviewDraftRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	res, err := h.svc.PreviewNodesDraft(c.Request.Context(), service.ProxySubscriptionPreviewParams{
+		SourceType:        req.SourceType,
+		SubscriptionURL:   req.SubscriptionURL,
+		InlineBody:        req.InlineBody,
+		NodeAllowContains: req.NodeAllowContains,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, res)
 }
 
 func formatTimePtr(t *time.Time) *string {

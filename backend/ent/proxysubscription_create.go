@@ -202,6 +202,12 @@ func (_c *ProxySubscriptionCreate) SetNodeAllowContains(v []string) *ProxySubscr
 	return _c
 }
 
+// SetNodeIdentityAllowlist sets the "node_identity_allowlist" field.
+func (_c *ProxySubscriptionCreate) SetNodeIdentityAllowlist(v []string) *ProxySubscriptionCreate {
+	_c.mutation.SetNodeIdentityAllowlist(v)
+	return _c
+}
+
 // SetLastSyncAt sets the "last_sync_at" field.
 func (_c *ProxySubscriptionCreate) SetLastSyncAt(v time.Time) *ProxySubscriptionCreate {
 	_c.mutation.SetLastSyncAt(v)
@@ -387,6 +393,10 @@ func (_c *ProxySubscriptionCreate) defaults() {
 		v := proxysubscription.DefaultNodeAllowContains
 		_c.mutation.SetNodeAllowContains(v)
 	}
+	if _, ok := _c.mutation.NodeIdentityAllowlist(); !ok {
+		v := proxysubscription.DefaultNodeIdentityAllowlist
+		_c.mutation.SetNodeIdentityAllowlist(v)
+	}
 	if _, ok := _c.mutation.LastSyncStatus(); !ok {
 		v := proxysubscription.DefaultLastSyncStatus
 		_c.mutation.SetLastSyncStatus(v)
@@ -476,6 +486,9 @@ func (_c *ProxySubscriptionCreate) check() error {
 	}
 	if _, ok := _c.mutation.NodeAllowContains(); !ok {
 		return &ValidationError{Name: "node_allow_contains", err: errors.New(`ent: missing required field "ProxySubscription.node_allow_contains"`)}
+	}
+	if _, ok := _c.mutation.NodeIdentityAllowlist(); !ok {
+		return &ValidationError{Name: "node_identity_allowlist", err: errors.New(`ent: missing required field "ProxySubscription.node_identity_allowlist"`)}
 	}
 	if v, ok := _c.mutation.LastSyncStatus(); ok {
 		if err := proxysubscription.LastSyncStatusValidator(v); err != nil {
@@ -572,6 +585,10 @@ func (_c *ProxySubscriptionCreate) createSpec() (*ProxySubscription, *sqlgraph.C
 	if value, ok := _c.mutation.NodeAllowContains(); ok {
 		_spec.SetField(proxysubscription.FieldNodeAllowContains, field.TypeJSON, value)
 		_node.NodeAllowContains = value
+	}
+	if value, ok := _c.mutation.NodeIdentityAllowlist(); ok {
+		_spec.SetField(proxysubscription.FieldNodeIdentityAllowlist, field.TypeJSON, value)
+		_node.NodeIdentityAllowlist = value
 	}
 	if value, ok := _c.mutation.LastSyncAt(); ok {
 		_spec.SetField(proxysubscription.FieldLastSyncAt, field.TypeTime, value)
@@ -836,6 +853,18 @@ func (u *ProxySubscriptionUpsert) SetNodeAllowContains(v []string) *ProxySubscri
 // UpdateNodeAllowContains sets the "node_allow_contains" field to the value that was provided on create.
 func (u *ProxySubscriptionUpsert) UpdateNodeAllowContains() *ProxySubscriptionUpsert {
 	u.SetExcluded(proxysubscription.FieldNodeAllowContains)
+	return u
+}
+
+// SetNodeIdentityAllowlist sets the "node_identity_allowlist" field.
+func (u *ProxySubscriptionUpsert) SetNodeIdentityAllowlist(v []string) *ProxySubscriptionUpsert {
+	u.Set(proxysubscription.FieldNodeIdentityAllowlist, v)
+	return u
+}
+
+// UpdateNodeIdentityAllowlist sets the "node_identity_allowlist" field to the value that was provided on create.
+func (u *ProxySubscriptionUpsert) UpdateNodeIdentityAllowlist() *ProxySubscriptionUpsert {
+	u.SetExcluded(proxysubscription.FieldNodeIdentityAllowlist)
 	return u
 }
 
@@ -1230,6 +1259,20 @@ func (u *ProxySubscriptionUpsertOne) SetNodeAllowContains(v []string) *ProxySubs
 func (u *ProxySubscriptionUpsertOne) UpdateNodeAllowContains() *ProxySubscriptionUpsertOne {
 	return u.Update(func(s *ProxySubscriptionUpsert) {
 		s.UpdateNodeAllowContains()
+	})
+}
+
+// SetNodeIdentityAllowlist sets the "node_identity_allowlist" field.
+func (u *ProxySubscriptionUpsertOne) SetNodeIdentityAllowlist(v []string) *ProxySubscriptionUpsertOne {
+	return u.Update(func(s *ProxySubscriptionUpsert) {
+		s.SetNodeIdentityAllowlist(v)
+	})
+}
+
+// UpdateNodeIdentityAllowlist sets the "node_identity_allowlist" field to the value that was provided on create.
+func (u *ProxySubscriptionUpsertOne) UpdateNodeIdentityAllowlist() *ProxySubscriptionUpsertOne {
+	return u.Update(func(s *ProxySubscriptionUpsert) {
+		s.UpdateNodeIdentityAllowlist()
 	})
 }
 
@@ -1812,6 +1855,20 @@ func (u *ProxySubscriptionUpsertBulk) SetNodeAllowContains(v []string) *ProxySub
 func (u *ProxySubscriptionUpsertBulk) UpdateNodeAllowContains() *ProxySubscriptionUpsertBulk {
 	return u.Update(func(s *ProxySubscriptionUpsert) {
 		s.UpdateNodeAllowContains()
+	})
+}
+
+// SetNodeIdentityAllowlist sets the "node_identity_allowlist" field.
+func (u *ProxySubscriptionUpsertBulk) SetNodeIdentityAllowlist(v []string) *ProxySubscriptionUpsertBulk {
+	return u.Update(func(s *ProxySubscriptionUpsert) {
+		s.SetNodeIdentityAllowlist(v)
+	})
+}
+
+// UpdateNodeIdentityAllowlist sets the "node_identity_allowlist" field to the value that was provided on create.
+func (u *ProxySubscriptionUpsertBulk) UpdateNodeIdentityAllowlist() *ProxySubscriptionUpsertBulk {
+	return u.Update(func(s *ProxySubscriptionUpsert) {
+		s.UpdateNodeIdentityAllowlist()
 	})
 }
 

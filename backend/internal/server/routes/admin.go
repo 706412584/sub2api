@@ -808,11 +808,13 @@ func registerProxySubscriptionRoutes(admin *gin.RouterGroup, h *handler.Handlers
 	subs := admin.Group("/proxy-subscriptions")
 	{
 		subs.GET("/engine/status", h.Admin.ProxySubscription.EngineStatus)
+		subs.POST("/preview-nodes", h.Admin.ProxySubscription.PreviewNodesDraft)
 		subs.GET("", h.Admin.ProxySubscription.List)
 		subs.POST("", h.Admin.ProxySubscription.Create)
 		subs.GET("/:id", h.Admin.ProxySubscription.Get)
 		subs.PUT("/:id", h.Admin.ProxySubscription.Update)
 		subs.DELETE("/:id", h.Admin.ProxySubscription.Delete)
 		subs.POST("/:id/sync", h.Admin.ProxySubscription.Sync)
+		subs.POST("/:id/preview-nodes", h.Admin.ProxySubscription.PreviewNodes)
 	}
 }

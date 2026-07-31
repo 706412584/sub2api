@@ -311,7 +311,20 @@ export default {
           enabled: 'Enable this source',
           nodeAllow: 'Node name contains filter',
           nodeAllowPlaceholder: 'e.g. HK, JP (comma-separated; empty = all)',
-          nodeAllowHint: 'Fail-closed: when set, only nodes whose name contains any keyword are kept'
+          nodeAllowHint: 'Optional coarse filter before picking nodes. Fail-closed when set.',
+          nodeWhitelist: 'Node whitelist',
+          nodeWhitelistHint:
+            'Load nodes, then tick the ones to generate. Empty whitelist keeps auto max_ports selection. Airport renames may invalidate saved identities.',
+          loadNodes: 'Load nodes',
+          loadingNodes: 'Loading nodes…',
+          selectAllNodes: 'Select all',
+          clearNodeSelection: 'Clear selection',
+          selectedCount: 'Selected {selected} / max {max}',
+          nodeSearchPlaceholder: 'Filter loaded nodes…',
+          noNodesLoaded: 'No nodes loaded yet',
+          nodesLoadFailed: 'Failed to load nodes',
+          missingFromPreview: 'Saved but missing from current preview',
+          whitelistCount: 'whitelist {count}'
         }
       },
     },

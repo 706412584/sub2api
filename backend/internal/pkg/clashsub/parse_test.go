@@ -62,17 +62,51 @@ func TestSelectNodesFailClosed(t *testing.T) {
 		{Name: "A", Type: "ss", Identity: "ss|1|1|A"},
 		{Name: "B", Type: "ss", Identity: "ss|2|2|B"},
 	}
-	got, err := SelectNodes(nodes, 2, nil)
+	got, err := SelectNodes(nodes, 2, nil, nil)
 	if err != nil || len(got) != 2 {
 		t.Fatalf("got=%+v err=%v", got, err)
 	}
-	got, err = SelectNodes(nodes, 2, []string{"A"})
+	got, err = SelectNodes(nodes, 2, []string{"A"}, nil)
 	if err != nil || len(got) != 1 || got[0].Name != "A" {
 		t.Fatalf("filter got=%+v err=%v", got, err)
 	}
-	_, err = SelectNodes(nodes, 2, []string{"NOPE"})
+	_, err = SelectNodes(nodes, 2, []string{"NOPE"}, nil)
 	if err == nil {
 		t.Fatal("expected fail-closed on zero allow matches")
+	}
+}
+
+func TestSelectNodesIdentityAllowlist(t *testing.T) {
+	nodes := []Node{
+		{Name: "A", Type: "ss", Identity: "ss|1|1|A"},
+		{Name: "B", Type: "ss", Identity: "ss|2|2|B"},
+		{Name: "C", Type: "ss", Identity: "ss|3|3|C"},
+	}
+	got, err := SelectNodes(nodes, 2, nil, []string{"ss|2|2|B", "ss|3|3|C"})
+	if err != nil || len(got) != 2 {
+		t.Fatalf("got=%+v err=%v", got, err)
+	}
+	if got[0].Name != "B" || got[1].Name != "C" {
+		t.Fatalf("order/names %+v", got)
+	}
+	// Case-insensitive identity match.
+	got, err = SelectNodes(nodes, 5, nil, []string{"SS|1|1|A"})
+	if err != nil || len(got) != 1 || got[0].Name != "A" {
+		t.Fatalf("case got=%+v err=%v", got, err)
+	}
+	// Combined with name filter.
+	got, err = SelectNodes(nodes, 5, []string{"B"}, []string{"ss|2|2|B", "ss|1|1|A"})
+	if err != nil || len(got) != 1 || got[0].Name != "B" {
+		t.Fatalf("combined got=%+v err=%v", got, err)
+	}
+	_, err = SelectNodes(nodes, 5, nil, []string{"ss|9|9|Z"})
+	if err == nil {
+		t.Fatal("expected fail-closed on identity miss")
+	}
+	// Empty allowlist keeps auto behavior.
+	got, err = SelectNodes(nodes, 2, nil, []string{})
+	if err != nil || len(got) != 2 {
+		t.Fatalf("empty allowlist got=%+v err=%v", got, err)
 	}
 }
 

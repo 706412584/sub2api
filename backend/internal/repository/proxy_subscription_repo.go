@@ -35,6 +35,7 @@ func (r *proxySubscriptionRepository) Create(ctx context.Context, m *service.Pro
 		SetMaxPorts(m.MaxPorts).
 		SetSyncIntervalSec(m.SyncIntervalSec).
 		SetNodeAllowContains(emptyStringSlice(m.NodeAllowContains)).
+		SetNodeIdentityAllowlist(emptyStringSlice(m.NodeIdentityAllowlist)).
 		SetLastSyncStatus(m.LastSyncStatus).
 		SetLastSyncError(m.LastSyncError).
 		SetLastConfigHash(m.LastConfigHash).
@@ -78,6 +79,7 @@ func (r *proxySubscriptionRepository) Update(ctx context.Context, m *service.Pro
 		SetMaxPorts(m.MaxPorts).
 		SetSyncIntervalSec(m.SyncIntervalSec).
 		SetNodeAllowContains(emptyStringSlice(m.NodeAllowContains)).
+		SetNodeIdentityAllowlist(emptyStringSlice(m.NodeIdentityAllowlist)).
 		SetLastSyncStatus(m.LastSyncStatus).
 		SetLastSyncError(m.LastSyncError).
 		SetLastConfigHash(m.LastConfigHash).
@@ -249,28 +251,29 @@ func entToProxySubscription(row *dbent.ProxySubscription) *service.ProxySubscrip
 		return nil
 	}
 	return &service.ProxySubscription{
-		ID:                row.ID,
-		Name:              row.Name,
-		Enabled:           row.Enabled,
-		SourceType:        row.SourceType,
-		SubscriptionURL:   row.SubscriptionURL,
-		InlineBody:        row.InlineBody,
-		NamePrefix:        row.NamePrefix,
-		Protocol:          row.Protocol,
-		BindAddress:       row.BindAddress,
-		BasePort:          row.BasePort,
-		MaxPorts:          row.MaxPorts,
-		SyncIntervalSec:   row.SyncIntervalSec,
-		NodeAllowContains: append([]string(nil), row.NodeAllowContains...),
-		LastSyncAt:        row.LastSyncAt,
-		LastSyncStatus:    row.LastSyncStatus,
-		LastSyncError:     row.LastSyncError,
-		LastConfigHash:    row.LastConfigHash,
-		DesiredCount:      row.DesiredCount,
-		CreatedBy:         row.CreatedBy,
-		NextDueAt:         row.NextDueAt,
-		CreatedAt:         row.CreatedAt,
-		UpdatedAt:         row.UpdatedAt,
+		ID:                    row.ID,
+		Name:                  row.Name,
+		Enabled:               row.Enabled,
+		SourceType:            row.SourceType,
+		SubscriptionURL:       row.SubscriptionURL,
+		InlineBody:            row.InlineBody,
+		NamePrefix:            row.NamePrefix,
+		Protocol:              row.Protocol,
+		BindAddress:           row.BindAddress,
+		BasePort:              row.BasePort,
+		MaxPorts:              row.MaxPorts,
+		SyncIntervalSec:       row.SyncIntervalSec,
+		NodeAllowContains:     append([]string(nil), row.NodeAllowContains...),
+		NodeIdentityAllowlist: append([]string(nil), row.NodeIdentityAllowlist...),
+		LastSyncAt:            row.LastSyncAt,
+		LastSyncStatus:        row.LastSyncStatus,
+		LastSyncError:         row.LastSyncError,
+		LastConfigHash:        row.LastConfigHash,
+		DesiredCount:          row.DesiredCount,
+		CreatedBy:             row.CreatedBy,
+		NextDueAt:             row.NextDueAt,
+		CreatedAt:             row.CreatedAt,
+		UpdatedAt:             row.UpdatedAt,
 	}
 }
 

@@ -1767,28 +1767,32 @@ func init() {
 	proxysubscriptionDescNodeAllowContains := proxysubscriptionFields[11].Descriptor()
 	// proxysubscription.DefaultNodeAllowContains holds the default value on creation for the node_allow_contains field.
 	proxysubscription.DefaultNodeAllowContains = proxysubscriptionDescNodeAllowContains.Default.([]string)
+	// proxysubscriptionDescNodeIdentityAllowlist is the schema descriptor for node_identity_allowlist field.
+	proxysubscriptionDescNodeIdentityAllowlist := proxysubscriptionFields[12].Descriptor()
+	// proxysubscription.DefaultNodeIdentityAllowlist holds the default value on creation for the node_identity_allowlist field.
+	proxysubscription.DefaultNodeIdentityAllowlist = proxysubscriptionDescNodeIdentityAllowlist.Default.([]string)
 	// proxysubscriptionDescLastSyncStatus is the schema descriptor for last_sync_status field.
-	proxysubscriptionDescLastSyncStatus := proxysubscriptionFields[13].Descriptor()
+	proxysubscriptionDescLastSyncStatus := proxysubscriptionFields[14].Descriptor()
 	// proxysubscription.DefaultLastSyncStatus holds the default value on creation for the last_sync_status field.
 	proxysubscription.DefaultLastSyncStatus = proxysubscriptionDescLastSyncStatus.Default.(string)
 	// proxysubscription.LastSyncStatusValidator is a validator for the "last_sync_status" field. It is called by the builders before save.
 	proxysubscription.LastSyncStatusValidator = proxysubscriptionDescLastSyncStatus.Validators[0].(func(string) error)
 	// proxysubscriptionDescLastSyncError is the schema descriptor for last_sync_error field.
-	proxysubscriptionDescLastSyncError := proxysubscriptionFields[14].Descriptor()
+	proxysubscriptionDescLastSyncError := proxysubscriptionFields[15].Descriptor()
 	// proxysubscription.DefaultLastSyncError holds the default value on creation for the last_sync_error field.
 	proxysubscription.DefaultLastSyncError = proxysubscriptionDescLastSyncError.Default.(string)
 	// proxysubscriptionDescLastConfigHash is the schema descriptor for last_config_hash field.
-	proxysubscriptionDescLastConfigHash := proxysubscriptionFields[15].Descriptor()
+	proxysubscriptionDescLastConfigHash := proxysubscriptionFields[16].Descriptor()
 	// proxysubscription.DefaultLastConfigHash holds the default value on creation for the last_config_hash field.
 	proxysubscription.DefaultLastConfigHash = proxysubscriptionDescLastConfigHash.Default.(string)
 	// proxysubscription.LastConfigHashValidator is a validator for the "last_config_hash" field. It is called by the builders before save.
 	proxysubscription.LastConfigHashValidator = proxysubscriptionDescLastConfigHash.Validators[0].(func(string) error)
 	// proxysubscriptionDescDesiredCount is the schema descriptor for desired_count field.
-	proxysubscriptionDescDesiredCount := proxysubscriptionFields[16].Descriptor()
+	proxysubscriptionDescDesiredCount := proxysubscriptionFields[17].Descriptor()
 	// proxysubscription.DefaultDesiredCount holds the default value on creation for the desired_count field.
 	proxysubscription.DefaultDesiredCount = proxysubscriptionDescDesiredCount.Default.(int)
 	// proxysubscriptionDescCreatedBy is the schema descriptor for created_by field.
-	proxysubscriptionDescCreatedBy := proxysubscriptionFields[17].Descriptor()
+	proxysubscriptionDescCreatedBy := proxysubscriptionFields[18].Descriptor()
 	// proxysubscription.DefaultCreatedBy holds the default value on creation for the created_by field.
 	proxysubscription.DefaultCreatedBy = proxysubscriptionDescCreatedBy.Default.(int64)
 	redeemcodeFields := schema.RedeemCode{}.Fields()

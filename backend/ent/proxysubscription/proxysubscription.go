@@ -41,6 +41,8 @@ const (
 	FieldSyncIntervalSec = "sync_interval_sec"
 	// FieldNodeAllowContains holds the string denoting the node_allow_contains field in the database.
 	FieldNodeAllowContains = "node_allow_contains"
+	// FieldNodeIdentityAllowlist holds the string denoting the node_identity_allowlist field in the database.
+	FieldNodeIdentityAllowlist = "node_identity_allowlist"
 	// FieldLastSyncAt holds the string denoting the last_sync_at field in the database.
 	FieldLastSyncAt = "last_sync_at"
 	// FieldLastSyncStatus holds the string denoting the last_sync_status field in the database.
@@ -76,6 +78,7 @@ var Columns = []string{
 	FieldMaxPorts,
 	FieldSyncIntervalSec,
 	FieldNodeAllowContains,
+	FieldNodeIdentityAllowlist,
 	FieldLastSyncAt,
 	FieldLastSyncStatus,
 	FieldLastSyncError,
@@ -136,6 +139,8 @@ var (
 	DefaultSyncIntervalSec int
 	// DefaultNodeAllowContains holds the default value on creation for the "node_allow_contains" field.
 	DefaultNodeAllowContains []string
+	// DefaultNodeIdentityAllowlist holds the default value on creation for the "node_identity_allowlist" field.
+	DefaultNodeIdentityAllowlist []string
 	// DefaultLastSyncStatus holds the default value on creation for the "last_sync_status" field.
 	DefaultLastSyncStatus string
 	// LastSyncStatusValidator is a validator for the "last_sync_status" field. It is called by the builders before save.

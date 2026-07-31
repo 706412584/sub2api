@@ -120,8 +120,10 @@ func finalizeNodes(out []Node) ([]Node, error) {
 }
 
 // SelectNodes picks up to max nodes.
-// If allowContains is non-empty and nothing matches, returns error (fail-closed).
-func SelectNodes(nodes []Node, max int, allowContains []string) ([]Node, error) {
+// allowContains: optional name-substring filter (fail-closed when non-empty).
+// identityAllow: optional exact Identity allowlist (fail-closed when non-empty).
+// When both are set, name filter runs first, then identity filter.
+func SelectNodes(nodes []Node, max int, allowContains, identityAllow []string) ([]Node, error) {
 	if max <= 0 {
 		return nil, nil
 	}
@@ -135,6 +137,29 @@ func SelectNodes(nodes []Node, max int, allowContains []string) ([]Node, error) 
 		}
 		if len(tmp) == 0 {
 			return nil, fmt.Errorf("no nodes matched allow filter %v", allowContains)
+		}
+		filtered = tmp
+	}
+	if len(identityAllow) > 0 {
+		want := make(map[string]struct{}, len(identityAllow))
+		for _, id := range identityAllow {
+			id = strings.TrimSpace(id)
+			if id == "" {
+				continue
+			}
+			want[strings.ToLower(id)] = struct{}{}
+		}
+		if len(want) == 0 {
+			return nil, fmt.Errorf("node identity allowlist is empty after normalize")
+		}
+		tmp := make([]Node, 0, len(filtered))
+		for _, n := range filtered {
+			if _, ok := want[strings.ToLower(n.Identity)]; ok {
+				tmp = append(tmp, n)
+			}
+		}
+		if len(tmp) == 0 {
+			return nil, fmt.Errorf("no nodes matched identity allowlist")
 		}
 		filtered = tmp
 	}
