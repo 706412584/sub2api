@@ -426,6 +426,15 @@ const (
 	// asynchronous account-pool quota probe runner.
 	SettingKeyAccountPoolProbeSettings = "account_pool_probe_settings"
 
+	// SettingKeyGrokOpsProxy stores JSON config for Grok ops/test egress proxy.
+	// Live traffic keeps account.proxy_id; only test/probe (and optional refresh) use this.
+	SettingKeyGrokOpsProxy = "grok_ops_proxy"
+
+	// SettingKeyGrokCLIIdentity stores the operator override for Grok CLI client
+	// identity version reported to cli-chat-proxy (JSON: {"version":"x.y.z"}).
+	// Empty/missing means fall through to env XAI_GROK_CLI_VERSION then compile default.
+	SettingKeyGrokCLIIdentity = "grok_cli_identity"
+
 	// =========================
 	// Stream Timeout Handling
 	// =========================

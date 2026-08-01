@@ -967,6 +967,9 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlan(
 			weights.QuotaHeadroom*quotaHeadroomFactor +
 			weights.UpstreamCost*(upstreamCostFactor-openAIUpstreamCostNeutralFactor) +
 			openAIGrokFreeHeadroomWeight*grokFreeHeadroomFactor(item.account, now)
+		if s != nil && s.service != nil {
+			item.score -= ResolveGrokReasoningQualitySoftPenalty(ctx, s.service.grokReasoningQualityMarks, item.account)
+		}
 		if req.StickyWeighted {
 			if req.PreviousResponseCanMove && req.StickyPreviousAccountID > 0 && item.account.ID == req.StickyPreviousAccountID {
 				item.score += weights.Previous

@@ -425,6 +425,25 @@ type AccountPoolProbeSettings struct {
 	Platforms              []string `json:"platforms"`
 }
 
+// GrokOpsProxySettings Grok 运维/测活专用出口配置 DTO
+type GrokOpsProxySettings struct {
+	Enabled        bool   `json:"enabled"`
+	ProxyID        *int64 `json:"proxy_id"`
+	ApplyToRefresh bool   `json:"apply_to_refresh"`
+}
+
+// GrokCLIIdentityStatus Grok CLI 身份版本状态 DTO
+type GrokCLIIdentityStatus struct {
+	EffectiveVersion string `json:"effective_version"`
+	PinnedDefault    string `json:"pinned_default"`
+	SettingsOverride string `json:"settings_override,omitempty"`
+	EnvOverride      string `json:"env_override,omitempty"`
+	Source           string `json:"source"`
+	LatestVersion    string `json:"latest_version,omitempty"`
+	LatestCheckedAt  string `json:"latest_checked_at,omitempty"`
+	UpdateAvailable  bool   `json:"update_available,omitempty"`
+}
+
 // PanelRateLimitSettings 面板 API 限流配置 DTO
 type PanelRateLimitSettings struct {
 	Enabled     bool `json:"enabled"`

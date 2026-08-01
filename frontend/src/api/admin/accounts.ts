@@ -902,6 +902,13 @@ export async function batchRefresh(accountIds: number[]): Promise<BatchOperation
 export interface BatchTestAccountsRequest {
   account_ids: number[]
   model_id: string
+  mode?: 'default' | 'compact'
+  /** Temporary egress for this batch only. null/undefined = keep bound proxy; 0 = direct; >0 = proxy id from IP management. */
+  override_proxy_id?: number | null
+  /** @deprecated ignored; previously filtered by bound proxy */
+  proxy_ids?: number[]
+  interval_ms?: number
+  concurrency?: number
 }
 
 export interface BatchTestAccountItem {

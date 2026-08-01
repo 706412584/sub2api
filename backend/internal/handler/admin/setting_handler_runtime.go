@@ -280,6 +280,144 @@ func (h *SettingHandler) UpdateAccountPoolProbeSettings(c *gin.Context) {
 	})
 }
 
+// GetGrokOpsProxySettings 获取 Grok ops_proxy 配置
+// GET /api/v1/admin/settings/grok-ops-proxy
+func (h *SettingHandler) GetGrokOpsProxySettings(c *gin.Context) {
+	settings, err := h.settingService.GetGrokOpsProxySettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dto.GrokOpsProxySettings{
+		Enabled:        settings.Enabled,
+		ProxyID:        settings.ProxyID,
+		ApplyToRefresh: settings.ApplyToRefresh,
+	})
+}
+
+// UpdateGrokOpsProxySettingsRequest 更新 Grok ops_proxy 配置请求
+type UpdateGrokOpsProxySettingsRequest struct {
+	Enabled        bool   `json:"enabled"`
+	ProxyID        *int64 `json:"proxy_id"`
+	ApplyToRefresh bool   `json:"apply_to_refresh"`
+}
+
+// UpdateGrokOpsProxySettings 更新 Grok ops_proxy 配置
+// PUT /api/v1/admin/settings/grok-ops-proxy
+func (h *SettingHandler) UpdateGrokOpsProxySettings(c *gin.Context) {
+	var req UpdateGrokOpsProxySettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	settings := &service.GrokOpsProxySettings{
+		Enabled:        req.Enabled,
+		ProxyID:        req.ProxyID,
+		ApplyToRefresh: req.ApplyToRefresh,
+	}
+	if err := h.settingService.SetGrokOpsProxySettings(c.Request.Context(), settings); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	updated, err := h.settingService.GetGrokOpsProxySettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dto.GrokOpsProxySettings{
+		Enabled:        updated.Enabled,
+		ProxyID:        updated.ProxyID,
+		ApplyToRefresh: updated.ApplyToRefresh,
+	})
+}
+
+func dtoGrokCLIIdentityStatus(status *service.GrokCLIIdentityStatus) dto.GrokCLIIdentityStatus {
+	if status == nil {
+		return dto.GrokCLIIdentityStatus{}
+	}
+	return dto.GrokCLIIdentityStatus{
+		EffectiveVersion: status.EffectiveVersion,
+		PinnedDefault:    status.PinnedDefault,
+		SettingsOverride: status.SettingsOverride,
+		EnvOverride:      status.EnvOverride,
+		Source:           status.Source,
+		LatestVersion:    status.LatestVersion,
+		LatestCheckedAt:  status.LatestCheckedAt,
+		UpdateAvailable:  status.UpdateAvailable,
+	}
+}
+
+// GetGrokCLIIdentitySettings 获取 Grok CLI 身份版本状态
+// GET /api/v1/admin/settings/grok-cli-identity
+func (h *SettingHandler) GetGrokCLIIdentitySettings(c *gin.Context) {
+	status, err := h.settingService.GetGrokCLIIdentityStatus(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dtoGrokCLIIdentityStatus(status))
+}
+
+// UpdateGrokCLIIdentitySettingsRequest 更新 Grok CLI 身份版本覆盖
+type UpdateGrokCLIIdentitySettingsRequest struct {
+	Version string `json:"version"`
+}
+
+// UpdateGrokCLIIdentitySettings 设置 Grok CLI 身份版本覆盖（空字符串清除）
+// PUT /api/v1/admin/settings/grok-cli-identity
+func (h *SettingHandler) UpdateGrokCLIIdentitySettings(c *gin.Context) {
+	var req UpdateGrokCLIIdentitySettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := h.settingService.SetGrokCLIIdentitySettings(c.Request.Context(), &service.GrokCLIIdentitySettings{
+		Version: req.Version,
+	}); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	status, err := h.settingService.GetGrokCLIIdentityStatus(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dtoGrokCLIIdentityStatus(status))
+}
+
+// CheckGrokCLIIdentityLatest 检测 npm @xai-official/grok latest
+// POST /api/v1/admin/settings/grok-cli-identity/check
+func (h *SettingHandler) CheckGrokCLIIdentityLatest(c *gin.Context) {
+	status, err := h.settingService.CheckGrokCLIIdentityLatest(c.Request.Context(), true)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dtoGrokCLIIdentityStatus(status))
+}
+
+// ApplyGrokCLIIdentityLatest 检测并将 npm latest 一键写入 settings 覆盖
+// POST /api/v1/admin/settings/grok-cli-identity/apply-latest
+func (h *SettingHandler) ApplyGrokCLIIdentityLatest(c *gin.Context) {
+	status, err := h.settingService.ApplyGrokCLIIdentityLatest(c.Request.Context())
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	response.Success(c, dtoGrokCLIIdentityStatus(status))
+}
+
+// RestoreGrokCLIIdentityDefault 清除 settings 覆盖，恢复编译默认（仍可被 env 覆盖）
+// POST /api/v1/admin/settings/grok-cli-identity/restore-default
+func (h *SettingHandler) RestoreGrokCLIIdentityDefault(c *gin.Context) {
+	status, err := h.settingService.RestoreGrokCLIIdentityDefault(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dtoGrokCLIIdentityStatus(status))
+}
+
 // GetPanelRateLimitSettings 获取面板 API 限流配置
 // GET /api/v1/admin/settings/panel-rate-limit
 func (h *SettingHandler) GetPanelRateLimitSettings(c *gin.Context) {

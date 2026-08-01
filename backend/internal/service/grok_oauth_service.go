@@ -15,9 +15,10 @@ import (
 const grokDefaultAccessTokenTTL = 6 * time.Hour
 
 type GrokOAuthService struct {
-	sessionStore *xai.SessionStore
-	proxyRepo    ProxyRepository
-	oauthClient  GrokOAuthClient
+	sessionStore   *xai.SessionStore
+	proxyRepo      ProxyRepository
+	oauthClient    GrokOAuthClient
+	settingService *SettingService
 }
 
 func NewGrokOAuthService(proxyRepo ProxyRepository, oauthClient GrokOAuthClient) *GrokOAuthService {
@@ -26,6 +27,14 @@ func NewGrokOAuthService(proxyRepo ProxyRepository, oauthClient GrokOAuthClient)
 		proxyRepo:    proxyRepo,
 		oauthClient:  oauthClient,
 	}
+}
+
+// SetSettingService injects settings for optional refresh via ops proxy.
+func (s *GrokOAuthService) SetSettingService(settingService *SettingService) {
+	if s == nil {
+		return
+	}
+	s.settingService = settingService
 }
 
 type GrokAuthURLResult struct {
@@ -196,9 +205,24 @@ func (s *GrokOAuthService) RefreshAccountToken(ctx context.Context, account *Acc
 		return nil, infraerrors.New(http.StatusBadRequest, "GROK_OAUTH_INVALID_ACCOUNT_TYPE", "account is not an OAuth account")
 	}
 
-	proxyURL, err := s.proxyURL(ctx, account.ProxyID)
-	if err != nil {
-		return nil, err
+	proxyURL := ""
+	usedOps := false
+	if s.settingService != nil {
+		if opsURL, forceDirect, ok, err := s.settingService.ResolveGrokOpsProxyURL(ctx, true); err == nil && ok {
+			usedOps = true
+			if forceDirect {
+				proxyURL = ""
+			} else {
+				proxyURL = opsURL
+			}
+		}
+	}
+	if !usedOps {
+		var err error
+		proxyURL, err = s.proxyURL(ctx, account.ProxyID)
+		if err != nil {
+			return nil, err
+		}
 	}
 	refreshToken := account.GetCredential("refresh_token")
 	if strings.TrimSpace(refreshToken) == "" {

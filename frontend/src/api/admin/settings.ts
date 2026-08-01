@@ -1275,6 +1275,82 @@ export async function updateAccountPoolProbeSettings(
   return data;
 }
 
+// ==================== Grok Ops Proxy Settings ====================
+
+export interface GrokOpsProxySettings {
+  enabled: boolean;
+  proxy_id: number | null;
+  apply_to_refresh: boolean;
+}
+
+export async function getGrokOpsProxySettings(): Promise<GrokOpsProxySettings> {
+  const { data } = await apiClient.get<GrokOpsProxySettings>(
+    "/admin/settings/grok-ops-proxy",
+  );
+  return data;
+}
+
+export async function updateGrokOpsProxySettings(
+  settings: GrokOpsProxySettings,
+): Promise<GrokOpsProxySettings> {
+  const { data } = await apiClient.put<GrokOpsProxySettings>(
+    "/admin/settings/grok-ops-proxy",
+    settings,
+  );
+  return data;
+}
+
+// ==================== Grok CLI Identity Settings ====================
+
+export interface GrokCLIIdentityStatus {
+  effective_version: string;
+  pinned_default: string;
+  settings_override?: string;
+  env_override?: string;
+  source: "settings" | "env" | "default" | string;
+  latest_version?: string;
+  latest_checked_at?: string;
+  update_available?: boolean;
+}
+
+export async function getGrokCLIIdentitySettings(): Promise<GrokCLIIdentityStatus> {
+  const { data } = await apiClient.get<GrokCLIIdentityStatus>(
+    "/admin/settings/grok-cli-identity",
+  );
+  return data;
+}
+
+export async function updateGrokCLIIdentitySettings(payload: {
+  version: string;
+}): Promise<GrokCLIIdentityStatus> {
+  const { data } = await apiClient.put<GrokCLIIdentityStatus>(
+    "/admin/settings/grok-cli-identity",
+    payload,
+  );
+  return data;
+}
+
+export async function checkGrokCLIIdentityLatest(): Promise<GrokCLIIdentityStatus> {
+  const { data } = await apiClient.post<GrokCLIIdentityStatus>(
+    "/admin/settings/grok-cli-identity/check",
+  );
+  return data;
+}
+
+export async function applyGrokCLIIdentityLatest(): Promise<GrokCLIIdentityStatus> {
+  const { data } = await apiClient.post<GrokCLIIdentityStatus>(
+    "/admin/settings/grok-cli-identity/apply-latest",
+  );
+  return data;
+}
+
+export async function restoreGrokCLIIdentityDefault(): Promise<GrokCLIIdentityStatus> {
+  const { data } = await apiClient.post<GrokCLIIdentityStatus>(
+    "/admin/settings/grok-cli-identity/restore-default",
+  );
+  return data;
+}
+
 // ==================== Panel Rate Limit Settings ====================
 
 /**
@@ -1538,6 +1614,13 @@ export const settingsAPI = {
   updateOpenAIGrok429ExhaustionSettings,
   getAccountPoolProbeSettings,
   updateAccountPoolProbeSettings,
+  getGrokOpsProxySettings,
+  updateGrokOpsProxySettings,
+  getGrokCLIIdentitySettings,
+  updateGrokCLIIdentitySettings,
+  checkGrokCLIIdentityLatest,
+  applyGrokCLIIdentityLatest,
+  restoreGrokCLIIdentityDefault,
   getPanelRateLimitSettings,
   updatePanelRateLimitSettings,
   getStreamTimeoutSettings,

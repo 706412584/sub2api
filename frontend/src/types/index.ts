@@ -905,6 +905,29 @@ export interface ProxyQualityCheckItem {
   cf_ray?: string
 }
 
+export interface GrokReasoningProbeRequest {
+  account_id: number
+  confirm_quota_cost: boolean
+}
+
+export interface GrokReasoningProbeResult {
+  proxy_id: number
+  account_id: number
+  account_name?: string
+  model: string
+  http_status: number
+  latency_ms: number
+  stream_completed: boolean
+  has_visible_reasoning: boolean
+  visible_reasoning_chars: number
+  has_encrypted_reasoning: boolean
+  reasoning_tokens: number
+  output_tokens?: number
+  status: 'visible' | 'encrypted_only' | 'no_reasoning' | 'error'
+  message: string
+  probed_at: number
+}
+
 export interface ProxyQualityCheckResult {
   proxy_id: number
   score: number

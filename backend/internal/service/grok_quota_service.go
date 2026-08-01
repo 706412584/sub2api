@@ -535,6 +535,15 @@ func (s *GrokQuotaService) prepareProbe(ctx context.Context, accountID int64) (*
 }
 
 func (s *GrokQuotaService) resolveProxyURL(ctx context.Context, account *Account) string {
+	// Ops proxy (test/probe egress) wins over bound proxy and is never persisted.
+	if s != nil && s.settingService != nil {
+		if proxyURL, forceDirect, ok, err := s.settingService.ResolveGrokOpsProxyURL(ctx, false); err == nil && ok {
+			if forceDirect {
+				return ""
+			}
+			return proxyURL
+		}
+	}
 	if account == nil || account.ProxyID == nil {
 		return ""
 	}

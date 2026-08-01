@@ -23,7 +23,8 @@ const (
 	defaultSyncIntervalSec   = 300
 	defaultBasePort          = 21080
 	defaultMaxPorts          = 10
-	maxMaxPorts              = 64
+	// Practical upper bound for local mihomo listeners (was 64; UI often set 20).
+	maxMaxPorts = 500
 )
 
 // ProxySubscriptionService manages CRUD + sync for embedded subscription sources.
@@ -651,7 +652,7 @@ func (s *ProxySubscriptionService) validateModel(ctx context.Context, m *ProxySu
 		return ErrProxySubscriptionInvalid
 	}
 	m.NodeAllowContains = normalizeStringList(m.NodeAllowContains, 64, 128)
-	m.NodeIdentityAllowlist = normalizeStringList(m.NodeIdentityAllowlist, 64, 256)
+	m.NodeIdentityAllowlist = normalizeStringList(m.NodeIdentityAllowlist, maxMaxPorts, 256)
 	if strings.TrimSpace(m.Name) == "" {
 		return infraerrors.BadRequest("PROXY_SUBSCRIPTION_NAME", "name is required")
 	}
