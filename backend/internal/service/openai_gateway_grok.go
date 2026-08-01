@@ -24,8 +24,10 @@ const (
 	grokComposerImageBridgeVisionModel     = "grok-build-0.1"
 	grokComposerImageBridgeMaxOutputTokens = 512
 	grokUpstreamUserAgent                  = "sub2api-grok/1.0"
-	grokCLIVersion                         = "0.2.118"
-	grokDefaultResponsesModel              = "grok-4.5"
+	// grokCLIVersion remains the compile pin used by unit tests that assert
+	// intermediate headers; live paths resolve via ResolveGrokCLIClientVersion.
+	grokCLIVersion            = GrokCLIPinnedStableVersion
+	grokDefaultResponsesModel = "grok-4.5"
 	grokRateLimitFallbackCooldown          = 2 * time.Minute
 	grokRateLimitRepeatCooldown            = 10 * time.Minute
 	grokRateLimitSustainedCooldown         = 30 * time.Minute
@@ -1267,7 +1269,9 @@ func applyGrokCLIHeaders(headers http.Header) {
 		return
 	}
 	headers.Set("User-Agent", grokUpstreamUserAgent)
-	headers.Set("X-Grok-Client-Version", grokCLIVersion)
+	// Intermediate identity; final cli-chat-proxy headers are rewritten in http_upstream
+	// via ResolveGrokCLIClientVersion (settings > env > pinned default).
+	headers.Set("X-Grok-Client-Version", ResolveGrokCLIClientVersion())
 	headers.Set("X-Grok-Client-Mode", "interactive")
 }
 

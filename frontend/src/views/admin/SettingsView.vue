@@ -874,6 +874,177 @@
             </div>
           </div>
 
+
+          <!-- Grok CLI Identity Settings -->
+          <div class="card">
+            <div
+              class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+            >
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ t("admin.settings.grokCliIdentity.title") }}
+              </h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.grokCliIdentity.description") }}
+              </p>
+            </div>
+            <div class="space-y-5 p-6">
+              <div
+                v-if="grokCliIdentityLoading"
+                class="flex items-center gap-2 text-gray-500"
+              >
+                <div
+                  class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"
+                ></div>
+                {{ t("common.loading") }}
+              </div>
+
+              <template v-else>
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.grokCliIdentity.effective") }}
+                    </p>
+                    <p class="font-mono text-sm text-gray-900 dark:text-white">
+                      {{ grokCliIdentityStatus.effective_version || "-" }}
+                    </p>
+                  </div>
+                  <div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.grokCliIdentity.source") }}
+                    </p>
+                    <p class="text-sm text-gray-900 dark:text-white">
+                      {{ grokCliIdentitySourceLabel }}
+                    </p>
+                  </div>
+                  <div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.grokCliIdentity.pinnedDefault") }}
+                    </p>
+                    <p class="font-mono text-sm text-gray-900 dark:text-white">
+                      {{ grokCliIdentityStatus.pinned_default || "-" }}
+                    </p>
+                  </div>
+                  <div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.grokCliIdentity.settingsOverride") }}
+                    </p>
+                    <p class="font-mono text-sm text-gray-900 dark:text-white">
+                      {{
+                        grokCliIdentityStatus.settings_override ||
+                        t("admin.settings.grokCliIdentity.none")
+                      }}
+                    </p>
+                  </div>
+                  <div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.grokCliIdentity.envOverride") }}
+                    </p>
+                    <p class="font-mono text-sm text-gray-900 dark:text-white">
+                      {{
+                        grokCliIdentityStatus.env_override ||
+                        t("admin.settings.grokCliIdentity.none")
+                      }}
+                    </p>
+                  </div>
+                  <div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.grokCliIdentity.latest") }}
+                    </p>
+                    <p class="font-mono text-sm text-gray-900 dark:text-white">
+                      {{
+                        grokCliIdentityStatus.latest_version ||
+                        t("admin.settings.grokCliIdentity.none")
+                      }}
+                      <span
+                        v-if="grokCliIdentityStatus.update_available"
+                        class="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                      >
+                        {{ t("admin.settings.grokCliIdentity.updateAvailable") }}
+                      </span>
+                    </p>
+                    <p
+                      v-if="grokCliIdentityStatus.latest_checked_at"
+                      class="mt-1 text-xs text-gray-500 dark:text-gray-400"
+                    >
+                      {{ t("admin.settings.grokCliIdentity.latestCheckedAt") }}:
+                      {{ grokCliIdentityStatus.latest_checked_at }}
+                    </p>
+                  </div>
+                </div>
+
+                <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
+                  <label
+                    class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    {{ t("admin.settings.grokCliIdentity.versionInput") }}
+                  </label>
+                  <input
+                    v-model="grokCliIdentityVersionInput"
+                    type="text"
+                    class="input w-full max-w-md font-mono"
+                    placeholder="0.2.118"
+                  />
+                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.grokCliIdentity.versionInputHint") }}
+                  </p>
+                </div>
+
+                <div
+                  class="flex flex-wrap justify-end gap-2 border-t border-gray-100 pt-4 dark:border-dark-700"
+                >
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm"
+                    :disabled="grokCliIdentityBusy"
+                    @click="checkGrokCliIdentity"
+                  >
+                    {{
+                      grokCliIdentityChecking
+                        ? t("admin.settings.grokCliIdentity.checking")
+                        : t("admin.settings.grokCliIdentity.check")
+                    }}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm"
+                    :disabled="grokCliIdentityBusy"
+                    @click="applyGrokCliIdentityLatest"
+                  >
+                    {{
+                      grokCliIdentityApplying
+                        ? t("admin.settings.grokCliIdentity.applying")
+                        : t("admin.settings.grokCliIdentity.applyLatest")
+                    }}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm"
+                    :disabled="grokCliIdentityBusy"
+                    @click="restoreGrokCliIdentityDefault"
+                  >
+                    {{
+                      grokCliIdentityRestoring
+                        ? t("admin.settings.grokCliIdentity.restoring")
+                        : t("admin.settings.grokCliIdentity.restoreDefault")
+                    }}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-primary btn-sm"
+                    :disabled="grokCliIdentityBusy"
+                    @click="saveGrokCliIdentitySettings"
+                  >
+                    {{
+                      grokCliIdentitySaving
+                        ? t("admin.settings.grokCliIdentity.saving")
+                        : t("admin.settings.grokCliIdentity.save")
+                    }}
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
+
           <!-- Stream Timeout Settings -->
           <div class="card">
             <div
@@ -8592,6 +8763,64 @@ function onGrokOpsProxySelectChange(value: string) {
   grokOpsProxyForm.proxy_id = Number.isFinite(n) ? n : null;
 }
 
+
+// Grok CLI Identity 状态
+const grokCliIdentityLoading = ref(true);
+const grokCliIdentitySaving = ref(false);
+const grokCliIdentityChecking = ref(false);
+const grokCliIdentityApplying = ref(false);
+const grokCliIdentityRestoring = ref(false);
+const grokCliIdentityVersionInput = ref("");
+const grokCliIdentityStatus = reactive({
+  effective_version: "",
+  pinned_default: "",
+  settings_override: "",
+  env_override: "",
+  source: "default",
+  latest_version: "",
+  latest_checked_at: "",
+  update_available: false,
+});
+const grokCliIdentityBusy = computed(
+  () =>
+    grokCliIdentitySaving.value ||
+    grokCliIdentityChecking.value ||
+    grokCliIdentityApplying.value ||
+    grokCliIdentityRestoring.value,
+);
+const grokCliIdentitySourceLabel = computed(() => {
+  switch (grokCliIdentityStatus.source) {
+    case "settings":
+      return t("admin.settings.grokCliIdentity.sourceSettings");
+    case "env":
+      return t("admin.settings.grokCliIdentity.sourceEnv");
+    default:
+      return t("admin.settings.grokCliIdentity.sourceDefault");
+  }
+});
+function applyGrokCliIdentityStatus(status: {
+  effective_version?: string;
+  pinned_default?: string;
+  settings_override?: string;
+  env_override?: string;
+  source?: string;
+  latest_version?: string;
+  latest_checked_at?: string;
+  update_available?: boolean;
+}) {
+  Object.assign(grokCliIdentityStatus, {
+    effective_version: status.effective_version || "",
+    pinned_default: status.pinned_default || "",
+    settings_override: status.settings_override || "",
+    env_override: status.env_override || "",
+    source: status.source || "default",
+    latest_version: status.latest_version || "",
+    latest_checked_at: status.latest_checked_at || "",
+    update_available: !!status.update_available,
+  });
+  grokCliIdentityVersionInput.value = status.settings_override || "";
+}
+
 // Stream Timeout 状态
 const streamTimeoutLoading = ref(true);
 const streamTimeoutSaving = ref(false);
@@ -11436,6 +11665,93 @@ async function saveGrokOpsProxySettings() {
   }
 }
 
+// Grok CLI Identity 方法
+async function loadGrokCliIdentitySettings() {
+  grokCliIdentityLoading.value = true;
+  try {
+    const status = await adminAPI.settings.getGrokCLIIdentitySettings();
+    applyGrokCliIdentityStatus(status);
+  } catch (_error: unknown) {
+    // Silent fail - settings will use defaults
+  } finally {
+    grokCliIdentityLoading.value = false;
+  }
+}
+
+async function saveGrokCliIdentitySettings() {
+  grokCliIdentitySaving.value = true;
+  try {
+    const status = await adminAPI.settings.updateGrokCLIIdentitySettings({
+      version: (grokCliIdentityVersionInput.value || "").trim(),
+    });
+    applyGrokCliIdentityStatus(status);
+    appStore.showSuccess(t("admin.settings.grokCliIdentity.saved"));
+  } catch (error: unknown) {
+    appStore.showError(
+      extractApiErrorMessage(
+        error,
+        t("admin.settings.grokCliIdentity.saveFailed"),
+      ),
+    );
+  } finally {
+    grokCliIdentitySaving.value = false;
+  }
+}
+
+async function checkGrokCliIdentity() {
+  grokCliIdentityChecking.value = true;
+  try {
+    const status = await adminAPI.settings.checkGrokCLIIdentityLatest();
+    applyGrokCliIdentityStatus(status);
+    appStore.showSuccess(t("admin.settings.grokCliIdentity.checkOk"));
+  } catch (error: unknown) {
+    appStore.showError(
+      extractApiErrorMessage(
+        error,
+        t("admin.settings.grokCliIdentity.checkFailed"),
+      ),
+    );
+  } finally {
+    grokCliIdentityChecking.value = false;
+  }
+}
+
+async function applyGrokCliIdentityLatest() {
+  grokCliIdentityApplying.value = true;
+  try {
+    const status = await adminAPI.settings.applyGrokCLIIdentityLatest();
+    applyGrokCliIdentityStatus(status);
+    appStore.showSuccess(t("admin.settings.grokCliIdentity.applyOk"));
+  } catch (error: unknown) {
+    appStore.showError(
+      extractApiErrorMessage(
+        error,
+        t("admin.settings.grokCliIdentity.applyFailed"),
+      ),
+    );
+  } finally {
+    grokCliIdentityApplying.value = false;
+  }
+}
+
+async function restoreGrokCliIdentityDefault() {
+  grokCliIdentityRestoring.value = true;
+  try {
+    const status = await adminAPI.settings.restoreGrokCLIIdentityDefault();
+    applyGrokCliIdentityStatus(status);
+    appStore.showSuccess(t("admin.settings.grokCliIdentity.restoreOk"));
+  } catch (error: unknown) {
+    appStore.showError(
+      extractApiErrorMessage(
+        error,
+        t("admin.settings.grokCliIdentity.restoreFailed"),
+      ),
+    );
+  } finally {
+    grokCliIdentityRestoring.value = false;
+  }
+}
+
 // Stream Timeout 方法
 async function loadStreamTimeoutSettings() {
   streamTimeoutLoading.value = true;
@@ -12071,6 +12387,7 @@ onMounted(() => {
   loadOpenAIGrok429ExhaustionSettings();
   loadAccountPoolProbeSettings();
   loadGrokOpsProxySettings();
+  loadGrokCliIdentitySettings();
   loadStreamTimeoutSettings();
   loadRectifierSettings();
   loadBetaPolicySettings();

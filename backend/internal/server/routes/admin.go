@@ -580,6 +580,12 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		// Grok 运维/测活专用出口
 		adminSettings.GET("/grok-ops-proxy", h.Admin.Setting.GetGrokOpsProxySettings)
 		adminSettings.PUT("/grok-ops-proxy", h.Admin.Setting.UpdateGrokOpsProxySettings)
+		// Grok CLI 身份版本（热覆盖 / 检测 npm latest / 一键应用 / 恢复默认）
+		adminSettings.GET("/grok-cli-identity", h.Admin.Setting.GetGrokCLIIdentitySettings)
+		adminSettings.PUT("/grok-cli-identity", h.Admin.Setting.UpdateGrokCLIIdentitySettings)
+		adminSettings.POST("/grok-cli-identity/check", h.Admin.Setting.CheckGrokCLIIdentityLatest)
+		adminSettings.POST("/grok-cli-identity/apply-latest", h.Admin.Setting.ApplyGrokCLIIdentityLatest)
+		adminSettings.POST("/grok-cli-identity/restore-default", h.Admin.Setting.RestoreGrokCLIIdentityDefault)
 		// 流超时处理配置
 		adminSettings.GET("/panel-rate-limit", h.Admin.Setting.GetPanelRateLimitSettings)
 		adminSettings.PUT("/panel-rate-limit", h.Admin.Setting.UpdatePanelRateLimitSettings)

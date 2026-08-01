@@ -51,6 +51,9 @@ func ProvideRouter(
 	r.Use(middleware2.Recovery())
 	configureTrustedProxies(r, cfg.Server)
 
+	// Load Grok CLI identity override into the process-local hot path used by http_upstream.
+	settingService.WarmGrokCLIIdentitySettings(context.Background())
+
 	// Wire up websearch Manager builder so it initializes on startup and rebuilds on config save.
 	settingService.SetWebSearchManagerBuilder(context.Background(), func(cfg *service.WebSearchEmulationConfig, proxyURLs map[int64]string) {
 		if cfg == nil || !cfg.Enabled || len(cfg.Providers) == 0 {

@@ -33,7 +33,7 @@ type proxySubscriptionCreateRequest struct {
 	Protocol              string   `json:"protocol" binding:"omitempty,oneof=socks5 socks5h http https"`
 	BindAddress           string   `json:"bind_address" binding:"omitempty,max=64"`
 	BasePort              int      `json:"base_port" binding:"omitempty,min=1024,max=65535"`
-	MaxPorts              int      `json:"max_ports" binding:"omitempty,min=1,max=64"`
+	MaxPorts              int      `json:"max_ports" binding:"omitempty,min=1,max=500"`
 	SyncIntervalSec       int      `json:"sync_interval_sec" binding:"omitempty,min=60,max=86400"`
 	NodeAllowContains     []string `json:"node_allow_contains"`
 	NodeIdentityAllowlist []string `json:"node_identity_allowlist"`
@@ -49,7 +49,7 @@ type proxySubscriptionUpdateRequest struct {
 	Protocol              *string   `json:"protocol" binding:"omitempty,oneof=socks5 socks5h http https"`
 	BindAddress           *string   `json:"bind_address" binding:"omitempty,max=64"`
 	BasePort              *int      `json:"base_port" binding:"omitempty,min=1024,max=65535"`
-	MaxPorts              *int      `json:"max_ports" binding:"omitempty,min=1,max=64"`
+	MaxPorts              *int      `json:"max_ports" binding:"omitempty,min=1,max=500"`
 	SyncIntervalSec       *int      `json:"sync_interval_sec" binding:"omitempty,min=60,max=86400"`
 	NodeAllowContains     *[]string `json:"node_allow_contains"`
 	NodeIdentityAllowlist *[]string `json:"node_identity_allowlist"`

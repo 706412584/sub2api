@@ -601,6 +601,29 @@ func DefaultGrokOpsProxySettings() *GrokOpsProxySettings {
 	}
 }
 
+// GrokCLIIdentitySettings is the persisted operator override for Grok CLI identity.
+// Empty Version clears the override (env / compile default apply).
+type GrokCLIIdentitySettings struct {
+	Version string `json:"version"`
+}
+
+// DefaultGrokCLIIdentitySettings means no settings override.
+func DefaultGrokCLIIdentitySettings() *GrokCLIIdentitySettings {
+	return &GrokCLIIdentitySettings{Version: ""}
+}
+
+// GrokCLIIdentityStatus is the admin-facing view of effective CLI identity.
+type GrokCLIIdentityStatus struct {
+	EffectiveVersion string `json:"effective_version"`
+	PinnedDefault    string `json:"pinned_default"`
+	SettingsOverride string `json:"settings_override,omitempty"`
+	EnvOverride      string `json:"env_override,omitempty"`
+	Source           string `json:"source"` // settings | env | default
+	LatestVersion    string `json:"latest_version,omitempty"`
+	LatestCheckedAt  string `json:"latest_checked_at,omitempty"`
+	UpdateAvailable  bool   `json:"update_available,omitempty"`
+}
+
 // DefaultBetaPolicySettings 返回默认的 Beta 策略配置
 //
 // context-1m-2025-08-07 的默认策略：

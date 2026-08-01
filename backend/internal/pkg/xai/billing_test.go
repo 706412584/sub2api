@@ -29,7 +29,10 @@ func TestBuildBillingURLWithValidator(t *testing.T) {
 }
 
 func TestApplyCLIBillingHeaders(t *testing.T) {
-	t.Parallel()
+	// Not parallel: shares process-level CLI version resolver with sibling tests.
+	SetCLIClientVersionResolver(nil)
+	t.Cleanup(func() { SetCLIClientVersionResolver(nil) })
+
 	req, err := http.NewRequest(http.MethodGet, BuildBillingURL(true), nil)
 	require.NoError(t, err)
 
@@ -38,7 +41,23 @@ func TestApplyCLIBillingHeaders(t *testing.T) {
 	require.Equal(t, "Bearer token", req.Header.Get("Authorization"))
 	require.Equal(t, CLITokenAuthValue, req.Header.Get(CLITokenAuthHeader))
 	require.Equal(t, CLIClientVersion, req.Header.Get(CLIClientVersionHeader))
-	require.Equal(t, "grok-pager/"+CLIClientVersion+" grok-shell/"+CLIClientVersion+" (macos; aarch64)", req.UserAgent())
+	require.Equal(t, FormatCLIUserAgent(CLIClientVersion), req.UserAgent())
+}
+
+func TestEffectiveCLIClientVersionUsesResolver(t *testing.T) {
+	SetCLIClientVersionResolver(func() string { return "0.2.200" })
+	t.Cleanup(func() { SetCLIClientVersionResolver(nil) })
+
+	require.Equal(t, "0.2.200", EffectiveCLIClientVersion())
+
+	req, err := http.NewRequest(http.MethodGet, BuildBillingURL(false), nil)
+	require.NoError(t, err)
+	ApplyCLIBillingHeaders(req, "tok")
+	require.Equal(t, "0.2.200", req.Header.Get(CLIClientVersionHeader))
+	require.Equal(t, "grok-pager/0.2.200 grok-shell/0.2.200 (macos; aarch64)", req.UserAgent())
+
+	SetCLIClientVersionResolver(nil)
+	require.Equal(t, CLIClientVersion, EffectiveCLIClientVersion())
 }
 
 func TestBuildBillingSummaryWeeklyAndMonthly(t *testing.T) {

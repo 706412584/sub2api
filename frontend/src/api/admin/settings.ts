@@ -1300,6 +1300,57 @@ export async function updateGrokOpsProxySettings(
   return data;
 }
 
+// ==================== Grok CLI Identity Settings ====================
+
+export interface GrokCLIIdentityStatus {
+  effective_version: string;
+  pinned_default: string;
+  settings_override?: string;
+  env_override?: string;
+  source: "settings" | "env" | "default" | string;
+  latest_version?: string;
+  latest_checked_at?: string;
+  update_available?: boolean;
+}
+
+export async function getGrokCLIIdentitySettings(): Promise<GrokCLIIdentityStatus> {
+  const { data } = await apiClient.get<GrokCLIIdentityStatus>(
+    "/admin/settings/grok-cli-identity",
+  );
+  return data;
+}
+
+export async function updateGrokCLIIdentitySettings(payload: {
+  version: string;
+}): Promise<GrokCLIIdentityStatus> {
+  const { data } = await apiClient.put<GrokCLIIdentityStatus>(
+    "/admin/settings/grok-cli-identity",
+    payload,
+  );
+  return data;
+}
+
+export async function checkGrokCLIIdentityLatest(): Promise<GrokCLIIdentityStatus> {
+  const { data } = await apiClient.post<GrokCLIIdentityStatus>(
+    "/admin/settings/grok-cli-identity/check",
+  );
+  return data;
+}
+
+export async function applyGrokCLIIdentityLatest(): Promise<GrokCLIIdentityStatus> {
+  const { data } = await apiClient.post<GrokCLIIdentityStatus>(
+    "/admin/settings/grok-cli-identity/apply-latest",
+  );
+  return data;
+}
+
+export async function restoreGrokCLIIdentityDefault(): Promise<GrokCLIIdentityStatus> {
+  const { data } = await apiClient.post<GrokCLIIdentityStatus>(
+    "/admin/settings/grok-cli-identity/restore-default",
+  );
+  return data;
+}
+
 // ==================== Panel Rate Limit Settings ====================
 
 /**
@@ -1565,6 +1616,11 @@ export const settingsAPI = {
   updateAccountPoolProbeSettings,
   getGrokOpsProxySettings,
   updateGrokOpsProxySettings,
+  getGrokCLIIdentitySettings,
+  updateGrokCLIIdentitySettings,
+  checkGrokCLIIdentityLatest,
+  applyGrokCLIIdentityLatest,
+  restoreGrokCLIIdentityDefault,
   getPanelRateLimitSettings,
   updatePanelRateLimitSettings,
   getStreamTimeoutSettings,

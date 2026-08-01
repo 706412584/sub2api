@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -15,9 +16,9 @@ const (
 	CLITokenAuthHeader     = "x-xai-token-auth"
 	CLITokenAuthValue      = "xai-grok-cli"
 	CLIClientVersionHeader = "x-grok-client-version"
-	// Keep in sync with https://x.ai/cli/stable.
+	// CLIClientVersion is the compile-time fallback when no process resolver is wired.
+	// Keep in sync with service.GrokCLIPinnedStableVersion / https://x.ai/cli/stable.
 	CLIClientVersion = "0.2.118"
-	CLIUserAgent     = "grok-pager/" + CLIClientVersion + " grok-shell/" + CLIClientVersion + " (macos; aarch64)"
 
 	BillingWeeklyPath  = "/billing?format=credits"
 	BillingMonthlyPath = "/billing"
@@ -25,6 +26,43 @@ const (
 	SuperGrokLimitCents      = 15_000  // $150.00
 	SuperGrokHeavyLimitCents = 150_000 // $1,500.00
 )
+
+// CLIUserAgent is the default billing User-Agent for the compile-time pin.
+// Prefer FormatCLIUserAgent(EffectiveCLIClientVersion()) for live requests.
+var CLIUserAgent = FormatCLIUserAgent(CLIClientVersion)
+
+// Optional process-level version resolver (wired from service to avoid import cycles).
+// When unset, EffectiveCLIClientVersion falls back to CLIClientVersion.
+var cliClientVersionResolver atomic.Value // func() string
+
+// SetCLIClientVersionResolver registers the effective CLI version source used by
+// billing headers. Pass nil to clear (tests / shutdown).
+func SetCLIClientVersionResolver(fn func() string) {
+	if fn == nil {
+		cliClientVersionResolver.Store((func() string)(nil))
+		return
+	}
+	cliClientVersionResolver.Store(fn)
+}
+
+// EffectiveCLIClientVersion returns the wired resolver result, or CLIClientVersion.
+func EffectiveCLIClientVersion() string {
+	if v, ok := cliClientVersionResolver.Load().(func() string); ok && v != nil {
+		if ver := strings.TrimSpace(v()); ver != "" {
+			return ver
+		}
+	}
+	return CLIClientVersion
+}
+
+// FormatCLIUserAgent builds the grok-pager/grok-shell billing User-Agent for version.
+func FormatCLIUserAgent(version string) string {
+	version = strings.TrimSpace(version)
+	if version == "" {
+		version = CLIClientVersion
+	}
+	return "grok-pager/" + version + " grok-shell/" + version + " (macos; aarch64)"
+}
 
 // BillingPeriod describes the current weekly/monthly window.
 type BillingPeriod struct {
@@ -112,6 +150,7 @@ func BuildBillingURLWithValidator(baseURL string, formatCredits bool, validator 
 }
 
 // ApplyCLIBillingHeaders sets Authorization + CLI identity headers for billing GETs.
+// Version/User-Agent follow EffectiveCLIClientVersion (service resolver when wired).
 func ApplyCLIBillingHeaders(req *http.Request, accessToken string) {
 	if req == nil {
 		return
@@ -120,11 +159,12 @@ func ApplyCLIBillingHeaders(req *http.Request, accessToken string) {
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
+	version := EffectiveCLIClientVersion()
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(CLITokenAuthHeader, CLITokenAuthValue)
-	req.Header.Set(CLIClientVersionHeader, CLIClientVersion)
-	req.Header.Set("User-Agent", CLIUserAgent)
+	req.Header.Set(CLIClientVersionHeader, version)
+	req.Header.Set("User-Agent", FormatCLIUserAgent(version))
 }
 
 // ParseBillingPayload unmarshals a billing API response body.

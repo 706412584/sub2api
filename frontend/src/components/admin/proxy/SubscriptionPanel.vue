@@ -279,7 +279,7 @@
           </div>
           <div>
             <label class="label">{{ t('admin.proxies.subscriptions.form.maxPorts') }}</label>
-            <input v-model.number="form.max_ports" type="number" class="input" min="1" max="64" />
+            <input v-model.number="form.max_ports" type="number" class="input" min="1" max="500" />
           </div>
 
           <div>

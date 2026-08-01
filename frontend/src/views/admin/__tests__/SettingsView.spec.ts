@@ -19,6 +19,11 @@ const {
   updateAccountPoolProbeSettings,
   getGrokOpsProxySettings,
   updateGrokOpsProxySettings,
+  getGrokCLIIdentitySettings,
+  updateGrokCLIIdentitySettings,
+  checkGrokCLIIdentityLatest,
+  applyGrokCLIIdentityLatest,
+  restoreGrokCLIIdentityDefault,
   getAllWithCount,
   getStreamTimeoutSettings,
   getRectifierSettings,
@@ -52,6 +57,11 @@ const {
   updateAccountPoolProbeSettings: vi.fn(),
   getGrokOpsProxySettings: vi.fn(),
   updateGrokOpsProxySettings: vi.fn(),
+  getGrokCLIIdentitySettings: vi.fn(),
+  updateGrokCLIIdentitySettings: vi.fn(),
+  checkGrokCLIIdentityLatest: vi.fn(),
+  applyGrokCLIIdentityLatest: vi.fn(),
+  restoreGrokCLIIdentityDefault: vi.fn(),
   getAllWithCount: vi.fn(),
   getStreamTimeoutSettings: vi.fn(),
   getRectifierSettings: vi.fn(),
@@ -98,6 +108,11 @@ vi.mock("@/api", () => ({
       updateAccountPoolProbeSettings,
       getGrokOpsProxySettings,
       updateGrokOpsProxySettings,
+      getGrokCLIIdentitySettings,
+      updateGrokCLIIdentitySettings,
+      checkGrokCLIIdentityLatest,
+      applyGrokCLIIdentityLatest,
+      restoreGrokCLIIdentityDefault,
       getStreamTimeoutSettings,
       getRectifierSettings,
       getBetaPolicySettings,
@@ -609,6 +624,11 @@ describe("admin SettingsView payment visible method controls", () => {
     getAccountPoolProbeSettings.mockReset();
     updateAccountPoolProbeSettings.mockReset();
     getGrokOpsProxySettings.mockReset();
+    getGrokCLIIdentitySettings.mockReset();
+    updateGrokCLIIdentitySettings.mockReset();
+    checkGrokCLIIdentityLatest.mockReset();
+    applyGrokCLIIdentityLatest.mockReset();
+    restoreGrokCLIIdentityDefault.mockReset();
     updateGrokOpsProxySettings.mockReset();
     getAllWithCount.mockReset();
     updateRateLimit429CooldownSettings.mockReset();
@@ -680,6 +700,56 @@ describe("admin SettingsView payment visible method controls", () => {
       enabled: false,
       proxy_id: null,
       apply_to_refresh: false,
+    });
+    getGrokCLIIdentitySettings.mockResolvedValue({
+      effective_version: "0.2.118",
+      pinned_default: "0.2.118",
+      settings_override: "",
+      env_override: "",
+      source: "default",
+      latest_version: "",
+      latest_checked_at: "",
+      update_available: false,
+    });
+    updateGrokCLIIdentitySettings.mockImplementation(async (payload) => ({ ...{
+      effective_version: "0.2.118",
+      pinned_default: "0.2.118",
+      settings_override: "",
+      env_override: "",
+      source: "default",
+      latest_version: "",
+      latest_checked_at: "",
+      update_available: false,
+    }, settings_override: payload?.version || "", source: payload?.version ? "settings" : "default", effective_version: payload?.version || "0.2.118" }));
+    checkGrokCLIIdentityLatest.mockResolvedValue({
+      effective_version: "0.2.118",
+      pinned_default: "0.2.118",
+      settings_override: "",
+      env_override: "",
+      source: "default",
+      latest_version: "",
+      latest_checked_at: "",
+      update_available: false,
+    });
+    applyGrokCLIIdentityLatest.mockResolvedValue({ ...{
+      effective_version: "0.2.118",
+      pinned_default: "0.2.118",
+      settings_override: "",
+      env_override: "",
+      source: "default",
+      latest_version: "",
+      latest_checked_at: "",
+      update_available: false,
+    }, settings_override: "0.2.200", effective_version: "0.2.200", source: "settings", latest_version: "0.2.200" });
+    restoreGrokCLIIdentityDefault.mockResolvedValue({
+      effective_version: "0.2.118",
+      pinned_default: "0.2.118",
+      settings_override: "",
+      env_override: "",
+      source: "default",
+      latest_version: "",
+      latest_checked_at: "",
+      update_available: false,
     });
     updateGrokOpsProxySettings.mockImplementation(async (payload) => payload);
     getAllWithCount.mockResolvedValue([]);
@@ -1295,6 +1365,11 @@ describe("admin SettingsView wechat connect controls", () => {
     getAccountPoolProbeSettings.mockReset();
     updateAccountPoolProbeSettings.mockReset();
     getGrokOpsProxySettings.mockReset();
+    getGrokCLIIdentitySettings.mockReset();
+    updateGrokCLIIdentitySettings.mockReset();
+    checkGrokCLIIdentityLatest.mockReset();
+    applyGrokCLIIdentityLatest.mockReset();
+    restoreGrokCLIIdentityDefault.mockReset();
     updateGrokOpsProxySettings.mockReset();
     getAllWithCount.mockReset();
     updateRateLimit429CooldownSettings.mockReset();
@@ -1365,6 +1440,56 @@ describe("admin SettingsView wechat connect controls", () => {
       enabled: false,
       proxy_id: null,
       apply_to_refresh: false,
+    });
+    getGrokCLIIdentitySettings.mockResolvedValue({
+      effective_version: "0.2.118",
+      pinned_default: "0.2.118",
+      settings_override: "",
+      env_override: "",
+      source: "default",
+      latest_version: "",
+      latest_checked_at: "",
+      update_available: false,
+    });
+    updateGrokCLIIdentitySettings.mockImplementation(async (payload) => ({ ...{
+      effective_version: "0.2.118",
+      pinned_default: "0.2.118",
+      settings_override: "",
+      env_override: "",
+      source: "default",
+      latest_version: "",
+      latest_checked_at: "",
+      update_available: false,
+    }, settings_override: payload?.version || "", source: payload?.version ? "settings" : "default", effective_version: payload?.version || "0.2.118" }));
+    checkGrokCLIIdentityLatest.mockResolvedValue({
+      effective_version: "0.2.118",
+      pinned_default: "0.2.118",
+      settings_override: "",
+      env_override: "",
+      source: "default",
+      latest_version: "",
+      latest_checked_at: "",
+      update_available: false,
+    });
+    applyGrokCLIIdentityLatest.mockResolvedValue({ ...{
+      effective_version: "0.2.118",
+      pinned_default: "0.2.118",
+      settings_override: "",
+      env_override: "",
+      source: "default",
+      latest_version: "",
+      latest_checked_at: "",
+      update_available: false,
+    }, settings_override: "0.2.200", effective_version: "0.2.200", source: "settings", latest_version: "0.2.200" });
+    restoreGrokCLIIdentityDefault.mockResolvedValue({
+      effective_version: "0.2.118",
+      pinned_default: "0.2.118",
+      settings_override: "",
+      env_override: "",
+      source: "default",
+      latest_version: "",
+      latest_checked_at: "",
+      update_available: false,
     });
     updateGrokOpsProxySettings.mockImplementation(async (payload) => payload);
     getAllWithCount.mockResolvedValue([]);
@@ -1584,6 +1709,11 @@ describe("admin SettingsView platform quota matrix", () => {
     getAccountPoolProbeSettings.mockReset();
     updateAccountPoolProbeSettings.mockReset();
     getGrokOpsProxySettings.mockReset();
+    getGrokCLIIdentitySettings.mockReset();
+    updateGrokCLIIdentitySettings.mockReset();
+    checkGrokCLIIdentityLatest.mockReset();
+    applyGrokCLIIdentityLatest.mockReset();
+    restoreGrokCLIIdentityDefault.mockReset();
     updateGrokOpsProxySettings.mockReset();
     getAllWithCount.mockReset();
     updateRateLimit429CooldownSettings.mockReset();
@@ -1619,6 +1749,56 @@ describe("admin SettingsView platform quota matrix", () => {
       enabled: false,
       proxy_id: null,
       apply_to_refresh: false,
+    });
+    getGrokCLIIdentitySettings.mockResolvedValue({
+      effective_version: "0.2.118",
+      pinned_default: "0.2.118",
+      settings_override: "",
+      env_override: "",
+      source: "default",
+      latest_version: "",
+      latest_checked_at: "",
+      update_available: false,
+    });
+    updateGrokCLIIdentitySettings.mockImplementation(async (payload) => ({ ...{
+      effective_version: "0.2.118",
+      pinned_default: "0.2.118",
+      settings_override: "",
+      env_override: "",
+      source: "default",
+      latest_version: "",
+      latest_checked_at: "",
+      update_available: false,
+    }, settings_override: payload?.version || "", source: payload?.version ? "settings" : "default", effective_version: payload?.version || "0.2.118" }));
+    checkGrokCLIIdentityLatest.mockResolvedValue({
+      effective_version: "0.2.118",
+      pinned_default: "0.2.118",
+      settings_override: "",
+      env_override: "",
+      source: "default",
+      latest_version: "",
+      latest_checked_at: "",
+      update_available: false,
+    });
+    applyGrokCLIIdentityLatest.mockResolvedValue({ ...{
+      effective_version: "0.2.118",
+      pinned_default: "0.2.118",
+      settings_override: "",
+      env_override: "",
+      source: "default",
+      latest_version: "",
+      latest_checked_at: "",
+      update_available: false,
+    }, settings_override: "0.2.200", effective_version: "0.2.200", source: "settings", latest_version: "0.2.200" });
+    restoreGrokCLIIdentityDefault.mockResolvedValue({
+      effective_version: "0.2.118",
+      pinned_default: "0.2.118",
+      settings_override: "",
+      env_override: "",
+      source: "default",
+      latest_version: "",
+      latest_checked_at: "",
+      update_available: false,
     });
     updateGrokOpsProxySettings.mockImplementation(async (payload) => payload);
     getAllWithCount.mockResolvedValue([]);
