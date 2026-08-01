@@ -272,7 +272,7 @@ func fetchGrokCLINPMLatest(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("fetch npm package %s: %w", grokCLINPMPackage, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("npm registry returned %d for %s", resp.StatusCode, grokCLINPMPackage)
 	}

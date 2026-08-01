@@ -110,7 +110,7 @@ var ProviderSet = wire.NewSet(
 	NewBillingCache,
 	NewAPIKeyCache,
 	NewTempUnschedCache,
-		NewGrokReasoningQualityMarkCache,
+	NewGrokReasoningQualityMarkCache,
 	NewTimeoutCounterCache,
 	NewOpenAI403CounterCache,
 	NewInternal500CounterCache,

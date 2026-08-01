@@ -1079,9 +1079,9 @@ type TestAccountRequest struct {
 }
 
 type BatchTestAccountsRequest struct {
-	AccountIDs  []int64 `json:"account_ids"`
-	ModelID     string  `json:"model_id"`
-	Mode        string  `json:"mode"`
+	AccountIDs []int64 `json:"account_ids"`
+	ModelID    string  `json:"model_id"`
+	Mode       string  `json:"mode"`
 	// OverrideProxyID temporarily forces the outbound proxy for this batch only.
 	// nil/omitted: keep each account's bound proxy.
 	// 0: force direct (no proxy).

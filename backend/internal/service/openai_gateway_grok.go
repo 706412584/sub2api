@@ -26,13 +26,13 @@ const (
 	grokUpstreamUserAgent                  = "sub2api-grok/1.0"
 	// grokCLIVersion remains the compile pin used by unit tests that assert
 	// intermediate headers; live paths resolve via ResolveGrokCLIClientVersion.
-	grokCLIVersion            = GrokCLIPinnedStableVersion
-	grokDefaultResponsesModel = "grok-4.5"
-	grokRateLimitFallbackCooldown          = 2 * time.Minute
-	grokRateLimitRepeatCooldown            = 10 * time.Minute
-	grokRateLimitSustainedCooldown         = 30 * time.Minute
-	grokRateLimitMaxAdaptiveCooldown       = time.Hour
-	grokRateLimitBackoffQuietPeriod        = time.Hour
+	grokCLIVersion                   = GrokCLIPinnedStableVersion
+	grokDefaultResponsesModel        = "grok-4.5"
+	grokRateLimitFallbackCooldown    = 2 * time.Minute
+	grokRateLimitRepeatCooldown      = 10 * time.Minute
+	grokRateLimitSustainedCooldown   = 30 * time.Minute
+	grokRateLimitMaxAdaptiveCooldown = time.Hour
+	grokRateLimitBackoffQuietPeriod  = time.Hour
 	// 402 exhaustion: default cooldown; prefer later of billing period / Retry-After.
 	grokPaymentRequiredFallbackDuration = 30 * time.Minute
 	grokPaymentRequiredMaxDuration      = 7 * 24 * time.Hour
