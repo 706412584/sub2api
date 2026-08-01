@@ -179,7 +179,6 @@ func ProvideAccountUsageService(
 	return service
 }
 
-
 // ProvideGrokReasoningProbeService wires the optional reasoning quality mark store.
 func ProvideGrokReasoningProbeService(
 	accountRepo AccountRepository,

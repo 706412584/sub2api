@@ -24,7 +24,7 @@ const (
 	defaultBasePort          = 21080
 	defaultMaxPorts          = 10
 	// Practical upper bound for local mihomo listeners (was 64; UI often set 20).
-	maxMaxPorts              = 500
+	maxMaxPorts = 500
 )
 
 // ProxySubscriptionService manages CRUD + sync for embedded subscription sources.
