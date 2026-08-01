@@ -771,6 +771,109 @@
             </div>
           </div>
 
+          <!-- Grok Ops Proxy Settings -->
+          <div class="card">
+            <div
+              class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+            >
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ t("admin.settings.grokOpsProxy.title") }}
+              </h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.grokOpsProxy.description") }}
+              </p>
+            </div>
+            <div class="space-y-5 p-6">
+              <div
+                v-if="grokOpsProxyLoading"
+                class="flex items-center gap-2 text-gray-500"
+              >
+                <div
+                  class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"
+                ></div>
+                {{ t("common.loading") }}
+              </div>
+
+              <template v-else>
+                <div class="flex items-center justify-between">
+                  <div>
+                    <label class="font-medium text-gray-900 dark:text-white">{{
+                      t("admin.settings.grokOpsProxy.enabled")
+                    }}</label>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.grokOpsProxy.enabledHint") }}
+                    </p>
+                  </div>
+                  <Toggle v-model="grokOpsProxyForm.enabled" />
+                </div>
+
+                <div
+                  v-if="grokOpsProxyForm.enabled"
+                  class="space-y-4 border-t border-gray-100 pt-4 dark:border-dark-700"
+                >
+                  <div>
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{ t("admin.settings.grokOpsProxy.proxyId") }}
+                    </label>
+                    <select
+                      class="input w-full max-w-md"
+                      :value="grokOpsProxySelectValue"
+                      @change="onGrokOpsProxySelectChange(($event.target as HTMLSelectElement).value)"
+                    >
+                      <option value="">
+                        {{ t("admin.settings.grokOpsProxy.keepBound") }}
+                      </option>
+                      <option value="0">
+                        {{ t("admin.settings.grokOpsProxy.direct") }}
+                      </option>
+                      <option
+                        v-for="proxy in grokOpsProxies"
+                        :key="proxy.id"
+                        :value="String(proxy.id)"
+                      >
+                        {{ proxy.name || ('#' + proxy.id) }}
+                      </option>
+                    </select>
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.grokOpsProxy.proxyIdHint") }}
+                    </p>
+                  </div>
+
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <label class="font-medium text-gray-900 dark:text-white">{{
+                        t("admin.settings.grokOpsProxy.applyToRefresh")
+                      }}</label>
+                      <p class="text-sm text-gray-500 dark:text-gray-400">
+                        {{ t("admin.settings.grokOpsProxy.applyToRefreshHint") }}
+                      </p>
+                    </div>
+                    <Toggle v-model="grokOpsProxyForm.apply_to_refresh" />
+                  </div>
+                </div>
+
+                <div
+                  class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700"
+                >
+                  <button
+                    type="button"
+                    @click="saveGrokOpsProxySettings"
+                    :disabled="grokOpsProxySaving"
+                    class="btn btn-primary btn-sm"
+                  >
+                    {{
+                      grokOpsProxySaving
+                        ? t("common.saving")
+                        : t("common.save")
+                    }}
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
+
           <!-- Stream Timeout Settings -->
           <div class="card">
             <div
@@ -8465,6 +8568,30 @@ const accountPoolProbeForm = reactive({
 });
 const accountPoolProbePlatformsText = ref("openai,grok");
 
+// Grok Ops Proxy 状态
+const grokOpsProxyLoading = ref(true);
+const grokOpsProxySaving = ref(false);
+const grokOpsProxies = ref<Proxy[]>([]);
+const grokOpsProxyForm = reactive({
+  enabled: false,
+  proxy_id: null as number | null,
+  apply_to_refresh: false,
+});
+const grokOpsProxySelectValue = computed(() => {
+  if (grokOpsProxyForm.proxy_id === null || grokOpsProxyForm.proxy_id === undefined) {
+    return "";
+  }
+  return String(grokOpsProxyForm.proxy_id);
+});
+function onGrokOpsProxySelectChange(value: string) {
+  if (value === "") {
+    grokOpsProxyForm.proxy_id = null;
+    return;
+  }
+  const n = Number(value);
+  grokOpsProxyForm.proxy_id = Number.isFinite(n) ? n : null;
+}
+
 // Stream Timeout 状态
 const streamTimeoutLoading = ref(true);
 const streamTimeoutSaving = ref(false);
@@ -11262,6 +11389,53 @@ async function saveAccountPoolProbeSettings() {
   }
 }
 
+// Grok Ops Proxy 方法
+async function loadGrokOpsProxySettings() {
+  grokOpsProxyLoading.value = true;
+  try {
+    const [settings, proxies] = await Promise.all([
+      adminAPI.settings.getGrokOpsProxySettings(),
+      adminAPI.proxies.getAllWithCount().catch(() => [] as Proxy[]),
+    ]);
+    Object.assign(grokOpsProxyForm, {
+      enabled: !!settings.enabled,
+      proxy_id: settings.proxy_id ?? null,
+      apply_to_refresh: !!settings.apply_to_refresh,
+    });
+    grokOpsProxies.value = Array.isArray(proxies) ? proxies : [];
+  } catch (_error: unknown) {
+    // Silent fail - settings will use defaults
+  } finally {
+    grokOpsProxyLoading.value = false;
+  }
+}
+
+async function saveGrokOpsProxySettings() {
+  grokOpsProxySaving.value = true;
+  try {
+    const updated = await adminAPI.settings.updateGrokOpsProxySettings({
+      enabled: grokOpsProxyForm.enabled,
+      proxy_id: grokOpsProxyForm.proxy_id,
+      apply_to_refresh: grokOpsProxyForm.apply_to_refresh,
+    });
+    Object.assign(grokOpsProxyForm, {
+      enabled: !!updated.enabled,
+      proxy_id: updated.proxy_id ?? null,
+      apply_to_refresh: !!updated.apply_to_refresh,
+    });
+    appStore.showSuccess(t("admin.settings.grokOpsProxy.saved"));
+  } catch (error: unknown) {
+    appStore.showError(
+      extractApiErrorMessage(
+        error,
+        t("admin.settings.grokOpsProxy.saveFailed"),
+      ),
+    );
+  } finally {
+    grokOpsProxySaving.value = false;
+  }
+}
+
 // Stream Timeout 方法
 async function loadStreamTimeoutSettings() {
   streamTimeoutLoading.value = true;
@@ -11896,6 +12070,7 @@ onMounted(() => {
   loadRateLimit429CooldownSettings();
   loadOpenAIGrok429ExhaustionSettings();
   loadAccountPoolProbeSettings();
+  loadGrokOpsProxySettings();
   loadStreamTimeoutSettings();
   loadRectifierSettings();
   loadBetaPolicySettings();

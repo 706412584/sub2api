@@ -511,6 +511,7 @@ func registerProxyRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAuth
 		proxies.DELETE("/:id", h.Admin.Proxy.Delete)
 		proxies.POST("/:id/test", h.Admin.Proxy.Test)
 		proxies.POST("/:id/quality-check", h.Admin.Proxy.CheckQuality)
+		proxies.POST("/:id/grok-reasoning-probe", h.Admin.Proxy.ProbeGrokReasoning)
 		proxies.GET("/:id/stats", h.Admin.Proxy.GetStats)
 		proxies.GET("/:id/accounts", h.Admin.Proxy.GetProxyAccounts)
 		proxies.GET("/:id/bound-groups", h.Admin.Proxy.GetBoundGroups)
@@ -576,6 +577,9 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		// 号池全局异步探测配置
 		adminSettings.GET("/account-pool-probe", h.Admin.Setting.GetAccountPoolProbeSettings)
 		adminSettings.PUT("/account-pool-probe", h.Admin.Setting.UpdateAccountPoolProbeSettings)
+		// Grok 运维/测活专用出口
+		adminSettings.GET("/grok-ops-proxy", h.Admin.Setting.GetGrokOpsProxySettings)
+		adminSettings.PUT("/grok-ops-proxy", h.Admin.Setting.UpdateGrokOpsProxySettings)
 		// 流超时处理配置
 		adminSettings.GET("/panel-rate-limit", h.Admin.Setting.GetPanelRateLimitSettings)
 		adminSettings.PUT("/panel-rate-limit", h.Admin.Setting.UpdatePanelRateLimitSettings)

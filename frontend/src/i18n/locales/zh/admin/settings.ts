@@ -1013,6 +1013,20 @@ export default {
         saved: 'GPT/Grok 429 立即限流设置保存成功',
         saveFailed: '保存 GPT/Grok 429 立即限流设置失败'
       },
+      grokOpsProxy: {
+        title: 'Grok 运维出口（ops proxy）',
+        description: '仅用于 Grok 测活/号池探测（可选刷新）；不改账号绑定，正式请求仍走业务代理',
+        enabled: '启用 Grok ops 出口',
+        enabledHint: '开启后，未在批量测活中显式指定出口时，Grok 测活/探测默认走下方代理',
+        proxyId: '运维代理',
+        proxyIdHint: '从 IP 管理选择；留空表示保持各账号已绑定出口；也可选“直连”',
+        applyToRefresh: 'Token 刷新也走 ops 出口',
+        applyToRefreshHint: '默认关闭。开启后 Grok OAuth refresh 使用 ops 代理（可能影响风控/限流）',
+        direct: '强制直连（无代理）',
+        keepBound: '未选择（保持绑定）',
+        saved: 'Grok ops 出口设置保存成功',
+        saveFailed: '保存 Grok ops 出口设置失败'
+      },
       accountPoolProbe: {
         title: '号池异步自动探测',
         description: '后台低代价批量探测 OpenAI/Grok 账号额度，用于及时标记 429 与 200 恢复；不阻塞手动探测',

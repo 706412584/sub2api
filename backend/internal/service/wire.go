@@ -179,6 +179,20 @@ func ProvideAccountUsageService(
 	return service
 }
 
+
+// ProvideGrokReasoningProbeService wires the optional reasoning quality mark store.
+func ProvideGrokReasoningProbeService(
+	accountRepo AccountRepository,
+	proxyRepo ProxyRepository,
+	grokTokenProvider *GrokTokenProvider,
+	httpUpstream HTTPUpstream,
+	markStore GrokReasoningQualityMarkStore,
+) *GrokReasoningProbeService {
+	svc := NewGrokReasoningProbeService(accountRepo, proxyRepo, grokTokenProvider, httpUpstream)
+	svc.SetMarkStore(markStore)
+	return svc
+}
+
 func ProvideAccountTestService(
 	accountRepo AccountRepository,
 	geminiTokenProvider *GeminiTokenProvider,
@@ -189,6 +203,7 @@ func ProvideAccountTestService(
 	cfg *config.Config,
 	tlsFPProfileService *TLSFingerprintProfileService,
 	openAIGatewayService *OpenAIGatewayService,
+	settingService *SettingService,
 ) *AccountTestService {
 	service := NewAccountTestService(
 		accountRepo,
@@ -201,6 +216,7 @@ func ProvideAccountTestService(
 		tlsFPProfileService,
 	)
 	service.agentIdentityWS = openAIGatewayService
+	service.SetSettingService(settingService)
 	return service
 }
 
@@ -753,6 +769,7 @@ var ProviderSet = wire.NewSet(
 	ProvideRateLimitService,
 	ProvideAccountUsageService,
 	ProvideAccountTestService,
+	ProvideGrokReasoningProbeService,
 	ProvideUpstreamBillingProbeService,
 	ProvideOllamaCloudUsageService,
 	ProvideSettingService,

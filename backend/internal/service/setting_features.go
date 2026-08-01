@@ -780,6 +780,131 @@ func (s *SettingService) SetAccountPoolProbeSettings(ctx context.Context, settin
 	return s.settingRepo.Set(ctx, SettingKeyAccountPoolProbeSettings, string(data))
 }
 
+// GetGrokOpsProxySettings 获取 Grok ops_proxy 配置。
+func (s *SettingService) GetGrokOpsProxySettings(ctx context.Context) (*GrokOpsProxySettings, error) {
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyGrokOpsProxy)
+	if err != nil {
+		if errors.Is(err, ErrSettingNotFound) {
+			return DefaultGrokOpsProxySettings(), nil
+		}
+		return nil, fmt.Errorf("get grok ops proxy settings: %w", err)
+	}
+	if value == "" {
+		return DefaultGrokOpsProxySettings(), nil
+	}
+	var settings GrokOpsProxySettings
+	if err := json.Unmarshal([]byte(value), &settings); err != nil {
+		return DefaultGrokOpsProxySettings(), nil
+	}
+	return normalizeGrokOpsProxySettings(&settings), nil
+}
+
+// SetGrokOpsProxySettings 设置 Grok ops_proxy 配置。
+func (s *SettingService) SetGrokOpsProxySettings(ctx context.Context, settings *GrokOpsProxySettings) error {
+	if settings == nil {
+		return fmt.Errorf("settings cannot be nil")
+	}
+	normalized := normalizeGrokOpsProxySettings(settings)
+	if normalized.Enabled && normalized.ProxyID != nil && *normalized.ProxyID < 0 {
+		return fmt.Errorf("proxy_id must be >= 0")
+	}
+	// Optional: validate proxy exists when enabled with positive id.
+	if normalized.Enabled && normalized.ProxyID != nil && *normalized.ProxyID > 0 && s.proxyRepo != nil {
+		proxy, err := s.proxyRepo.GetByID(ctx, *normalized.ProxyID)
+		if err != nil || proxy == nil {
+			return fmt.Errorf("ops proxy %d not found", *normalized.ProxyID)
+		}
+		if !proxy.IsActive() {
+			return fmt.Errorf("ops proxy %d is not active", *normalized.ProxyID)
+		}
+	}
+	data, err := json.Marshal(normalized)
+	if err != nil {
+		return fmt.Errorf("marshal grok ops proxy settings: %w", err)
+	}
+	return s.settingRepo.Set(ctx, SettingKeyGrokOpsProxy, string(data))
+}
+
+func normalizeGrokOpsProxySettings(settings *GrokOpsProxySettings) *GrokOpsProxySettings {
+	defaults := DefaultGrokOpsProxySettings()
+	if settings == nil {
+		return defaults
+	}
+	out := *settings
+	if out.ProxyID != nil && *out.ProxyID < 0 {
+		out.ProxyID = nil
+	}
+	// Disabled settings keep proxy_id for re-enable convenience but have no effect.
+	return &out
+}
+
+// ResolveGrokOpsProxyOverride builds a TestProxyOverride from global Grok ops settings.
+// Returns nil when disabled/unconfigured (caller keeps bound proxy).
+// Explicit caller overrides should be applied before calling this.
+func (s *SettingService) ResolveGrokOpsProxyOverride(ctx context.Context) (*TestProxyOverride, error) {
+	if s == nil {
+		return nil, nil
+	}
+	settings, err := s.GetGrokOpsProxySettings(ctx)
+	if err != nil || settings == nil || !settings.Enabled {
+		return nil, err
+	}
+	if settings.ProxyID == nil {
+		// Enabled but no proxy selected → keep bound (no-op override).
+		return nil, nil
+	}
+	if *settings.ProxyID == 0 {
+		return &TestProxyOverride{ForceDirect: true}, nil
+	}
+	if s.proxyRepo == nil {
+		return nil, fmt.Errorf("proxy repository unavailable")
+	}
+	proxy, err := s.proxyRepo.GetByID(ctx, *settings.ProxyID)
+	if err != nil || proxy == nil {
+		return nil, fmt.Errorf("ops proxy %d not found", *settings.ProxyID)
+	}
+	if !proxy.IsActive() {
+		return nil, fmt.Errorf("ops proxy %d is not active", *settings.ProxyID)
+	}
+	return &TestProxyOverride{Proxy: proxy}, nil
+}
+
+// ResolveGrokOpsProxyURL returns the ops proxy URL for Grok probe/refresh paths.
+// empty string + nil err means "use bound/default"; force-direct is also empty URL.
+// ok=false means settings disabled / no override.
+func (s *SettingService) ResolveGrokOpsProxyURL(ctx context.Context, forRefresh bool) (proxyURL string, forceDirect bool, ok bool, err error) {
+	if s == nil {
+		return "", false, false, nil
+	}
+	settings, err := s.GetGrokOpsProxySettings(ctx)
+	if err != nil {
+		return "", false, false, err
+	}
+	if settings == nil || !settings.Enabled {
+		return "", false, false, nil
+	}
+	if forRefresh && !settings.ApplyToRefresh {
+		return "", false, false, nil
+	}
+	if settings.ProxyID == nil {
+		return "", false, false, nil
+	}
+	if *settings.ProxyID == 0 {
+		return "", true, true, nil
+	}
+	if s.proxyRepo == nil {
+		return "", false, false, fmt.Errorf("proxy repository unavailable")
+	}
+	proxy, err := s.proxyRepo.GetByID(ctx, *settings.ProxyID)
+	if err != nil || proxy == nil {
+		return "", false, false, fmt.Errorf("ops proxy %d not found", *settings.ProxyID)
+	}
+	if !proxy.IsActive() {
+		return "", false, false, fmt.Errorf("ops proxy %d is not active", *settings.ProxyID)
+	}
+	return proxy.URL(), false, true, nil
+}
+
 func normalizeAccountPoolProbeSettings(settings *AccountPoolProbeSettings) *AccountPoolProbeSettings {
 	defaults := DefaultAccountPoolProbeSettings()
 	if settings == nil {

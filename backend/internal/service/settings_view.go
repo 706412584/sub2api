@@ -530,7 +530,7 @@ type OpenAIGrok429ExhaustionSettings struct {
 // AccountPoolProbeSettings 号池全局异步探测配置。
 // 设计目标：最小代价、不影响请求主路径；低并发 + 账号级冷却锁避免与手动探测打架。
 type AccountPoolProbeSettings struct {
-	// Enabled 是否启用全局定时探测（默认开启）
+	// Enabled 是否启用全局定时探测（默认关闭）
 	Enabled bool `json:"enabled"`
 	// IntervalMinutes 探测周期（分钟），建议 10-20
 	IntervalMinutes int `json:"interval_minutes"`
@@ -571,14 +571,33 @@ func DefaultOpenAIGrok429ExhaustionSettings() *OpenAIGrok429ExhaustionSettings {
 }
 
 // DefaultAccountPoolProbeSettings 号池全局探测默认配置（低成本）。
+// 默认关闭，避免新环境自动真实打上游模型；已落库配置不受影响。
 func DefaultAccountPoolProbeSettings() *AccountPoolProbeSettings {
 	return &AccountPoolProbeSettings{
-		Enabled:                true,
+		Enabled:                false,
 		IntervalMinutes:        15,
 		BatchSize:              20,
 		MaxConcurrency:         2,
 		AccountCooldownMinutes: 20,
 		Platforms:              []string{PlatformOpenAI, PlatformGrok},
+	}
+}
+
+// GrokOpsProxySettings Grok 运维/测活专用出口配置。
+// 不改写账号绑定代理；live 请求仍走 account.proxy_id。
+// ProxyID: nil=未配置（保持绑定）；0=强制直连；>0=指定代理。
+type GrokOpsProxySettings struct {
+	Enabled        bool   `json:"enabled"`
+	ProxyID        *int64 `json:"proxy_id"`
+	ApplyToRefresh bool   `json:"apply_to_refresh"`
+}
+
+// DefaultGrokOpsProxySettings 默认关闭；未配置时测活/探测沿用账号绑定代理。
+func DefaultGrokOpsProxySettings() *GrokOpsProxySettings {
+	return &GrokOpsProxySettings{
+		Enabled:        false,
+		ProxyID:        nil,
+		ApplyToRefresh: false,
 	}
 }
 

@@ -2,14 +2,22 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, nextTick } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AccountBatchTestModal from '../AccountBatchTestModal.vue'
-import type { Account, ClaudeModel } from '@/types'
+import type { Account, ClaudeModel, Proxy } from '@/types'
 
-const { batchTestAccounts, getAvailableModels, deleteAccount, bulkUpdate, batchClearError } = vi.hoisted(() => ({
+const {
+  batchTestAccounts,
+  getAvailableModels,
+  deleteAccount,
+  bulkUpdate,
+  batchClearError,
+  getAllWithCount
+} = vi.hoisted(() => ({
   batchTestAccounts: vi.fn(),
   getAvailableModels: vi.fn(),
   deleteAccount: vi.fn(),
   bulkUpdate: vi.fn(),
-  batchClearError: vi.fn()
+  batchClearError: vi.fn(),
+  getAllWithCount: vi.fn()
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -20,6 +28,9 @@ vi.mock('@/api/admin', () => ({
       delete: deleteAccount,
       bulkUpdate,
       batchClearError
+    },
+    proxies: {
+      getAllWithCount
     }
   }
 }))
@@ -29,7 +40,10 @@ vi.mock('vue-i18n', async () => {
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string) => key
+      t: (key: string, params?: Record<string, unknown>) => {
+        if (!params) return key
+        return `${key}:${JSON.stringify(params)}`
+      }
     })
   }
 })
@@ -88,6 +102,17 @@ function makeAccount(
   } as Account
 }
 
+function makeProxy(id: number, name: string): Proxy {
+  return {
+    id,
+    name,
+    protocol: 'socks5',
+    host: `node-${id}.example`,
+    port: 1080,
+    status: 'active'
+  } as Proxy
+}
+
 function mountModal(accountIds: number[], accounts: Account[]) {
   return mount(AccountBatchTestModal, {
     props: {
@@ -118,10 +143,15 @@ describe('AccountBatchTestModal', () => {
     deleteAccount.mockReset()
     bulkUpdate.mockReset()
     batchClearError.mockReset()
+    getAllWithCount.mockReset()
     batchTestAccounts.mockResolvedValue(emptyResult)
     deleteAccount.mockResolvedValue(undefined)
     bulkUpdate.mockResolvedValue({ success: 1, failed: 0, results: [] })
     batchClearError.mockResolvedValue({ success: 1, failed: 0, results: [] })
+    getAllWithCount.mockResolvedValue([
+      makeProxy(31, 'sidecar-a'),
+      makeProxy(37, 'sidecar-b')
+    ])
     vi.stubGlobal('confirm', vi.fn(() => true))
   })
 
@@ -135,6 +165,7 @@ describe('AccountBatchTestModal', () => {
     await flushPromises()
 
     expect(getAvailableModels).not.toHaveBeenCalled()
+    expect(getAllWithCount).toHaveBeenCalledTimes(1)
     expect(wrapper.get('.btn-primary').attributes('disabled')).toBeUndefined()
 
     await wrapper.get('.btn-primary').trigger('click')
@@ -143,7 +174,11 @@ describe('AccountBatchTestModal', () => {
     expect(batchTestAccounts).toHaveBeenCalledTimes(1)
     expect(batchTestAccounts.mock.calls[0][0]).toEqual({
       account_ids: [1, 2],
-      model_id: ''
+      model_id: '',
+      mode: 'default',
+      override_proxy_id: null,
+      interval_ms: 0,
+      concurrency: 5
     })
     expect(batchTestAccounts.mock.calls[0][1]).toBeInstanceOf(AbortSignal)
 
@@ -167,7 +202,11 @@ describe('AccountBatchTestModal', () => {
     expect(batchTestAccounts).toHaveBeenCalledTimes(1)
     expect(batchTestAccounts.mock.calls[0][0]).toEqual({
       account_ids: [1, 2],
-      model_id: ''
+      model_id: '',
+      mode: 'default',
+      override_proxy_id: null,
+      interval_ms: 0,
+      concurrency: 5
     })
 
     wrapper.unmount()
@@ -265,7 +304,50 @@ describe('AccountBatchTestModal', () => {
     expect(batchTestAccounts).toHaveBeenCalledTimes(1)
     expect(batchTestAccounts.mock.calls[0][0]).toEqual({
       account_ids: [2, 3],
-      model_id: ''
+      model_id: '',
+      mode: 'default',
+      override_proxy_id: null,
+      interval_ms: 0,
+      concurrency: 5
+    })
+
+    wrapper.unmount()
+  })
+
+  it('从 IP 管理加载代理列表，并支持临时指定出口', async () => {
+    const wrapper = mountModal(
+      [1, 2, 3],
+      [
+        makeAccount(1, 'grok', { proxy_id: 31, proxy: { id: 31, name: 'sidecar-a' } as Account['proxy'] }),
+        makeAccount(2, 'grok', { proxy_id: 37, proxy: { id: 37, name: 'sidecar-b' } as Account['proxy'] }),
+        makeAccount(3, 'openai', { proxy_id: 31, proxy: { id: 31, name: 'sidecar-a' } as Account['proxy'] })
+      ]
+    )
+
+    await wrapper.setProps({ visible: true })
+    await flushPromises()
+
+    expect(getAllWithCount).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('sidecar-a')
+    expect(wrapper.text()).toContain('sidecar-b')
+    expect(wrapper.text()).toContain('admin.accounts.batchTest.proxyOverrideKeepBound')
+
+    const proxyChip = wrapper.findAll('button').find(btn => btn.text().includes('sidecar-b'))
+    expect(proxyChip).toBeTruthy()
+    await proxyChip!.trigger('click')
+    await nextTick()
+
+    await wrapper.get('.btn-primary').trigger('click')
+    await flushPromises()
+
+    expect(batchTestAccounts).toHaveBeenCalledTimes(1)
+    expect(batchTestAccounts.mock.calls[0][0]).toEqual({
+      account_ids: [1, 2, 3],
+      model_id: '',
+      mode: 'default',
+      override_proxy_id: 37,
+      interval_ms: 5000,
+      concurrency: 1
     })
 
     wrapper.unmount()
@@ -311,7 +393,11 @@ describe('AccountBatchTestModal', () => {
     expect(batchTestAccounts).toHaveBeenCalledTimes(2)
     expect(batchTestAccounts.mock.calls[1][0]).toEqual({
       account_ids: [2, 3],
-      model_id: ''
+      model_id: '',
+      mode: 'default',
+      override_proxy_id: null,
+      interval_ms: 0,
+      concurrency: 5
     })
 
     const deleteAllBtn = wrapper.findAll('button').find(btn => btn.text().includes('admin.accounts.batchTest.deleteAllFailed'))

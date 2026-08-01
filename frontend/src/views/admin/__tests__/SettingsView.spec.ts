@@ -17,6 +17,9 @@ const {
   updateOpenAIGrok429ExhaustionSettings,
   getAccountPoolProbeSettings,
   updateAccountPoolProbeSettings,
+  getGrokOpsProxySettings,
+  updateGrokOpsProxySettings,
+  getAllWithCount,
   getStreamTimeoutSettings,
   getRectifierSettings,
   getBetaPolicySettings,
@@ -47,6 +50,9 @@ const {
   updateOpenAIGrok429ExhaustionSettings: vi.fn(),
   getAccountPoolProbeSettings: vi.fn(),
   updateAccountPoolProbeSettings: vi.fn(),
+  getGrokOpsProxySettings: vi.fn(),
+  updateGrokOpsProxySettings: vi.fn(),
+  getAllWithCount: vi.fn(),
   getStreamTimeoutSettings: vi.fn(),
   getRectifierSettings: vi.fn(),
   getBetaPolicySettings: vi.fn(),
@@ -90,6 +96,8 @@ vi.mock("@/api", () => ({
       updateOpenAIGrok429ExhaustionSettings,
       getAccountPoolProbeSettings,
       updateAccountPoolProbeSettings,
+      getGrokOpsProxySettings,
+      updateGrokOpsProxySettings,
       getStreamTimeoutSettings,
       getRectifierSettings,
       getBetaPolicySettings,
@@ -105,6 +113,7 @@ vi.mock("@/api", () => ({
     },
     proxies: {
       list: listProxies,
+      getAllWithCount,
     },
     payment: {
       getProviders,
@@ -599,6 +608,9 @@ describe("admin SettingsView payment visible method controls", () => {
     updateOpenAIGrok429ExhaustionSettings.mockReset();
     getAccountPoolProbeSettings.mockReset();
     updateAccountPoolProbeSettings.mockReset();
+    getGrokOpsProxySettings.mockReset();
+    updateGrokOpsProxySettings.mockReset();
+    getAllWithCount.mockReset();
     updateRateLimit429CooldownSettings.mockReset();
     getStreamTimeoutSettings.mockReset();
     getRectifierSettings.mockReset();
@@ -664,6 +676,14 @@ describe("admin SettingsView payment visible method controls", () => {
       account_cooldown_minutes: 20,
       platforms: ["openai", "grok"],
     });
+    getGrokOpsProxySettings.mockResolvedValue({
+      enabled: false,
+      proxy_id: null,
+      apply_to_refresh: false,
+    });
+    updateGrokOpsProxySettings.mockImplementation(async (payload) => payload);
+    getAllWithCount.mockResolvedValue([]);
+
     updateAccountPoolProbeSettings.mockResolvedValue({
       enabled: true,
       interval_minutes: 15,
@@ -1274,6 +1294,9 @@ describe("admin SettingsView wechat connect controls", () => {
     updateOpenAIGrok429ExhaustionSettings.mockReset();
     getAccountPoolProbeSettings.mockReset();
     updateAccountPoolProbeSettings.mockReset();
+    getGrokOpsProxySettings.mockReset();
+    updateGrokOpsProxySettings.mockReset();
+    getAllWithCount.mockReset();
     updateRateLimit429CooldownSettings.mockReset();
     getStreamTimeoutSettings.mockReset();
     getRectifierSettings.mockReset();
@@ -1338,6 +1361,14 @@ describe("admin SettingsView wechat connect controls", () => {
       account_cooldown_minutes: 20,
       platforms: ["openai", "grok"],
     });
+    getGrokOpsProxySettings.mockResolvedValue({
+      enabled: false,
+      proxy_id: null,
+      apply_to_refresh: false,
+    });
+    updateGrokOpsProxySettings.mockImplementation(async (payload) => payload);
+    getAllWithCount.mockResolvedValue([]);
+
     updateAccountPoolProbeSettings.mockResolvedValue({
       enabled: true,
       interval_minutes: 15,
@@ -1552,6 +1583,9 @@ describe("admin SettingsView platform quota matrix", () => {
     updateOpenAIGrok429ExhaustionSettings.mockReset();
     getAccountPoolProbeSettings.mockReset();
     updateAccountPoolProbeSettings.mockReset();
+    getGrokOpsProxySettings.mockReset();
+    updateGrokOpsProxySettings.mockReset();
+    getAllWithCount.mockReset();
     updateRateLimit429CooldownSettings.mockReset();
     getStreamTimeoutSettings.mockReset();
     getRectifierSettings.mockReset();
@@ -1581,6 +1615,14 @@ describe("admin SettingsView platform quota matrix", () => {
     getOpenAIGrok429ExhaustionSettings.mockResolvedValue({});
     updateOpenAIGrok429ExhaustionSettings.mockResolvedValue({});
     getAccountPoolProbeSettings.mockResolvedValue({});
+    getGrokOpsProxySettings.mockResolvedValue({
+      enabled: false,
+      proxy_id: null,
+      apply_to_refresh: false,
+    });
+    updateGrokOpsProxySettings.mockImplementation(async (payload) => payload);
+    getAllWithCount.mockResolvedValue([]);
+
     updateAccountPoolProbeSettings.mockResolvedValue({});
     updateRateLimit429CooldownSettings.mockResolvedValue({});
     getStreamTimeoutSettings.mockResolvedValue({});

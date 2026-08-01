@@ -425,6 +425,13 @@ type AccountPoolProbeSettings struct {
 	Platforms              []string `json:"platforms"`
 }
 
+// GrokOpsProxySettings Grok 运维/测活专用出口配置 DTO
+type GrokOpsProxySettings struct {
+	Enabled        bool   `json:"enabled"`
+	ProxyID        *int64 `json:"proxy_id"`
+	ApplyToRefresh bool   `json:"apply_to_refresh"`
+}
+
 // PanelRateLimitSettings 面板 API 限流配置 DTO
 type PanelRateLimitSettings struct {
 	Enabled     bool `json:"enabled"`

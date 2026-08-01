@@ -20,7 +20,11 @@ describe('admin accounts batch test API', () => {
   it('allows the server five-minute deadline and forwards the abort signal', async () => {
     const request: BatchTestAccountsRequest = {
       account_ids: [1, 2],
-      model_id: ''
+      model_id: '',
+      mode: 'default',
+      override_proxy_id: 31,
+      interval_ms: 5000,
+      concurrency: 1
     }
     const response = {
       total: 2,

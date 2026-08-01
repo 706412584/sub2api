@@ -1019,6 +1019,20 @@ export default {
         saved: 'GPT/Grok 429 immediate rate-limit settings saved',
         saveFailed: 'Failed to save GPT/Grok 429 immediate rate-limit settings'
       },
+      grokOpsProxy: {
+        title: 'Grok Ops Egress Proxy',
+        description: 'Used only for Grok health checks / pool probes (optional refresh). Does not change account bindings; live traffic still uses business proxies.',
+        enabled: 'Enable Grok ops egress',
+        enabledHint: 'When on, Grok tests/probes default to the proxy below unless an explicit override is selected in batch test.',
+        proxyId: 'Ops proxy',
+        proxyIdHint: 'Pick from IP management; empty keeps each account bound proxy; or force direct.',
+        applyToRefresh: 'Also use ops proxy for token refresh',
+        applyToRefreshHint: 'Off by default. When on, Grok OAuth refresh uses the ops proxy (may affect rate limits / risk).',
+        direct: 'Force direct (no proxy)',
+        keepBound: 'Unset (keep bound)',
+        saved: 'Grok ops proxy settings saved',
+        saveFailed: 'Failed to save Grok ops proxy settings'
+      },
       accountPoolProbe: {
         title: 'Account Pool Async Probe',
         description: 'Low-cost background batch probes for OpenAI/Grok quota to mark 429 and recover on 200; never blocks manual probes',

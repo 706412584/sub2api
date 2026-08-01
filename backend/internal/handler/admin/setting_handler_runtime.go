@@ -280,6 +280,57 @@ func (h *SettingHandler) UpdateAccountPoolProbeSettings(c *gin.Context) {
 	})
 }
 
+// GetGrokOpsProxySettings 获取 Grok ops_proxy 配置
+// GET /api/v1/admin/settings/grok-ops-proxy
+func (h *SettingHandler) GetGrokOpsProxySettings(c *gin.Context) {
+	settings, err := h.settingService.GetGrokOpsProxySettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dto.GrokOpsProxySettings{
+		Enabled:        settings.Enabled,
+		ProxyID:        settings.ProxyID,
+		ApplyToRefresh: settings.ApplyToRefresh,
+	})
+}
+
+// UpdateGrokOpsProxySettingsRequest 更新 Grok ops_proxy 配置请求
+type UpdateGrokOpsProxySettingsRequest struct {
+	Enabled        bool   `json:"enabled"`
+	ProxyID        *int64 `json:"proxy_id"`
+	ApplyToRefresh bool   `json:"apply_to_refresh"`
+}
+
+// UpdateGrokOpsProxySettings 更新 Grok ops_proxy 配置
+// PUT /api/v1/admin/settings/grok-ops-proxy
+func (h *SettingHandler) UpdateGrokOpsProxySettings(c *gin.Context) {
+	var req UpdateGrokOpsProxySettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	settings := &service.GrokOpsProxySettings{
+		Enabled:        req.Enabled,
+		ProxyID:        req.ProxyID,
+		ApplyToRefresh: req.ApplyToRefresh,
+	}
+	if err := h.settingService.SetGrokOpsProxySettings(c.Request.Context(), settings); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	updated, err := h.settingService.GetGrokOpsProxySettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dto.GrokOpsProxySettings{
+		Enabled:        updated.Enabled,
+		ProxyID:        updated.ProxyID,
+		ApplyToRefresh: updated.ApplyToRefresh,
+	})
+}
+
 // GetPanelRateLimitSettings 获取面板 API 限流配置
 // GET /api/v1/admin/settings/panel-rate-limit
 func (h *SettingHandler) GetPanelRateLimitSettings(c *gin.Context) {

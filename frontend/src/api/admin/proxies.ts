@@ -8,6 +8,8 @@ import type {
   Proxy,
   ProxyAccountSummary,
   ProxyQualityCheckResult,
+  GrokReasoningProbeRequest,
+  GrokReasoningProbeResult,
   CreateProxyRequest,
   UpdateProxyRequest,
   PaginatedResponse,
@@ -170,6 +172,23 @@ export async function checkProxyQuality(id: number): Promise<ProxyQualityCheckRe
 }
 
 /**
+ * Opt-in real Grok OAuth reasoning capability probe via forced proxy egress.
+ * Consumes account quota; requires confirm_quota_cost=true.
+ */
+export async function probeGrokReasoning(
+  id: number,
+  payload: GrokReasoningProbeRequest,
+  options?: { signal?: AbortSignal }
+): Promise<GrokReasoningProbeResult> {
+  const { data } = await apiClient.post<GrokReasoningProbeResult>(
+    `/admin/proxies/${id}/grok-reasoning-probe`,
+    payload,
+    { signal: options?.signal }
+  )
+  return data
+}
+
+/**
  * Get proxy usage statistics
  * @param id - Proxy ID
  * @returns Proxy usage statistics
@@ -281,6 +300,7 @@ export const proxiesAPI = {
   toggleStatus,
   testProxy,
   checkProxyQuality,
+  probeGrokReasoning,
   getStats,
   getProxyAccounts,
   batchCreate,

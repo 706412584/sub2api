@@ -1275,6 +1275,31 @@ export async function updateAccountPoolProbeSettings(
   return data;
 }
 
+// ==================== Grok Ops Proxy Settings ====================
+
+export interface GrokOpsProxySettings {
+  enabled: boolean;
+  proxy_id: number | null;
+  apply_to_refresh: boolean;
+}
+
+export async function getGrokOpsProxySettings(): Promise<GrokOpsProxySettings> {
+  const { data } = await apiClient.get<GrokOpsProxySettings>(
+    "/admin/settings/grok-ops-proxy",
+  );
+  return data;
+}
+
+export async function updateGrokOpsProxySettings(
+  settings: GrokOpsProxySettings,
+): Promise<GrokOpsProxySettings> {
+  const { data } = await apiClient.put<GrokOpsProxySettings>(
+    "/admin/settings/grok-ops-proxy",
+    settings,
+  );
+  return data;
+}
+
 // ==================== Panel Rate Limit Settings ====================
 
 /**
@@ -1538,6 +1563,8 @@ export const settingsAPI = {
   updateOpenAIGrok429ExhaustionSettings,
   getAccountPoolProbeSettings,
   updateAccountPoolProbeSettings,
+  getGrokOpsProxySettings,
+  updateGrokOpsProxySettings,
   getPanelRateLimitSettings,
   updatePanelRateLimitSettings,
   getStreamTimeoutSettings,

@@ -50,8 +50,126 @@
           </button>
         </div>
         <p class="text-xs text-gray-500 dark:text-gray-400">
-          {{ t('admin.accounts.batchTest.preselectStatusHint', { count: testableAccountIds.length }) }}
+          {{ t('admin.accounts.batchTest.preselectStatusHint', { count: statusFilteredAccountIds.length }) }}
         </p>
+      </div>
+
+      <div class="space-y-1.5">
+        <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+          {{ t('admin.accounts.batchTest.proxyOverride') }}
+        </label>
+        <input
+          v-model="proxySearch"
+          type="search"
+          class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-dark-500 dark:bg-dark-800 dark:text-gray-100"
+          :placeholder="t('admin.accounts.batchTest.proxyOverrideSearch')"
+          :disabled="testing || deletingFailed || applyingStatus || loadingProxies"
+        />
+        <div class="max-h-40 overflow-y-auto rounded-lg border border-gray-200 p-2 dark:border-dark-500">
+          <div class="flex flex-wrap gap-2">
+            <button
+              type="button"
+              class="rounded-full border px-2.5 py-1 text-xs transition"
+              :class="overrideProxyId === null
+                ? 'border-blue-500 bg-blue-600 text-white dark:border-blue-400 dark:bg-blue-500'
+                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100 dark:border-dark-500 dark:bg-dark-800 dark:text-gray-300 dark:hover:bg-dark-700'"
+              :disabled="testing || deletingFailed || applyingStatus"
+              @click="overrideProxyId = null"
+            >
+              {{ t('admin.accounts.batchTest.proxyOverrideKeepBound') }}
+            </button>
+            <button
+              type="button"
+              class="rounded-full border px-2.5 py-1 text-xs transition"
+              :class="overrideProxyId === NO_PROXY_ID
+                ? 'border-blue-500 bg-blue-600 text-white dark:border-blue-400 dark:bg-blue-500'
+                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100 dark:border-dark-500 dark:bg-dark-800 dark:text-gray-300 dark:hover:bg-dark-700'"
+              :disabled="testing || deletingFailed || applyingStatus"
+              @click="overrideProxyId = NO_PROXY_ID"
+            >
+              {{ t('admin.accounts.batchTest.proxyOverrideDirect') }}
+            </button>
+            <button
+              v-for="proxy in filteredProxyCatalog"
+              :key="proxy.id"
+              type="button"
+              class="rounded-full border px-2.5 py-1 text-xs transition"
+              :class="overrideProxyId === proxy.id
+                ? 'border-blue-500 bg-blue-600 text-white dark:border-blue-400 dark:bg-blue-500'
+                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100 dark:border-dark-500 dark:bg-dark-800 dark:text-gray-300 dark:hover:bg-dark-700'"
+              :disabled="testing || deletingFailed || applyingStatus"
+              @click="overrideProxyId = proxy.id"
+            >
+              {{ proxy.name || t('admin.accounts.batchTest.proxyLabel', { id: proxy.id }) }}
+              <span class="ml-1 opacity-80">#{{ proxy.id }}</span>
+            </button>
+          </div>
+          <p v-if="loadingProxies" class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            {{ t('common.loading') }}...
+          </p>
+          <p v-else-if="proxyLoadError" class="mt-2 text-xs text-red-500">
+            {{ proxyLoadError }}
+          </p>
+        </div>
+        <p class="text-xs text-gray-500 dark:text-gray-400">
+          {{ t('admin.accounts.batchTest.proxyOverrideHint') }}
+        </p>
+      </div>
+
+      <div class="grid gap-3 sm:grid-cols-2">
+        <div class="space-y-1.5">
+          <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+            {{ t('admin.accounts.batchTest.intervalSeconds') }}
+          </label>
+          <input
+            v-model.number="intervalSeconds"
+            type="number"
+            min="0"
+            max="60"
+            step="1"
+            class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-dark-500 dark:bg-dark-800 dark:text-gray-100"
+            :disabled="testing || deletingFailed || applyingStatus"
+          />
+          <p class="text-xs text-gray-500 dark:text-gray-400">
+            {{ t('admin.accounts.batchTest.intervalSecondsHint') }}
+          </p>
+        </div>
+        <div class="space-y-1.5">
+          <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+            {{ t('admin.accounts.batchTest.concurrency') }}
+          </label>
+          <input
+            v-model.number="concurrency"
+            type="number"
+            min="1"
+            max="5"
+            step="1"
+            class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-dark-500 dark:bg-dark-800 dark:text-gray-100"
+            :disabled="testing || deletingFailed || applyingStatus"
+          />
+          <p class="text-xs text-gray-500 dark:text-gray-400">
+            {{ containsGrok
+              ? t('admin.accounts.batchTest.concurrencyGrokHint')
+              : t('admin.accounts.batchTest.concurrencyHint') }}
+          </p>
+        </div>
+      </div>
+
+      <div v-if="canUseCompactMode" class="rounded-lg border border-gray-200 p-3 dark:border-dark-500">
+        <label class="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+          <input
+            v-model="useCompactMode"
+            type="checkbox"
+            class="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-dark-500 dark:bg-dark-700"
+            :disabled="testing || deletingFailed || applyingStatus"
+          />
+          <span>
+            <span class="font-medium">{{ t('admin.accounts.batchTest.compactMode') }}</span>
+            <span class="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.batchTest.compactModeHint') }}
+            </span>
+          </span>
+        </label>
       </div>
 
       <div class="space-y-1.5">
@@ -67,6 +185,12 @@
           :placeholder="loadingModels ? t('common.loading') + '...' : t('admin.accounts.selectTestModel')"
         />
         <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.batchTest.defaultModelHint') }}</p>
+        <p class="text-xs text-gray-500 dark:text-gray-400">
+          {{ t('admin.accounts.batchTest.readyCountHint', { count: testableAccountIds.length }) }}
+        </p>
+        <p v-if="containsGrok && testableAccountIds.length > 20" class="text-xs text-amber-600 dark:text-amber-400">
+          {{ t('admin.accounts.batchTest.grokRiskHint') }}
+        </p>
         <p v-if="modelLoadError" class="text-xs text-red-500">{{ modelLoadError }}</p>
       </div>
 
@@ -230,7 +354,7 @@ import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
 import { adminAPI } from '@/api/admin'
-import type { Account, ClaudeModel } from '@/types'
+import type { Account, ClaudeModel, Proxy } from '@/types'
 import type { BatchTestAccountItem, BatchTestAccountsResponse } from '@/api/admin/accounts'
 
 type PreselectStatus =
@@ -273,8 +397,19 @@ const applyingStatus = ref(false)
 const selectedFailedIds = ref<number[]>([])
 const selectedFailureFilter = ref('all')
 const preselectStatus = ref<PreselectStatus>('all')
+/** null = keep bound; 0 = force direct; >0 = temporary override from IP management */
+const overrideProxyId = ref<number | null>(null)
+const proxyCatalog = ref<Proxy[]>([])
+const proxySearch = ref('')
+const loadingProxies = ref(false)
+const proxyLoadError = ref('')
+const intervalSeconds = ref(0)
+const concurrency = ref(5)
+const useCompactMode = ref(false)
+const scheduleDefaultsTouched = ref(false)
 const result = ref<BatchTestAccountsResponse | null>(null)
 let testAbortController: AbortController | null = null
+const NO_PROXY_ID = 0
 const firstAccount = computed(() => props.accounts[0] ?? null)
 const canUseSharedModelOptions = computed(() => {
   if (props.accounts.length !== props.accountIds.length || props.accounts.length === 0) return false
@@ -286,6 +421,48 @@ const accountById = computed(() => {
   const map = new Map<number, Account>()
   props.accounts.forEach(account => map.set(account.id, account))
   return map
+})
+
+const filteredProxyCatalog = computed(() => {
+  const q = proxySearch.value.trim().toLowerCase()
+  const list = [...proxyCatalog.value].sort((a, b) => {
+    const an = (a.name || '').toLowerCase()
+    const bn = (b.name || '').toLowerCase()
+    if (an !== bn) return an.localeCompare(bn)
+    return a.id - b.id
+  })
+  if (!q) return list
+  return list.filter(proxy => {
+    const hay = `${proxy.name || ''} ${proxy.host || ''} #${proxy.id}`.toLowerCase()
+    return hay.includes(q)
+  })
+})
+
+const selectedOverrideProxyLabel = computed(() => {
+  if (overrideProxyId.value === null) return t('admin.accounts.batchTest.proxyOverrideKeepBound')
+  if (overrideProxyId.value === NO_PROXY_ID) return t('admin.accounts.batchTest.proxyOverrideDirect')
+  const found = proxyCatalog.value.find(proxy => proxy.id === overrideProxyId.value)
+  if (found?.name) return `${found.name} (#${found.id})`
+  return t('admin.accounts.batchTest.proxyLabel', { id: overrideProxyId.value })
+})
+
+const statusFilteredAccountIds = computed(() => {
+  if (preselectStatus.value === 'all') return [...props.accountIds]
+  return props.accountIds.filter(id => classifyAccountStatus(accountById.value.get(id)) === preselectStatus.value)
+})
+
+const testableAccountIds = computed(() => [...statusFilteredAccountIds.value])
+
+const containsGrok = computed(() =>
+  testableAccountIds.value.some(id => accountById.value.get(id)?.platform === 'grok')
+)
+
+const canUseCompactMode = computed(() => {
+  if (testableAccountIds.value.length === 0) return false
+  return testableAccountIds.value.every(id => {
+    const account = accountById.value.get(id)
+    return !!account && account.platform === 'openai'
+  })
 })
 
 const classifyAccountStatus = (account: Account | undefined): PreselectStatus => {
@@ -327,11 +504,6 @@ const preselectStatusOptions = computed(() => {
     { value: 'unschedulable', label: t('admin.accounts.status.unschedulable'), count: statusCounts.value.unschedulable }
   ]
   return options.filter(option => option.value === 'all' || option.count > 0)
-})
-
-const testableAccountIds = computed(() => {
-  if (preselectStatus.value === 'all') return [...props.accountIds]
-  return props.accountIds.filter(id => classifyAccountStatus(accountById.value.get(id)) === preselectStatus.value)
 })
 
 const failedItems = computed(() => result.value?.items.filter(item => !item.success) ?? [])
@@ -388,12 +560,61 @@ const loadAvailableModels = async () => {
   }
 }
 
+const loadProxyCatalog = async () => {
+  loadingProxies.value = true
+  proxyLoadError.value = ''
+  try {
+    const proxies = await adminAPI.proxies.getAllWithCount()
+    proxyCatalog.value = Array.isArray(proxies) ? proxies : []
+    if (
+      overrideProxyId.value !== null &&
+      overrideProxyId.value !== NO_PROXY_ID &&
+      !proxyCatalog.value.some(proxy => proxy.id === overrideProxyId.value)
+    ) {
+      overrideProxyId.value = null
+    }
+  } catch (error) {
+    console.error('Failed to load proxies for batch test:', error)
+    proxyCatalog.value = []
+    proxyLoadError.value = t('admin.accounts.batchTest.proxyOverrideLoadFailed')
+  } finally {
+    loadingProxies.value = false
+  }
+}
+
+const applyScheduleDefaults = () => {
+  if (scheduleDefaultsTouched.value) return
+  if (containsGrok.value) {
+    intervalSeconds.value = 5
+    concurrency.value = 1
+  } else {
+    intervalSeconds.value = 0
+    concurrency.value = 5
+  }
+}
+
 const resetModalState = () => {
   result.value = null
   selectedFailedIds.value = []
   selectedFailureFilter.value = 'all'
   preselectStatus.value = 'all'
+  overrideProxyId.value = null
+  proxySearch.value = ''
+  scheduleDefaultsTouched.value = false
+  useCompactMode.value = false
   modelLoadError.value = ''
+  proxyLoadError.value = ''
+  applyScheduleDefaults()
+}
+
+const clampIntervalSeconds = (value: number) => {
+  if (!Number.isFinite(value)) return 0
+  return Math.min(60, Math.max(0, Math.floor(value)))
+}
+
+const clampConcurrency = (value: number) => {
+  if (!Number.isFinite(value)) return 1
+  return Math.min(5, Math.max(1, Math.floor(value)))
 }
 
 watch(
@@ -403,7 +624,7 @@ watch(
       testAbortController?.abort()
       testAbortController = null
       resetModalState()
-      await loadAvailableModels()
+      await Promise.all([loadAvailableModels(), loadProxyCatalog()])
     } else {
       testAbortController?.abort()
       testAbortController = null
@@ -423,8 +644,46 @@ watch(
   }
 )
 
+watch(containsGrok, () => {
+  if (!props.visible) return
+  applyScheduleDefaults()
+})
+
+watch(canUseCompactMode, (enabled) => {
+  if (!enabled) useCompactMode.value = false
+})
+
+watch(intervalSeconds, (value, oldValue) => {
+  if (value === oldValue) return
+  scheduleDefaultsTouched.value = true
+  const next = clampIntervalSeconds(value)
+  if (next !== value) intervalSeconds.value = next
+})
+
+watch(concurrency, (value, oldValue) => {
+  if (value === oldValue) return
+  scheduleDefaultsTouched.value = true
+  const next = clampConcurrency(value)
+  if (next !== value) concurrency.value = next
+})
+
 const startTest = async (ids: number[]) => {
   if (testing.value || ids.length === 0) return
+  const resolvedIntervalSeconds = clampIntervalSeconds(intervalSeconds.value)
+  const resolvedConcurrency = clampConcurrency(concurrency.value)
+  intervalSeconds.value = resolvedIntervalSeconds
+  concurrency.value = resolvedConcurrency
+
+  const mode = canUseCompactMode.value && useCompactMode.value ? 'compact' : 'default'
+  const confirmMessage = t('admin.accounts.batchTest.startConfirm', {
+    count: ids.length,
+    proxy: selectedOverrideProxyLabel.value,
+    interval: resolvedIntervalSeconds,
+    concurrency: resolvedConcurrency,
+    mode
+  })
+  if (!window.confirm(confirmMessage)) return
+
   testing.value = true
   modelLoadError.value = ''
   selectedFailedIds.value = []
@@ -433,7 +692,11 @@ const startTest = async (ids: number[]) => {
   try {
     result.value = await adminAPI.accounts.batchTestAccounts({
       account_ids: ids,
-      model_id: selectedModelId.value
+      model_id: selectedModelId.value,
+      mode,
+      override_proxy_id: overrideProxyId.value,
+      interval_ms: resolvedIntervalSeconds * 1000,
+      concurrency: resolvedConcurrency
     }, testAbortController.signal)
     emit('completed')
   } catch (error) {

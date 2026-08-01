@@ -64,6 +64,17 @@ func isOpenAIImageModel(model string) bool {
 	return strings.HasPrefix(strings.ToLower(model), "gpt-image-")
 }
 
+// TestProxyOverride temporarily changes the outbound proxy for an account test
+// without persisting account.proxy_id. Nil means use the account's bound proxy.
+type TestProxyOverride struct {
+	// ForceDirect forces a direct connection (no proxy).
+	ForceDirect bool
+	// Proxy is used when ForceDirect is false and Proxy is non-nil.
+	Proxy *Proxy
+}
+
+type testProxyOverrideContextKey struct{}
+
 // AccountTestService handles account testing operations
 type AccountTestService struct {
 	accountRepo               AccountRepository
@@ -74,6 +85,7 @@ type AccountTestService struct {
 	httpUpstream              HTTPUpstream
 	cfg                       *config.Config
 	tlsFPProfileService       *TLSFingerprintProfileService
+	settingService            *SettingService
 	agentIdentityTaskMu       sync.Mutex
 	agentIdentityWS           agentIdentityWSConnectionInvalidator
 }
@@ -99,6 +111,61 @@ func NewAccountTestService(
 		cfg:                       cfg,
 		tlsFPProfileService:       tlsFPProfileService,
 	}
+}
+
+// SetSettingService injects system settings used for Grok ops proxy defaults.
+func (s *AccountTestService) SetSettingService(settingService *SettingService) {
+	if s == nil {
+		return
+	}
+	s.settingService = settingService
+}
+
+// applyGrokOpsProxyOverrideIfNeeded injects the global Grok ops proxy when no explicit
+// TestProxyOverride is already on ctx and the account is Grok.
+func (s *AccountTestService) applyGrokOpsProxyOverrideIfNeeded(ctx context.Context, account *Account) context.Context {
+	if s == nil || account == nil || !account.IsGrok() || s.settingService == nil {
+		return ctx
+	}
+	if ctx != nil {
+		if override, ok := ctx.Value(testProxyOverrideContextKey{}).(*TestProxyOverride); ok && override != nil {
+			return ctx
+		}
+	}
+	override, err := s.settingService.ResolveGrokOpsProxyOverride(ctx)
+	if err != nil || override == nil {
+		return ctx
+	}
+	return withTestProxyOverride(ctx, override)
+}
+
+// resolveTestProxyURL returns the proxy URL for a test request.
+// A TestProxyOverride on ctx wins over the account's bound proxy and is never persisted.
+func (s *AccountTestService) resolveTestProxyURL(ctx context.Context, account *Account) string {
+	if ctx != nil {
+		if override, ok := ctx.Value(testProxyOverrideContextKey{}).(*TestProxyOverride); ok && override != nil {
+			if override.ForceDirect {
+				return ""
+			}
+			if override.Proxy != nil {
+				return override.Proxy.URL()
+			}
+		}
+	}
+	if account != nil && account.ProxyID != nil && account.Proxy != nil {
+		return account.Proxy.URL()
+	}
+	return ""
+}
+
+func withTestProxyOverride(ctx context.Context, override *TestProxyOverride) context.Context {
+	if override == nil {
+		return ctx
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, testProxyOverrideContextKey{}, override)
 }
 
 func (s *AccountTestService) validateUpstreamBaseURL(raw string) (string, error) {
@@ -265,10 +332,7 @@ func (s *AccountTestService) testKiroAccountConnection(c *gin.Context, account *
 	c.Writer.Flush()
 	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
 
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := s.resolveTestProxyURL(ctx, account)
 	resp, err := s.httpUpstream.DoWithTLS(request, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Kiro request failed: %s", err.Error()))
@@ -385,10 +449,7 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 	account.ApplyHeaderOverrides(req.Header)
 
 	// Get proxy URL
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := s.resolveTestProxyURL(ctx, account)
 
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
@@ -457,10 +518,7 @@ func (s *AccountTestService) testClaudeVertexServiceAccountConnection(c *gin.Con
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := s.resolveTestProxyURL(ctx, account)
 
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
@@ -543,10 +601,7 @@ func (s *AccountTestService) testBedrockAccountConnection(c *gin.Context, ctx co
 		}
 	}
 
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := s.resolveTestProxyURL(ctx, account)
 
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, nil)
 	if err != nil {
@@ -730,10 +785,7 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 	credentialAccount.ApplyHeaderOverrides(req.Header)
 
 	// Get proxy URL
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := s.resolveTestProxyURL(ctx, account)
 
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
@@ -776,7 +828,10 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 
 // testGrokAccountConnection tests a Grok OAuth or API-key account through xAI's Responses API.
 func (s *AccountTestService) testGrokAccountConnection(c *gin.Context, account *Account, modelID string) error {
-	ctx := c.Request.Context()
+	ctx := s.applyGrokOpsProxyOverrideIfNeeded(c.Request.Context(), account)
+	if ctx != c.Request.Context() {
+		c.Request = c.Request.WithContext(ctx)
+	}
 
 	if s.httpUpstream == nil {
 		return s.sendErrorAndEnd(c, "HTTP upstream not configured")
@@ -845,10 +900,7 @@ func (s *AccountTestService) testGrokAccountConnection(c *gin.Context, account *
 	// 连通性测试与真实转发保持同一套账号级请求头覆写。
 	account.ApplyHeaderOverrides(req.Header)
 
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := s.resolveTestProxyURL(ctx, account)
 
 	resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
 	if err != nil {
@@ -932,10 +984,7 @@ func (s *AccountTestService) testOpenAIChatCompletionsConnection(
 	// 账号级请求头覆写：测试请求与真实转发保持一致的最终头
 	account.ApplyHeaderOverrides(req.Header)
 
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := s.resolveTestProxyURL(ctx, account)
 
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
@@ -1048,10 +1097,7 @@ func (s *AccountTestService) testOpenAICompactConnection(c *gin.Context, account
 	// 账号级请求头覆写：测试请求与真实转发保持一致的最终头
 	account.ApplyHeaderOverrides(req.Header)
 
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := s.resolveTestProxyURL(ctx, account)
 
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
@@ -1191,10 +1237,7 @@ func (s *AccountTestService) testGeminiAccountConnection(c *gin.Context, account
 	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
 
 	// Get proxy and execute request
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := s.resolveTestProxyURL(ctx, account)
 
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
@@ -1816,10 +1859,7 @@ func (s *AccountTestService) testOpenAIImageAPIKey(c *gin.Context, ctx context.C
 	// 账号级请求头覆写：测试请求与真实转发保持一致的最终头
 	account.ApplyHeaderOverrides(req.Header)
 
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := s.resolveTestProxyURL(ctx, account)
 
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
@@ -1940,10 +1980,7 @@ func (s *AccountTestService) testOpenAIImageOAuth(c *gin.Context, ctx context.Co
 	// 与真实转发一致：originator 与最终 User-Agent 首段配套（原 opencode 与 Codex UA 错配会 404，issue #3901）。
 	enforceCodexIdentityHeaders(req.Header)
 
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := s.resolveTestProxyURL(ctx, account)
 	resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Responses API request failed: %s", err.Error()))
@@ -2011,14 +2048,17 @@ func (s *AccountTestService) sendErrorAndEnd(c *gin.Context, errorMsg string) er
 
 // RunTestBackground executes an account test in-memory (no real HTTP client),
 // capturing SSE output via httptest.NewRecorder, then parses the result.
-func (s *AccountTestService) RunTestBackground(ctx context.Context, accountID int64, modelID string) (*ScheduledTestResult, error) {
+// mode is optional; empty/"default" uses the standard probe, "compact" is OpenAI-only.
+// proxyOverride temporarily changes the outbound proxy for this test only; nil keeps the bound proxy.
+func (s *AccountTestService) RunTestBackground(ctx context.Context, accountID int64, modelID string, mode string, proxyOverride *TestProxyOverride) (*ScheduledTestResult, error) {
 	startedAt := time.Now()
 
 	w := httptest.NewRecorder()
 	ginCtx, _ := gin.CreateTestContext(w)
-	ginCtx.Request = (&http.Request{}).WithContext(ctx)
+	reqCtx := withTestProxyOverride(ctx, proxyOverride)
+	ginCtx.Request = (&http.Request{}).WithContext(reqCtx)
 
-	testErr := s.TestAccountConnection(ginCtx, accountID, modelID, "", AccountTestModeDefault)
+	testErr := s.TestAccountConnection(ginCtx, accountID, modelID, "", normalizeAccountTestMode(mode))
 
 	finishedAt := time.Now()
 	body := w.Body.String()

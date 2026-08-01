@@ -15,13 +15,15 @@ import (
 
 // ProxyHandler handles admin proxy management
 type ProxyHandler struct {
-	adminService service.AdminService
+	adminService          service.AdminService
+	grokReasoningProbeSvc *service.GrokReasoningProbeService
 }
 
 // NewProxyHandler creates a new admin proxy handler
-func NewProxyHandler(adminService service.AdminService) *ProxyHandler {
+func NewProxyHandler(adminService service.AdminService, grokReasoningProbeSvc *service.GrokReasoningProbeService) *ProxyHandler {
 	return &ProxyHandler{
-		adminService: adminService,
+		adminService:          adminService,
+		grokReasoningProbeSvc: grokReasoningProbeSvc,
 	}
 }
 
@@ -281,6 +283,34 @@ func (h *ProxyHandler) CheckQuality(c *gin.Context) {
 		return
 	}
 
+	response.Success(c, result)
+}
+
+// ProbeGrokReasoning runs an opt-in real Grok OAuth Responses probe through the
+// given proxy egress to detect visible vs encrypted-only reasoning.
+// POST /api/v1/admin/proxies/:id/grok-reasoning-probe
+func (h *ProxyHandler) ProbeGrokReasoning(c *gin.Context) {
+	proxyID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid proxy ID")
+		return
+	}
+	if h.grokReasoningProbeSvc == nil {
+		response.InternalError(c, "Grok reasoning probe service is not configured")
+		return
+	}
+
+	var req service.GrokReasoningProbeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request body")
+		return
+	}
+
+	result, err := h.grokReasoningProbeSvc.Probe(c.Request.Context(), proxyID, req)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
 	response.Success(c, result)
 }
 

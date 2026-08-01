@@ -1079,8 +1079,18 @@ type TestAccountRequest struct {
 }
 
 type BatchTestAccountsRequest struct {
-	AccountIDs []int64 `json:"account_ids"`
-	ModelID    string  `json:"model_id"`
+	AccountIDs  []int64 `json:"account_ids"`
+	ModelID     string  `json:"model_id"`
+	Mode        string  `json:"mode"`
+	// OverrideProxyID temporarily forces the outbound proxy for this batch only.
+	// nil/omitted: keep each account's bound proxy.
+	// 0: force direct (no proxy).
+	// >0: use that proxy from IP management for every account in the batch.
+	OverrideProxyID *int64 `json:"override_proxy_id"`
+	// Deprecated: previously filtered accounts by bound proxy_id. Ignored.
+	ProxyIDs    []int64 `json:"proxy_ids"`
+	IntervalMs  *int    `json:"interval_ms"`
+	Concurrency *int    `json:"concurrency"`
 }
 
 type BatchTestAccountItem struct {
@@ -1100,8 +1110,15 @@ type BatchTestAccountsResponse struct {
 }
 
 const (
-	batchTestAccountsMax     = 100
-	batchTestAccountsTimeout = 5 * time.Minute
+	batchTestAccountsMax            = 100
+	batchTestAccountsTimeout        = 5 * time.Minute
+	batchTestDefaultConcurrency     = 5
+	batchTestGrokDefaultConcurrency = 1
+	batchTestMaxConcurrency         = 5
+	batchTestDefaultIntervalMs      = 0
+	batchTestGrokDefaultIntervalMs  = 5000
+	batchTestMaxIntervalMs          = 60000
+	batchTestNoProxyID              = int64(0)
 )
 
 type SyncFromCRSRequest struct {
@@ -1166,6 +1183,84 @@ func normalizeBatchTestAccountIDs(requested []int64) ([]int64, error) {
 	return accountIDs, nil
 }
 
+func resolveBatchTestProxyOverride(ctx context.Context, adminService service.AdminService, overrideProxyID *int64) (*service.TestProxyOverride, error) {
+	if overrideProxyID == nil {
+		return nil, nil
+	}
+	if *overrideProxyID < 0 {
+		return nil, errors.New("override_proxy_id must be >= 0")
+	}
+	if *overrideProxyID == batchTestNoProxyID {
+		return &service.TestProxyOverride{ForceDirect: true}, nil
+	}
+	if adminService == nil {
+		return nil, errors.New("proxy service unavailable")
+	}
+	proxy, err := adminService.GetProxy(ctx, *overrideProxyID)
+	if err != nil {
+		return nil, fmt.Errorf("override proxy not found: %w", err)
+	}
+	if proxy == nil {
+		return nil, errors.New("override proxy not found")
+	}
+	if !proxy.IsActive() {
+		return nil, fmt.Errorf("override proxy %d is not active", proxy.ID)
+	}
+	if proxy.IsExpired(time.Now()) {
+		return nil, fmt.Errorf("override proxy %d is expired", proxy.ID)
+	}
+	return &service.TestProxyOverride{Proxy: proxy}, nil
+}
+
+func resolveBatchTestMode(mode string, accounts []*service.Account) (string, error) {
+	normalized := strings.ToLower(strings.TrimSpace(mode))
+	if normalized == "" || normalized == service.AccountTestModeDefault {
+		return service.AccountTestModeDefault, nil
+	}
+	if normalized != service.AccountTestModeCompact {
+		return "", fmt.Errorf("mode must be %q or %q", service.AccountTestModeDefault, service.AccountTestModeCompact)
+	}
+	if len(accounts) == 0 {
+		return "", errors.New("compact mode requires OpenAI accounts")
+	}
+	for _, account := range accounts {
+		if account == nil || !account.IsOpenAI() {
+			return "", errors.New("compact mode is only supported when all selected accounts are OpenAI")
+		}
+	}
+	return service.AccountTestModeCompact, nil
+}
+
+func resolveBatchTestSchedule(accounts []*service.Account, concurrency *int, intervalMs *int) (int, int, error) {
+	hasGrok := false
+	for _, account := range accounts {
+		if account != nil && account.IsGrok() {
+			hasGrok = true
+			break
+		}
+	}
+
+	resolvedConcurrency := batchTestDefaultConcurrency
+	resolvedIntervalMs := batchTestDefaultIntervalMs
+	if hasGrok {
+		resolvedConcurrency = batchTestGrokDefaultConcurrency
+		resolvedIntervalMs = batchTestGrokDefaultIntervalMs
+	}
+	if concurrency != nil {
+		resolvedConcurrency = *concurrency
+	}
+	if intervalMs != nil {
+		resolvedIntervalMs = *intervalMs
+	}
+	if resolvedConcurrency < 1 || resolvedConcurrency > batchTestMaxConcurrency {
+		return 0, 0, fmt.Errorf("concurrency must be between 1 and %d", batchTestMaxConcurrency)
+	}
+	if resolvedIntervalMs < 0 || resolvedIntervalMs > batchTestMaxIntervalMs {
+		return 0, 0, fmt.Errorf("interval_ms must be between 0 and %d", batchTestMaxIntervalMs)
+	}
+	return resolvedConcurrency, resolvedIntervalMs, nil
+}
+
 func (h *AccountHandler) BatchTestAccounts(c *gin.Context) {
 	var req BatchTestAccountsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1197,7 +1292,39 @@ func (h *AccountHandler) BatchTestAccounts(c *gin.Context) {
 		}
 	}
 
-	items := make([]BatchTestAccountItem, len(accountIDs))
+	orderedAccounts := make([]*service.Account, 0, len(accountIDs))
+	orderedIDs := make([]int64, 0, len(accountIDs))
+	for _, accountID := range accountIDs {
+		account := accountByID[accountID]
+		orderedIDs = append(orderedIDs, accountID)
+		orderedAccounts = append(orderedAccounts, account)
+	}
+
+	proxyOverride, err := resolveBatchTestProxyOverride(ctx, h.adminService, req.OverrideProxyID)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	// Mode/schedule validation only considers accounts that will actually be tested.
+	existingAccounts := make([]*service.Account, 0, len(orderedAccounts))
+	for _, account := range orderedAccounts {
+		if account != nil {
+			existingAccounts = append(existingAccounts, account)
+		}
+	}
+	mode, err := resolveBatchTestMode(req.Mode, existingAccounts)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	concurrency, intervalMs, err := resolveBatchTestSchedule(existingAccounts, req.Concurrency, req.IntervalMs)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	items := make([]BatchTestAccountItem, len(orderedIDs))
 	var mu sync.Mutex
 	var successCount, failedCount int
 	markItem := func(index int, item BatchTestAccountItem) {
@@ -1212,16 +1339,33 @@ func (h *AccountHandler) BatchTestAccounts(c *gin.Context) {
 	}
 
 	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(5)
-	for index, accountID := range accountIDs {
+	g.SetLimit(concurrency)
+	started := 0
+	for index, accountID := range orderedIDs {
 		index, accountID := index, accountID
-		account := accountByID[accountID]
+		account := orderedAccounts[index]
 		if account == nil {
 			markItem(index, BatchTestAccountItem{AccountID: accountID, Status: "failed", Error: "account not found"})
 			continue
 		}
+		if started > 0 && intervalMs > 0 {
+			timer := time.NewTimer(time.Duration(intervalMs) * time.Millisecond)
+			select {
+			case <-gctx.Done():
+				timer.Stop()
+				markItem(index, BatchTestAccountItem{
+					AccountID: account.ID,
+					Name:      account.Name,
+					Status:    "failed",
+					Error:     gctx.Err().Error(),
+				})
+				continue
+			case <-timer.C:
+			}
+		}
+		started++
 		g.Go(func() error {
-			result, testErr := h.accountTestService.RunTestBackground(gctx, account.ID, req.ModelID)
+			result, testErr := h.accountTestService.RunTestBackground(gctx, account.ID, req.ModelID, mode, proxyOverride)
 			item := BatchTestAccountItem{AccountID: account.ID, Name: account.Name, Status: "failed"}
 			if result != nil {
 				item.Status = result.Status
@@ -1250,7 +1394,7 @@ func (h *AccountHandler) BatchTestAccounts(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, BatchTestAccountsResponse{Total: len(accountIDs), Success: successCount, Failed: failedCount, Items: items})
+	response.Success(c, BatchTestAccountsResponse{Total: len(orderedIDs), Success: successCount, Failed: failedCount, Items: items})
 }
 
 // RecoverState handles unified recovery of recoverable account runtime state.
