@@ -1575,7 +1575,8 @@ func (h *AccountHandler) refreshSingleAccount(ctx context.Context, account *serv
 		if h.grokOAuthService == nil {
 			return nil, "", fmt.Errorf("grok oauth service is not configured")
 		}
-		tokenInfo, err := h.grokOAuthService.RefreshAccountToken(ctx, account)
+		// RT first; on failure/missing RT, fall back to extra.sso device convert.
+		tokenInfo, err := service.RefreshGrokAccountTokenWithSSOFallback(ctx, h.grokOAuthService, account)
 		if err != nil {
 			return nil, "", fmt.Errorf("failed to refresh Grok credentials: %w", err)
 		}
@@ -1615,6 +1616,20 @@ func (h *AccountHandler) refreshSingleAccount(ctx context.Context, account *serv
 	})
 	if err != nil {
 		return nil, "", err
+	}
+
+	// Grok: 刷新成功后若账号仍为 error，清掉错误态（含 SSO 回退救回的账号）
+	if account.Platform == service.PlatformGrok && account.Status == service.StatusError {
+		if cleared, clearErr := h.adminService.ClearAccountError(ctx, account.ID); clearErr != nil {
+			slog.Warn("grok refresh clear_error_failed",
+				"account_id", account.ID,
+				"err", clearErr,
+			)
+		} else if cleared != nil {
+			// ClearError 重读 DB，凭证已在 UpdateAccount 落库
+			cleared.Credentials = updatedAccount.Credentials
+			updatedAccount = cleared
+		}
 	}
 
 	// 刷新成功后，清除 token 缓存，确保下次请求使用新 token

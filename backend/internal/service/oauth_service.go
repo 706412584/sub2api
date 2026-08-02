@@ -25,10 +25,13 @@ type GrokOAuthClient interface {
 	ConvertSSOToBuild(ctx context.Context, ssoToken, proxyURL string) (*xai.TokenResponse, error)
 }
 
-// GrokOAuthTokenService is the narrow refresh port used by Grok token providers.
+// GrokOAuthTokenService is the narrow refresh port used by Grok token providers
+// and admin refresh handlers. ConvertFromSSO enables RT-failure fallback when
+// the account still has a usable extra.sso session token.
 type GrokOAuthTokenService interface {
 	RefreshAccountToken(ctx context.Context, account *Account) (*GrokTokenInfo, error)
 	BuildAccountCredentials(tokenInfo *GrokTokenInfo) map[string]any
+	ConvertFromSSO(ctx context.Context, ssoToken string, proxyID *int64) (*GrokTokenInfo, error)
 }
 
 // ClaudeOAuthClient handles HTTP requests for Claude OAuth flows
