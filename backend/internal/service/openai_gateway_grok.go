@@ -308,11 +308,12 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
 	var firstTokenMs *int
 	responseID := ""
 	if reqStream {
+		maxLineSize := defaultMaxLineSize
+		if s.cfg != nil && s.cfg.Gateway.MaxLineSize > 0 {
+			maxLineSize = s.cfg.Gateway.MaxLineSize
+		}
+		resp.Body = newGrokResponsesBillingPingFilterBody(resp.Body, account, maxLineSize)
 		if hasGrokResponsesClientToolMapping(clientToolMapping) {
-			maxLineSize := defaultMaxLineSize
-			if s.cfg != nil && s.cfg.Gateway.MaxLineSize > 0 {
-				maxLineSize = s.cfg.Gateway.MaxLineSize
-			}
 			resp.Body = newGrokResponsesClientToolStreamBody(resp.Body, clientToolMapping, maxLineSize)
 		}
 		streamResult, err := s.handleStreamingResponse(ctx, resp, c, account, startTime, originalModel, upstreamModel)
@@ -1306,12 +1307,11 @@ func (s *OpenAIGatewayService) updateGrokUsageSnapshot(ctx context.Context, acco
 			grokQuotaSnapshotExtraKey: snapshot,
 		})
 	}
-	// Error responses are reconciled by handleGrokAccountUpstreamError, which
-	// also installs the immediate in-memory scheduling block. Successful
-	// responses can still consume the last available request/token, so persist
-	// that exhausted window here as a real rate limit rather than relying only
-	// on the passive snapshot scheduler check.
-	if hasActiveLimit {
+	// Error responses are reconciled by handleGrokAccountUpstreamError. Pool-mode
+	// API keys retain the snapshot for observability but leave account health to
+	// the upstream pool. Other accounts install the immediate runtime and durable
+	// rate-limit state when the observed window is exhausted.
+	if hasActiveLimit && !account.IsPoolMode() {
 		s.rateLimitGrok(stateCtx, account, resetAt)
 	} else if recovery {
 		clearGrokRateLimitAfterRecovery(stateCtx, s.accountRepo, account)
@@ -1650,6 +1650,15 @@ func (s *OpenAIGatewayService) handleGrokAccountUpstreamError(ctx context.Contex
 	}
 	now := time.Now()
 	s.updateGrokUsageSnapshot(ctx, account, parseGrokQuotaSnapshot(headers, statusCode, now))
+	// Forbidden policy may still apply in pool mode (explicit temp-unschedulable rules).
+	if class == grokFailForbidden && s.applyGrokForbiddenPolicy(ctx, account, responseBody) {
+		return
+	}
+	// Upstream pool mode: rely on same-account retry budget; skip account-level cooldown/error state.
+	if account.IsPoolMode() {
+		slog.Info("grok_pool_mode_error_state_skipped", "account_id", account.ID, "status_code", statusCode)
+		return
+	}
 	switch class {
 	case grokFailAuth:
 		s.tempUnscheduleGrokUntil(ctx, account, now.Add(grokAuthCooldownDuration), "grok credentials unauthorized")
@@ -1659,9 +1668,6 @@ func (s *OpenAIGatewayService) handleGrokAccountUpstreamError(ctx context.Contex
 		s.tempUnscheduleGrokUntil(ctx, account, until, "grok payment required")
 		s.persistGrokQuotaBlockMarker(ctx, account, until, "payment_required")
 	case grokFailForbidden:
-		if s.applyGrokForbiddenPolicy(ctx, account, responseBody) {
-			return
-		}
 		s.tempUnscheduleGrokUntil(ctx, account, now.Add(grokForbiddenCooldownDuration), "grok access or entitlement denied")
 	case grokFailRateLimit:
 		// Account-level rate-limit is installed by updateGrokUsageSnapshot; also isolate by model when known.
@@ -1670,10 +1676,6 @@ func (s *OpenAIGatewayService) handleGrokAccountUpstreamError(ctx context.Contex
 		}
 	case grokFailTransient:
 		// Transient 5xx (incl. 502 false positives): short cooldown only, never mark error.
-		// Upstream v0.1.165: pool mode relies on same-account retry budget; skip account-level temp unscheduling.
-		if account.IsPoolMode() {
-			return
-		}
 		reason := "grok upstream temporary error"
 		if statusCode == http.StatusBadGateway {
 			reason = "grok upstream temporary error (502)"
