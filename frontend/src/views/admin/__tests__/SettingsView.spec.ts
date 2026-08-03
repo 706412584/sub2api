@@ -28,6 +28,8 @@ const {
   getStreamTimeoutSettings,
   getRectifierSettings,
   getBetaPolicySettings,
+  getPanelRateLimitSettings,
+  updatePanelRateLimitSettings,
   getUpstreamBillingProbeSettings,
   updateUpstreamBillingProbeSettings,
   getOllamaCloudUsageSettings,
@@ -66,6 +68,14 @@ const {
   getStreamTimeoutSettings: vi.fn(),
   getRectifierSettings: vi.fn(),
   getBetaPolicySettings: vi.fn(),
+  getPanelRateLimitSettings: vi.fn().mockResolvedValue({
+    enabled: true,
+    user_rpm: 240,
+    heavy_rpm: 60,
+    exempt_admin: true,
+    public_ip_rpm: 300,
+  }),
+  updatePanelRateLimitSettings: vi.fn().mockImplementation(async (payload) => payload),
   getUpstreamBillingProbeSettings: vi.fn().mockResolvedValue({
     enabled: true,
     interval_minutes: 30,
@@ -116,6 +126,8 @@ vi.mock("@/api", () => ({
       getStreamTimeoutSettings,
       getRectifierSettings,
       getBetaPolicySettings,
+      getPanelRateLimitSettings,
+      updatePanelRateLimitSettings,
     },
     accounts: {
       getUpstreamBillingProbeSettings,
