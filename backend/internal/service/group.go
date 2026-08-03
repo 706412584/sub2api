@@ -103,7 +103,7 @@ type Group struct {
 	// ReasoningEffortMappings rewrites explicit request values before applying the ceiling.
 	ReasoningEffortMappings []ReasoningEffortMapping
 
-// 分组提示词策略：仅启用时在网关入口处理指定文本字段。
+	// 分组提示词策略：仅启用时在网关入口处理指定文本字段。
 	PromptPolicy GroupPromptPolicy
 
 	// 分组利润控制（五个 token 计费平台可启用）。
