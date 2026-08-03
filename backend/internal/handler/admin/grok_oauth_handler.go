@@ -144,7 +144,7 @@ func (h *GrokOAuthHandler) RefreshAccountToken(c *gin.Context) {
 		response.BadRequest(c, "Cannot refresh non-OAuth account credentials")
 		return
 	}
-	tokenInfo, err := h.grokOAuthService.RefreshAccountToken(c.Request.Context(), account)
+	tokenInfo, err := service.RefreshGrokAccountTokenWithSSOFallback(c.Request.Context(), h.grokOAuthService, account)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -160,6 +160,17 @@ func (h *GrokOAuthHandler) RefreshAccountToken(c *gin.Context) {
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
+	}
+	if account.Status == service.StatusError {
+		if cleared, clearErr := h.adminService.ClearAccountError(c.Request.Context(), accountID); clearErr != nil {
+			slog.Warn("grok oauth refresh clear_error_failed",
+				"account_id", accountID,
+				"err", clearErr,
+			)
+		} else if cleared != nil {
+			cleared.Credentials = updatedAccount.Credentials
+			updatedAccount = cleared
+		}
 	}
 	response.Success(c, dto.AccountFromService(updatedAccount))
 }

@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"hash/fnv"
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -26,13 +28,23 @@ func (r *GrokTokenRefresher) CacheKey(account *Account) string {
 	return GrokTokenCacheKey(account)
 }
 
+func accountHasGrokSSO(account *Account) bool {
+	return account != nil && strings.TrimSpace(account.GetExtraString("sso")) != ""
+}
+
 func (r *GrokTokenRefresher) CanRefresh(account *Account) bool {
-	return account != nil && account.Platform == PlatformGrok && account.Type == AccountTypeOAuth &&
-		strings.TrimSpace(account.GetGrokRefreshToken()) != ""
+	if account == nil || account.Platform != PlatformGrok || account.Type != AccountTypeOAuth {
+		return false
+	}
+	return strings.TrimSpace(account.GetGrokRefreshToken()) != "" || accountHasGrokSSO(account)
 }
 
 func (r *GrokTokenRefresher) NeedsRefresh(account *Account, refreshWindow time.Duration) bool {
-	if account == nil || strings.TrimSpace(account.GetGrokRefreshToken()) == "" {
+	if account == nil {
+		return false
+	}
+	hasRT := strings.TrimSpace(account.GetGrokRefreshToken()) != ""
+	if !hasRT && !accountHasGrokSSO(account) {
 		return false
 	}
 	if strings.TrimSpace(account.GetGrokAccessToken()) == "" {
@@ -46,6 +58,38 @@ func (r *GrokTokenRefresher) NeedsRefresh(account *Account, refreshWindow time.D
 		refreshWindow = grokTokenRefreshSkew
 	}
 	return time.Until(*expiresAt) < refreshWindow
+}
+
+// RefreshGrokAccountTokenWithSSOFallback first tries refresh_token, then falls
+// back to extra.sso → ConvertFromSSO when present. Used by admin refresh and
+// background token refresh so both paths share the same recovery behavior.
+func RefreshGrokAccountTokenWithSSOFallback(ctx context.Context, svc GrokOAuthTokenService, account *Account) (*GrokTokenInfo, error) {
+	if svc == nil {
+		return nil, errors.New("grok oauth service is not configured")
+	}
+	if account == nil {
+		return nil, errors.New("account is nil")
+	}
+
+	tokenInfo, err := svc.RefreshAccountToken(ctx, account)
+	if err == nil {
+		return tokenInfo, nil
+	}
+
+	sso := strings.TrimSpace(account.GetExtraString("sso"))
+	if sso == "" {
+		return nil, err
+	}
+
+	ssoInfo, ssoErr := svc.ConvertFromSSO(ctx, sso, account.ProxyID)
+	if ssoErr != nil {
+		return nil, fmt.Errorf("%w; sso fallback failed: %v", err, ssoErr)
+	}
+	slog.Info("grok refresh recovered via sso fallback",
+		"account_id", account.ID,
+		"refresh_err", err.Error(),
+	)
+	return ssoInfo, nil
 }
 
 // grokBackgroundRefreshReady 判断后台刷新是否已到该账号的抖动 due-at。
@@ -111,7 +155,7 @@ func (r *GrokTokenRefresher) Refresh(ctx context.Context, account *Account) (map
 	if r == nil || r.grokOAuthService == nil {
 		return nil, errors.New("grok oauth service is not configured")
 	}
-	tokenInfo, err := r.grokOAuthService.RefreshAccountToken(ctx, account)
+	tokenInfo, err := RefreshGrokAccountTokenWithSSOFallback(ctx, r.grokOAuthService, account)
 	if err != nil {
 		return nil, err
 	}

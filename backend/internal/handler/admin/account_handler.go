@@ -1076,6 +1076,11 @@ type TestAccountRequest struct {
 	ModelID string `json:"model_id"`
 	Prompt  string `json:"prompt"`
 	Mode    string `json:"mode"`
+	// OverrideProxyID temporarily forces the outbound proxy for this single test only.
+	// nil/omitted: keep the account's bound proxy.
+	// 0: force direct (no proxy).
+	// >0: use that proxy from IP management.
+	OverrideProxyID *int64 `json:"override_proxy_id"`
 }
 
 type BatchTestAccountsRequest struct {
@@ -1147,6 +1152,20 @@ func (h *AccountHandler) Test(c *gin.Context) {
 	var req TestAccountRequest
 	// Allow empty body, model_id is optional
 	_ = c.ShouldBindJSON(&req)
+
+	if h.accountTestService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Account test service unavailable")
+		return
+	}
+
+	proxyOverride, err := resolveBatchTestProxyOverride(c.Request.Context(), h.adminService, req.OverrideProxyID)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	if proxyOverride != nil {
+		c.Request = c.Request.WithContext(service.WithTestProxyOverride(c.Request.Context(), proxyOverride))
+	}
 
 	// Use AccountTestService to test the account with SSE streaming
 	if err := h.accountTestService.TestAccountConnection(c, accountID, req.ModelID, req.Prompt, req.Mode); err != nil {
@@ -1575,7 +1594,8 @@ func (h *AccountHandler) refreshSingleAccount(ctx context.Context, account *serv
 		if h.grokOAuthService == nil {
 			return nil, "", fmt.Errorf("grok oauth service is not configured")
 		}
-		tokenInfo, err := h.grokOAuthService.RefreshAccountToken(ctx, account)
+		// RT first; on failure/missing RT, fall back to extra.sso device convert.
+		tokenInfo, err := service.RefreshGrokAccountTokenWithSSOFallback(ctx, h.grokOAuthService, account)
 		if err != nil {
 			return nil, "", fmt.Errorf("failed to refresh Grok credentials: %w", err)
 		}
@@ -1615,6 +1635,20 @@ func (h *AccountHandler) refreshSingleAccount(ctx context.Context, account *serv
 	})
 	if err != nil {
 		return nil, "", err
+	}
+
+	// Grok: 刷新成功后若账号仍为 error，清掉错误态（含 SSO 回退救回的账号）
+	if account.Platform == service.PlatformGrok && account.Status == service.StatusError {
+		if cleared, clearErr := h.adminService.ClearAccountError(ctx, account.ID); clearErr != nil {
+			slog.Warn("grok refresh clear_error_failed",
+				"account_id", account.ID,
+				"err", clearErr,
+			)
+		} else if cleared != nil {
+			// ClearError 重读 DB，凭证已在 UpdateAccount 落库
+			cleared.Credentials = updatedAccount.Credentials
+			updatedAccount = cleared
+		}
 	}
 
 	// 刷新成功后，清除 token 缓存，确保下次请求使用新 token

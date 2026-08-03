@@ -2,8 +2,9 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AccountTestModal from '../AccountTestModal.vue'
 
-const { getAvailableModels, copyToClipboard } = vi.hoisted(() => ({
+const { getAvailableModels, getAllWithCount, copyToClipboard } = vi.hoisted(() => ({
   getAvailableModels: vi.fn(),
+  getAllWithCount: vi.fn(),
   copyToClipboard: vi.fn()
 }))
 
@@ -11,6 +12,9 @@ vi.mock('@/api/admin', () => ({
   adminAPI: {
     accounts: {
       getAvailableModels
+    },
+    proxies: {
+      getAllWithCount
     }
   }
 }))
@@ -93,6 +97,10 @@ describe('AccountTestModal', () => {
       { id: 'gemini-2.5-flash-image', display_name: 'Gemini 2.5 Flash Image' },
       { id: 'gemini-3.1-flash-image', display_name: 'Gemini 3.1 Flash Image' }
     ])
+    getAllWithCount.mockResolvedValue([
+      { id: 7, name: 'proxy-a', host: '1.2.3.4' },
+      { id: 9, name: 'proxy-b', host: '5.6.7.8' }
+    ])
     copyToClipboard.mockReset()
     Object.defineProperty(globalThis, 'localStorage', {
       value: {
@@ -116,6 +124,47 @@ describe('AccountTestModal', () => {
     vi.restoreAllMocks()
   })
 
+
+    it('单账号测活支持临时代理、thinking 与 latency_ms', async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      createStreamResponse([
+        'data: {"type":"test_start","model":"gemini-2.0-flash"}\n',
+        'data: {"type":"thinking","text":"step-1 "}\n',
+        'data: {"type":"content","text":"hello"}\n',
+        'data: {"type":"test_complete","success":true,"latency_ms":321}\n'
+      ])
+    ) as any
+
+    const wrapper = mountModal({
+      id: 42,
+      name: 'Gemini Text',
+      platform: 'gemini',
+      type: 'apikey',
+      status: 'active'
+    })
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+
+    const buttons = wrapper.findAll('button')
+    const proxyBtn = buttons.find((btn) => btn.text().includes('#7'))
+    expect(proxyBtn).toBeTruthy()
+    await proxyBtn!.trigger('click')
+
+    const startBtn = buttons.find((btn) =>
+      btn.text().includes('admin.accounts.startTest') || btn.text().includes('admin.accounts.retry')
+    )
+    expect(startBtn).toBeTruthy()
+    await startBtn!.trigger('click')
+    await flushPromises()
+
+    expect(global.fetch).toHaveBeenCalled()
+    const [, init] = (global.fetch as any).mock.calls[0]
+    const body = JSON.parse(init.body)
+    expect(body.override_proxy_id).toBe(7)
+    expect(wrapper.text()).toContain('step-1')
+    expect(wrapper.text()).toContain('hello')
+    expect(wrapper.text()).toContain('321')
+  })
   it('gemini 图片模型测试会携带提示词并渲染图片预览', async () => {
     const wrapper = mountModal()
     await wrapper.setProps({ show: true })

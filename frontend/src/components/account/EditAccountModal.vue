@@ -3300,7 +3300,10 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   form.status = (newAccount.status === 'active' || newAccount.status === 'inactive' || newAccount.status === 'error')
     ? newAccount.status
     : 'active'
-  form.group_ids = newAccount.group_ids || []
+  // group_ids 可能因 omitempty 缺失；有 groups 预加载时回填，避免保存时误传 [] 解绑
+  form.group_ids = Array.isArray(newAccount.group_ids) && newAccount.group_ids.length > 0
+    ? [...newAccount.group_ids]
+    : (newAccount.groups?.map((g) => g.id).filter((id): id is number => typeof id === 'number') ?? [])
   form.expires_at = newAccount.expires_at ?? null
 
   // Load intercept warmup requests setting (applies to all account types)
