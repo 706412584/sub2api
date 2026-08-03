@@ -28,6 +28,8 @@ const {
   getStreamTimeoutSettings,
   getRectifierSettings,
   getBetaPolicySettings,
+  getPanelRateLimitSettings,
+  updatePanelRateLimitSettings,
   getUpstreamBillingProbeSettings,
   updateUpstreamBillingProbeSettings,
   getOllamaCloudUsageSettings,
@@ -66,6 +68,14 @@ const {
   getStreamTimeoutSettings: vi.fn(),
   getRectifierSettings: vi.fn(),
   getBetaPolicySettings: vi.fn(),
+  getPanelRateLimitSettings: vi.fn().mockResolvedValue({
+    enabled: true,
+    user_rpm: 240,
+    heavy_rpm: 60,
+    exempt_admin: true,
+    public_ip_rpm: 300,
+  }),
+  updatePanelRateLimitSettings: vi.fn().mockImplementation(async (payload) => payload),
   getUpstreamBillingProbeSettings: vi.fn().mockResolvedValue({
     enabled: true,
     interval_minutes: 30,
@@ -116,6 +126,8 @@ vi.mock("@/api", () => ({
       getStreamTimeoutSettings,
       getRectifierSettings,
       getBetaPolicySettings,
+      getPanelRateLimitSettings,
+      updatePanelRateLimitSettings,
     },
     accounts: {
       getUpstreamBillingProbeSettings,
@@ -402,6 +414,7 @@ const baseSettingsResponse = {
   contact_info: "",
   doc_url: "",
   home_content: "",
+  compact_home_enabled: false,
   hide_ccs_import_button: false,
   table_default_page_size: 20,
   table_page_size_options: [10, 20, 50, 100],
@@ -800,6 +813,60 @@ describe("admin SettingsView payment visible method controls", () => {
     });
     fetchPublicSettings.mockResolvedValue(undefined);
     adminSettingsFetch.mockResolvedValue(undefined);
+  });
+
+it("submits the compact home page toggle", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
+    const toggle = wrapper.get('[data-testid="compact-home-toggle"]');
+    expect((toggle.element as HTMLInputElement).checked).toBe(false);
+
+    await toggle.setValue(true);
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ compact_home_enabled: true }),
+    );
+  });
+
+  it("renders panel rate limit card and saves settings", async () => {
+    getPanelRateLimitSettings.mockClear();
+    updatePanelRateLimitSettings.mockClear();
+    getPanelRateLimitSettings.mockResolvedValue({
+      enabled: true,
+      user_rpm: 240,
+      heavy_rpm: 60,
+      exempt_admin: true,
+      public_ip_rpm: 300,
+    });
+    updatePanelRateLimitSettings.mockImplementation(async (payload) => payload);
+
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(getPanelRateLimitSettings).toHaveBeenCalled();
+    expect(wrapper.text()).toContain("admin.settings.panelRateLimit.title");
+    expect(wrapper.text()).toContain("admin.settings.panelRateLimit.proxySafeNote");
+
+    const userRpmInput = wrapper.find('[data-testid="panel-rate-limit-user-rpm"]');
+    expect(userRpmInput.exists()).toBe(true);
+    await userRpmInput.setValue("120");
+
+    const saveButton = wrapper.find('[data-testid="panel-rate-limit-save"]');
+    expect(saveButton.exists()).toBe(true);
+    await saveButton.trigger("click");
+    await flushPromises();
+
+    expect(updatePanelRateLimitSettings).toHaveBeenCalledWith({
+      enabled: true,
+      user_rpm: 120,
+      heavy_rpm: 60,
+      exempt_admin: true,
+      public_ip_rpm: 300,
+    });
+    expect(showSuccess).toHaveBeenCalled();
   });
 
   it("does not render legacy visible payment method controls", async () => {
