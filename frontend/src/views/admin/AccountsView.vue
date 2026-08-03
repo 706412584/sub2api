@@ -1868,12 +1868,22 @@ const accountMatchesCurrentFilters = (account: Account) => {
   if (search && !account.name.toLowerCase().includes(search)) return false
   return true
 }
-const mergeRuntimeFields = (oldAccount: Account, updatedAccount: Account): Account => ({
-  ...updatedAccount,
-  current_concurrency: updatedAccount.current_concurrency ?? oldAccount.current_concurrency,
-  current_window_cost: updatedAccount.current_window_cost ?? oldAccount.current_window_cost,
-  active_sessions: updatedAccount.active_sessions ?? oldAccount.active_sessions
-})
+const mergeRuntimeFields = (oldAccount: Account, updatedAccount: Account): Account => {
+  // 刷新/恢复等局部更新若省略 groups/group_ids（omitempty 或 stub），
+  // 直接展开会把列表里的分组显示冲掉，分组筛选下还会被当成“已解绑”移除。
+  const nextGroupIds = updatedAccount.group_ids
+  const nextGroups = updatedAccount.groups
+  const hasGroupIds = Array.isArray(nextGroupIds)
+  const hasGroups = Array.isArray(nextGroups)
+  return {
+    ...updatedAccount,
+    current_concurrency: updatedAccount.current_concurrency ?? oldAccount.current_concurrency,
+    current_window_cost: updatedAccount.current_window_cost ?? oldAccount.current_window_cost,
+    active_sessions: updatedAccount.active_sessions ?? oldAccount.active_sessions,
+    group_ids: hasGroupIds ? nextGroupIds : oldAccount.group_ids,
+    groups: hasGroups ? nextGroups : oldAccount.groups
+  }
+}
 
 const syncPaginationAfterLocalRemoval = () => {
   const nextTotal = Math.max(0, pagination.total - 1)

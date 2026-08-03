@@ -56,29 +56,54 @@ type grokRefreshAdminService struct {
 	updatedCredentials map[string]any
 	clearErrorCalls    int
 	clearedID          int64
+	// lastLoaded mirrors production UpdateAccount: re-read account with groups intact.
+	lastLoaded *service.Account
 }
 
 func (s *grokRefreshAdminService) UpdateAccount(_ context.Context, id int64, input *service.UpdateAccountInput) (*service.Account, error) {
 	s.updatedCredentials = input.Credentials
-	return &service.Account{
+	// Production UpdateAccount only rebinds when input.GroupIDs != nil; credentials-only
+	// refresh must keep existing group bindings on the reloaded account.
+	out := &service.Account{
 		ID:          id,
 		Platform:    service.PlatformGrok,
 		Type:        service.AccountTypeOAuth,
 		Status:      service.StatusActive,
 		Credentials: input.Credentials,
-	}, nil
+	}
+	if s.lastLoaded != nil {
+		out.GroupIDs = append([]int64(nil), s.lastLoaded.GroupIDs...)
+		out.Groups = s.lastLoaded.Groups
+		out.Extra = s.lastLoaded.Extra
+		out.ProxyID = s.lastLoaded.ProxyID
+		if s.lastLoaded.Status != "" {
+			// status stays as stored until ClearAccountError; credentials update alone does not clear error.
+			out.Status = s.lastLoaded.Status
+		}
+	}
+	if input.GroupIDs != nil {
+		out.GroupIDs = append([]int64(nil), (*input.GroupIDs)...)
+	}
+	return out, nil
 }
 
 func (s *grokRefreshAdminService) ClearAccountError(_ context.Context, id int64) (*service.Account, error) {
 	s.clearErrorCalls++
 	s.clearedID = id
-	return &service.Account{
+	out := &service.Account{
 		ID:          id,
 		Platform:    service.PlatformGrok,
 		Type:        service.AccountTypeOAuth,
 		Status:      service.StatusActive,
 		Credentials: s.updatedCredentials,
-	}, nil
+	}
+	if s.lastLoaded != nil {
+		out.GroupIDs = append([]int64(nil), s.lastLoaded.GroupIDs...)
+		out.Groups = s.lastLoaded.Groups
+		out.Extra = s.lastLoaded.Extra
+		out.ProxyID = s.lastLoaded.ProxyID
+	}
+	return out, nil
 }
 
 func newGrokRefreshHandler(adminSvc service.AdminService, grokOAuth service.GrokOAuthTokenService) *AccountHandler {
@@ -103,17 +128,12 @@ func newGrokRefreshHandler(adminSvc service.AdminService, grokOAuth service.Grok
 func TestRefreshSingleAccountRoutesGrokThroughGrokOAuthService(t *testing.T) {
 	t.Parallel()
 
-	adminSvc := &grokRefreshAdminService{stubAdminService: newStubAdminService()}
-	grokOAuth := &grokRefreshOAuthStub{info: &service.GrokTokenInfo{
-		AccessToken:  "new-access",
-		RefreshToken: "new-refresh",
-		ExpiresAt:    1_800_000_000,
-	}}
-	handler := newGrokRefreshHandler(adminSvc, grokOAuth)
 	account := &service.Account{
 		ID:       4227,
 		Platform: service.PlatformGrok,
 		Type:     service.AccountTypeOAuth,
+		GroupIDs: []int64{2},
+		Groups:   []*service.Group{{ID: 2, Name: "g2"}},
 		Credentials: map[string]any{
 			"access_token":       "old-access",
 			"refresh_token":      "old-refresh",
@@ -122,6 +142,16 @@ func TestRefreshSingleAccountRoutesGrokThroughGrokOAuthService(t *testing.T) {
 			"entitlement_status": "ACTIVE",
 		},
 	}
+	adminSvc := &grokRefreshAdminService{
+		stubAdminService: newStubAdminService(),
+		lastLoaded:       account,
+	}
+	grokOAuth := &grokRefreshOAuthStub{info: &service.GrokTokenInfo{
+		AccessToken:  "new-access",
+		RefreshToken: "new-refresh",
+		ExpiresAt:    1_800_000_000,
+	}}
+	handler := newGrokRefreshHandler(adminSvc, grokOAuth)
 
 	updated, warning, err := handler.refreshSingleAccount(context.Background(), account)
 	require.NoError(t, err)
@@ -136,28 +166,23 @@ func TestRefreshSingleAccountRoutesGrokThroughGrokOAuthService(t *testing.T) {
 	require.Equal(t, "SUPER_GROK", adminSvc.updatedCredentials["subscription_tier"])
 	require.Equal(t, "ACTIVE", adminSvc.updatedCredentials["entitlement_status"])
 	require.Equal(t, adminSvc.updatedCredentials, updated.Credentials)
+	require.Equal(t, []int64{2}, updated.GroupIDs)
+	require.Len(t, updated.Groups, 1)
 }
 
 func TestRefreshSingleAccountGrokFallsBackToSSOAndClearsError(t *testing.T) {
 	t.Parallel()
 
 	proxyID := int64(5)
-	adminSvc := &grokRefreshAdminService{stubAdminService: newStubAdminService()}
-	grokOAuth := &grokRefreshOAuthStub{
-		refreshErr: errors.New("refresh token revoked"),
-		ssoInfo: &service.GrokTokenInfo{
-			AccessToken:  "sso-access",
-			RefreshToken: "sso-refresh",
-			ExpiresAt:    1_900_000_000,
-		},
-	}
-	handler := newGrokRefreshHandler(adminSvc, grokOAuth)
+	group := &service.Group{ID: 11, Name: "grok801"}
 	account := &service.Account{
 		ID:       1949,
 		Platform: service.PlatformGrok,
 		Type:     service.AccountTypeOAuth,
 		Status:   service.StatusError,
 		ProxyID:  &proxyID,
+		GroupIDs: []int64{11},
+		Groups:   []*service.Group{group},
 		Credentials: map[string]any{
 			"access_token":  "old-access",
 			"refresh_token": "revoked-refresh",
@@ -167,6 +192,19 @@ func TestRefreshSingleAccountGrokFallsBackToSSOAndClearsError(t *testing.T) {
 			"sso": "sso-session-token",
 		},
 	}
+	adminSvc := &grokRefreshAdminService{
+		stubAdminService: newStubAdminService(),
+		lastLoaded:       account,
+	}
+	grokOAuth := &grokRefreshOAuthStub{
+		refreshErr: errors.New("refresh token revoked"),
+		ssoInfo: &service.GrokTokenInfo{
+			AccessToken:  "sso-access",
+			RefreshToken: "sso-refresh",
+			ExpiresAt:    1_900_000_000,
+		},
+	}
+	handler := newGrokRefreshHandler(adminSvc, grokOAuth)
 
 	updated, warning, err := handler.refreshSingleAccount(context.Background(), account)
 	require.NoError(t, err)
@@ -183,6 +221,10 @@ func TestRefreshSingleAccountGrokFallsBackToSSOAndClearsError(t *testing.T) {
 	require.Equal(t, "https://example.invalid/v1", adminSvc.updatedCredentials["base_url"])
 	require.Equal(t, service.StatusActive, updated.Status)
 	require.Equal(t, adminSvc.updatedCredentials, updated.Credentials)
+	// credentials-only refresh must not clear group bindings
+	require.Equal(t, []int64{11}, updated.GroupIDs)
+	require.Len(t, updated.Groups, 1)
+	require.Equal(t, int64(11), updated.Groups[0].ID)
 }
 
 func TestRefreshSingleAccountGrokRefreshFailureWithoutSSO(t *testing.T) {

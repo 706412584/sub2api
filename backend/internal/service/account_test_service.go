@@ -51,6 +51,8 @@ type TestEvent struct {
 	Data     any    `json:"data,omitempty"`
 	Success  bool   `json:"success,omitempty"`
 	Error    string `json:"error,omitempty"`
+	// LatencyMs is filled on terminal events (test_complete / error) when available.
+	LatencyMs int64 `json:"latency_ms,omitempty"`
 }
 
 const (
@@ -74,6 +76,38 @@ type TestProxyOverride struct {
 }
 
 type testProxyOverrideContextKey struct{}
+type testStartedAtContextKey struct{}
+
+// WithTestProxyOverride temporarily changes the outbound proxy for an account
+// test without persisting account.proxy_id. Nil override is a no-op.
+func WithTestProxyOverride(ctx context.Context, override *TestProxyOverride) context.Context {
+	return withTestProxyOverride(ctx, override)
+}
+
+func withTestStartedAt(ctx context.Context, startedAt time.Time) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if startedAt.IsZero() {
+		startedAt = time.Now()
+	}
+	return context.WithValue(ctx, testStartedAtContextKey{}, startedAt)
+}
+
+func testLatencyMs(ctx context.Context) int64 {
+	if ctx == nil {
+		return 0
+	}
+	startedAt, ok := ctx.Value(testStartedAtContextKey{}).(time.Time)
+	if !ok || startedAt.IsZero() {
+		return 0
+	}
+	ms := time.Since(startedAt).Milliseconds()
+	if ms < 0 {
+		return 0
+	}
+	return ms
+}
 
 // AccountTestService handles account testing operations
 type AccountTestService struct {
@@ -247,6 +281,11 @@ func createTestPayload(modelID string) (map[string]any, error) {
 // mode is optional - "compact" routes OpenAI accounts to the /responses/compact probe path
 func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int64, modelID string, prompt string, mode string) error {
 	ctx := c.Request.Context()
+	startedAt := time.Now()
+	ctx = withTestStartedAt(ctx, startedAt)
+	if c.Request != nil {
+		c.Request = c.Request.WithContext(ctx)
+	}
 
 	// Get account
 	account, err := s.accountRepo.GetByID(ctx, accountID)
@@ -1530,7 +1569,12 @@ func (s *AccountTestService) processGeminiStream(c *gin.Context, body io.Reader)
 						for _, part := range parts {
 							if partMap, ok := part.(map[string]any); ok {
 								if text, ok := partMap["text"].(string); ok && text != "" {
-									s.sendEvent(c, TestEvent{Type: "content", Text: text})
+									// Gemini thought parts use thought=true on the same text field.
+									if thought, _ := partMap["thought"].(bool); thought {
+										s.sendEvent(c, TestEvent{Type: "thinking", Text: text})
+									} else {
+										s.sendEvent(c, TestEvent{Type: "content", Text: text})
+									}
 								}
 								if inlineData, ok := partMap["inlineData"].(map[string]any); ok {
 									mimeType, _ := inlineData["mimeType"].(string)
@@ -1649,8 +1693,11 @@ func (s *AccountTestService) processClaudeStream(c *gin.Context, body io.Reader)
 		switch eventType {
 		case "content_block_delta":
 			if delta, ok := data["delta"].(map[string]any); ok {
-				if text, ok := delta["text"].(string); ok {
+				if text, ok := delta["text"].(string); ok && text != "" {
 					s.sendEvent(c, TestEvent{Type: "content", Text: text})
+				}
+				if thinking, ok := delta["thinking"].(string); ok && thinking != "" {
+					s.sendEvent(c, TestEvent{Type: "thinking", Text: thinking})
 				}
 			}
 		case "message_stop":
@@ -1731,10 +1778,19 @@ func (s *AccountTestService) processOpenAIChatCompletionsStream(c *gin.Context, 
 				if text, ok := delta["content"].(string); ok && text != "" {
 					s.sendEvent(c, TestEvent{Type: "content", Text: text})
 				}
+				if reasoning, ok := delta["reasoning_content"].(string); ok && reasoning != "" {
+					s.sendEvent(c, TestEvent{Type: "thinking", Text: reasoning})
+				}
+				if reasoning, ok := delta["reasoning"].(string); ok && reasoning != "" {
+					s.sendEvent(c, TestEvent{Type: "thinking", Text: reasoning})
+				}
 			}
 			if message, ok := choice["message"].(map[string]any); ok {
 				if text, ok := message["content"].(string); ok && text != "" {
 					s.sendEvent(c, TestEvent{Type: "content", Text: text})
+				}
+				if reasoning, ok := message["reasoning_content"].(string); ok && reasoning != "" {
+					s.sendEvent(c, TestEvent{Type: "thinking", Text: reasoning})
 				}
 			}
 			if finishReason, ok := choice["finish_reason"].(string); ok && finishReason != "" {
@@ -1788,6 +1844,10 @@ func (s *AccountTestService) processOpenAIStream(c *gin.Context, body io.Reader)
 			// OpenAI Responses API uses "delta" field for text content
 			if delta, ok := data["delta"].(string); ok && delta != "" {
 				s.sendEvent(c, TestEvent{Type: "content", Text: delta})
+			}
+		case "response.reasoning_summary_text.delta", "response.reasoning_text.delta":
+			if delta, ok := data["delta"].(string); ok && delta != "" {
+				s.sendEvent(c, TestEvent{Type: "thinking", Text: delta})
 			}
 		case "response.completed", "response.done":
 			s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
@@ -2031,6 +2091,9 @@ func (s *AccountTestService) testOpenAIImageOAuth(c *gin.Context, ctx context.Co
 }
 
 func (s *AccountTestService) sendEvent(c *gin.Context, event TestEvent) {
+	if (event.Type == "test_complete" || event.Type == "error") && event.LatencyMs == 0 && c != nil && c.Request != nil {
+		event.LatencyMs = testLatencyMs(c.Request.Context())
+	}
 	eventJSON, _ := json.Marshal(event)
 	if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", eventJSON); err != nil {
 		log.Printf("failed to write SSE event: %v", err)
@@ -2096,7 +2159,7 @@ func parseTestSSEOutput(body string) (responseText, errMsg string) {
 			continue
 		}
 		switch event.Type {
-		case "content":
+		case "content", "thinking":
 			if event.Text != "" {
 				texts = append(texts, event.Text)
 			}

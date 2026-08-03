@@ -1076,6 +1076,11 @@ type TestAccountRequest struct {
 	ModelID string `json:"model_id"`
 	Prompt  string `json:"prompt"`
 	Mode    string `json:"mode"`
+	// OverrideProxyID temporarily forces the outbound proxy for this single test only.
+	// nil/omitted: keep the account's bound proxy.
+	// 0: force direct (no proxy).
+	// >0: use that proxy from IP management.
+	OverrideProxyID *int64 `json:"override_proxy_id"`
 }
 
 type BatchTestAccountsRequest struct {
@@ -1147,6 +1152,20 @@ func (h *AccountHandler) Test(c *gin.Context) {
 	var req TestAccountRequest
 	// Allow empty body, model_id is optional
 	_ = c.ShouldBindJSON(&req)
+
+	if h.accountTestService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Account test service unavailable")
+		return
+	}
+
+	proxyOverride, err := resolveBatchTestProxyOverride(c.Request.Context(), h.adminService, req.OverrideProxyID)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	if proxyOverride != nil {
+		c.Request = c.Request.WithContext(service.WithTestProxyOverride(c.Request.Context(), proxyOverride))
+	}
 
 	// Use AccountTestService to test the account with SSE streaming
 	if err := h.accountTestService.TestAccountConnection(c, accountID, req.ModelID, req.Prompt, req.Mode); err != nil {
