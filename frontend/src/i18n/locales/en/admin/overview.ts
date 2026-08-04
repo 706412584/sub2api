@@ -1080,6 +1080,12 @@ export default {
         fallbackHint: 'Non-Claude Code requests will use this group. Leave empty to reject directly.',
         noFallback: 'No Fallback (Reject)'
       },
+      grokMessages: {
+        title: 'Anthropic Messages Upstream Protocol',
+        responses: 'Responses (default native)',
+        chatCompletions: 'Chat Completions (optional: visible thinking)',
+        hint: 'Only affects native /v1/messages for this Grok group. Default is native Responses; choose Chat Completions only when you need visible thinking conversion.'
+      },
       openaiMessages: {
         title: 'OpenAI Messages Dispatch',
         allowDispatch: 'Allow /v1/messages dispatch',

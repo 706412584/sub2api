@@ -285,6 +285,11 @@ func DefaultMappedModel(v string) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldDefaultMappedModel, v))
 }
 
+// GrokMessagesProtocol applies equality check predicate on the "grok_messages_protocol" field. It's identical to GrokMessagesProtocolEQ.
+func GrokMessagesProtocol(v string) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldGrokMessagesProtocol, v))
+}
+
 // RpmLimit applies equality check predicate on the "rpm_limit" field. It's identical to RpmLimitEQ.
 func RpmLimit(v int) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldRpmLimit, v))
@@ -2138,6 +2143,71 @@ func DefaultMappedModelEqualFold(v string) predicate.Group {
 // DefaultMappedModelContainsFold applies the ContainsFold predicate on the "default_mapped_model" field.
 func DefaultMappedModelContainsFold(v string) predicate.Group {
 	return predicate.Group(sql.FieldContainsFold(FieldDefaultMappedModel, v))
+}
+
+// GrokMessagesProtocolEQ applies the EQ predicate on the "grok_messages_protocol" field.
+func GrokMessagesProtocolEQ(v string) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldGrokMessagesProtocol, v))
+}
+
+// GrokMessagesProtocolNEQ applies the NEQ predicate on the "grok_messages_protocol" field.
+func GrokMessagesProtocolNEQ(v string) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldGrokMessagesProtocol, v))
+}
+
+// GrokMessagesProtocolIn applies the In predicate on the "grok_messages_protocol" field.
+func GrokMessagesProtocolIn(vs ...string) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldGrokMessagesProtocol, vs...))
+}
+
+// GrokMessagesProtocolNotIn applies the NotIn predicate on the "grok_messages_protocol" field.
+func GrokMessagesProtocolNotIn(vs ...string) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldGrokMessagesProtocol, vs...))
+}
+
+// GrokMessagesProtocolGT applies the GT predicate on the "grok_messages_protocol" field.
+func GrokMessagesProtocolGT(v string) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldGrokMessagesProtocol, v))
+}
+
+// GrokMessagesProtocolGTE applies the GTE predicate on the "grok_messages_protocol" field.
+func GrokMessagesProtocolGTE(v string) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldGrokMessagesProtocol, v))
+}
+
+// GrokMessagesProtocolLT applies the LT predicate on the "grok_messages_protocol" field.
+func GrokMessagesProtocolLT(v string) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldGrokMessagesProtocol, v))
+}
+
+// GrokMessagesProtocolLTE applies the LTE predicate on the "grok_messages_protocol" field.
+func GrokMessagesProtocolLTE(v string) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldGrokMessagesProtocol, v))
+}
+
+// GrokMessagesProtocolContains applies the Contains predicate on the "grok_messages_protocol" field.
+func GrokMessagesProtocolContains(v string) predicate.Group {
+	return predicate.Group(sql.FieldContains(FieldGrokMessagesProtocol, v))
+}
+
+// GrokMessagesProtocolHasPrefix applies the HasPrefix predicate on the "grok_messages_protocol" field.
+func GrokMessagesProtocolHasPrefix(v string) predicate.Group {
+	return predicate.Group(sql.FieldHasPrefix(FieldGrokMessagesProtocol, v))
+}
+
+// GrokMessagesProtocolHasSuffix applies the HasSuffix predicate on the "grok_messages_protocol" field.
+func GrokMessagesProtocolHasSuffix(v string) predicate.Group {
+	return predicate.Group(sql.FieldHasSuffix(FieldGrokMessagesProtocol, v))
+}
+
+// GrokMessagesProtocolEqualFold applies the EqualFold predicate on the "grok_messages_protocol" field.
+func GrokMessagesProtocolEqualFold(v string) predicate.Group {
+	return predicate.Group(sql.FieldEqualFold(FieldGrokMessagesProtocol, v))
+}
+
+// GrokMessagesProtocolContainsFold applies the ContainsFold predicate on the "grok_messages_protocol" field.
+func GrokMessagesProtocolContainsFold(v string) predicate.Group {
+	return predicate.Group(sql.FieldContainsFold(FieldGrokMessagesProtocol, v))
 }
 
 // RpmLimitEQ applies the EQ predicate on the "rpm_limit" field.

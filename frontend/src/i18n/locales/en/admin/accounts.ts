@@ -553,7 +553,7 @@ export default {
         intervalSeconds: 'Start interval (seconds)',
         intervalSecondsHint: 'Delay between starting consecutive tests. 0 means no extra wait. Defaults to 5s when Grok is included.',
         concurrency: 'Concurrency',
-        concurrencyHint: 'Accounts tested at the same time. Default 5, max 5.',
+        concurrencyHint: 'Accounts tested at the same time. Default 5, max 50.',
         concurrencyGrokHint: 'Defaults to serial (1) when Grok is included to reduce upstream bursts.',
         compactMode: 'OpenAI compact mode',
         compactModeHint: 'Available only when every target account is OpenAI. Uses /responses/compact.',

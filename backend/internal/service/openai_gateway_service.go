@@ -417,7 +417,7 @@ type OpenAIGatewayService struct {
 	userPlatformQuotaRepo UserPlatformQuotaRepository
 	liveAttestation       liveattestation.Provider
 	liveAttestationCipher SecretEncryptor
-	// Optional Grok reasoning quality marks (proxy_id keyed) for soft LB deprioritization.
+	// Optional Grok reasoning quality marks (account_id keyed) for soft LB deprioritization.
 	grokReasoningQualityMarks GrokReasoningQualityMarkStore
 
 	openaiWSPoolOnce               sync.Once
@@ -454,7 +454,7 @@ type OpenAIGatewayService struct {
 
 // NewOpenAIGatewayService creates a new OpenAIGatewayService
 
-// SetGrokReasoningQualityMarkStore injects optional proxy reasoning quality marks for soft scheduling.
+// SetGrokReasoningQualityMarkStore injects optional account reasoning quality marks for soft scheduling.
 func (s *OpenAIGatewayService) SetGrokReasoningQualityMarkStore(store GrokReasoningQualityMarkStore) {
 	if s == nil {
 		return

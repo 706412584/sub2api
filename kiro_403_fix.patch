@@ -1,0 +1,457 @@
+diff --git a/backend/internal/handler/admin/account_kiro_import.go b/backend/internal/handler/admin/account_kiro_import.go
+index 9aefa63e..c912ffcc 100644
+--- a/backend/internal/handler/admin/account_kiro_import.go
++++ b/backend/internal/handler/admin/account_kiro_import.go
+@@ -71,6 +71,7 @@ type kiroAccountData struct {
+ 	Scopes                        []string       `json:"scopes"`
+ 	StartURL                      string         `json:"start_url"`
+ 	ExpiresAt                     int64          `json:"expires_at"`
++	MachineID                     string         `json:"machine_id"`
+ 	SubscriptionType              string         `json:"subscription_type"`
+ 	SubscriptionTitle             string         `json:"subscription_title"`
+ 	SubscriptionRawType           string         `json:"subscription_raw_type"`
+@@ -124,6 +125,7 @@ func (h *AccountHandler) ImportKiroAccounts(c *gin.Context) {
+ //   - Single Kiro account object
+ //   - Array of Kiro account objects
+ //   - Kiro Account Manager wrapped data (with "accounts" key)
++//   - Single-account wrapped data (with "account" key)
+ //   - Enterprise external_idp JSON
+ func parseKiroImportData(data any) ([]kiroAccountData, error) {
+ 	jsonBytes, err := json.Marshal(data)
+@@ -160,7 +162,7 @@ func parseKiroImportValue(value any) ([]kiroAccountData, error) {
+ 		if account, ok := kiroAccountFromMap(v); ok {
+ 			return []kiroAccountData{account}, nil
+ 		}
+-		for _, key := range []string{"data", "items", "accounts"} {
++		for _, key := range []string{"data", "account", "accounts", "items"} {
+ 			if nested, ok := v[key]; ok {
+ 				return parseKiroImportValue(nested)
+ 			}
+@@ -174,7 +176,7 @@ func kiroAccountFromMap(raw map[string]any) (kiroAccountData, bool) {
+ 	if credentials, ok := raw["credentials"].(map[string]any); ok {
+ 		sources = append([]map[string]any{credentials}, sources...)
+ 	}
+-	if externalIDP, ok := raw["external_idp"].(map[string]any); ok {
++	if externalIDP, ok := readKiroRecord(raw, "external_idp", "externalIdp", "externalIDP"); ok {
+ 		sources = append(sources, externalIDP)
+ 	}
+ 
+@@ -194,9 +196,10 @@ func kiroAccountFromMap(raw map[string]any) (kiroAccountData, bool) {
+ 		Scopes:        readKiroScopes(sources, "scopes", "scope"),
+ 		StartURL:      readKiroString(sources, "startUrl", "start_url"),
+ 		ExpiresAt:     readKiroInt64(sources, "expiresAt", "expires_at"),
++		MachineID:     readKiroString(sources, "machineId", "machine_id"),
+ 		RawData:       raw,
+ 	}
+-	if externalIDP, ok := raw["external_idp"].(map[string]any); ok {
++	if externalIDP, ok := readKiroRecord(raw, "external_idp", "externalIdp", "externalIDP"); ok {
+ 		account.ExternalIDP = externalIDP
+ 	}
+ 	if account.Region == "" {
+@@ -205,7 +208,7 @@ func kiroAccountFromMap(raw map[string]any) (kiroAccountData, bool) {
+ 	if account.AuthMethod == "" {
+ 		account.AuthMethod = inferKiroAuthMethod(account)
+ 	}
+-	if subscription, ok := raw["subscription"].(map[string]any); ok {
++	if subscription, ok := readKiroRecord(raw, "subscription"); ok {
+ 		account.SubscriptionType = readKiroString([]map[string]any{subscription}, "type")
+ 		account.SubscriptionTitle = readKiroString([]map[string]any{subscription}, "title")
+ 		account.SubscriptionRawType = readKiroString([]map[string]any{subscription}, "rawType", "raw_type")
+@@ -213,13 +216,13 @@ func kiroAccountFromMap(raw map[string]any) (kiroAccountData, bool) {
+ 		account.SubscriptionExpiresAt = readKiroInt64([]map[string]any{subscription}, "expiresAt", "expires_at")
+ 		account.SubscriptionOverageCapability = readKiroString([]map[string]any{subscription}, "overageCapability", "overage_capability")
+ 	}
+-	if usage, ok := raw["usage"].(map[string]any); ok {
++	if usage, ok := readKiroRecord(raw, "usage", "quota", "quotaUsage", "quota_usage"); ok {
+ 		account.UsageCurrent = readKiroFloat64([]map[string]any{usage}, "current")
+ 		account.UsageLimit = readKiroFloat64([]map[string]any{usage}, "limit")
+ 		account.UsagePercentUsed = readKiroFloat64([]map[string]any{usage}, "percentUsed", "percent_used")
+ 		account.UsageBaseLimit = readKiroFloat64([]map[string]any{usage}, "baseLimit", "base_limit")
+ 		account.UsageNextResetDate = readKiroString([]map[string]any{usage}, "nextResetDate", "next_reset_date")
+-		if resourceDetail, ok := usage["resourceDetail"].(map[string]any); ok {
++		if resourceDetail, ok := readKiroRecord(usage, "resourceDetail", "resource_detail"); ok {
+ 			account.UsageOverageEnabled = readKiroBool([]map[string]any{resourceDetail}, "overageEnabled", "overage_enabled")
+ 			account.UsageOverageCap = readKiroFloat64([]map[string]any{resourceDetail}, "overageCap", "overage_cap")
+ 			account.UsageOverageRate = readKiroFloat64([]map[string]any{resourceDetail}, "overageRate", "overage_rate")
+@@ -232,6 +235,15 @@ func kiroAccountFromMap(raw map[string]any) (kiroAccountData, bool) {
+ 	return account, account.RefreshToken != "" || account.AccessToken != "" || account.ClientID != "" || account.ExternalIDP != nil
+ }
+ 
++func readKiroRecord(source map[string]any, keys ...string) (map[string]any, bool) {
++	for _, key := range keys {
++		if value, ok := source[key].(map[string]any); ok {
++			return value, true
++		}
++	}
++	return nil, false
++}
++
+ func readKiroString(sources []map[string]any, keys ...string) string {
+ 	for _, source := range sources {
+ 		for _, key := range keys {
+@@ -450,6 +462,9 @@ func (h *AccountHandler) importKiroAccounts(ctx context.Context, req KiroImportR
+ 		if account.ExpiresAt > 0 {
+ 			credentials["expires_at"] = account.ExpiresAt
+ 		}
++		if account.MachineID != "" {
++			credentials["machine_id"] = account.MachineID
++		}
+ 		if account.ExternalIDP != nil {
+ 			credentials["external_idp"] = account.ExternalIDP
+ 		}
+diff --git a/backend/internal/handler/admin/account_kiro_import_test.go b/backend/internal/handler/admin/account_kiro_import_test.go
+index 5ac1dcc4..1b084ca6 100644
+--- a/backend/internal/handler/admin/account_kiro_import_test.go
++++ b/backend/internal/handler/admin/account_kiro_import_test.go
+@@ -67,6 +67,36 @@ func TestParseKiroImportDataSupportsExternalIDPEnvelope(t *testing.T) {
+ 	require.NotNil(t, accounts[0].ExternalIDP)
+ }
+ 
++func TestParseKiroImportDataSupportsSingleAccountFixedKeys(t *testing.T) {
++	input := map[string]any{
++		"account": map[string]any{
++			"clientId":     "cid",
++			"clientSecret": "secret",
++			"email":        "alexander@example.com",
++			"platform":     "kiro",
++			"provider":     "BuilderId",
++			"refreshToken": "rt",
++			"region":       "us-east-1",
++			"machineId":    "abcdef123456",
++			"subscription": map[string]any{
++				"type": "Pro+",
++			},
++		},
++	}
++
++	accounts, err := parseKiroImportData(input)
++	require.NoError(t, err)
++	require.Len(t, accounts, 1)
++	require.Equal(t, "alexander@example.com", accounts[0].Email)
++	require.Equal(t, "cid", accounts[0].ClientID)
++	require.Equal(t, "secret", accounts[0].ClientSecret)
++	require.Equal(t, "rt", accounts[0].RefreshToken)
++	require.Equal(t, "BuilderId", accounts[0].Provider)
++	require.Equal(t, "idc", accounts[0].AuthMethod)
++	require.Equal(t, "abcdef123456", accounts[0].MachineID)
++	require.Equal(t, "Pro+", accounts[0].SubscriptionType)
++}
++
+ func TestParseKiroImportDataPreservesSubscriptionAndUsageMetadata(t *testing.T) {
+ 	input := map[string]any{
+ 		"accounts": []any{
+diff --git a/backend/internal/service/account_test_service.go b/backend/internal/service/account_test_service.go
+index 032c13b1..2e5c91ea 100644
+--- a/backend/internal/service/account_test_service.go
++++ b/backend/internal/service/account_test_service.go
+@@ -22,6 +22,7 @@ import (
+ 	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
+ 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
+ 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
++	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
+ 	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
+ 	"github.com/gin-gonic/gin"
+ 	"github.com/google/uuid"
+@@ -34,6 +35,8 @@ var sseDataPrefix = regexp.MustCompile(`^data:\s*`)
+ const (
+ 	testClaudeAPIURL   = "https://api.anthropic.com/v1/messages?beta=true"
+ 	chatgptCodexAPIURL = "https://chatgpt.com/backend-api/codex/responses"
++	kiroNativeUA       = "aws-sdk-js/1.0.36 ua/2.1 os/darwin#24.6.0 lang/js md/nodejs#22.22.0 api/codewhispererstreaming#1.0.36 m/E KiroIDE-0.12.200"
++	kiroNativeAmzUA    = "aws-sdk-js/1.0.36 KiroIDE-0.12.200"
+ )
+ 
+ // TestEvent represents a SSE event for account testing
+@@ -192,9 +195,161 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
+ 		return s.routeAntigravityTest(c, account, modelID, prompt)
+ 	}
+ 
++	if account.Platform == PlatformKiro {
++		return s.testKiroAccountConnection(c, account, modelID, prompt)
++	}
++
+ 	return s.testClaudeAccountConnection(c, account, modelID)
+ }
+ 
++func (s *AccountTestService) testKiroAccountConnection(c *gin.Context, account *Account, modelID string, prompt string) error {
++	ctx := c.Request.Context()
++
++	testModelID := normalizeKiroTestModelID(modelID)
++	if prompt == "" {
++		prompt = "Say hello in one word"
++	}
++
++	authToken := strings.TrimSpace(account.GetCredential("access_token"))
++	if authToken == "" {
++		tokenInfo, err := RefreshKiroAccountToken(ctx, account)
++		if err != nil {
++			return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to refresh Kiro token: %s", err.Error()))
++		}
++		authToken = strings.TrimSpace(tokenInfo.AccessToken)
++	}
++	if authToken == "" {
++		return s.sendErrorAndEnd(c, "No Kiro access token available")
++	}
++
++	c.Writer.Header().Set("Content-Type", "text/event-stream")
++	c.Writer.Header().Set("Cache-Control", "no-cache")
++	c.Writer.Header().Set("Connection", "keep-alive")
++	c.Writer.Header().Set("X-Accel-Buffering", "no")
++	c.Writer.Flush()
++
++	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
++
++	payload := createKiroTestPayload(testModelID, prompt, account.GetCredential("profile_arn"))
++	payloadBytes, err := json.Marshal(payload)
++	if err != nil {
++		return s.sendErrorAndEnd(c, "Failed to create Kiro request payload")
++	}
++
++	region := strings.TrimSpace(account.GetCredential("region"))
++	if region == "" {
++		region = "us-east-1"
++	}
++	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("https://q.%s.amazonaws.com/generateAssistantResponse", region), bytes.NewReader(payloadBytes))
++	if err != nil {
++		return s.sendErrorAndEnd(c, "Failed to create Kiro request")
++	}
++	applyKiroNativeTestHeaders(req, authToken, account.GetCredential("machine_id"))
++
++	proxyURL := ""
++	if account.ProxyID != nil && account.Proxy != nil {
++		proxyURL = account.Proxy.URL()
++	}
++
++	var tlsProfile *tlsfingerprint.Profile
++	if s.tlsFPProfileService != nil {
++		tlsProfile = s.tlsFPProfileService.ResolveTLSProfile(account)
++	}
++	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, tlsProfile)
++	if err != nil {
++		return s.sendErrorAndEnd(c, fmt.Sprintf("Kiro request failed: %s", err.Error()))
++	}
++	defer func() { _ = resp.Body.Close() }()
++
++	if resp.StatusCode != http.StatusOK {
++		body, _ := io.ReadAll(resp.Body)
++		errMsg := fmt.Sprintf("Kiro API returned %d: %s", resp.StatusCode, string(body))
++		if resp.StatusCode == http.StatusForbidden {
++			_ = s.accountRepo.SetError(ctx, account.ID, errMsg)
++		}
++		return s.sendErrorAndEnd(c, errMsg)
++	}
++
++	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
++	s.sendEvent(c, TestEvent{Type: "content", Text: "Kiro request accepted"})
++	s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
++	return nil
++}
++
++func normalizeKiroTestModelID(modelID string) string {
++	normalized := strings.ToLower(strings.TrimSpace(modelID))
++	if normalized == "" {
++		return "claude-sonnet-4.6"
++	}
++	if strings.Contains(normalized, "opus") {
++		return "claude-opus-4.7"
++	}
++	if strings.Contains(normalized, "haiku") {
++		return "claude-haiku-4.5"
++	}
++	if strings.Contains(normalized, "sonnet") {
++		return "claude-sonnet-4.6"
++	}
++	return strings.TrimSpace(modelID)
++}
++
++func createKiroTestPayload(modelID string, prompt string, profileARN string) map[string]any {
++	payload := map[string]any{
++		"conversationState": map[string]any{
++			"chatTriggerType": "MANUAL",
++			"agentTaskType":   "vibe",
++			"currentMessage": map[string]any{
++				"userInputMessage": map[string]any{
++					"content":                 prompt,
++					"modelId":                 modelID,
++					"origin":                  "AI_EDITOR",
++					"userInputMessageContext": map[string]any{},
++				},
++			},
++			"history": []any{},
++		},
++	}
++	if strings.TrimSpace(profileARN) != "" {
++		payload["profileArn"] = strings.TrimSpace(profileARN)
++	}
++	return payload
++}
++
++func applyKiroNativeTestHeaders(req *http.Request, token string, machineID string) {
++	trimmedMachineID := trimKiroMachineID(machineID)
++	req.Header.Set("Authorization", "Bearer "+token)
++	req.Header.Set("Content-Type", "application/json")
++	req.Header.Set("Accept", "*/*")
++	req.Header.Set("User-Agent", kiroNativeUserAgent(trimmedMachineID))
++	req.Header.Set("x-amz-user-agent", kiroNativeAmzUserAgent(trimmedMachineID))
++	req.Header.Set("x-amzn-codewhisperer-optout", "true")
++	req.Header.Set("x-amzn-kiro-agent-mode", "vibe")
++	req.Header.Set("Amz-Sdk-Invocation-Id", uuid.NewString())
++	req.Header.Set("Amz-Sdk-Request", "attempt=1; max=3")
++}
++
++func kiroNativeUserAgent(machineID string) string {
++	if machineID == "" {
++		return kiroNativeUA
++	}
++	return kiroNativeUA + "-" + machineID
++}
++
++func kiroNativeAmzUserAgent(machineID string) string {
++	if machineID == "" {
++		return kiroNativeAmzUA
++	}
++	return kiroNativeAmzUA + "-" + machineID
++}
++
++func trimKiroMachineID(raw string) string {
++	raw = strings.TrimSpace(raw)
++	if len(raw) > 64 {
++		return raw[:64]
++	}
++	return raw
++}
++
+ // testClaudeAccountConnection tests an Anthropic Claude account's connection
+ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account *Account, modelID string) error {
+ 	ctx := c.Request.Context()
+diff --git a/backend/internal/service/account_test_service_kiro_test.go b/backend/internal/service/account_test_service_kiro_test.go
+new file mode 100644
+index 00000000..c83b2e4b
+--- /dev/null
++++ b/backend/internal/service/account_test_service_kiro_test.go
+@@ -0,0 +1,62 @@
++package service
++
++import (
++	"bytes"
++	"io"
++	"net/http"
++	"net/http/httptest"
++	"testing"
++
++	"github.com/gin-gonic/gin"
++	"github.com/stretchr/testify/require"
++	"github.com/tidwall/gjson"
++)
++
++func TestAccountTestService_TestAccountConnection_KiroUsesNativeEndpoint(t *testing.T) {
++	gin.SetMode(gin.TestMode)
++
++	account := Account{
++		ID:          42,
++		Name:        "kiro-oauth",
++		Platform:    PlatformKiro,
++		Type:        AccountTypeOAuth,
++		Status:      StatusActive,
++		Schedulable: true,
++		Concurrency: 1,
++		Credentials: map[string]any{
++			"access_token": "kiro-access-token",
++			"region":       "us-east-1",
++			"machine_id":   "abcdef123456",
++		},
++	}
++	repo := stubOpenAIAccountRepo{accounts: []Account{account}}
++	upstream := &httpUpstreamRecorder{resp: &http.Response{
++		StatusCode: http.StatusOK,
++		Header:     http.Header{"Content-Type": []string{"application/vnd.amazon.eventstream"}},
++		Body:       io.NopCloser(bytes.NewReader([]byte("eventstream"))),
++	}}
++	svc := &AccountTestService{
++		accountRepo:  repo,
++		httpUpstream: upstream,
++	}
++
++	rec := httptest.NewRecorder()
++	c, _ := gin.CreateTestContext(rec)
++	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/42/test", bytes.NewReader(nil))
++
++	err := svc.TestAccountConnection(c, account.ID, "claude-sonnet-4-5-20250929", "", AccountTestModeDefault)
++	require.NoError(t, err)
++
++	require.Equal(t, "https://q.us-east-1.amazonaws.com/generateAssistantResponse", upstream.lastReq.URL.String())
++	require.Equal(t, "Bearer kiro-access-token", upstream.lastReq.Header.Get("Authorization"))
++	require.Equal(t, "application/json", upstream.lastReq.Header.Get("Content-Type"))
++	require.Equal(t, "vibe", upstream.lastReq.Header.Get("x-amzn-kiro-agent-mode"))
++	require.Equal(t, "true", upstream.lastReq.Header.Get("x-amzn-codewhisperer-optout"))
++	require.NotEmpty(t, upstream.lastReq.Header.Get("Amz-Sdk-Invocation-Id"))
++	require.Contains(t, upstream.lastReq.Header.Get("User-Agent"), "KiroIDE-")
++	require.Contains(t, upstream.lastReq.Header.Get("User-Agent"), "abcdef123456")
++	require.Empty(t, upstream.lastReq.Header.Get("anthropic-version"))
++	require.Equal(t, "claude-sonnet-4.6", gjson.GetBytes(upstream.lastBody, "conversationState.currentMessage.userInputMessage.modelId").String())
++	require.Equal(t, "AI_EDITOR", gjson.GetBytes(upstream.lastBody, "conversationState.currentMessage.userInputMessage.origin").String())
++	require.Contains(t, rec.Body.String(), `"type":"test_complete"`)
++}
+diff --git a/frontend/src/views/admin/AccountsView.vue b/frontend/src/views/admin/AccountsView.vue
+index f0967398..59aba6c6 100644
+--- a/frontend/src/views/admin/AccountsView.vue
++++ b/frontend/src/views/admin/AccountsView.vue
+@@ -262,7 +262,7 @@
+                 class="flex flex-wrap items-center gap-1 pl-0.5 text-[11px] leading-4 text-slate-600 dark:text-slate-300"
+                 :title="getKiroMeta(row)?.title"
+               >
+-                <span class="rounded bg-indigo-50 px-1.5 py-0.5 font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200">
++                <span :class="['rounded px-1.5 py-0.5 font-medium', getKiroMeta(row)?.subscriptionClass]">
+                   {{ getKiroMeta(row)?.subscriptionLabel }}
+                 </span>
+                 <span class="font-mono">{{ getKiroMeta(row)?.quotaLabel }}</span>
+@@ -1109,6 +1109,7 @@ function getAntigravityTierLabel(row: any): string | null {
+ 
+ type KiroMeta = {
+   subscriptionLabel: string
++  subscriptionClass: string
+   quotaLabel: string
+   overageLabel: string
+   overageClass: string
+@@ -1151,6 +1152,26 @@ function formatKiroAmount(value: number | null): string {
+   }).format(value)
+ }
+ 
++function getKiroSubscriptionClass(label: string): string {
++  const normalized = label.toLowerCase().replace(/\s+/g, ' ')
++  if (normalized.includes('pro max')) {
++    return 'bg-fuchsia-50 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-200'
++  }
++  if (normalized.includes('pro+') || normalized.includes('pro plus')) {
++    return 'bg-purple-50 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200'
++  }
++  if (normalized.includes('power')) {
++    return 'bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200'
++  }
++  if (normalized.includes('pro')) {
++    return 'bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200'
++  }
++  if (normalized.includes('free')) {
++    return 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
++  }
++  return 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200'
++}
++
+ function getKiroMeta(row: Account): KiroMeta | null {
+   if (row.platform !== 'kiro') return null
+   const extra = row.extra
+@@ -1163,6 +1184,7 @@ function getKiroMeta(row: Account): KiroMeta | null {
+     readRecordString(subscription, 'type') ||
+     readRecordString(subscription, 'raw_type') ||
+     'Kiro'
++  const subscriptionClass = getKiroSubscriptionClass(subscriptionLabel)
+   const current = readRecordNumber(usage, 'current')
+   const limit = readRecordNumber(usage, 'limit')
+   const quotaLabel = limit !== null ? `${formatKiroAmount(current)}/${formatKiroAmount(limit)}` : '-'
+@@ -1177,6 +1199,7 @@ function getKiroMeta(row: Account): KiroMeta | null {
+ 
+   return {
+     subscriptionLabel,
++    subscriptionClass,
+     quotaLabel,
+     overageLabel,
+     overageClass,

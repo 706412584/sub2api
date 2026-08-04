@@ -1,0 +1,119 @@
+Memurai 4.1 release notes
+================================================================================
+
+--------------------------------------------------------------------------------
+Upgrade urgency levels:
+
+LOW:      No need to upgrade unless there are new features you want to use.
+MODERATE: Program an upgrade of the server, but it's not urgent.
+HIGH:     There is a critical bug that may affect a subset of users. Upgrade!
+CRITICAL: There is a critical bug affecting MOST USERS. Upgrade ASAP.
+SECURITY: There are security fixes in the release.
+--------------------------------------------------------------------------------
+
+
+================================================================================
+Memurai 4.1.2    Released Jun 18 2024
+================================================================================
+
+Upgrade urgency: Moderate.
+
+Memurai 4.1.2 is on par with Redis 7.2.5. See:
+https://raw.githubusercontent.com/redis/redis/7.2.5/00-RELEASENOTES
+
+This release introduces the following changes:
+
+* Fixed a bug that caused performance degradation when using Sorted Sets.
+* OpenSSL updated to version 3.3.1.
+
+--------------------------------------------------------------------------------
+Applies only to Memurai Enterprise
+--------------------------------------------------------------------------------
+
+This release contains no changes exclusive to Memurai Enterprise.
+
+--------------------------------------------------------------------------------
+Applies only to Memurai Developer
+--------------------------------------------------------------------------------
+
+This release contains no changes exclusive to Memurai Developer.
+
+================================================================================
+Memurai 4.1.2    --- End of Release Notes ---
+================================================================================
+
+
+================================================================================
+Memurai 4.1.1    Released Jan 23 2024
+================================================================================
+
+Upgrade urgency: Low.
+
+Memurai 4.1.1 is on par with Redis 7.2.4. See:
+https://raw.githubusercontent.com/redis/redis/7.2.4/00-RELEASENOTES
+
+This release introduces the following changes:
+
+* Fix for (CVE-2023-41056): In some cases memory buffers resizing might
+  result in a buffer overflow and potential remote code execution.
+* Bug fixes.
+
+--------------------------------------------------------------------------------
+Applies only to Memurai Enterprise
+--------------------------------------------------------------------------------
+
+This release contains no changes exclusive to Memurai Enterprise.
+
+--------------------------------------------------------------------------------
+Applies only to Memurai Developer
+--------------------------------------------------------------------------------
+
+This release contains no changes exclusive to Memurai Developer.
+
+================================================================================
+Memurai 4.1.1    --- End of Release Notes ---
+================================================================================
+
+
+================================================================================
+Memurai 4.1.0    Released Nov 15 2023
+================================================================================
+
+Upgrade urgency: LOW. First release of Memurai 4.1.
+Memurai 4.1.0 is on par with Redis 7.2.3. For details, see:
+https://raw.githubusercontent.com/redis/redis/7.2.3/00-RELEASENOTES
+
+Introduction to the Memurai 4.1 release
+=======================================
+
+Memurai 4.1 brings compatibility with Redis 7.2 API and includes a number of
+optimizations, bug fixes and new commands.
+
+In particular, users should be aware of the following:
+
+* Memurai 4.1 uses a new format for RDB files (version 11). The new format is 
+  incompatible with previous versions.
+* Please note that after converting RDB files to the new format, it's
+  not possible to restore it back, making the downgrade back to Memurai 4.0
+  impossible.
+
+--------------------------------------------------------------------------------
+Applies only to Memurai Enterprise
+--------------------------------------------------------------------------------
+
+This release contains no changes exclusive to Memurai Enterprise.
+
+
+--------------------------------------------------------------------------------
+Applies only to Memurai Developer
+--------------------------------------------------------------------------------
+
+This release contains no changes exclusive to Memurai Developer.
+
+Applies to:
+* Memurai Enterprise
+* Memurai Developer
+
+================================================================================
+Memurai 4.1.0    --- End of Release Notes ---
+================================================================================

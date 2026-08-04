@@ -763,14 +763,14 @@ func (s *SettingService) SetAccountPoolProbeSettings(ctx context.Context, settin
 		if settings.IntervalMinutes < 10 || settings.IntervalMinutes > 60 {
 			return fmt.Errorf("interval_minutes must be between 10-60")
 		}
-		if settings.BatchSize < 1 || settings.BatchSize > 50 {
-			return fmt.Errorf("batch_size must be between 1-50")
+		if settings.BatchSize < 1 || settings.BatchSize > 200 {
+			return fmt.Errorf("batch_size must be between 1-200")
 		}
-		if settings.MaxConcurrency < 1 || settings.MaxConcurrency > 5 {
-			return fmt.Errorf("max_concurrency must be between 1-5")
+		if settings.MaxConcurrency < 1 || settings.MaxConcurrency > 10 {
+			return fmt.Errorf("max_concurrency must be between 1-10")
 		}
-		if settings.AccountCooldownMinutes < 10 || settings.AccountCooldownMinutes > 120 {
-			return fmt.Errorf("account_cooldown_minutes must be between 10-120")
+		if settings.AccountCooldownMinutes < 10 || settings.AccountCooldownMinutes > 240 {
+			return fmt.Errorf("account_cooldown_minutes must be between 10-240")
 		}
 	}
 	data, err := json.Marshal(normalized)
@@ -914,13 +914,13 @@ func normalizeAccountPoolProbeSettings(settings *AccountPoolProbeSettings) *Acco
 	if out.IntervalMinutes < 10 || out.IntervalMinutes > 60 {
 		out.IntervalMinutes = defaults.IntervalMinutes
 	}
-	if out.BatchSize < 1 || out.BatchSize > 50 {
+	if out.BatchSize < 1 || out.BatchSize > 200 {
 		out.BatchSize = defaults.BatchSize
 	}
-	if out.MaxConcurrency < 1 || out.MaxConcurrency > 5 {
+	if out.MaxConcurrency < 1 || out.MaxConcurrency > 10 {
 		out.MaxConcurrency = defaults.MaxConcurrency
 	}
-	if out.AccountCooldownMinutes < 10 || out.AccountCooldownMinutes > 120 {
+	if out.AccountCooldownMinutes < 10 || out.AccountCooldownMinutes > 240 {
 		out.AccountCooldownMinutes = defaults.AccountCooldownMinutes
 	}
 	if len(out.Platforms) == 0 {

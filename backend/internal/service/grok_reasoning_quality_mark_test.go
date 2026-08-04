@@ -16,25 +16,32 @@ func TestResolveGrokReasoningQualitySoftPenalty(t *testing.T) {
 	require.Equal(t, 0.0, ResolveGrokReasoningQualitySoftPenalty(context.Background(), store, account))
 
 	require.NoError(t, store.Set(context.Background(), &GrokReasoningQualityMark{
-		ProxyID:  proxyID,
-		Status:   GrokReasoningProbeStatusVisible,
-		ProbedAt: time.Now().Unix(),
+		AccountID: account.ID,
+		ProxyID:   proxyID,
+		Status:    GrokReasoningProbeStatusVisible,
+		ProbedAt:  time.Now().Unix(),
 	}, time.Hour))
 	require.Equal(t, 0.0, ResolveGrokReasoningQualitySoftPenalty(context.Background(), store, account))
 
 	require.NoError(t, store.Set(context.Background(), &GrokReasoningQualityMark{
-		ProxyID:  proxyID,
-		Status:   GrokReasoningProbeStatusEncryptedOnly,
-		ProbedAt: time.Now().Unix(),
+		AccountID: account.ID,
+		ProxyID:   proxyID,
+		Status:    GrokReasoningProbeStatusEncryptedOnly,
+		ProbedAt:  time.Now().Unix(),
 	}, time.Hour))
 	require.Equal(t, grokReasoningQualitySoftPenalty, ResolveGrokReasoningQualitySoftPenalty(context.Background(), store, account))
 
 	require.NoError(t, store.Set(context.Background(), &GrokReasoningQualityMark{
-		ProxyID:  proxyID,
-		Status:   GrokReasoningProbeStatusNoReasoning,
-		ProbedAt: time.Now().Unix(),
+		AccountID: account.ID,
+		ProxyID:   proxyID,
+		Status:    GrokReasoningProbeStatusNoReasoning,
+		ProbedAt:  time.Now().Unix(),
 	}, time.Hour))
 	require.Equal(t, grokReasoningQualitySoftPenalty, ResolveGrokReasoningQualitySoftPenalty(context.Background(), store, account))
+
+	// Peer account on same proxy is unaffected (account-keyed marks).
+	peer := &Account{ID: 99, Platform: PlatformGrok, ProxyID: &proxyID}
+	require.Equal(t, 0.0, ResolveGrokReasoningQualitySoftPenalty(context.Background(), store, peer))
 
 	openai := &Account{ID: 2, Platform: PlatformOpenAI, ProxyID: &proxyID}
 	require.Equal(t, 0.0, ResolveGrokReasoningQualitySoftPenalty(context.Background(), store, openai))
@@ -69,9 +76,10 @@ func TestGrokReasoningProbeService_PersistsQualityMark(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, GrokReasoningProbeStatusVisible, result.Status)
 
-	mark, err := store.Get(context.Background(), 5)
+	mark, err := store.Get(context.Background(), account.ID)
 	require.NoError(t, err)
 	require.NotNil(t, mark)
 	require.Equal(t, GrokReasoningProbeStatusVisible, mark.Status)
+	require.Equal(t, account.ID, mark.AccountID)
 	require.Equal(t, int64(5), mark.ProxyID)
 }

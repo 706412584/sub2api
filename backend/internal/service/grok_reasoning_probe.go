@@ -211,7 +211,7 @@ func (s *GrokReasoningProbeService) Probe(ctx context.Context, proxyID int64, re
 }
 
 func (s *GrokReasoningProbeService) persistReasoningQualityMark(ctx context.Context, result *GrokReasoningProbeResult) {
-	if s == nil || s.markStore == nil || result == nil || result.ProxyID <= 0 {
+	if s == nil || s.markStore == nil || result == nil || result.AccountID <= 0 {
 		return
 	}
 	// Only durable quality outcomes affect scheduling. Transport/HTTP errors stay ephemeral.
@@ -221,9 +221,10 @@ func (s *GrokReasoningProbeService) persistReasoningQualityMark(ctx context.Cont
 		return
 	}
 	_ = s.markStore.Set(ctx, &GrokReasoningQualityMark{
-		ProxyID:  result.ProxyID,
-		Status:   result.Status,
-		ProbedAt: result.ProbedAt,
+		AccountID: result.AccountID,
+		ProxyID:   result.ProxyID,
+		Status:    result.Status,
+		ProbedAt:  result.ProbedAt,
 	}, GrokReasoningQualityMarkTTL)
 }
 

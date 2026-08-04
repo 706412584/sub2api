@@ -1,0 +1,12 @@
+- generic [ref=e4]:
+  - generic [ref=e5]: Cannot read properties of undefined (reading 'content')
+  - generic [ref=e7]: at walk (C:\Users\70641\sub2api-custom\frontend\node_modules\.pnpm\@vue+compiler-sfc@3.5.26\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1763:50) at Array.forEach (<anonymous>) at walk (C:\Users\70641\sub2api-custom\frontend\node_modules\.pnpm\@vue+compiler-sfc@3.5.26\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1771:23) at Array.forEach (<anonymous>) at walk (C:\Users\70641\sub2api-custom\frontend\node_modules\.pnpm\@vue+compiler-sfc@3.5.26\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1771:23) at Array.forEach (<anonymous>) at walk (C:\Users\70641\sub2api-custom\frontend\node_modules\.pnpm\@vue+compiler-sfc@3.5.26\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1771:23) at Array.forEach (<anonymous>) at resolveTemplateAnalysisResult (C:\Users\70641\sub2api-custom\frontend\node_modules\.pnpm\@vue+compiler-sfc@3.5.26\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1724:16) at resolveTemplateUsedIdentifiers (C:\Users\70641\sub2api-custom\frontend\node_modules\.pnpm\@vue+compiler-sfc@3.5.26\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1714:10
+  - generic [ref=e8]:
+    - text: Click outside, press Esc key, or fix the code to dismiss.
+    - text: You can also disable this overlay by setting
+    - code [ref=e9]: server.hmr.overlay
+    - text: to
+    - code [ref=e10]: "false"
+    - text: in
+    - code [ref=e11]: vite.config.js
+    - text: .

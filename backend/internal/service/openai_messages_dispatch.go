@@ -10,6 +10,12 @@ const (
 	defaultOpenAIMessagesDispatchOpusMappedModel   = "gpt-5.4"
 	defaultOpenAIMessagesDispatchSonnetMappedModel = "gpt-5.3-codex"
 	defaultOpenAIMessagesDispatchHaikuMappedModel  = "gpt-5.4-mini"
+
+	// GrokMessagesProtocolChatCompletions opts Grok /v1/messages into Chat Completions
+	// so clients can receive visible thinking (reasoning_content → Anthropic thinking).
+	GrokMessagesProtocolChatCompletions = "chat_completions"
+	// GrokMessagesProtocolResponses is the default native path (Anthropic → Responses → Anthropic).
+	GrokMessagesProtocolResponses = "responses"
 )
 
 func normalizeOpenAIMessagesDispatchMappedModel(model string) string {
@@ -102,10 +108,27 @@ func (g *Group) ResolveMessagesDispatchModel(requestedModel string) string {
 }
 
 func sanitizeGroupMessagesDispatchFields(g *Group) {
-	if g == nil || g.Platform == PlatformOpenAI {
+	if g == nil {
+		return
+	}
+	g.GrokMessagesProtocol = NormalizeGrokMessagesProtocol(g.Platform, g.GrokMessagesProtocol)
+	if g.Platform == PlatformOpenAI {
 		return
 	}
 	g.AllowMessagesDispatch = false
 	g.DefaultMappedModel = ""
 	g.MessagesDispatchModelConfig = OpenAIMessagesDispatchModelConfig{}
+}
+
+// NormalizeGrokMessagesProtocol returns the effective protocol for a group.
+// Non-Grok platforms always use responses. Grok defaults to responses unless
+// chat_completions is explicitly selected (opt-in visible thinking).
+func NormalizeGrokMessagesProtocol(platform, protocol string) string {
+	if platform != PlatformGrok {
+		return GrokMessagesProtocolResponses
+	}
+	if strings.TrimSpace(protocol) == GrokMessagesProtocolChatCompletions {
+		return GrokMessagesProtocolChatCompletions
+	}
+	return GrokMessagesProtocolResponses
 }

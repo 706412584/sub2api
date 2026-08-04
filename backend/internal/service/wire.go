@@ -836,6 +836,8 @@ var ProviderSet = wire.NewSet(
 	ProvideMihomoEngine,
 	ProvideProxySubscriptionService,
 	ProvideProxySubscriptionRunner,
+	NewDynamicProxyPoolService,
+	ProvideDynamicProxyPoolRunner,
 )
 
 // ProvideUserPlatformQuotaUsageFlusher 创建并启动 UserPlatformQuotaUsageFlusher。
@@ -919,6 +921,18 @@ func ProvideProxySubscriptionService(
 		svc.SetAllowNonLocalBind(cfg.ProxySubscription.AllowNonLocalBind)
 	}
 	return svc
+}
+
+// ProvideDynamicProxyPoolRunner creates and starts the periodic IP refresh runner.
+func ProvideDynamicProxyPoolRunner(
+	svc *DynamicProxyPoolService,
+	lockCache LeaderLockCache,
+	db *sql.DB,
+) *DynamicProxyPoolRunner {
+	r := NewDynamicProxyPoolRunner(svc, 30*time.Second)
+	r.SetLeaderLock(lockCache, db)
+	r.Start()
+	return r
 }
 
 // ProvideProxySubscriptionRunner creates and starts the due-sync background runner.

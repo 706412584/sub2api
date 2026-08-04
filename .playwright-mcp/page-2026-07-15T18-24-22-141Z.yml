@@ -1,0 +1,224 @@
+- generic [active] [ref=f9e1]:
+  - generic [ref=f9e28]:
+    - complementary [ref=f9e29]:
+      - generic [ref=f9e30]:
+        - link [ref=f9e31] [cursor=pointer]:
+          - /url: /admin/dashboard
+        - generic [ref=f9e32]:
+          - link "Sub2API" [ref=f9e33] [cursor=pointer]:
+            - /url: /admin/dashboard
+          - button "已是最新版本" [ref=f9e35] [cursor=pointer]
+      - navigation [ref=f9e37]:
+        - generic [ref=f9e38]:
+          - link "仪表盘" [ref=f9e39] [cursor=pointer]:
+            - /url: /admin/dashboard
+          - link "运维监控" [ref=f9e43] [cursor=pointer]:
+            - /url: /admin/ops
+          - link "用户管理" [ref=f9e47] [cursor=pointer]:
+            - /url: /admin/users
+          - link "分组管理" [ref=f9e51] [cursor=pointer]:
+            - /url: /admin/groups
+          - button "渠道管理" [ref=f9e55] [cursor=pointer]
+          - link "订阅管理" [ref=f9e62] [cursor=pointer]:
+            - /url: /admin/subscriptions
+          - link "账号管理" [ref=f9e66] [cursor=pointer]:
+            - /url: /admin/accounts
+          - link "公告" [ref=f9e70] [cursor=pointer]:
+            - /url: /admin/announcements
+          - link "IP管理" [ref=f9e74] [cursor=pointer]:
+            - /url: /admin/proxies
+          - link "兑换码" [ref=f9e78] [cursor=pointer]:
+            - /url: /admin/redeem
+          - link "优惠码" [ref=f9e82] [cursor=pointer]:
+            - /url: /admin/promo-codes
+          - link "使用记录" [ref=f9e86] [cursor=pointer]:
+            - /url: /admin/usage
+          - link "系统设置" [ref=f9e90] [cursor=pointer]:
+            - /url: /admin/settings
+        - generic [ref=f9e95]:
+          - generic [ref=f9e96]: 我的账户
+          - link "API 密钥" [ref=f9e98] [cursor=pointer]:
+            - /url: /keys
+          - link "使用记录" [ref=f9e102] [cursor=pointer]:
+            - /url: /usage
+          - link "渠道状态" [ref=f9e106] [cursor=pointer]:
+            - /url: /monitor
+          - link "我的订阅" [ref=f9e110] [cursor=pointer]:
+            - /url: /subscriptions
+          - link "充值/订阅" [ref=f9e114] [cursor=pointer]:
+            - /url: /purchase
+          - link "我的订单" [ref=f9e122] [cursor=pointer]:
+            - /url: /orders
+          - link "兑换" [ref=f9e126] [cursor=pointer]:
+            - /url: /redeem
+          - link "个人资料" [ref=f9e130] [cursor=pointer]:
+            - /url: /profile
+      - generic [ref=f9e134]:
+        - button "深色模式" [ref=f9e135] [cursor=pointer]
+        - button "收起" [ref=f9e139] [cursor=pointer]
+    - generic [ref=f9e143]:
+      - banner [ref=f9e144]:
+        - generic [ref=f9e145]:
+          - generic [ref=f9e147]:
+            - heading "账号管理" [level=1] [ref=f9e148]
+            - paragraph [ref=f9e149]: 管理 AI 平台账号和 Cookie
+          - generic [ref=f9e150]:
+            - button "公告" [ref=f9e152] [cursor=pointer]
+            - button "🇨🇳 ZH" [ref=f9e156] [cursor=pointer]:
+              - generic [ref=f9e157]: 🇨🇳
+              - generic [ref=f9e158]: ZH
+            - generic [ref=f9e161]: $0.00
+            - button "User Menu" [ref=f9e166] [cursor=pointer]:
+              - generic [ref=f9e167]: AD
+              - generic [ref=f9e169]:
+                - generic [ref=f9e170]: admin
+                - generic [ref=f9e171]: admin
+      - main [ref=f9e174]:
+        - generic [ref=f9e175]:
+          - generic [ref=f9e177]:
+            - generic [ref=f9e178]:
+              - textbox "搜索账号..." [ref=f9e180]
+              - button "Select option" [ref=f9e182] [cursor=pointer]:
+                - generic [ref=f9e183]: 全部平台
+              - button "Select option" [ref=f9e188] [cursor=pointer]:
+                - generic [ref=f9e189]: 全部类型
+              - button "Select option" [ref=f9e194] [cursor=pointer]:
+                - generic [ref=f9e195]: 全部状态
+              - button "Select option" [ref=f9e200] [cursor=pointer]:
+                - generic [ref=f9e201]: 全部Privacy状态
+              - button "Select option" [ref=f9e206] [cursor=pointer]:
+                - generic [ref=f9e207]: 全部分组
+            - generic [ref=f9e211]:
+              - button [ref=f9e212] [cursor=pointer]
+              - button "自动刷新" [ref=f9e216] [cursor=pointer]
+              - button "更多操作" [ref=f9e221] [cursor=pointer]
+              - button "添加账号" [ref=f9e227] [cursor=pointer]
+          - generic [ref=f9e229]:
+            - generic [ref=f9e230]:
+              - generic [ref=f9e231]: 批量编辑账号
+              - button "批量更新" [ref=f9e234] [cursor=pointer]
+            - table [ref=f9e237]:
+              - rowgroup [ref=f9e238]:
+                - row [ref=f9e239]:
+                  - columnheader [ref=f9e240]:
+                    - checkbox [ref=f9e241] [cursor=pointer]
+                  - columnheader "名称" [ref=f9e242] [cursor=pointer]
+                  - columnheader "账号ID" [ref=f9e250] [cursor=pointer]
+                  - columnheader "平台/类型" [ref=f9e258]
+                  - columnheader "容量" [ref=f9e261]
+                  - columnheader "状态" [ref=f9e264] [cursor=pointer]
+                  - columnheader "调度" [ref=f9e272] [cursor=pointer]
+                  - columnheader "分组" [ref=f9e280]
+                  - columnheader "用量窗口" [ref=f9e283]
+                  - columnheader "最近使用" [ref=f9e289] [cursor=pointer]
+                  - columnheader "创建时间" [ref=f9e297] [cursor=pointer]
+                  - columnheader "过期时间" [ref=f9e305] [cursor=pointer]
+                  - columnheader "操作" [ref=f9e313]
+              - rowgroup [ref=f9e316]:
+                - row [ref=f9e317]:
+                  - cell [ref=f9e318]:
+                    - paragraph [ref=f9e322]: 暂无数据
+  - dialog [ref=f9e323]:
+    - generic [ref=f9e324]:
+      - generic [ref=f9e325]:
+        - heading "添加账号" [level=3] [ref=f9e326]
+        - button "Close modal" [ref=f9e327] [cursor=pointer]
+      - generic [ref=f9e330]:
+        - generic [ref=f9e332]:
+          - generic [ref=f9e333]:
+            - generic [ref=f9e334]: "1"
+            - generic [ref=f9e335]: 授权方式
+          - generic [ref=f9e337]:
+            - generic [ref=f9e338]: "2"
+            - generic [ref=f9e339]: Claude 账号授权
+        - generic [ref=f9e340]:
+          - generic [ref=f9e341]:
+            - generic [ref=f9e342]: 账号名称
+            - textbox "请输入账号名称" [ref=f9e343]
+          - generic [ref=f9e344]:
+            - generic [ref=f9e345]: 备注
+            - textbox "请输入备注" [ref=f9e346]
+            - paragraph [ref=f9e347]: 备注可选
+          - generic [ref=f9e348]:
+            - generic [ref=f9e349]: 平台
+            - generic [ref=f9e350]:
+              - button "Anthropic" [ref=f9e351] [cursor=pointer]
+              - button "OpenAI" [ref=f9e354] [cursor=pointer]
+              - button "Gemini" [ref=f9e357] [cursor=pointer]
+              - button "Antigravity" [ref=f9e360] [cursor=pointer]
+              - button "Kiro" [ref=f9e363] [cursor=pointer]
+              - button "Grok" [ref=f9e366] [cursor=pointer]
+          - generic [ref=f9e518]:
+            - generic [ref=f9e519]: 账号类型
+            - button "Kiro 浏览器登录 使用 Builder ID 真浏览器登录，JSON 导入作为兜底。" [ref=f9e521] [cursor=pointer]:
+              - generic [ref=f9e525]:
+                - generic [ref=f9e526]: Kiro 浏览器登录
+                - text: 使用 Builder ID 真浏览器登录，JSON 导入作为兜底。
+          - generic [ref=f9e406]:
+            - generic [ref=f9e407]:
+              - generic [ref=f9e408]: 临时不可调度
+              - paragraph [ref=f9e409]: 当错误码与关键词同时匹配时，账号会在指定时间内被临时禁用。
+            - button [ref=f9e410] [cursor=pointer]
+          - generic [ref=f9e470]:
+            - generic [ref=f9e471]:
+              - generic [ref=f9e472]: 代理
+              - link "正在寻找合适的代理 IP？" [ref=f9e473] [cursor=pointer]:
+                - /url: https://sub2api.io/proxyip
+            - button "无代理" [ref=f9e478] [cursor=pointer]
+          - generic [ref=f9e483]:
+            - generic [ref=f9e484]:
+              - generic [ref=f9e485]: 并发数
+              - spinbutton [ref=f9e486]: "1"
+            - generic [ref=f9e487]:
+              - generic [ref=f9e488]: 负载因子
+              - spinbutton "1" [ref=f9e527]
+              - paragraph [ref=f9e490]: 提高负载因子可以提高对账号的调度频率
+            - generic [ref=f9e491]:
+              - generic [ref=f9e492]: 优先级
+              - spinbutton [ref=f9e493]: "1"
+              - paragraph [ref=f9e494]: 优先级越小的账号优先使用
+            - generic [ref=f9e495]:
+              - generic [ref=f9e496]: 账号计费倍率
+              - spinbutton [ref=f9e497]: "1"
+              - paragraph [ref=f9e498]: 0 表示不计费，仅影响账号计费
+          - generic [ref=f9e499]:
+            - generic [ref=f9e500]: 过期时间
+            - textbox [ref=f9e501]
+            - paragraph [ref=f9e502]: 留空表示不过期
+          - generic [ref=f9e504]:
+            - generic [ref=f9e505]:
+              - generic [ref=f9e506]: 过期自动暂停调度
+              - paragraph [ref=f9e507]: 启用后，账号过期将自动暂停调度
+            - button [ref=f9e508] [cursor=pointer]
+          - generic [ref=f9e510]:
+            - generic [ref=f9e511]: 分组 （已选 0 个）
+            - generic [ref=f9e512]: 无可用分组
+      - generic [ref=f9e515]:
+        - button "取消" [ref=f9e516] [cursor=pointer]
+        - button "下一步" [ref=f9e517] [cursor=pointer]
+  - dialog "添加账号" [ref=f9e528]:
+    - generic [ref=f9e529]:
+      - generic [ref=f9e530]:
+        - heading "Kiro 浏览器登录" [level=3] [ref=f9e531]
+        - button "Close modal" [ref=f9e532] [cursor=pointer]
+      - generic [ref=f9e536]:
+        - generic [ref=f9e537]: 启动 AWS Builder ID 设备授权流程，在真实浏览器完成授权后回到这里创建 Kiro OAuth 账号；高级模式下仍可使用 JSON 导入兜底。
+        - generic [ref=f9e538]:
+          - generic [ref=f9e539]: admin.accounts.name
+          - textbox "留空则自动使用 profile ARN 或推导出的 Kiro 账号名" [ref=f9e540]
+        - generic [ref=f9e541]:
+          - generic [ref=f9e542]: common.region
+          - textbox "us-east-1" [ref=f9e543]
+        - generic [ref=f9e545]:
+          - generic [ref=f9e546]:
+            - generic [ref=f9e547]: Builder ID 浏览器授权
+            - paragraph [ref=f9e548]: 点击开始登录，打开 AWS 授权页，在浏览器中完成登录后回到这里等待授权完成。
+          - button "开始 Kiro 登录" [ref=f9e549] [cursor=pointer]
+        - group [ref=f9e550]:
+          - generic "高级导入 / 粘贴 JSON 兜底" [ref=f9e551] [cursor=pointer]
+      - generic [ref=f9e553]:
+        - button "取消" [ref=f9e554] [cursor=pointer]
+        - button "创建 Kiro 账号" [disabled] [ref=f9e555]
+  - generic [ref=f9e558]:
+    - paragraph [ref=f9e563]: Request failed with status code 500
+    - button "Close notification" [ref=f9e564] [cursor=pointer]

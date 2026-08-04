@@ -1078,6 +1078,12 @@ export default {
         fallbackHint: '非 Claude Code 请求将使用此分组，留空则直接拒绝',
         noFallback: '不降级（直接拒绝）'
       },
+      grokMessages: {
+        title: 'Anthropic Messages 上游协议',
+        responses: 'Responses（默认原生）',
+        chatCompletions: 'Chat Completions（可选：返回可见思考）',
+        hint: '仅影响此 Grok 分组接收原生 /v1/messages 请求。默认走原生 Responses；仅在选择 Chat Completions 时转换并返回可见思考。'
+      },
       openaiMessages: {
         title: 'OpenAI Messages 调度配置',
         allowDispatch: '允许 /v1/messages 调度',

@@ -27,6 +27,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorhistory"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorrequesttemplate"
 	"github.com/Wei-Shaw/sub2api/ent/compositemodelroute"
+	"github.com/Wei-Shaw/sub2api/ent/dynamicproxypool"
 	"github.com/Wei-Shaw/sub2api/ent/errorpassthroughrule"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
@@ -80,6 +81,7 @@ const (
 	TypeChannelMonitorHistory         = "ChannelMonitorHistory"
 	TypeChannelMonitorRequestTemplate = "ChannelMonitorRequestTemplate"
 	TypeCompositeModelRoute           = "CompositeModelRoute"
+	TypeDynamicProxyPool              = "DynamicProxyPool"
 	TypeErrorPassthroughRule          = "ErrorPassthroughRule"
 	TypeGroup                         = "Group"
 	TypeIdempotencyRecord             = "IdempotencyRecord"
@@ -20523,6 +20525,1950 @@ func (m *CompositeModelRouteMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown CompositeModelRoute edge %s", name)
 }
 
+// DynamicProxyPoolMutation represents an operation that mutates the DynamicProxyPool nodes in the graph.
+type DynamicProxyPoolMutation struct {
+	config
+	op                      Op
+	typ                     string
+	id                      *int64
+	created_at              *time.Time
+	updated_at              *time.Time
+	name                    *string
+	enabled                 *bool
+	source_type             *string
+	subscription_id         *int64
+	addsubscription_id      *int64
+	extract_url             *string
+	protocol                *string
+	auth_mode               *string
+	username                *string
+	password                *string
+	response_format         *string
+	line_separator          *string
+	ip_field_path           *string
+	port_field_path         *string
+	refresh_interval_sec    *int
+	addrefresh_interval_sec *int
+	ip_duration_sec         *int
+	addip_duration_sec      *int
+	extract_count           *int
+	addextract_count        *int
+	min_alive               *int
+	addmin_alive            *int
+	name_prefix             *string
+	last_extract_at         *time.Time
+	last_extract_status     *string
+	last_extract_error      *string
+	alive_count             *int
+	addalive_count          *int
+	clearedFields           map[string]struct{}
+	done                    bool
+	oldValue                func(context.Context) (*DynamicProxyPool, error)
+	predicates              []predicate.DynamicProxyPool
+}
+
+var _ ent.Mutation = (*DynamicProxyPoolMutation)(nil)
+
+// dynamicproxypoolOption allows management of the mutation configuration using functional options.
+type dynamicproxypoolOption func(*DynamicProxyPoolMutation)
+
+// newDynamicProxyPoolMutation creates new mutation for the DynamicProxyPool entity.
+func newDynamicProxyPoolMutation(c config, op Op, opts ...dynamicproxypoolOption) *DynamicProxyPoolMutation {
+	m := &DynamicProxyPoolMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeDynamicProxyPool,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withDynamicProxyPoolID sets the ID field of the mutation.
+func withDynamicProxyPoolID(id int64) dynamicproxypoolOption {
+	return func(m *DynamicProxyPoolMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *DynamicProxyPool
+		)
+		m.oldValue = func(ctx context.Context) (*DynamicProxyPool, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().DynamicProxyPool.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withDynamicProxyPool sets the old DynamicProxyPool of the mutation.
+func withDynamicProxyPool(node *DynamicProxyPool) dynamicproxypoolOption {
+	return func(m *DynamicProxyPoolMutation) {
+		m.oldValue = func(context.Context) (*DynamicProxyPool, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m DynamicProxyPoolMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m DynamicProxyPoolMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *DynamicProxyPoolMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *DynamicProxyPoolMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().DynamicProxyPool.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *DynamicProxyPoolMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *DynamicProxyPoolMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the DynamicProxyPool entity.
+// If the DynamicProxyPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DynamicProxyPoolMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *DynamicProxyPoolMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *DynamicProxyPoolMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *DynamicProxyPoolMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the DynamicProxyPool entity.
+// If the DynamicProxyPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DynamicProxyPoolMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *DynamicProxyPoolMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetName sets the "name" field.
+func (m *DynamicProxyPoolMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *DynamicProxyPoolMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the DynamicProxyPool entity.
+// If the DynamicProxyPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DynamicProxyPoolMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *DynamicProxyPoolMutation) ResetName() {
+	m.name = nil
+}
+
+// SetEnabled sets the "enabled" field.
+func (m *DynamicProxyPoolMutation) SetEnabled(b bool) {
+	m.enabled = &b
+}
+
+// Enabled returns the value of the "enabled" field in the mutation.
+func (m *DynamicProxyPoolMutation) Enabled() (r bool, exists bool) {
+	v := m.enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEnabled returns the old "enabled" field's value of the DynamicProxyPool entity.
+// If the DynamicProxyPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DynamicProxyPoolMutation) OldEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEnabled: %w", err)
+	}
+	return oldValue.Enabled, nil
+}
+
+// ResetEnabled resets all changes to the "enabled" field.
+func (m *DynamicProxyPoolMutation) ResetEnabled() {
+	m.enabled = nil
+}
+
+// SetSourceType sets the "source_type" field.
+func (m *DynamicProxyPoolMutation) SetSourceType(s string) {
+	m.source_type = &s
+}
+
+// SourceType returns the value of the "source_type" field in the mutation.
+func (m *DynamicProxyPoolMutation) SourceType() (r string, exists bool) {
+	v := m.source_type
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSourceType returns the old "source_type" field's value of the DynamicProxyPool entity.
+// If the DynamicProxyPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DynamicProxyPoolMutation) OldSourceType(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSourceType is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSourceType requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSourceType: %w", err)
+	}
+	return oldValue.SourceType, nil
+}
+
+// ResetSourceType resets all changes to the "source_type" field.
+func (m *DynamicProxyPoolMutation) ResetSourceType() {
+	m.source_type = nil
+}
+
+// SetSubscriptionID sets the "subscription_id" field.
+func (m *DynamicProxyPoolMutation) SetSubscriptionID(i int64) {
+	m.subscription_id = &i
+	m.addsubscription_id = nil
+}
+
+// SubscriptionID returns the value of the "subscription_id" field in the mutation.
+func (m *DynamicProxyPoolMutation) SubscriptionID() (r int64, exists bool) {
+	v := m.subscription_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSubscriptionID returns the old "subscription_id" field's value of the DynamicProxyPool entity.
+// If the DynamicProxyPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DynamicProxyPoolMutation) OldSubscriptionID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSubscriptionID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSubscriptionID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSubscriptionID: %w", err)
+	}
+	return oldValue.SubscriptionID, nil
+}
+
+// AddSubscriptionID adds i to the "subscription_id" field.
+func (m *DynamicProxyPoolMutation) AddSubscriptionID(i int64) {
+	if m.addsubscription_id != nil {
+		*m.addsubscription_id += i
+	} else {
+		m.addsubscription_id = &i
+	}
+}
+
+// AddedSubscriptionID returns the value that was added to the "subscription_id" field in this mutation.
+func (m *DynamicProxyPoolMutation) AddedSubscriptionID() (r int64, exists bool) {
+	v := m.addsubscription_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearSubscriptionID clears the value of the "subscription_id" field.
+func (m *DynamicProxyPoolMutation) ClearSubscriptionID() {
+	m.subscription_id = nil
+	m.addsubscription_id = nil
+	m.clearedFields[dynamicproxypool.FieldSubscriptionID] = struct{}{}
+}
+
+// SubscriptionIDCleared returns if the "subscription_id" field was cleared in this mutation.
+func (m *DynamicProxyPoolMutation) SubscriptionIDCleared() bool {
+	_, ok := m.clearedFields[dynamicproxypool.FieldSubscriptionID]
+	return ok
+}
+
+// ResetSubscriptionID resets all changes to the "subscription_id" field.
+func (m *DynamicProxyPoolMutation) ResetSubscriptionID() {
+	m.subscription_id = nil
+	m.addsubscription_id = nil
+	delete(m.clearedFields, dynamicproxypool.FieldSubscriptionID)
+}
+
+// SetExtractURL sets the "extract_url" field.
+func (m *DynamicProxyPoolMutation) SetExtractURL(s string) {
+	m.extract_url = &s
+}
+
+// ExtractURL returns the value of the "extract_url" field in the mutation.
+func (m *DynamicProxyPoolMutation) ExtractURL() (r string, exists bool) {
+	v := m.extract_url
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExtractURL returns the old "extract_url" field's value of the DynamicProxyPool entity.
+// If the DynamicProxyPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DynamicProxyPoolMutation) OldExtractURL(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExtractURL is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExtractURL requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExtractURL: %w", err)
+	}
+	return oldValue.ExtractURL, nil
+}
+
+// ClearExtractURL clears the value of the "extract_url" field.
+func (m *DynamicProxyPoolMutation) ClearExtractURL() {
+	m.extract_url = nil
+	m.clearedFields[dynamicproxypool.FieldExtractURL] = struct{}{}
+}
+
+// ExtractURLCleared returns if the "extract_url" field was cleared in this mutation.
+func (m *DynamicProxyPoolMutation) ExtractURLCleared() bool {
+	_, ok := m.clearedFields[dynamicproxypool.FieldExtractURL]
+	return ok
+}
+
+// ResetExtractURL resets all changes to the "extract_url" field.
+func (m *DynamicProxyPoolMutation) ResetExtractURL() {
+	m.extract_url = nil
+	delete(m.clearedFields, dynamicproxypool.FieldExtractURL)
+}
+
+// SetProtocol sets the "protocol" field.
+func (m *DynamicProxyPoolMutation) SetProtocol(s string) {
+	m.protocol = &s
+}
+
+// Protocol returns the value of the "protocol" field in the mutation.
+func (m *DynamicProxyPoolMutation) Protocol() (r string, exists bool) {
+	v := m.protocol
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProtocol returns the old "protocol" field's value of the DynamicProxyPool entity.
+// If the DynamicProxyPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DynamicProxyPoolMutation) OldProtocol(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProtocol is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProtocol requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProtocol: %w", err)
+	}
+	return oldValue.Protocol, nil
+}
+
+// ResetProtocol resets all changes to the "protocol" field.
+func (m *DynamicProxyPoolMutation) ResetProtocol() {
+	m.protocol = nil
+}
+
+// SetAuthMode sets the "auth_mode" field.
+func (m *DynamicProxyPoolMutation) SetAuthMode(s string) {
+	m.auth_mode = &s
+}
+
+// AuthMode returns the value of the "auth_mode" field in the mutation.
+func (m *DynamicProxyPoolMutation) AuthMode() (r string, exists bool) {
+	v := m.auth_mode
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAuthMode returns the old "auth_mode" field's value of the DynamicProxyPool entity.
+// If the DynamicProxyPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DynamicProxyPoolMutation) OldAuthMode(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAuthMode is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAuthMode requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAuthMode: %w", err)
+	}
+	return oldValue.AuthMode, nil
+}
+
+// ResetAuthMode resets all changes to the "auth_mode" field.
+func (m *DynamicProxyPoolMutation) ResetAuthMode() {
+	m.auth_mode = nil
+}
+
+// SetUsername sets the "username" field.
+func (m *DynamicProxyPoolMutation) SetUsername(s string) {
+	m.username = &s
+}
+
+// Username returns the value of the "username" field in the mutation.
+func (m *DynamicProxyPoolMutation) Username() (r string, exists bool) {
+	v := m.username
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUsername returns the old "username" field's value of the DynamicProxyPool entity.
+// If the DynamicProxyPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DynamicProxyPoolMutation) OldUsername(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUsername is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUsername requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUsername: %w", err)
+	}
+	return oldValue.Username, nil
+}
+
+// ClearUsername clears the value of the "username" field.
+func (m *DynamicProxyPoolMutation) ClearUsername() {
+	m.username = nil
+	m.clearedFields[dynamicproxypool.FieldUsername] = struct{}{}
+}
+
+// UsernameCleared returns if the "username" field was cleared in this mutation.
+func (m *DynamicProxyPoolMutation) UsernameCleared() bool {
+	_, ok := m.clearedFields[dynamicproxypool.FieldUsername]
+	return ok
+}
+
+// ResetUsername resets all changes to the "username" field.
+func (m *DynamicProxyPoolMutation) ResetUsername() {
+	m.username = nil
+	delete(m.clearedFields, dynamicproxypool.FieldUsername)
+}
+
+// SetPassword sets the "password" field.
+func (m *DynamicProxyPoolMutation) SetPassword(s string) {
+	m.password = &s
+}
+
+// Password returns the value of the "password" field in the mutation.
+func (m *DynamicProxyPoolMutation) Password() (r string, exists bool) {
+	v := m.password
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPassword returns the old "password" field's value of the DynamicProxyPool entity.
+// If the DynamicProxyPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DynamicProxyPoolMutation) OldPassword(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPassword is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPassword requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPassword: %w", err)
+	}
+	return oldValue.Password, nil
+}
+
+// ClearPassword clears the value of the "password" field.
+func (m *DynamicProxyPoolMutation) ClearPassword() {
+	m.password = nil
+	m.clearedFields[dynamicproxypool.FieldPassword] = struct{}{}
+}
+
+// PasswordCleared returns if the "password" field was cleared in this mutation.
+func (m *DynamicProxyPoolMutation) PasswordCleared() bool {
+	_, ok := m.clearedFields[dynamicproxypool.FieldPassword]
+	return ok
+}
+
+// ResetPassword resets all changes to the "password" field.
+func (m *DynamicProxyPoolMutation) ResetPassword() {
+	m.password = nil
+	delete(m.clearedFields, dynamicproxypool.FieldPassword)
+}
+
+// SetResponseFormat sets the "response_format" field.
+func (m *DynamicProxyPoolMutation) SetResponseFormat(s string) {
+	m.response_format = &s
+}
+
+// ResponseFormat returns the value of the "response_format" field in the mutation.
+func (m *DynamicProxyPoolMutation) ResponseFormat() (r string, exists bool) {
+	v := m.response_format
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResponseFormat returns the old "response_format" field's value of the DynamicProxyPool entity.
+// If the DynamicProxyPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DynamicProxyPoolMutation) OldResponseFormat(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResponseFormat is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResponseFormat requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResponseFormat: %w", err)
+	}
+	return oldValue.ResponseFormat, nil
+}
+
+// ResetResponseFormat resets all changes to the "response_format" field.
+func (m *DynamicProxyPoolMutation) ResetResponseFormat() {
+	m.response_format = nil
+}
+
+// SetLineSeparator sets the "line_separator" field.
+func (m *DynamicProxyPoolMutation) SetLineSeparator(s string) {
+	m.line_separator = &s
+}
+
+// LineSeparator returns the value of the "line_separator" field in the mutation.
+func (m *DynamicProxyPoolMutation) LineSeparator() (r string, exists bool) {
+	v := m.line_separator
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLineSeparator returns the old "line_separator" field's value of the DynamicProxyPool entity.
+// If the DynamicProxyPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DynamicProxyPoolMutation) OldLineSeparator(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLineSeparator is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLineSeparator requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLineSeparator: %w", err)
+	}
+	return oldValue.LineSeparator, nil
+}
+
+// ResetLineSeparator resets all changes to the "line_separator" field.
+func (m *DynamicProxyPoolMutation) ResetLineSeparator() {
+	m.line_separator = nil
+}
+
+// SetIPFieldPath sets the "ip_field_path" field.
+func (m *DynamicProxyPoolMutation) SetIPFieldPath(s string) {
+	m.ip_field_path = &s
+}
+
+// IPFieldPath returns the value of the "ip_field_path" field in the mutation.
+func (m *DynamicProxyPoolMutation) IPFieldPath() (r string, exists bool) {
+	v := m.ip_field_path
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIPFieldPath returns the old "ip_field_path" field's value of the DynamicProxyPool entity.
+// If the DynamicProxyPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DynamicProxyPoolMutation) OldIPFieldPath(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIPFieldPath is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIPFieldPath requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIPFieldPath: %w", err)
+	}
+	return oldValue.IPFieldPath, nil
+}
+
+// ClearIPFieldPath clears the value of the "ip_field_path" field.
+func (m *DynamicProxyPoolMutation) ClearIPFieldPath() {
+	m.ip_field_path = nil
+	m.clearedFields[dynamicproxypool.FieldIPFieldPath] = struct{}{}
+}
+
+// IPFieldPathCleared returns if the "ip_field_path" field was cleared in this mutation.
+func (m *DynamicProxyPoolMutation) IPFieldPathCleared() bool {
+	_, ok := m.clearedFields[dynamicproxypool.FieldIPFieldPath]
+	return ok
+}
+
+// ResetIPFieldPath resets all changes to the "ip_field_path" field.
+func (m *DynamicProxyPoolMutation) ResetIPFieldPath() {
+	m.ip_field_path = nil
+	delete(m.clearedFields, dynamicproxypool.FieldIPFieldPath)
+}
+
+// SetPortFieldPath sets the "port_field_path" field.
+func (m *DynamicProxyPoolMutation) SetPortFieldPath(s string) {
+	m.port_field_path = &s
+}
+
+// PortFieldPath returns the value of the "port_field_path" field in the mutation.
+func (m *DynamicProxyPoolMutation) PortFieldPath() (r string, exists bool) {
+	v := m.port_field_path
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPortFieldPath returns the old "port_field_path" field's value of the DynamicProxyPool entity.
+// If the DynamicProxyPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DynamicProxyPoolMutation) OldPortFieldPath(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPortFieldPath is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPortFieldPath requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPortFieldPath: %w", err)
+	}
+	return oldValue.PortFieldPath, nil
+}
+
+// ClearPortFieldPath clears the value of the "port_field_path" field.
+func (m *DynamicProxyPoolMutation) ClearPortFieldPath() {
+	m.port_field_path = nil
+	m.clearedFields[dynamicproxypool.FieldPortFieldPath] = struct{}{}
+}
+
+// PortFieldPathCleared returns if the "port_field_path" field was cleared in this mutation.
+func (m *DynamicProxyPoolMutation) PortFieldPathCleared() bool {
+	_, ok := m.clearedFields[dynamicproxypool.FieldPortFieldPath]
+	return ok
+}
+
+// ResetPortFieldPath resets all changes to the "port_field_path" field.
+func (m *DynamicProxyPoolMutation) ResetPortFieldPath() {
+	m.port_field_path = nil
+	delete(m.clearedFields, dynamicproxypool.FieldPortFieldPath)
+}
+
+// SetRefreshIntervalSec sets the "refresh_interval_sec" field.
+func (m *DynamicProxyPoolMutation) SetRefreshIntervalSec(i int) {
+	m.refresh_interval_sec = &i
+	m.addrefresh_interval_sec = nil
+}
+
+// RefreshIntervalSec returns the value of the "refresh_interval_sec" field in the mutation.
+func (m *DynamicProxyPoolMutation) RefreshIntervalSec() (r int, exists bool) {
+	v := m.refresh_interval_sec
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRefreshIntervalSec returns the old "refresh_interval_sec" field's value of the DynamicProxyPool entity.
+// If the DynamicProxyPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DynamicProxyPoolMutation) OldRefreshIntervalSec(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRefreshIntervalSec is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRefreshIntervalSec requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRefreshIntervalSec: %w", err)
+	}
+	return oldValue.RefreshIntervalSec, nil
+}
+
+// AddRefreshIntervalSec adds i to the "refresh_interval_sec" field.
+func (m *DynamicProxyPoolMutation) AddRefreshIntervalSec(i int) {
+	if m.addrefresh_interval_sec != nil {
+		*m.addrefresh_interval_sec += i
+	} else {
+		m.addrefresh_interval_sec = &i
+	}
+}
+
+// AddedRefreshIntervalSec returns the value that was added to the "refresh_interval_sec" field in this mutation.
+func (m *DynamicProxyPoolMutation) AddedRefreshIntervalSec() (r int, exists bool) {
+	v := m.addrefresh_interval_sec
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRefreshIntervalSec resets all changes to the "refresh_interval_sec" field.
+func (m *DynamicProxyPoolMutation) ResetRefreshIntervalSec() {
+	m.refresh_interval_sec = nil
+	m.addrefresh_interval_sec = nil
+}
+
+// SetIPDurationSec sets the "ip_duration_sec" field.
+func (m *DynamicProxyPoolMutation) SetIPDurationSec(i int) {
+	m.ip_duration_sec = &i
+	m.addip_duration_sec = nil
+}
+
+// IPDurationSec returns the value of the "ip_duration_sec" field in the mutation.
+func (m *DynamicProxyPoolMutation) IPDurationSec() (r int, exists bool) {
+	v := m.ip_duration_sec
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIPDurationSec returns the old "ip_duration_sec" field's value of the DynamicProxyPool entity.
+// If the DynamicProxyPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DynamicProxyPoolMutation) OldIPDurationSec(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIPDurationSec is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIPDurationSec requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIPDurationSec: %w", err)
+	}
+	return oldValue.IPDurationSec, nil
+}
+
+// AddIPDurationSec adds i to the "ip_duration_sec" field.
+func (m *DynamicProxyPoolMutation) AddIPDurationSec(i int) {
+	if m.addip_duration_sec != nil {
+		*m.addip_duration_sec += i
+	} else {
+		m.addip_duration_sec = &i
+	}
+}
+
+// AddedIPDurationSec returns the value that was added to the "ip_duration_sec" field in this mutation.
+func (m *DynamicProxyPoolMutation) AddedIPDurationSec() (r int, exists bool) {
+	v := m.addip_duration_sec
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetIPDurationSec resets all changes to the "ip_duration_sec" field.
+func (m *DynamicProxyPoolMutation) ResetIPDurationSec() {
+	m.ip_duration_sec = nil
+	m.addip_duration_sec = nil
+}
+
+// SetExtractCount sets the "extract_count" field.
+func (m *DynamicProxyPoolMutation) SetExtractCount(i int) {
+	m.extract_count = &i
+	m.addextract_count = nil
+}
+
+// ExtractCount returns the value of the "extract_count" field in the mutation.
+func (m *DynamicProxyPoolMutation) ExtractCount() (r int, exists bool) {
+	v := m.extract_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExtractCount returns the old "extract_count" field's value of the DynamicProxyPool entity.
+// If the DynamicProxyPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DynamicProxyPoolMutation) OldExtractCount(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExtractCount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExtractCount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExtractCount: %w", err)
+	}
+	return oldValue.ExtractCount, nil
+}
+
+// AddExtractCount adds i to the "extract_count" field.
+func (m *DynamicProxyPoolMutation) AddExtractCount(i int) {
+	if m.addextract_count != nil {
+		*m.addextract_count += i
+	} else {
+		m.addextract_count = &i
+	}
+}
+
+// AddedExtractCount returns the value that was added to the "extract_count" field in this mutation.
+func (m *DynamicProxyPoolMutation) AddedExtractCount() (r int, exists bool) {
+	v := m.addextract_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetExtractCount resets all changes to the "extract_count" field.
+func (m *DynamicProxyPoolMutation) ResetExtractCount() {
+	m.extract_count = nil
+	m.addextract_count = nil
+}
+
+// SetMinAlive sets the "min_alive" field.
+func (m *DynamicProxyPoolMutation) SetMinAlive(i int) {
+	m.min_alive = &i
+	m.addmin_alive = nil
+}
+
+// MinAlive returns the value of the "min_alive" field in the mutation.
+func (m *DynamicProxyPoolMutation) MinAlive() (r int, exists bool) {
+	v := m.min_alive
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMinAlive returns the old "min_alive" field's value of the DynamicProxyPool entity.
+// If the DynamicProxyPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DynamicProxyPoolMutation) OldMinAlive(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMinAlive is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMinAlive requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMinAlive: %w", err)
+	}
+	return oldValue.MinAlive, nil
+}
+
+// AddMinAlive adds i to the "min_alive" field.
+func (m *DynamicProxyPoolMutation) AddMinAlive(i int) {
+	if m.addmin_alive != nil {
+		*m.addmin_alive += i
+	} else {
+		m.addmin_alive = &i
+	}
+}
+
+// AddedMinAlive returns the value that was added to the "min_alive" field in this mutation.
+func (m *DynamicProxyPoolMutation) AddedMinAlive() (r int, exists bool) {
+	v := m.addmin_alive
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetMinAlive resets all changes to the "min_alive" field.
+func (m *DynamicProxyPoolMutation) ResetMinAlive() {
+	m.min_alive = nil
+	m.addmin_alive = nil
+}
+
+// SetNamePrefix sets the "name_prefix" field.
+func (m *DynamicProxyPoolMutation) SetNamePrefix(s string) {
+	m.name_prefix = &s
+}
+
+// NamePrefix returns the value of the "name_prefix" field in the mutation.
+func (m *DynamicProxyPoolMutation) NamePrefix() (r string, exists bool) {
+	v := m.name_prefix
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNamePrefix returns the old "name_prefix" field's value of the DynamicProxyPool entity.
+// If the DynamicProxyPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DynamicProxyPoolMutation) OldNamePrefix(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNamePrefix is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNamePrefix requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNamePrefix: %w", err)
+	}
+	return oldValue.NamePrefix, nil
+}
+
+// ResetNamePrefix resets all changes to the "name_prefix" field.
+func (m *DynamicProxyPoolMutation) ResetNamePrefix() {
+	m.name_prefix = nil
+}
+
+// SetLastExtractAt sets the "last_extract_at" field.
+func (m *DynamicProxyPoolMutation) SetLastExtractAt(t time.Time) {
+	m.last_extract_at = &t
+}
+
+// LastExtractAt returns the value of the "last_extract_at" field in the mutation.
+func (m *DynamicProxyPoolMutation) LastExtractAt() (r time.Time, exists bool) {
+	v := m.last_extract_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastExtractAt returns the old "last_extract_at" field's value of the DynamicProxyPool entity.
+// If the DynamicProxyPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DynamicProxyPoolMutation) OldLastExtractAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastExtractAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastExtractAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastExtractAt: %w", err)
+	}
+	return oldValue.LastExtractAt, nil
+}
+
+// ClearLastExtractAt clears the value of the "last_extract_at" field.
+func (m *DynamicProxyPoolMutation) ClearLastExtractAt() {
+	m.last_extract_at = nil
+	m.clearedFields[dynamicproxypool.FieldLastExtractAt] = struct{}{}
+}
+
+// LastExtractAtCleared returns if the "last_extract_at" field was cleared in this mutation.
+func (m *DynamicProxyPoolMutation) LastExtractAtCleared() bool {
+	_, ok := m.clearedFields[dynamicproxypool.FieldLastExtractAt]
+	return ok
+}
+
+// ResetLastExtractAt resets all changes to the "last_extract_at" field.
+func (m *DynamicProxyPoolMutation) ResetLastExtractAt() {
+	m.last_extract_at = nil
+	delete(m.clearedFields, dynamicproxypool.FieldLastExtractAt)
+}
+
+// SetLastExtractStatus sets the "last_extract_status" field.
+func (m *DynamicProxyPoolMutation) SetLastExtractStatus(s string) {
+	m.last_extract_status = &s
+}
+
+// LastExtractStatus returns the value of the "last_extract_status" field in the mutation.
+func (m *DynamicProxyPoolMutation) LastExtractStatus() (r string, exists bool) {
+	v := m.last_extract_status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastExtractStatus returns the old "last_extract_status" field's value of the DynamicProxyPool entity.
+// If the DynamicProxyPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DynamicProxyPoolMutation) OldLastExtractStatus(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastExtractStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastExtractStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastExtractStatus: %w", err)
+	}
+	return oldValue.LastExtractStatus, nil
+}
+
+// ClearLastExtractStatus clears the value of the "last_extract_status" field.
+func (m *DynamicProxyPoolMutation) ClearLastExtractStatus() {
+	m.last_extract_status = nil
+	m.clearedFields[dynamicproxypool.FieldLastExtractStatus] = struct{}{}
+}
+
+// LastExtractStatusCleared returns if the "last_extract_status" field was cleared in this mutation.
+func (m *DynamicProxyPoolMutation) LastExtractStatusCleared() bool {
+	_, ok := m.clearedFields[dynamicproxypool.FieldLastExtractStatus]
+	return ok
+}
+
+// ResetLastExtractStatus resets all changes to the "last_extract_status" field.
+func (m *DynamicProxyPoolMutation) ResetLastExtractStatus() {
+	m.last_extract_status = nil
+	delete(m.clearedFields, dynamicproxypool.FieldLastExtractStatus)
+}
+
+// SetLastExtractError sets the "last_extract_error" field.
+func (m *DynamicProxyPoolMutation) SetLastExtractError(s string) {
+	m.last_extract_error = &s
+}
+
+// LastExtractError returns the value of the "last_extract_error" field in the mutation.
+func (m *DynamicProxyPoolMutation) LastExtractError() (r string, exists bool) {
+	v := m.last_extract_error
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastExtractError returns the old "last_extract_error" field's value of the DynamicProxyPool entity.
+// If the DynamicProxyPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DynamicProxyPoolMutation) OldLastExtractError(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastExtractError is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastExtractError requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastExtractError: %w", err)
+	}
+	return oldValue.LastExtractError, nil
+}
+
+// ClearLastExtractError clears the value of the "last_extract_error" field.
+func (m *DynamicProxyPoolMutation) ClearLastExtractError() {
+	m.last_extract_error = nil
+	m.clearedFields[dynamicproxypool.FieldLastExtractError] = struct{}{}
+}
+
+// LastExtractErrorCleared returns if the "last_extract_error" field was cleared in this mutation.
+func (m *DynamicProxyPoolMutation) LastExtractErrorCleared() bool {
+	_, ok := m.clearedFields[dynamicproxypool.FieldLastExtractError]
+	return ok
+}
+
+// ResetLastExtractError resets all changes to the "last_extract_error" field.
+func (m *DynamicProxyPoolMutation) ResetLastExtractError() {
+	m.last_extract_error = nil
+	delete(m.clearedFields, dynamicproxypool.FieldLastExtractError)
+}
+
+// SetAliveCount sets the "alive_count" field.
+func (m *DynamicProxyPoolMutation) SetAliveCount(i int) {
+	m.alive_count = &i
+	m.addalive_count = nil
+}
+
+// AliveCount returns the value of the "alive_count" field in the mutation.
+func (m *DynamicProxyPoolMutation) AliveCount() (r int, exists bool) {
+	v := m.alive_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAliveCount returns the old "alive_count" field's value of the DynamicProxyPool entity.
+// If the DynamicProxyPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DynamicProxyPoolMutation) OldAliveCount(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAliveCount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAliveCount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAliveCount: %w", err)
+	}
+	return oldValue.AliveCount, nil
+}
+
+// AddAliveCount adds i to the "alive_count" field.
+func (m *DynamicProxyPoolMutation) AddAliveCount(i int) {
+	if m.addalive_count != nil {
+		*m.addalive_count += i
+	} else {
+		m.addalive_count = &i
+	}
+}
+
+// AddedAliveCount returns the value that was added to the "alive_count" field in this mutation.
+func (m *DynamicProxyPoolMutation) AddedAliveCount() (r int, exists bool) {
+	v := m.addalive_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAliveCount resets all changes to the "alive_count" field.
+func (m *DynamicProxyPoolMutation) ResetAliveCount() {
+	m.alive_count = nil
+	m.addalive_count = nil
+}
+
+// Where appends a list predicates to the DynamicProxyPoolMutation builder.
+func (m *DynamicProxyPoolMutation) Where(ps ...predicate.DynamicProxyPool) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the DynamicProxyPoolMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *DynamicProxyPoolMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.DynamicProxyPool, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *DynamicProxyPoolMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *DynamicProxyPoolMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (DynamicProxyPool).
+func (m *DynamicProxyPoolMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *DynamicProxyPoolMutation) Fields() []string {
+	fields := make([]string, 0, 24)
+	if m.created_at != nil {
+		fields = append(fields, dynamicproxypool.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, dynamicproxypool.FieldUpdatedAt)
+	}
+	if m.name != nil {
+		fields = append(fields, dynamicproxypool.FieldName)
+	}
+	if m.enabled != nil {
+		fields = append(fields, dynamicproxypool.FieldEnabled)
+	}
+	if m.source_type != nil {
+		fields = append(fields, dynamicproxypool.FieldSourceType)
+	}
+	if m.subscription_id != nil {
+		fields = append(fields, dynamicproxypool.FieldSubscriptionID)
+	}
+	if m.extract_url != nil {
+		fields = append(fields, dynamicproxypool.FieldExtractURL)
+	}
+	if m.protocol != nil {
+		fields = append(fields, dynamicproxypool.FieldProtocol)
+	}
+	if m.auth_mode != nil {
+		fields = append(fields, dynamicproxypool.FieldAuthMode)
+	}
+	if m.username != nil {
+		fields = append(fields, dynamicproxypool.FieldUsername)
+	}
+	if m.password != nil {
+		fields = append(fields, dynamicproxypool.FieldPassword)
+	}
+	if m.response_format != nil {
+		fields = append(fields, dynamicproxypool.FieldResponseFormat)
+	}
+	if m.line_separator != nil {
+		fields = append(fields, dynamicproxypool.FieldLineSeparator)
+	}
+	if m.ip_field_path != nil {
+		fields = append(fields, dynamicproxypool.FieldIPFieldPath)
+	}
+	if m.port_field_path != nil {
+		fields = append(fields, dynamicproxypool.FieldPortFieldPath)
+	}
+	if m.refresh_interval_sec != nil {
+		fields = append(fields, dynamicproxypool.FieldRefreshIntervalSec)
+	}
+	if m.ip_duration_sec != nil {
+		fields = append(fields, dynamicproxypool.FieldIPDurationSec)
+	}
+	if m.extract_count != nil {
+		fields = append(fields, dynamicproxypool.FieldExtractCount)
+	}
+	if m.min_alive != nil {
+		fields = append(fields, dynamicproxypool.FieldMinAlive)
+	}
+	if m.name_prefix != nil {
+		fields = append(fields, dynamicproxypool.FieldNamePrefix)
+	}
+	if m.last_extract_at != nil {
+		fields = append(fields, dynamicproxypool.FieldLastExtractAt)
+	}
+	if m.last_extract_status != nil {
+		fields = append(fields, dynamicproxypool.FieldLastExtractStatus)
+	}
+	if m.last_extract_error != nil {
+		fields = append(fields, dynamicproxypool.FieldLastExtractError)
+	}
+	if m.alive_count != nil {
+		fields = append(fields, dynamicproxypool.FieldAliveCount)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *DynamicProxyPoolMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case dynamicproxypool.FieldCreatedAt:
+		return m.CreatedAt()
+	case dynamicproxypool.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case dynamicproxypool.FieldName:
+		return m.Name()
+	case dynamicproxypool.FieldEnabled:
+		return m.Enabled()
+	case dynamicproxypool.FieldSourceType:
+		return m.SourceType()
+	case dynamicproxypool.FieldSubscriptionID:
+		return m.SubscriptionID()
+	case dynamicproxypool.FieldExtractURL:
+		return m.ExtractURL()
+	case dynamicproxypool.FieldProtocol:
+		return m.Protocol()
+	case dynamicproxypool.FieldAuthMode:
+		return m.AuthMode()
+	case dynamicproxypool.FieldUsername:
+		return m.Username()
+	case dynamicproxypool.FieldPassword:
+		return m.Password()
+	case dynamicproxypool.FieldResponseFormat:
+		return m.ResponseFormat()
+	case dynamicproxypool.FieldLineSeparator:
+		return m.LineSeparator()
+	case dynamicproxypool.FieldIPFieldPath:
+		return m.IPFieldPath()
+	case dynamicproxypool.FieldPortFieldPath:
+		return m.PortFieldPath()
+	case dynamicproxypool.FieldRefreshIntervalSec:
+		return m.RefreshIntervalSec()
+	case dynamicproxypool.FieldIPDurationSec:
+		return m.IPDurationSec()
+	case dynamicproxypool.FieldExtractCount:
+		return m.ExtractCount()
+	case dynamicproxypool.FieldMinAlive:
+		return m.MinAlive()
+	case dynamicproxypool.FieldNamePrefix:
+		return m.NamePrefix()
+	case dynamicproxypool.FieldLastExtractAt:
+		return m.LastExtractAt()
+	case dynamicproxypool.FieldLastExtractStatus:
+		return m.LastExtractStatus()
+	case dynamicproxypool.FieldLastExtractError:
+		return m.LastExtractError()
+	case dynamicproxypool.FieldAliveCount:
+		return m.AliveCount()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *DynamicProxyPoolMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case dynamicproxypool.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case dynamicproxypool.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case dynamicproxypool.FieldName:
+		return m.OldName(ctx)
+	case dynamicproxypool.FieldEnabled:
+		return m.OldEnabled(ctx)
+	case dynamicproxypool.FieldSourceType:
+		return m.OldSourceType(ctx)
+	case dynamicproxypool.FieldSubscriptionID:
+		return m.OldSubscriptionID(ctx)
+	case dynamicproxypool.FieldExtractURL:
+		return m.OldExtractURL(ctx)
+	case dynamicproxypool.FieldProtocol:
+		return m.OldProtocol(ctx)
+	case dynamicproxypool.FieldAuthMode:
+		return m.OldAuthMode(ctx)
+	case dynamicproxypool.FieldUsername:
+		return m.OldUsername(ctx)
+	case dynamicproxypool.FieldPassword:
+		return m.OldPassword(ctx)
+	case dynamicproxypool.FieldResponseFormat:
+		return m.OldResponseFormat(ctx)
+	case dynamicproxypool.FieldLineSeparator:
+		return m.OldLineSeparator(ctx)
+	case dynamicproxypool.FieldIPFieldPath:
+		return m.OldIPFieldPath(ctx)
+	case dynamicproxypool.FieldPortFieldPath:
+		return m.OldPortFieldPath(ctx)
+	case dynamicproxypool.FieldRefreshIntervalSec:
+		return m.OldRefreshIntervalSec(ctx)
+	case dynamicproxypool.FieldIPDurationSec:
+		return m.OldIPDurationSec(ctx)
+	case dynamicproxypool.FieldExtractCount:
+		return m.OldExtractCount(ctx)
+	case dynamicproxypool.FieldMinAlive:
+		return m.OldMinAlive(ctx)
+	case dynamicproxypool.FieldNamePrefix:
+		return m.OldNamePrefix(ctx)
+	case dynamicproxypool.FieldLastExtractAt:
+		return m.OldLastExtractAt(ctx)
+	case dynamicproxypool.FieldLastExtractStatus:
+		return m.OldLastExtractStatus(ctx)
+	case dynamicproxypool.FieldLastExtractError:
+		return m.OldLastExtractError(ctx)
+	case dynamicproxypool.FieldAliveCount:
+		return m.OldAliveCount(ctx)
+	}
+	return nil, fmt.Errorf("unknown DynamicProxyPool field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *DynamicProxyPoolMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case dynamicproxypool.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case dynamicproxypool.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case dynamicproxypool.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case dynamicproxypool.FieldEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEnabled(v)
+		return nil
+	case dynamicproxypool.FieldSourceType:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSourceType(v)
+		return nil
+	case dynamicproxypool.FieldSubscriptionID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSubscriptionID(v)
+		return nil
+	case dynamicproxypool.FieldExtractURL:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExtractURL(v)
+		return nil
+	case dynamicproxypool.FieldProtocol:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProtocol(v)
+		return nil
+	case dynamicproxypool.FieldAuthMode:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAuthMode(v)
+		return nil
+	case dynamicproxypool.FieldUsername:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUsername(v)
+		return nil
+	case dynamicproxypool.FieldPassword:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPassword(v)
+		return nil
+	case dynamicproxypool.FieldResponseFormat:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResponseFormat(v)
+		return nil
+	case dynamicproxypool.FieldLineSeparator:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLineSeparator(v)
+		return nil
+	case dynamicproxypool.FieldIPFieldPath:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIPFieldPath(v)
+		return nil
+	case dynamicproxypool.FieldPortFieldPath:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPortFieldPath(v)
+		return nil
+	case dynamicproxypool.FieldRefreshIntervalSec:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRefreshIntervalSec(v)
+		return nil
+	case dynamicproxypool.FieldIPDurationSec:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIPDurationSec(v)
+		return nil
+	case dynamicproxypool.FieldExtractCount:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExtractCount(v)
+		return nil
+	case dynamicproxypool.FieldMinAlive:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMinAlive(v)
+		return nil
+	case dynamicproxypool.FieldNamePrefix:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNamePrefix(v)
+		return nil
+	case dynamicproxypool.FieldLastExtractAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastExtractAt(v)
+		return nil
+	case dynamicproxypool.FieldLastExtractStatus:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastExtractStatus(v)
+		return nil
+	case dynamicproxypool.FieldLastExtractError:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastExtractError(v)
+		return nil
+	case dynamicproxypool.FieldAliveCount:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAliveCount(v)
+		return nil
+	}
+	return fmt.Errorf("unknown DynamicProxyPool field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *DynamicProxyPoolMutation) AddedFields() []string {
+	var fields []string
+	if m.addsubscription_id != nil {
+		fields = append(fields, dynamicproxypool.FieldSubscriptionID)
+	}
+	if m.addrefresh_interval_sec != nil {
+		fields = append(fields, dynamicproxypool.FieldRefreshIntervalSec)
+	}
+	if m.addip_duration_sec != nil {
+		fields = append(fields, dynamicproxypool.FieldIPDurationSec)
+	}
+	if m.addextract_count != nil {
+		fields = append(fields, dynamicproxypool.FieldExtractCount)
+	}
+	if m.addmin_alive != nil {
+		fields = append(fields, dynamicproxypool.FieldMinAlive)
+	}
+	if m.addalive_count != nil {
+		fields = append(fields, dynamicproxypool.FieldAliveCount)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *DynamicProxyPoolMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case dynamicproxypool.FieldSubscriptionID:
+		return m.AddedSubscriptionID()
+	case dynamicproxypool.FieldRefreshIntervalSec:
+		return m.AddedRefreshIntervalSec()
+	case dynamicproxypool.FieldIPDurationSec:
+		return m.AddedIPDurationSec()
+	case dynamicproxypool.FieldExtractCount:
+		return m.AddedExtractCount()
+	case dynamicproxypool.FieldMinAlive:
+		return m.AddedMinAlive()
+	case dynamicproxypool.FieldAliveCount:
+		return m.AddedAliveCount()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *DynamicProxyPoolMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case dynamicproxypool.FieldSubscriptionID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSubscriptionID(v)
+		return nil
+	case dynamicproxypool.FieldRefreshIntervalSec:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRefreshIntervalSec(v)
+		return nil
+	case dynamicproxypool.FieldIPDurationSec:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddIPDurationSec(v)
+		return nil
+	case dynamicproxypool.FieldExtractCount:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddExtractCount(v)
+		return nil
+	case dynamicproxypool.FieldMinAlive:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMinAlive(v)
+		return nil
+	case dynamicproxypool.FieldAliveCount:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAliveCount(v)
+		return nil
+	}
+	return fmt.Errorf("unknown DynamicProxyPool numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *DynamicProxyPoolMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(dynamicproxypool.FieldSubscriptionID) {
+		fields = append(fields, dynamicproxypool.FieldSubscriptionID)
+	}
+	if m.FieldCleared(dynamicproxypool.FieldExtractURL) {
+		fields = append(fields, dynamicproxypool.FieldExtractURL)
+	}
+	if m.FieldCleared(dynamicproxypool.FieldUsername) {
+		fields = append(fields, dynamicproxypool.FieldUsername)
+	}
+	if m.FieldCleared(dynamicproxypool.FieldPassword) {
+		fields = append(fields, dynamicproxypool.FieldPassword)
+	}
+	if m.FieldCleared(dynamicproxypool.FieldIPFieldPath) {
+		fields = append(fields, dynamicproxypool.FieldIPFieldPath)
+	}
+	if m.FieldCleared(dynamicproxypool.FieldPortFieldPath) {
+		fields = append(fields, dynamicproxypool.FieldPortFieldPath)
+	}
+	if m.FieldCleared(dynamicproxypool.FieldLastExtractAt) {
+		fields = append(fields, dynamicproxypool.FieldLastExtractAt)
+	}
+	if m.FieldCleared(dynamicproxypool.FieldLastExtractStatus) {
+		fields = append(fields, dynamicproxypool.FieldLastExtractStatus)
+	}
+	if m.FieldCleared(dynamicproxypool.FieldLastExtractError) {
+		fields = append(fields, dynamicproxypool.FieldLastExtractError)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *DynamicProxyPoolMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *DynamicProxyPoolMutation) ClearField(name string) error {
+	switch name {
+	case dynamicproxypool.FieldSubscriptionID:
+		m.ClearSubscriptionID()
+		return nil
+	case dynamicproxypool.FieldExtractURL:
+		m.ClearExtractURL()
+		return nil
+	case dynamicproxypool.FieldUsername:
+		m.ClearUsername()
+		return nil
+	case dynamicproxypool.FieldPassword:
+		m.ClearPassword()
+		return nil
+	case dynamicproxypool.FieldIPFieldPath:
+		m.ClearIPFieldPath()
+		return nil
+	case dynamicproxypool.FieldPortFieldPath:
+		m.ClearPortFieldPath()
+		return nil
+	case dynamicproxypool.FieldLastExtractAt:
+		m.ClearLastExtractAt()
+		return nil
+	case dynamicproxypool.FieldLastExtractStatus:
+		m.ClearLastExtractStatus()
+		return nil
+	case dynamicproxypool.FieldLastExtractError:
+		m.ClearLastExtractError()
+		return nil
+	}
+	return fmt.Errorf("unknown DynamicProxyPool nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *DynamicProxyPoolMutation) ResetField(name string) error {
+	switch name {
+	case dynamicproxypool.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case dynamicproxypool.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case dynamicproxypool.FieldName:
+		m.ResetName()
+		return nil
+	case dynamicproxypool.FieldEnabled:
+		m.ResetEnabled()
+		return nil
+	case dynamicproxypool.FieldSourceType:
+		m.ResetSourceType()
+		return nil
+	case dynamicproxypool.FieldSubscriptionID:
+		m.ResetSubscriptionID()
+		return nil
+	case dynamicproxypool.FieldExtractURL:
+		m.ResetExtractURL()
+		return nil
+	case dynamicproxypool.FieldProtocol:
+		m.ResetProtocol()
+		return nil
+	case dynamicproxypool.FieldAuthMode:
+		m.ResetAuthMode()
+		return nil
+	case dynamicproxypool.FieldUsername:
+		m.ResetUsername()
+		return nil
+	case dynamicproxypool.FieldPassword:
+		m.ResetPassword()
+		return nil
+	case dynamicproxypool.FieldResponseFormat:
+		m.ResetResponseFormat()
+		return nil
+	case dynamicproxypool.FieldLineSeparator:
+		m.ResetLineSeparator()
+		return nil
+	case dynamicproxypool.FieldIPFieldPath:
+		m.ResetIPFieldPath()
+		return nil
+	case dynamicproxypool.FieldPortFieldPath:
+		m.ResetPortFieldPath()
+		return nil
+	case dynamicproxypool.FieldRefreshIntervalSec:
+		m.ResetRefreshIntervalSec()
+		return nil
+	case dynamicproxypool.FieldIPDurationSec:
+		m.ResetIPDurationSec()
+		return nil
+	case dynamicproxypool.FieldExtractCount:
+		m.ResetExtractCount()
+		return nil
+	case dynamicproxypool.FieldMinAlive:
+		m.ResetMinAlive()
+		return nil
+	case dynamicproxypool.FieldNamePrefix:
+		m.ResetNamePrefix()
+		return nil
+	case dynamicproxypool.FieldLastExtractAt:
+		m.ResetLastExtractAt()
+		return nil
+	case dynamicproxypool.FieldLastExtractStatus:
+		m.ResetLastExtractStatus()
+		return nil
+	case dynamicproxypool.FieldLastExtractError:
+		m.ResetLastExtractError()
+		return nil
+	case dynamicproxypool.FieldAliveCount:
+		m.ResetAliveCount()
+		return nil
+	}
+	return fmt.Errorf("unknown DynamicProxyPool field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *DynamicProxyPoolMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *DynamicProxyPoolMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *DynamicProxyPoolMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *DynamicProxyPoolMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *DynamicProxyPoolMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *DynamicProxyPoolMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *DynamicProxyPoolMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown DynamicProxyPool unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *DynamicProxyPoolMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown DynamicProxyPool edge %s", name)
+}
+
 // ErrorPassthroughRuleMutation represents an operation that mutates the ErrorPassthroughRule nodes in the graph.
 type ErrorPassthroughRuleMutation struct {
 	config
@@ -21921,6 +23867,7 @@ type GroupMutation struct {
 	default_mapped_model                    *string
 	messages_dispatch_model_config          *domain.OpenAIMessagesDispatchModelConfig
 	models_list_config                      *domain.GroupModelsListConfig
+	grok_messages_protocol                  *string
 	rpm_limit                               *int
 	addrpm_limit                            *int
 	max_reasoning_effort                    *string
@@ -24518,6 +26465,42 @@ func (m *GroupMutation) ResetModelsListConfig() {
 	m.models_list_config = nil
 }
 
+// SetGrokMessagesProtocol sets the "grok_messages_protocol" field.
+func (m *GroupMutation) SetGrokMessagesProtocol(s string) {
+	m.grok_messages_protocol = &s
+}
+
+// GrokMessagesProtocol returns the value of the "grok_messages_protocol" field in the mutation.
+func (m *GroupMutation) GrokMessagesProtocol() (r string, exists bool) {
+	v := m.grok_messages_protocol
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGrokMessagesProtocol returns the old "grok_messages_protocol" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldGrokMessagesProtocol(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGrokMessagesProtocol is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGrokMessagesProtocol requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGrokMessagesProtocol: %w", err)
+	}
+	return oldValue.GrokMessagesProtocol, nil
+}
+
+// ResetGrokMessagesProtocol resets all changes to the "grok_messages_protocol" field.
+func (m *GroupMutation) ResetGrokMessagesProtocol() {
+	m.grok_messages_protocol = nil
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (m *GroupMutation) SetRpmLimit(i int) {
 	m.rpm_limit = &i
@@ -25055,7 +27038,7 @@ func (m *GroupMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *GroupMutation) Fields() []string {
-	fields := make([]string, 0, 54)
+	fields := make([]string, 0, 55)
 	if m.created_at != nil {
 		fields = append(fields, group.FieldCreatedAt)
 	}
@@ -25206,6 +27189,9 @@ func (m *GroupMutation) Fields() []string {
 	if m.models_list_config != nil {
 		fields = append(fields, group.FieldModelsListConfig)
 	}
+	if m.grok_messages_protocol != nil {
+		fields = append(fields, group.FieldGrokMessagesProtocol)
+	}
 	if m.rpm_limit != nil {
 		fields = append(fields, group.FieldRpmLimit)
 	}
@@ -25326,6 +27312,8 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.MessagesDispatchModelConfig()
 	case group.FieldModelsListConfig:
 		return m.ModelsListConfig()
+	case group.FieldGrokMessagesProtocol:
+		return m.GrokMessagesProtocol()
 	case group.FieldRpmLimit:
 		return m.RpmLimit()
 	case group.FieldMaxReasoningEffort:
@@ -25443,6 +27431,8 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldMessagesDispatchModelConfig(ctx)
 	case group.FieldModelsListConfig:
 		return m.OldModelsListConfig(ctx)
+	case group.FieldGrokMessagesProtocol:
+		return m.OldGrokMessagesProtocol(ctx)
 	case group.FieldRpmLimit:
 		return m.OldRpmLimit(ctx)
 	case group.FieldMaxReasoningEffort:
@@ -25809,6 +27799,13 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetModelsListConfig(v)
+		return nil
+	case group.FieldGrokMessagesProtocol:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGrokMessagesProtocol(v)
 		return nil
 	case group.FieldRpmLimit:
 		v, ok := value.(int)
@@ -26408,6 +28405,9 @@ func (m *GroupMutation) ResetField(name string) error {
 		return nil
 	case group.FieldModelsListConfig:
 		m.ResetModelsListConfig()
+		return nil
+	case group.FieldGrokMessagesProtocol:
+		m.ResetGrokMessagesProtocol()
 		return nil
 	case group.FieldRpmLimit:
 		m.ResetRpmLimit()

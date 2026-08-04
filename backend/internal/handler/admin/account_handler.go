@@ -1119,7 +1119,7 @@ const (
 	batchTestAccountsTimeout        = 5 * time.Minute
 	batchTestDefaultConcurrency     = 5
 	batchTestGrokDefaultConcurrency = 1
-	batchTestMaxConcurrency         = 5
+	batchTestMaxConcurrency         = 50
 	batchTestDefaultIntervalMs      = 0
 	batchTestGrokDefaultIntervalMs  = 5000
 	batchTestMaxIntervalMs          = 60000

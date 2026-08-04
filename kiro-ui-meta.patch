@@ -1,0 +1,354 @@
+From e78a49e7aa4c874eea77785cd9271f4cb11a92e2 Mon Sep 17 00:00:00 2001
+From: Devin AI <158243242+devin-ai-integration[bot]@users.noreply.github.com>
+Date: Sun, 21 Jun 2026 15:14:02 +0000
+Subject: [PATCH] feat: show Kiro subscription usage metadata
+
+---
+ .../handler/admin/account_kiro_import.go      | 134 +++++++++++++++---
+ .../handler/admin/account_kiro_import_test.go |  50 +++++++
+ frontend/src/views/admin/AccountsView.vue     |  98 +++++++++++++
+ 3 files changed, 265 insertions(+), 17 deletions(-)
+
+diff --git a/backend/internal/handler/admin/account_kiro_import.go b/backend/internal/handler/admin/account_kiro_import.go
+index 03fd5494..9aefa63e 100644
+--- a/backend/internal/handler/admin/account_kiro_import.go
++++ b/backend/internal/handler/admin/account_kiro_import.go
+@@ -56,23 +56,37 @@ type KiroImportMessage struct {
+ 
+ // kiroAccountData represents the parsed Kiro account data.
+ type kiroAccountData struct {
+-	Name          string         `json:"name"`
+-	Email         string         `json:"email"`
+-	AccessToken   string         `json:"access_token"`
+-	RefreshToken  string         `json:"refresh_token"`
+-	ClientID      string         `json:"client_id"`
+-	ClientSecret  string         `json:"client_secret"`
+-	AuthMethod    string         `json:"auth_method"`
+-	Provider      string         `json:"provider"`
+-	Region        string         `json:"region"`
+-	ProfileArn    string         `json:"profile_arn"`
+-	TokenEndpoint string         `json:"token_endpoint"`
+-	IssuerURL     string         `json:"issuer_url"`
+-	Scopes        []string       `json:"scopes"`
+-	StartURL      string         `json:"start_url"`
+-	ExpiresAt     int64          `json:"expires_at"`
+-	ExternalIDP   map[string]any `json:"external_idp"`
+-	RawData       map[string]any `json:"-"`
++	Name                          string         `json:"name"`
++	Email                         string         `json:"email"`
++	AccessToken                   string         `json:"access_token"`
++	RefreshToken                  string         `json:"refresh_token"`
++	ClientID                      string         `json:"client_id"`
++	ClientSecret                  string         `json:"client_secret"`
++	AuthMethod                    string         `json:"auth_method"`
++	Provider                      string         `json:"provider"`
++	Region                        string         `json:"region"`
++	ProfileArn                    string         `json:"profile_arn"`
++	TokenEndpoint                 string         `json:"token_endpoint"`
++	IssuerURL                     string         `json:"issuer_url"`
++	Scopes                        []string       `json:"scopes"`
++	StartURL                      string         `json:"start_url"`
++	ExpiresAt                     int64          `json:"expires_at"`
++	SubscriptionType              string         `json:"subscription_type"`
++	SubscriptionTitle             string         `json:"subscription_title"`
++	SubscriptionRawType           string         `json:"subscription_raw_type"`
++	SubscriptionDaysRemaining     int64          `json:"subscription_days_remaining"`
++	SubscriptionExpiresAt         int64          `json:"subscription_expires_at"`
++	SubscriptionOverageCapability string         `json:"subscription_overage_capability"`
++	UsageCurrent                  float64        `json:"usage_current"`
++	UsageLimit                    float64        `json:"usage_limit"`
++	UsagePercentUsed              float64        `json:"usage_percent_used"`
++	UsageBaseLimit                float64        `json:"usage_base_limit"`
++	UsageNextResetDate            string         `json:"usage_next_reset_date"`
++	UsageOverageEnabled           bool           `json:"usage_overage_enabled"`
++	UsageOverageCap               float64        `json:"usage_overage_cap"`
++	UsageOverageRate              float64        `json:"usage_overage_rate"`
++	ExternalIDP                   map[string]any `json:"external_idp"`
++	RawData                       map[string]any `json:"-"`
+ }
+ 
+ // ImportKiroAccounts handles the import of Kiro accounts.
+@@ -191,6 +205,26 @@ func kiroAccountFromMap(raw map[string]any) (kiroAccountData, bool) {
+ 	if account.AuthMethod == "" {
+ 		account.AuthMethod = inferKiroAuthMethod(account)
+ 	}
++	if subscription, ok := raw["subscription"].(map[string]any); ok {
++		account.SubscriptionType = readKiroString([]map[string]any{subscription}, "type")
++		account.SubscriptionTitle = readKiroString([]map[string]any{subscription}, "title")
++		account.SubscriptionRawType = readKiroString([]map[string]any{subscription}, "rawType", "raw_type")
++		account.SubscriptionDaysRemaining = readKiroInt64([]map[string]any{subscription}, "daysRemaining", "days_remaining")
++		account.SubscriptionExpiresAt = readKiroInt64([]map[string]any{subscription}, "expiresAt", "expires_at")
++		account.SubscriptionOverageCapability = readKiroString([]map[string]any{subscription}, "overageCapability", "overage_capability")
++	}
++	if usage, ok := raw["usage"].(map[string]any); ok {
++		account.UsageCurrent = readKiroFloat64([]map[string]any{usage}, "current")
++		account.UsageLimit = readKiroFloat64([]map[string]any{usage}, "limit")
++		account.UsagePercentUsed = readKiroFloat64([]map[string]any{usage}, "percentUsed", "percent_used")
++		account.UsageBaseLimit = readKiroFloat64([]map[string]any{usage}, "baseLimit", "base_limit")
++		account.UsageNextResetDate = readKiroString([]map[string]any{usage}, "nextResetDate", "next_reset_date")
++		if resourceDetail, ok := usage["resourceDetail"].(map[string]any); ok {
++			account.UsageOverageEnabled = readKiroBool([]map[string]any{resourceDetail}, "overageEnabled", "overage_enabled")
++			account.UsageOverageCap = readKiroFloat64([]map[string]any{resourceDetail}, "overageCap", "overage_cap")
++			account.UsageOverageRate = readKiroFloat64([]map[string]any{resourceDetail}, "overageRate", "overage_rate")
++		}
++	}
+ 	if account.Provider == "" {
+ 		account.Provider = defaultKiroProvider(account.AuthMethod)
+ 	}
+@@ -270,6 +304,50 @@ func readKiroInt64(sources []map[string]any, keys ...string) int64 {
+ 	return parsed
+ }
+ 
++func readKiroFloat64(sources []map[string]any, keys ...string) float64 {
++	for _, source := range sources {
++		for _, key := range keys {
++			if value, ok := source[key]; ok {
++				switch v := value.(type) {
++				case float64:
++					return v
++				case int64:
++					return float64(v)
++				case int:
++					return float64(v)
++				case json.Number:
++					if f, err := v.Float64(); err == nil {
++						return f
++					}
++				case string:
++					if f, err := strconv.ParseFloat(strings.TrimSpace(v), 64); err == nil {
++						return f
++					}
++				}
++			}
++		}
++	}
++	return 0
++}
++
++func readKiroBool(sources []map[string]any, keys ...string) bool {
++	for _, source := range sources {
++		for _, key := range keys {
++			if value, ok := source[key]; ok {
++				switch v := value.(type) {
++				case bool:
++					return v
++				case string:
++					if b, err := strconv.ParseBool(strings.TrimSpace(v)); err == nil {
++						return b
++					}
++				}
++			}
++		}
++	}
++	return false
++}
++
+ func normalizeKiroAuthMethod(method string) string {
+ 	lower := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(method), "-", "_"))
+ 	switch lower {
+@@ -383,6 +461,28 @@ func (h *AccountHandler) importKiroAccounts(ctx context.Context, req KiroImportR
+ 		if account.RawData != nil {
+ 			extra["kiro_import_format"] = "kiro-go-plus"
+ 		}
++		if account.SubscriptionType != "" || account.SubscriptionTitle != "" || account.SubscriptionRawType != "" {
++			extra["kiro_subscription"] = map[string]any{
++				"type":               account.SubscriptionType,
++				"title":              account.SubscriptionTitle,
++				"raw_type":           account.SubscriptionRawType,
++				"days_remaining":     account.SubscriptionDaysRemaining,
++				"expires_at":         account.SubscriptionExpiresAt,
++				"overage_capability": account.SubscriptionOverageCapability,
++			}
++		}
++		if account.UsageLimit > 0 || account.UsageCurrent > 0 || account.UsageOverageCap > 0 {
++			extra["kiro_usage"] = map[string]any{
++				"current":         account.UsageCurrent,
++				"limit":           account.UsageLimit,
++				"percent_used":    account.UsagePercentUsed,
++				"base_limit":      account.UsageBaseLimit,
++				"next_reset_date": account.UsageNextResetDate,
++				"overage_enabled": account.UsageOverageEnabled,
++				"overage_cap":     account.UsageOverageCap,
++				"overage_rate":    account.UsageOverageRate,
++			}
++		}
+ 		if req.Notes != "" {
+ 			extra["notes"] = req.Notes
+ 		}
+diff --git a/backend/internal/handler/admin/account_kiro_import_test.go b/backend/internal/handler/admin/account_kiro_import_test.go
+index c1aa12a3..5ac1dcc4 100644
+--- a/backend/internal/handler/admin/account_kiro_import_test.go
++++ b/backend/internal/handler/admin/account_kiro_import_test.go
+@@ -66,3 +66,53 @@ func TestParseKiroImportDataSupportsExternalIDPEnvelope(t *testing.T) {
+ 	require.Equal(t, []string{"openid", "profile", "offline_access"}, accounts[0].Scopes)
+ 	require.NotNil(t, accounts[0].ExternalIDP)
+ }
++
++func TestParseKiroImportDataPreservesSubscriptionAndUsageMetadata(t *testing.T) {
++	input := map[string]any{
++		"accounts": []any{
++			map[string]any{
++				"credentials": map[string]any{
++					"accessToken":  "at",
++					"refreshToken": "rt",
++				},
++				"subscription": map[string]any{
++					"type":              "Pro",
++					"title":             "KIRO PRO",
++					"rawType":           "Q_DEVELOPER_STANDALONE_PRO",
++					"daysRemaining":     float64(10),
++					"expiresAt":         float64(1782864000000),
++					"overageCapability": "OVERAGE_CAPABLE",
++				},
++				"usage": map[string]any{
++					"current":       11003.88,
++					"limit":         float64(1000),
++					"percentUsed":   11.00388,
++					"baseLimit":     float64(1000),
++					"nextResetDate": "2026-07-01T00:00:00.000Z",
++					"resourceDetail": map[string]any{
++						"overageEnabled": true,
++						"overageCap":     float64(10000),
++						"overageRate":    0.04,
++					},
++				},
++			},
++		},
++	}
++
++	accounts, err := parseKiroImportData(input)
++	require.NoError(t, err)
++	require.Len(t, accounts, 1)
++	require.Equal(t, "Pro", accounts[0].SubscriptionType)
++	require.Equal(t, "KIRO PRO", accounts[0].SubscriptionTitle)
++	require.Equal(t, "Q_DEVELOPER_STANDALONE_PRO", accounts[0].SubscriptionRawType)
++	require.Equal(t, int64(10), accounts[0].SubscriptionDaysRemaining)
++	require.Equal(t, int64(1782864000000), accounts[0].SubscriptionExpiresAt)
++	require.Equal(t, "OVERAGE_CAPABLE", accounts[0].SubscriptionOverageCapability)
++	require.Equal(t, 11003.88, accounts[0].UsageCurrent)
++	require.Equal(t, float64(1000), accounts[0].UsageLimit)
++	require.Equal(t, 11.00388, accounts[0].UsagePercentUsed)
++	require.Equal(t, "2026-07-01T00:00:00.000Z", accounts[0].UsageNextResetDate)
++	require.True(t, accounts[0].UsageOverageEnabled)
++	require.Equal(t, float64(10000), accounts[0].UsageOverageCap)
++	require.Equal(t, 0.04, accounts[0].UsageOverageRate)
++}
+diff --git a/frontend/src/views/admin/AccountsView.vue b/frontend/src/views/admin/AccountsView.vue
+index 9636bf33..f0967398 100644
+--- a/frontend/src/views/admin/AccountsView.vue
++++ b/frontend/src/views/admin/AccountsView.vue
+@@ -257,6 +257,19 @@
+                 <span :class="['h-1.5 w-1.5 rounded-full', getOpenAICompactMeta(row)?.dotClass]" />
+                 <span>{{ getOpenAICompactMeta(row)?.label }}</span>
+               </div>
++              <div
++                v-if="getKiroMeta(row)"
++                class="flex flex-wrap items-center gap-1 pl-0.5 text-[11px] leading-4 text-slate-600 dark:text-slate-300"
++                :title="getKiroMeta(row)?.title"
++              >
++                <span class="rounded bg-indigo-50 px-1.5 py-0.5 font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200">
++                  {{ getKiroMeta(row)?.subscriptionLabel }}
++                </span>
++                <span class="font-mono">{{ getKiroMeta(row)?.quotaLabel }}</span>
++                <span :class="['rounded px-1.5 py-0.5 font-medium', getKiroMeta(row)?.overageClass]">
++                  {{ getKiroMeta(row)?.overageLabel }}
++                </span>
++              </div>
+             </div>
+           </template>
+           <template #cell-capacity="{ row }">
+@@ -1093,6 +1106,91 @@ function getAntigravityTierLabel(row: any): string | null {
+   }
+ }
+ 
++
++type KiroMeta = {
++  subscriptionLabel: string
++  quotaLabel: string
++  overageLabel: string
++  overageClass: string
++  title: string
++}
++
++function isRecord(value: unknown): value is Record<string, unknown> {
++  return typeof value === 'object' && value !== null && !Array.isArray(value)
++}
++
++function readRecordString(record: Record<string, unknown> | null, key: string): string {
++  const value = record?.[key]
++  return typeof value === 'string' ? value.trim() : ''
++}
++
++function readRecordNumber(record: Record<string, unknown> | null, key: string): number | null {
++  const value = record?.[key]
++  if (typeof value === 'number' && Number.isFinite(value)) return value
++  if (typeof value === 'string' && value.trim() !== '') {
++    const parsed = Number(value)
++    return Number.isFinite(parsed) ? parsed : null
++  }
++  return null
++}
++
++function readRecordBool(record: Record<string, unknown> | null, key: string): boolean | null {
++  const value = record?.[key]
++  if (typeof value === 'boolean') return value
++  if (typeof value === 'string') {
++    if (value.toLowerCase() === 'true') return true
++    if (value.toLowerCase() === 'false') return false
++  }
++  return null
++}
++
++function formatKiroAmount(value: number | null): string {
++  if (value === null) return '-'
++  return new Intl.NumberFormat(undefined, {
++    maximumFractionDigits: value >= 100 ? 0 : 2
++  }).format(value)
++}
++
++function getKiroMeta(row: Account): KiroMeta | null {
++  if (row.platform !== 'kiro') return null
++  const extra = row.extra
++  const subscription = isRecord(extra?.kiro_subscription) ? extra.kiro_subscription : null
++  const usage = isRecord(extra?.kiro_usage) ? extra.kiro_usage : null
++  if (!subscription && !usage) return null
++
++  const subscriptionLabel =
++    readRecordString(subscription, 'title') ||
++    readRecordString(subscription, 'type') ||
++    readRecordString(subscription, 'raw_type') ||
++    'Kiro'
++  const current = readRecordNumber(usage, 'current')
++  const limit = readRecordNumber(usage, 'limit')
++  const quotaLabel = limit !== null ? `${formatKiroAmount(current)}/${formatKiroAmount(limit)}` : '-'
++  const overageEnabled = readRecordBool(usage, 'overage_enabled') === true
++  const overageLabel = overageEnabled ? '超额已开' : '超额未开'
++  const overageClass = overageEnabled
++    ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200'
++    : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
++  const overageCap = readRecordNumber(usage, 'overage_cap')
++  const overageCapability = readRecordString(subscription, 'overage_capability')
++  const resetDate = readRecordString(usage, 'next_reset_date')
++
++  return {
++    subscriptionLabel,
++    quotaLabel,
++    overageLabel,
++    overageClass,
++    title: [
++      `订阅: ${subscriptionLabel}`,
++      `额度: ${quotaLabel}`,
++      `超额: ${overageEnabled ? '已开启' : '未开启'}`,
++      overageCap !== null ? `超额上限: ${formatKiroAmount(overageCap)}` : '',
++      overageCapability ? `超额能力: ${overageCapability}` : '',
++      resetDate ? `重置: ${resetDate}` : ''
++    ].filter(Boolean).join(' | ')
++  }
++}
++
+ type OpenAICompactBadgeState = 'active' | 'blocked' | 'auto'
+ 
+ function getOpenAICompactState(row: any): OpenAICompactBadgeState | null {
+-- 
+2.34.1
+

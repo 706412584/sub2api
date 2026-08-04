@@ -38,6 +38,17 @@ func TestGroupResolveMessagesDispatchModel_GrokMapsClaudeFamilyToGrok(t *testing
 	require.Empty(t, group.ResolveMessagesDispatchModel("gpt-5.3-codex"))
 }
 
+func TestNormalizeGrokMessagesProtocol(t *testing.T) {
+	t.Parallel()
+
+	// Default remains native responses; only explicit chat_completions opts in.
+	require.Equal(t, GrokMessagesProtocolResponses, NormalizeGrokMessagesProtocol(PlatformGrok, ""))
+	require.Equal(t, GrokMessagesProtocolResponses, NormalizeGrokMessagesProtocol(PlatformGrok, "invalid"))
+	require.Equal(t, GrokMessagesProtocolChatCompletions, NormalizeGrokMessagesProtocol(PlatformGrok, GrokMessagesProtocolChatCompletions))
+	require.Equal(t, GrokMessagesProtocolResponses, NormalizeGrokMessagesProtocol(PlatformGrok, GrokMessagesProtocolResponses))
+	require.Equal(t, GrokMessagesProtocolResponses, NormalizeGrokMessagesProtocol(PlatformOpenAI, GrokMessagesProtocolChatCompletions))
+}
+
 func TestSanitizeGroupMessagesDispatchFields_ClearsNonOpenAIPlatform(t *testing.T) {
 	t.Parallel()
 
@@ -58,4 +69,19 @@ func TestSanitizeGroupMessagesDispatchFields_ClearsNonOpenAIPlatform(t *testing.
 	require.False(t, group.AllowMessagesDispatch)
 	require.Empty(t, group.DefaultMappedModel)
 	require.Equal(t, OpenAIMessagesDispatchModelConfig{}, group.MessagesDispatchModelConfig)
+	require.Equal(t, GrokMessagesProtocolResponses, group.GrokMessagesProtocol)
 }
+
+func TestSanitizeGroupMessagesDispatchFields_DefaultsGrokToResponses(t *testing.T) {
+	t.Parallel()
+
+	group := &Group{Platform: PlatformGrok, GrokMessagesProtocol: "invalid"}
+	sanitizeGroupMessagesDispatchFields(group)
+
+	require.Equal(t, GrokMessagesProtocolResponses, group.GrokMessagesProtocol)
+
+	group = &Group{Platform: PlatformGrok, GrokMessagesProtocol: GrokMessagesProtocolChatCompletions}
+	sanitizeGroupMessagesDispatchFields(group)
+	require.Equal(t, GrokMessagesProtocolChatCompletions, group.GrokMessagesProtocol)
+}
+

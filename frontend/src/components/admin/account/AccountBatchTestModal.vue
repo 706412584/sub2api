@@ -142,7 +142,7 @@
             v-model.number="concurrency"
             type="number"
             min="1"
-            max="5"
+            max="50"
             step="1"
             class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-dark-500 dark:bg-dark-800 dark:text-gray-100"
             :disabled="testing || deletingFailed || applyingStatus"
@@ -614,7 +614,7 @@ const clampIntervalSeconds = (value: number) => {
 
 const clampConcurrency = (value: number) => {
   if (!Number.isFinite(value)) return 1
-  return Math.min(5, Math.max(1, Math.floor(value)))
+  return Math.min(50, Math.max(1, Math.floor(value)))
 }
 
 watch(

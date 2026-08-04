@@ -117,6 +117,9 @@ func RegisterAdminRoutes(
 		// Embedded proxy subscriptions (mihomo)
 		registerProxySubscriptionRoutes(admin, h)
 
+		// Dynamic proxy pools (IP extraction API)
+		registerDynamicProxyPoolRoutes(admin, h)
+
 		// 风控中心
 		registerContentModerationRoutes(admin, h)
 
@@ -826,5 +829,17 @@ func registerProxySubscriptionRoutes(admin *gin.RouterGroup, h *handler.Handlers
 		subs.DELETE("/:id", h.Admin.ProxySubscription.Delete)
 		subs.POST("/:id/sync", h.Admin.ProxySubscription.Sync)
 		subs.POST("/:id/preview-nodes", h.Admin.ProxySubscription.PreviewNodes)
+	}
+}
+
+func registerDynamicProxyPoolRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	pools := admin.Group("/dynamic-proxy-pools")
+	{
+		pools.GET("", h.Admin.DynamicProxyPool.List)
+		pools.POST("", h.Admin.DynamicProxyPool.Create)
+		pools.GET("/:id", h.Admin.DynamicProxyPool.Get)
+		pools.PUT("/:id", h.Admin.DynamicProxyPool.Update)
+		pools.DELETE("/:id", h.Admin.DynamicProxyPool.Delete)
+		pools.POST("/:id/extract", h.Admin.DynamicProxyPool.Extract)
 	}
 }

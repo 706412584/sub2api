@@ -855,6 +855,52 @@ var (
 			},
 		},
 	}
+	// DynamicProxyPoolsColumns holds the columns for the "dynamic_proxy_pools" table.
+	DynamicProxyPoolsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "name", Type: field.TypeString, Size: 100},
+		{Name: "enabled", Type: field.TypeBool, Default: true},
+		{Name: "source_type", Type: field.TypeString, Size: 20, Default: "extract_api"},
+		{Name: "subscription_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "extract_url", Type: field.TypeString, Nullable: true, Size: 2000, Default: ""},
+		{Name: "protocol", Type: field.TypeString, Size: 20, Default: "http"},
+		{Name: "auth_mode", Type: field.TypeString, Size: 20, Default: "none"},
+		{Name: "username", Type: field.TypeString, Nullable: true, Size: 200, Default: ""},
+		{Name: "password", Type: field.TypeString, Nullable: true, Size: 200, Default: ""},
+		{Name: "response_format", Type: field.TypeString, Size: 20, Default: "txt"},
+		{Name: "line_separator", Type: field.TypeString, Size: 20, Default: "\\r\\n"},
+		{Name: "ip_field_path", Type: field.TypeString, Nullable: true, Size: 200, Default: ""},
+		{Name: "port_field_path", Type: field.TypeString, Nullable: true, Size: 200, Default: ""},
+		{Name: "refresh_interval_sec", Type: field.TypeInt, Default: 300},
+		{Name: "ip_duration_sec", Type: field.TypeInt, Default: 300},
+		{Name: "extract_count", Type: field.TypeInt, Default: 1},
+		{Name: "min_alive", Type: field.TypeInt, Default: 1},
+		{Name: "name_prefix", Type: field.TypeString, Size: 40, Default: "dpool-"},
+		{Name: "last_extract_at", Type: field.TypeTime, Nullable: true},
+		{Name: "last_extract_status", Type: field.TypeString, Nullable: true, Size: 40, Default: ""},
+		{Name: "last_extract_error", Type: field.TypeString, Nullable: true, Size: 2147483647, Default: ""},
+		{Name: "alive_count", Type: field.TypeInt, Default: 0},
+	}
+	// DynamicProxyPoolsTable holds the schema information for the "dynamic_proxy_pools" table.
+	DynamicProxyPoolsTable = &schema.Table{
+		Name:       "dynamic_proxy_pools",
+		Columns:    DynamicProxyPoolsColumns,
+		PrimaryKey: []*schema.Column{DynamicProxyPoolsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "dynamicproxypool_enabled",
+				Unique:  false,
+				Columns: []*schema.Column{DynamicProxyPoolsColumns[4]},
+			},
+			{
+				Name:    "dynamicproxypool_name_prefix",
+				Unique:  true,
+				Columns: []*schema.Column{DynamicProxyPoolsColumns[20]},
+			},
+		},
+	}
 	// ErrorPassthroughRulesColumns holds the columns for the "error_passthrough_rules" table.
 	ErrorPassthroughRulesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -945,6 +991,7 @@ var (
 		{Name: "default_mapped_model", Type: field.TypeString, Size: 100, Default: ""},
 		{Name: "messages_dispatch_model_config", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
 		{Name: "models_list_config", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
+		{Name: "grok_messages_protocol", Type: field.TypeString, Size: 32, Default: "responses"},
 		{Name: "rpm_limit", Type: field.TypeInt, Default: 0},
 		{Name: "max_reasoning_effort", Type: field.TypeString, Size: 20, Default: ""},
 		{Name: "reasoning_effort_mappings", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
@@ -2129,6 +2176,7 @@ var (
 		ChannelMonitorHistoriesTable,
 		ChannelMonitorRequestTemplatesTable,
 		CompositeModelRoutesTable,
+		DynamicProxyPoolsTable,
 		ErrorPassthroughRulesTable,
 		GroupsTable,
 		IdempotencyRecordsTable,
@@ -2216,6 +2264,9 @@ func init() {
 	CompositeModelRoutesTable.ForeignKeys[0].RefTable = GroupsTable
 	CompositeModelRoutesTable.Annotation = &entsql.Annotation{
 		Table: "composite_model_routes",
+	}
+	DynamicProxyPoolsTable.Annotation = &entsql.Annotation{
+		Table: "dynamic_proxy_pools",
 	}
 	ErrorPassthroughRulesTable.Annotation = &entsql.Annotation{
 		Table: "error_passthrough_rules",

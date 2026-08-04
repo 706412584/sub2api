@@ -4,6 +4,7 @@ import {
   createDefaultMessagesDispatchFormState,
   messagesDispatchConfigToFormState,
   messagesDispatchFormStateToConfig,
+  normalizeGrokMessagesProtocolForPlatform,
   resetMessagesDispatchFormState,
 } from "../groupsMessagesDispatch";
 
@@ -91,4 +92,21 @@ describe("groupsMessagesDispatch", () => {
       exact_model_mappings: [],
     });
   });
+
+  it("defaults Grok messages protocol to responses unless chat_completions is selected", () => {
+    expect(normalizeGrokMessagesProtocolForPlatform("grok")).toBe("responses");
+    expect(normalizeGrokMessagesProtocolForPlatform("grok", "responses")).toBe(
+      "responses",
+    );
+    expect(
+      normalizeGrokMessagesProtocolForPlatform("grok", "chat_completions"),
+    ).toBe("chat_completions");
+    expect(
+      normalizeGrokMessagesProtocolForPlatform("openai", "chat_completions"),
+    ).toBe("responses");
+    expect(normalizeGrokMessagesProtocolForPlatform("grok", "invalid")).toBe(
+      "responses",
+    );
+  });
+
 });

@@ -623,7 +623,7 @@ export default {
         intervalSeconds: '启动间隔（秒）',
         intervalSecondsHint: '相邻测活任务启动间隔，0 表示不额外等待；含 Grok 时默认 5 秒。',
         concurrency: '并发上限',
-        concurrencyHint: '同时测活账号数，默认 5，最大 5。',
+        concurrencyHint: '同时测活账号数，默认 5，最大 50。',
         concurrencyGrokHint: '含 Grok 时默认串行（1），降低上游突发。',
         compactMode: 'OpenAI Compact 模式',
         compactModeHint: '仅全部目标为 OpenAI 时可启用，走 /responses/compact 探测。',
