@@ -339,9 +339,10 @@ var proxyLineRegex = regexp.MustCompile(`^(?:(?:[\w]+)://)?(?:([^:@]+):([^@]+)@)
 
 func (s *DynamicProxyPoolService) parseTxt(m *DynamicProxyPool, body []byte) ([]extractedEndpoint, error) {
 	sep := m.LineSeparator
-	if sep == "" || sep == `\r\n` {
+	switch sep {
+	case "", `\r\n`:
 		sep = "\r\n"
-	} else if sep == `\n` {
+	case `\n`:
 		sep = "\n"
 	}
 	content := strings.TrimSpace(string(body))
