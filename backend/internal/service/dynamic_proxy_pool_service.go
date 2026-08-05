@@ -256,7 +256,7 @@ func (s *DynamicProxyPoolService) doExtract(ctx context.Context, m *DynamicProxy
 		s.updateExtractState(ctx, m.ID, "error", err.Error())
 		return nil, fmt.Errorf("fetch: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1MB limit
 	if err != nil {
