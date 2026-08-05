@@ -84,4 +84,3 @@ func TestSanitizeGroupMessagesDispatchFields_DefaultsGrokToResponses(t *testing.
 	sanitizeGroupMessagesDispatchFields(group)
 	require.Equal(t, GrokMessagesProtocolChatCompletions, group.GrokMessagesProtocol)
 }
-
