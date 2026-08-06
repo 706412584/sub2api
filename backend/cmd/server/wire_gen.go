@@ -261,7 +261,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	proxySubscriptionService := service.ProvideProxySubscriptionService(proxySubscriptionRepository, proxyRepository, mihomoEngine, configConfig)
 	proxySubscriptionHandler := admin.NewProxySubscriptionHandler(proxySubscriptionService)
 	dynamicProxyPoolRepository := repository.NewDynamicProxyPoolRepository(client)
-	dynamicProxyPoolService := service.NewDynamicProxyPoolService(dynamicProxyPoolRepository, proxyRepository)
+	dynamicProxyPoolService := service.NewDynamicProxyPoolService(dynamicProxyPoolRepository, proxyRepository, proxySubscriptionRepository)
 	dynamicProxyPoolHandler := admin.NewDynamicProxyPoolHandler(dynamicProxyPoolService)
 	contentModerationRepository := repository.NewContentModerationRepository(db)
 	contentModerationHashCache := repository.NewContentModerationHashCache(redisClient)
