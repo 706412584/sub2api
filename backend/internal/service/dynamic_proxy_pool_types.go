@@ -37,8 +37,9 @@ type DynamicProxyPool struct {
 	LastExtractAt      *time.Time `json:"last_extract_at"`
 	LastExtractStatus  string     `json:"last_extract_status"`
 	LastExtractError   string     `json:"last_extract_error"`
-	AliveCount         int        `json:"alive_count"`
-	CreatedAt          time.Time  `json:"created_at"`
+	AliveCount              int        `json:"alive_count"`
+	HealthCheckIntervalSec  int        `json:"health_check_interval_sec"`
+	CreatedAt               time.Time  `json:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at"`
 }
 
@@ -81,6 +82,7 @@ type DynamicProxyPoolCreateParams struct {
 	IPDurationSec      int    `json:"ip_duration_sec"`
 	ExtractCount       int    `json:"extract_count"`
 	MinAlive           int    `json:"min_alive"`
+	HealthCheckIntervalSec int `json:"health_check_interval_sec"`
 }
 
 // DynamicProxyPoolUpdateParams is the input for updating a pool.
@@ -102,6 +104,7 @@ type DynamicProxyPoolUpdateParams struct {
 	IPDurationSec      *int    `json:"ip_duration_sec"`
 	ExtractCount       *int    `json:"extract_count"`
 	MinAlive           *int    `json:"min_alive"`
+	HealthCheckIntervalSec *int `json:"health_check_interval_sec"`
 }
 
 // DynamicProxyPoolExtractResult summarizes one extraction run.
