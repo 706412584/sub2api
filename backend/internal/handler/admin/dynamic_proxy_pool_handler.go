@@ -67,6 +67,7 @@ func (h *DynamicProxyPoolHandler) Create(c *gin.Context) {
 		IPDurationSec      int    `json:"ip_duration_sec"`
 		ExtractCount       int    `json:"extract_count"`
 		MinAlive           int    `json:"min_alive"`
+		HealthCheckIntervalSec int `json:"health_check_interval_sec"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid request: "+err.Error())
@@ -90,6 +91,7 @@ func (h *DynamicProxyPoolHandler) Create(c *gin.Context) {
 		IPDurationSec:      req.IPDurationSec,
 		ExtractCount:       req.ExtractCount,
 		MinAlive:           req.MinAlive,
+		HealthCheckIntervalSec: req.HealthCheckIntervalSec,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -138,6 +140,7 @@ func (h *DynamicProxyPoolHandler) Update(c *gin.Context) {
 		IPDurationSec      *int    `json:"ip_duration_sec"`
 		ExtractCount       *int    `json:"extract_count"`
 		MinAlive           *int    `json:"min_alive"`
+		HealthCheckIntervalSec *int `json:"health_check_interval_sec"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid request: "+err.Error())
@@ -162,6 +165,7 @@ func (h *DynamicProxyPoolHandler) Update(c *gin.Context) {
 		IPDurationSec:      req.IPDurationSec,
 		ExtractCount:       req.ExtractCount,
 		MinAlive:           req.MinAlive,
+		HealthCheckIntervalSec: req.HealthCheckIntervalSec,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)

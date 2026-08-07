@@ -508,6 +508,7 @@ type PoolForm = {
   ip_duration_sec: number
   extract_count: number
   min_alive: number
+  health_check_interval_sec: number
 }
 
 function defaultForm(): PoolForm {
@@ -528,7 +529,8 @@ function defaultForm(): PoolForm {
     refresh_interval_sec: 300,
     ip_duration_sec: 300,
     extract_count: 1,
-    min_alive: 1
+    min_alive: 1,
+    health_check_interval_sec: 0
   }
 }
 
@@ -562,6 +564,7 @@ function normalizePool(raw: Record<string, any>): DynamicProxyPool {
     ip_duration_sec: Number(pick(raw, 'ip_duration_sec', 'IPDurationSec') ?? 300),
     extract_count: Number(pick(raw, 'extract_count', 'ExtractCount') ?? 1),
     min_alive: Number(pick(raw, 'min_alive', 'MinAlive') ?? 1),
+    health_check_interval_sec: Number(pick(raw, 'health_check_interval_sec', 'HealthCheckIntervalSec') ?? 0),
     name_prefix: String(pick(raw, 'name_prefix', 'NamePrefix') ?? ''),
     last_extract_at: (pick(raw, 'last_extract_at', 'LastExtractAt') as string | null) ?? null,
     last_extract_status: String(pick(raw, 'last_extract_status', 'LastExtractStatus') ?? ''),
@@ -661,7 +664,8 @@ function editPool(pool: DynamicProxyPool) {
     refresh_interval_sec: pool.refresh_interval_sec,
     ip_duration_sec: pool.ip_duration_sec,
     extract_count: pool.extract_count,
-    min_alive: pool.min_alive
+    min_alive: pool.min_alive,
+    health_check_interval_sec: pool.health_check_interval_sec ?? 0,
   })
   showEditModal.value = true
 }

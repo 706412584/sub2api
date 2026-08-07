@@ -323,7 +323,8 @@ export default {
           ipDuration: 'IP 有效期（秒）',
           extractCount: '每次提取数量',
           minAlive: '最低存活数',
-          enabled: '启用此动态池'
+          healthCheckInterval: '健康检查间隔（秒）',
+          healthCheckHint: '定期检测池代理连通性，0=关闭',
         },
         manage: '管理',
         manageTitle: '管理池代理',

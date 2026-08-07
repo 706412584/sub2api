@@ -65,6 +65,11 @@
       <label class="input-label">{{ t('admin.proxies.pools.form.minAlive') }}</label>
       <Input :model-value="modelValue.min_alive" type="number" min="1" @update:model-value="patchNumber('min_alive', $event)" />
     </div>
+    <div>
+      <label class="input-label">{{ t('admin.proxies.pools.form.healthCheckInterval') }}</label>
+      <Input :model-value="modelValue.health_check_interval_sec" type="number" min="0" @update:model-value="patchNumber('health_check_interval_sec', $event)" />
+      <p class="mt-1 text-xs text-gray-400">{{ t('admin.proxies.pools.form.healthCheckHint') }}</p>
+    </div>
   </div>
 </template>
 
@@ -90,6 +95,7 @@ export type PoolFormModel = {
   ip_duration_sec: number
   extract_count: number
   min_alive: number
+  health_check_interval_sec: number
   enabled?: boolean
 }
 
@@ -136,7 +142,7 @@ function patch<K extends keyof PoolFormModel>(key: K, value: PoolFormModel[K]) {
   emit('update:modelValue', { ...props.modelValue, [key]: value })
 }
 
-function patchNumber(key: 'refresh_interval_sec' | 'ip_duration_sec' | 'extract_count' | 'min_alive', raw: unknown) {
+function patchNumber(key: 'refresh_interval_sec' | 'ip_duration_sec' | 'extract_count' | 'min_alive' | 'health_check_interval_sec', raw: unknown) {
   const n = typeof raw === 'number' ? raw : Number(raw)
   patch(key, Number.isFinite(n) ? n : 0)
 }

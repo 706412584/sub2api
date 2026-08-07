@@ -325,7 +325,8 @@ export default {
           ipDuration: 'IP duration (sec)',
           extractCount: 'Extract count',
           minAlive: 'Min alive',
-          enabled: 'Enable this pool'
+          healthCheckInterval: 'Health check interval (sec)',
+          healthCheckHint: 'Periodically test pool proxies; 0 = disabled',
         },
         manage: 'Manage',
         manageTitle: 'Manage Pool Proxies',
