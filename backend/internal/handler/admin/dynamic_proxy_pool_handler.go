@@ -269,9 +269,9 @@ func (h *DynamicProxyPoolHandler) ListPoolProxies(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{
-		"items":                         proxies,
-		"total":                         len(proxies),
-		"grok_reasoning_check_enabled":  pool.GrokReasoningCheckEnabled,
+		"items":                           proxies,
+		"total":                           len(proxies),
+		"grok_reasoning_check_enabled":    pool.GrokReasoningCheckEnabled,
 		"grok_reasoning_check_account_id": pool.GrokReasoningCheckAccountID,
 	})
 }

@@ -512,7 +512,7 @@ const handleEvent = (event: {
       addLine(t('admin.accounts.response'), 'text-yellow-400')
       break
 
-	    case 'proxy_info':
+	    case 'proxy_info': {
 	      const proxyName = event.proxy_name || event.proxy_url
 	      if (proxyName) {
 	        addLine(t('admin.accounts.usingProxy', { name: proxyName }), 'text-purple-400')
@@ -525,6 +525,7 @@ const handleEvent = (event: {
 	        addLine(t('admin.accounts.egressProbeFailed', { error: event.egress_error }), 'text-red-400')
 	      }
 	      break
+	    }
 
     case 'content':
       if (event.text) {
