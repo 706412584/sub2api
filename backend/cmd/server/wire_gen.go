@@ -262,6 +262,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	proxySubscriptionHandler := admin.NewProxySubscriptionHandler(proxySubscriptionService)
 	dynamicProxyPoolRepository := repository.NewDynamicProxyPoolRepository(client)
 	dynamicProxyPoolService := service.NewDynamicProxyPoolService(dynamicProxyPoolRepository, proxyRepository, proxySubscriptionRepository)
+	dynamicProxyPoolService.SetGrokReasoningProbeService(grokReasoningProbeService)
 	dynamicProxyPoolHandler := admin.NewDynamicProxyPoolHandler(dynamicProxyPoolService)
 	contentModerationRepository := repository.NewContentModerationRepository(db)
 	contentModerationHashCache := repository.NewContentModerationHashCache(redisClient)

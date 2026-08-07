@@ -364,6 +364,48 @@ func (_c *DynamicProxyPoolCreate) SetNillableHealthCheckIntervalSec(v *int) *Dyn
 	return _c
 }
 
+// SetGrokReasoningCheckEnabled sets the "grok_reasoning_check_enabled" field.
+func (_c *DynamicProxyPoolCreate) SetGrokReasoningCheckEnabled(v bool) *DynamicProxyPoolCreate {
+	_c.mutation.SetGrokReasoningCheckEnabled(v)
+	return _c
+}
+
+// SetNillableGrokReasoningCheckEnabled sets the "grok_reasoning_check_enabled" field if the given value is not nil.
+func (_c *DynamicProxyPoolCreate) SetNillableGrokReasoningCheckEnabled(v *bool) *DynamicProxyPoolCreate {
+	if v != nil {
+		_c.SetGrokReasoningCheckEnabled(*v)
+	}
+	return _c
+}
+
+// SetGrokReasoningCheckAccountID sets the "grok_reasoning_check_account_id" field.
+func (_c *DynamicProxyPoolCreate) SetGrokReasoningCheckAccountID(v int64) *DynamicProxyPoolCreate {
+	_c.mutation.SetGrokReasoningCheckAccountID(v)
+	return _c
+}
+
+// SetNillableGrokReasoningCheckAccountID sets the "grok_reasoning_check_account_id" field if the given value is not nil.
+func (_c *DynamicProxyPoolCreate) SetNillableGrokReasoningCheckAccountID(v *int64) *DynamicProxyPoolCreate {
+	if v != nil {
+		_c.SetGrokReasoningCheckAccountID(*v)
+	}
+	return _c
+}
+
+// SetGrokReasoningCheckIntervalSec sets the "grok_reasoning_check_interval_sec" field.
+func (_c *DynamicProxyPoolCreate) SetGrokReasoningCheckIntervalSec(v int) *DynamicProxyPoolCreate {
+	_c.mutation.SetGrokReasoningCheckIntervalSec(v)
+	return _c
+}
+
+// SetNillableGrokReasoningCheckIntervalSec sets the "grok_reasoning_check_interval_sec" field if the given value is not nil.
+func (_c *DynamicProxyPoolCreate) SetNillableGrokReasoningCheckIntervalSec(v *int) *DynamicProxyPoolCreate {
+	if v != nil {
+		_c.SetGrokReasoningCheckIntervalSec(*v)
+	}
+	return _c
+}
+
 // Mutation returns the DynamicProxyPoolMutation object of the builder.
 func (_c *DynamicProxyPoolCreate) Mutation() *DynamicProxyPoolMutation {
 	return _c.mutation
@@ -487,6 +529,14 @@ func (_c *DynamicProxyPoolCreate) defaults() {
 		v := dynamicproxypool.DefaultHealthCheckIntervalSec
 		_c.mutation.SetHealthCheckIntervalSec(v)
 	}
+	if _, ok := _c.mutation.GrokReasoningCheckEnabled(); !ok {
+		v := dynamicproxypool.DefaultGrokReasoningCheckEnabled
+		_c.mutation.SetGrokReasoningCheckEnabled(v)
+	}
+	if _, ok := _c.mutation.GrokReasoningCheckIntervalSec(); !ok {
+		v := dynamicproxypool.DefaultGrokReasoningCheckIntervalSec
+		_c.mutation.SetGrokReasoningCheckIntervalSec(v)
+	}
 }
 
 // check runs all checks and user-defined validators on the builder.
@@ -603,6 +653,12 @@ func (_c *DynamicProxyPoolCreate) check() error {
 	}
 	if _, ok := _c.mutation.HealthCheckIntervalSec(); !ok {
 		return &ValidationError{Name: "health_check_interval_sec", err: errors.New(`ent: missing required field "DynamicProxyPool.health_check_interval_sec"`)}
+	}
+	if _, ok := _c.mutation.GrokReasoningCheckEnabled(); !ok {
+		return &ValidationError{Name: "grok_reasoning_check_enabled", err: errors.New(`ent: missing required field "DynamicProxyPool.grok_reasoning_check_enabled"`)}
+	}
+	if _, ok := _c.mutation.GrokReasoningCheckIntervalSec(); !ok {
+		return &ValidationError{Name: "grok_reasoning_check_interval_sec", err: errors.New(`ent: missing required field "DynamicProxyPool.grok_reasoning_check_interval_sec"`)}
 	}
 	return nil
 }
@@ -730,6 +786,18 @@ func (_c *DynamicProxyPoolCreate) createSpec() (*DynamicProxyPool, *sqlgraph.Cre
 	if value, ok := _c.mutation.HealthCheckIntervalSec(); ok {
 		_spec.SetField(dynamicproxypool.FieldHealthCheckIntervalSec, field.TypeInt, value)
 		_node.HealthCheckIntervalSec = value
+	}
+	if value, ok := _c.mutation.GrokReasoningCheckEnabled(); ok {
+		_spec.SetField(dynamicproxypool.FieldGrokReasoningCheckEnabled, field.TypeBool, value)
+		_node.GrokReasoningCheckEnabled = value
+	}
+	if value, ok := _c.mutation.GrokReasoningCheckAccountID(); ok {
+		_spec.SetField(dynamicproxypool.FieldGrokReasoningCheckAccountID, field.TypeInt64, value)
+		_node.GrokReasoningCheckAccountID = &value
+	}
+	if value, ok := _c.mutation.GrokReasoningCheckIntervalSec(); ok {
+		_spec.SetField(dynamicproxypool.FieldGrokReasoningCheckIntervalSec, field.TypeInt, value)
+		_node.GrokReasoningCheckIntervalSec = value
 	}
 	return _node, _spec
 }
@@ -1164,6 +1232,60 @@ func (u *DynamicProxyPoolUpsert) UpdateHealthCheckIntervalSec() *DynamicProxyPoo
 // AddHealthCheckIntervalSec adds v to the "health_check_interval_sec" field.
 func (u *DynamicProxyPoolUpsert) AddHealthCheckIntervalSec(v int) *DynamicProxyPoolUpsert {
 	u.Add(dynamicproxypool.FieldHealthCheckIntervalSec, v)
+	return u
+}
+
+// SetGrokReasoningCheckEnabled sets the "grok_reasoning_check_enabled" field.
+func (u *DynamicProxyPoolUpsert) SetGrokReasoningCheckEnabled(v bool) *DynamicProxyPoolUpsert {
+	u.Set(dynamicproxypool.FieldGrokReasoningCheckEnabled, v)
+	return u
+}
+
+// UpdateGrokReasoningCheckEnabled sets the "grok_reasoning_check_enabled" field to the value that was provided on create.
+func (u *DynamicProxyPoolUpsert) UpdateGrokReasoningCheckEnabled() *DynamicProxyPoolUpsert {
+	u.SetExcluded(dynamicproxypool.FieldGrokReasoningCheckEnabled)
+	return u
+}
+
+// SetGrokReasoningCheckAccountID sets the "grok_reasoning_check_account_id" field.
+func (u *DynamicProxyPoolUpsert) SetGrokReasoningCheckAccountID(v int64) *DynamicProxyPoolUpsert {
+	u.Set(dynamicproxypool.FieldGrokReasoningCheckAccountID, v)
+	return u
+}
+
+// UpdateGrokReasoningCheckAccountID sets the "grok_reasoning_check_account_id" field to the value that was provided on create.
+func (u *DynamicProxyPoolUpsert) UpdateGrokReasoningCheckAccountID() *DynamicProxyPoolUpsert {
+	u.SetExcluded(dynamicproxypool.FieldGrokReasoningCheckAccountID)
+	return u
+}
+
+// AddGrokReasoningCheckAccountID adds v to the "grok_reasoning_check_account_id" field.
+func (u *DynamicProxyPoolUpsert) AddGrokReasoningCheckAccountID(v int64) *DynamicProxyPoolUpsert {
+	u.Add(dynamicproxypool.FieldGrokReasoningCheckAccountID, v)
+	return u
+}
+
+// ClearGrokReasoningCheckAccountID clears the value of the "grok_reasoning_check_account_id" field.
+func (u *DynamicProxyPoolUpsert) ClearGrokReasoningCheckAccountID() *DynamicProxyPoolUpsert {
+	u.SetNull(dynamicproxypool.FieldGrokReasoningCheckAccountID)
+	return u
+}
+
+// SetGrokReasoningCheckIntervalSec sets the "grok_reasoning_check_interval_sec" field.
+func (u *DynamicProxyPoolUpsert) SetGrokReasoningCheckIntervalSec(v int) *DynamicProxyPoolUpsert {
+	u.Set(dynamicproxypool.FieldGrokReasoningCheckIntervalSec, v)
+	return u
+}
+
+// UpdateGrokReasoningCheckIntervalSec sets the "grok_reasoning_check_interval_sec" field to the value that was provided on create.
+func (u *DynamicProxyPoolUpsert) UpdateGrokReasoningCheckIntervalSec() *DynamicProxyPoolUpsert {
+	u.SetExcluded(dynamicproxypool.FieldGrokReasoningCheckIntervalSec)
+	return u
+}
+
+// AddGrokReasoningCheckIntervalSec adds v to the "grok_reasoning_check_interval_sec" field.
+func (u *DynamicProxyPoolUpsert) AddGrokReasoningCheckIntervalSec(v int) *DynamicProxyPoolUpsert {
+	u.Add(dynamicproxypool.FieldGrokReasoningCheckIntervalSec, v)
 	return u
 }
 
@@ -1657,6 +1779,69 @@ func (u *DynamicProxyPoolUpsertOne) AddHealthCheckIntervalSec(v int) *DynamicPro
 func (u *DynamicProxyPoolUpsertOne) UpdateHealthCheckIntervalSec() *DynamicProxyPoolUpsertOne {
 	return u.Update(func(s *DynamicProxyPoolUpsert) {
 		s.UpdateHealthCheckIntervalSec()
+	})
+}
+
+// SetGrokReasoningCheckEnabled sets the "grok_reasoning_check_enabled" field.
+func (u *DynamicProxyPoolUpsertOne) SetGrokReasoningCheckEnabled(v bool) *DynamicProxyPoolUpsertOne {
+	return u.Update(func(s *DynamicProxyPoolUpsert) {
+		s.SetGrokReasoningCheckEnabled(v)
+	})
+}
+
+// UpdateGrokReasoningCheckEnabled sets the "grok_reasoning_check_enabled" field to the value that was provided on create.
+func (u *DynamicProxyPoolUpsertOne) UpdateGrokReasoningCheckEnabled() *DynamicProxyPoolUpsertOne {
+	return u.Update(func(s *DynamicProxyPoolUpsert) {
+		s.UpdateGrokReasoningCheckEnabled()
+	})
+}
+
+// SetGrokReasoningCheckAccountID sets the "grok_reasoning_check_account_id" field.
+func (u *DynamicProxyPoolUpsertOne) SetGrokReasoningCheckAccountID(v int64) *DynamicProxyPoolUpsertOne {
+	return u.Update(func(s *DynamicProxyPoolUpsert) {
+		s.SetGrokReasoningCheckAccountID(v)
+	})
+}
+
+// AddGrokReasoningCheckAccountID adds v to the "grok_reasoning_check_account_id" field.
+func (u *DynamicProxyPoolUpsertOne) AddGrokReasoningCheckAccountID(v int64) *DynamicProxyPoolUpsertOne {
+	return u.Update(func(s *DynamicProxyPoolUpsert) {
+		s.AddGrokReasoningCheckAccountID(v)
+	})
+}
+
+// UpdateGrokReasoningCheckAccountID sets the "grok_reasoning_check_account_id" field to the value that was provided on create.
+func (u *DynamicProxyPoolUpsertOne) UpdateGrokReasoningCheckAccountID() *DynamicProxyPoolUpsertOne {
+	return u.Update(func(s *DynamicProxyPoolUpsert) {
+		s.UpdateGrokReasoningCheckAccountID()
+	})
+}
+
+// ClearGrokReasoningCheckAccountID clears the value of the "grok_reasoning_check_account_id" field.
+func (u *DynamicProxyPoolUpsertOne) ClearGrokReasoningCheckAccountID() *DynamicProxyPoolUpsertOne {
+	return u.Update(func(s *DynamicProxyPoolUpsert) {
+		s.ClearGrokReasoningCheckAccountID()
+	})
+}
+
+// SetGrokReasoningCheckIntervalSec sets the "grok_reasoning_check_interval_sec" field.
+func (u *DynamicProxyPoolUpsertOne) SetGrokReasoningCheckIntervalSec(v int) *DynamicProxyPoolUpsertOne {
+	return u.Update(func(s *DynamicProxyPoolUpsert) {
+		s.SetGrokReasoningCheckIntervalSec(v)
+	})
+}
+
+// AddGrokReasoningCheckIntervalSec adds v to the "grok_reasoning_check_interval_sec" field.
+func (u *DynamicProxyPoolUpsertOne) AddGrokReasoningCheckIntervalSec(v int) *DynamicProxyPoolUpsertOne {
+	return u.Update(func(s *DynamicProxyPoolUpsert) {
+		s.AddGrokReasoningCheckIntervalSec(v)
+	})
+}
+
+// UpdateGrokReasoningCheckIntervalSec sets the "grok_reasoning_check_interval_sec" field to the value that was provided on create.
+func (u *DynamicProxyPoolUpsertOne) UpdateGrokReasoningCheckIntervalSec() *DynamicProxyPoolUpsertOne {
+	return u.Update(func(s *DynamicProxyPoolUpsert) {
+		s.UpdateGrokReasoningCheckIntervalSec()
 	})
 }
 
@@ -2316,6 +2501,69 @@ func (u *DynamicProxyPoolUpsertBulk) AddHealthCheckIntervalSec(v int) *DynamicPr
 func (u *DynamicProxyPoolUpsertBulk) UpdateHealthCheckIntervalSec() *DynamicProxyPoolUpsertBulk {
 	return u.Update(func(s *DynamicProxyPoolUpsert) {
 		s.UpdateHealthCheckIntervalSec()
+	})
+}
+
+// SetGrokReasoningCheckEnabled sets the "grok_reasoning_check_enabled" field.
+func (u *DynamicProxyPoolUpsertBulk) SetGrokReasoningCheckEnabled(v bool) *DynamicProxyPoolUpsertBulk {
+	return u.Update(func(s *DynamicProxyPoolUpsert) {
+		s.SetGrokReasoningCheckEnabled(v)
+	})
+}
+
+// UpdateGrokReasoningCheckEnabled sets the "grok_reasoning_check_enabled" field to the value that was provided on create.
+func (u *DynamicProxyPoolUpsertBulk) UpdateGrokReasoningCheckEnabled() *DynamicProxyPoolUpsertBulk {
+	return u.Update(func(s *DynamicProxyPoolUpsert) {
+		s.UpdateGrokReasoningCheckEnabled()
+	})
+}
+
+// SetGrokReasoningCheckAccountID sets the "grok_reasoning_check_account_id" field.
+func (u *DynamicProxyPoolUpsertBulk) SetGrokReasoningCheckAccountID(v int64) *DynamicProxyPoolUpsertBulk {
+	return u.Update(func(s *DynamicProxyPoolUpsert) {
+		s.SetGrokReasoningCheckAccountID(v)
+	})
+}
+
+// AddGrokReasoningCheckAccountID adds v to the "grok_reasoning_check_account_id" field.
+func (u *DynamicProxyPoolUpsertBulk) AddGrokReasoningCheckAccountID(v int64) *DynamicProxyPoolUpsertBulk {
+	return u.Update(func(s *DynamicProxyPoolUpsert) {
+		s.AddGrokReasoningCheckAccountID(v)
+	})
+}
+
+// UpdateGrokReasoningCheckAccountID sets the "grok_reasoning_check_account_id" field to the value that was provided on create.
+func (u *DynamicProxyPoolUpsertBulk) UpdateGrokReasoningCheckAccountID() *DynamicProxyPoolUpsertBulk {
+	return u.Update(func(s *DynamicProxyPoolUpsert) {
+		s.UpdateGrokReasoningCheckAccountID()
+	})
+}
+
+// ClearGrokReasoningCheckAccountID clears the value of the "grok_reasoning_check_account_id" field.
+func (u *DynamicProxyPoolUpsertBulk) ClearGrokReasoningCheckAccountID() *DynamicProxyPoolUpsertBulk {
+	return u.Update(func(s *DynamicProxyPoolUpsert) {
+		s.ClearGrokReasoningCheckAccountID()
+	})
+}
+
+// SetGrokReasoningCheckIntervalSec sets the "grok_reasoning_check_interval_sec" field.
+func (u *DynamicProxyPoolUpsertBulk) SetGrokReasoningCheckIntervalSec(v int) *DynamicProxyPoolUpsertBulk {
+	return u.Update(func(s *DynamicProxyPoolUpsert) {
+		s.SetGrokReasoningCheckIntervalSec(v)
+	})
+}
+
+// AddGrokReasoningCheckIntervalSec adds v to the "grok_reasoning_check_interval_sec" field.
+func (u *DynamicProxyPoolUpsertBulk) AddGrokReasoningCheckIntervalSec(v int) *DynamicProxyPoolUpsertBulk {
+	return u.Update(func(s *DynamicProxyPoolUpsert) {
+		s.AddGrokReasoningCheckIntervalSec(v)
+	})
+}
+
+// UpdateGrokReasoningCheckIntervalSec sets the "grok_reasoning_check_interval_sec" field to the value that was provided on create.
+func (u *DynamicProxyPoolUpsertBulk) UpdateGrokReasoningCheckIntervalSec() *DynamicProxyPoolUpsertBulk {
+	return u.Update(func(s *DynamicProxyPoolUpsert) {
+		s.UpdateGrokReasoningCheckIntervalSec()
 	})
 }
 

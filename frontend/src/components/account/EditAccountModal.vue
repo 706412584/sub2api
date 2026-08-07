@@ -53,22 +53,32 @@
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label class="input-label">{{ t('admin.accounts.kiroApiRegion') }}</label>
-            <input
-              v-model="editKiroApiRegion"
-              type="text"
-              class="input font-mono"
-              placeholder="us-east-1"
-            />
+            <select v-model="editKiroApiRegion" class="input font-mono">
+              <option value="us-east-1">us-east-1</option>
+              <option value="eu-central-1">eu-central-1</option>
+              <option value="eu-west-1">eu-west-1</option>
+              <option value="eu-west-2">eu-west-2</option>
+              <option value="eu-west-3">eu-west-3</option>
+              <option value="eu-north-1">eu-north-1</option>
+              <option value="ap-northeast-1">ap-northeast-1</option>
+              <option value="ap-southeast-1">ap-southeast-1</option>
+              <option value="ap-southeast-2">ap-southeast-2</option>
+            </select>
             <p class="input-hint">{{ t('admin.accounts.kiroApiRegionHint') }}</p>
           </div>
           <div>
             <label class="input-label">{{ t('admin.accounts.kiroAuthRegion') }}</label>
-            <input
-              v-model="editKiroAuthRegion"
-              type="text"
-              class="input font-mono"
-              placeholder="us-east-1"
-            />
+            <select v-model="editKiroAuthRegion" class="input font-mono">
+              <option value="us-east-1">us-east-1</option>
+              <option value="eu-central-1">eu-central-1</option>
+              <option value="eu-west-1">eu-west-1</option>
+              <option value="eu-west-2">eu-west-2</option>
+              <option value="eu-west-3">eu-west-3</option>
+              <option value="eu-north-1">eu-north-1</option>
+              <option value="ap-northeast-1">ap-northeast-1</option>
+              <option value="ap-southeast-1">ap-southeast-1</option>
+              <option value="ap-southeast-2">ap-southeast-2</option>
+            </select>
             <p class="input-hint">{{ t('admin.accounts.kiroAuthRegionHint') }}</p>
           </div>
         </div>

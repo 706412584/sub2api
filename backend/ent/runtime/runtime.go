@@ -1074,6 +1074,14 @@ func init() {
 	dynamicproxypoolDescHealthCheckIntervalSec := dynamicproxypoolFields[22].Descriptor()
 	// dynamicproxypool.DefaultHealthCheckIntervalSec holds the default value on creation for the health_check_interval_sec field.
 	dynamicproxypool.DefaultHealthCheckIntervalSec = dynamicproxypoolDescHealthCheckIntervalSec.Default.(int)
+	// dynamicproxypoolDescGrokReasoningCheckEnabled is the schema descriptor for grok_reasoning_check_enabled field.
+	dynamicproxypoolDescGrokReasoningCheckEnabled := dynamicproxypoolFields[23].Descriptor()
+	// dynamicproxypool.DefaultGrokReasoningCheckEnabled holds the default value on creation for the grok_reasoning_check_enabled field.
+	dynamicproxypool.DefaultGrokReasoningCheckEnabled = dynamicproxypoolDescGrokReasoningCheckEnabled.Default.(bool)
+	// dynamicproxypoolDescGrokReasoningCheckIntervalSec is the schema descriptor for grok_reasoning_check_interval_sec field.
+	dynamicproxypoolDescGrokReasoningCheckIntervalSec := dynamicproxypoolFields[25].Descriptor()
+	// dynamicproxypool.DefaultGrokReasoningCheckIntervalSec holds the default value on creation for the grok_reasoning_check_interval_sec field.
+	dynamicproxypool.DefaultGrokReasoningCheckIntervalSec = dynamicproxypoolDescGrokReasoningCheckIntervalSec.Default.(int)
 	errorpassthroughruleMixin := schema.ErrorPassthroughRule{}.Mixin()
 	errorpassthroughruleMixinFields0 := errorpassthroughruleMixin[0].Fields()
 	_ = errorpassthroughruleMixinFields0

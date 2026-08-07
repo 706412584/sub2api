@@ -459,6 +459,68 @@ func (_u *DynamicProxyPoolUpdate) AddHealthCheckIntervalSec(v int) *DynamicProxy
 	return _u
 }
 
+// SetGrokReasoningCheckEnabled sets the "grok_reasoning_check_enabled" field.
+func (_u *DynamicProxyPoolUpdate) SetGrokReasoningCheckEnabled(v bool) *DynamicProxyPoolUpdate {
+	_u.mutation.SetGrokReasoningCheckEnabled(v)
+	return _u
+}
+
+// SetNillableGrokReasoningCheckEnabled sets the "grok_reasoning_check_enabled" field if the given value is not nil.
+func (_u *DynamicProxyPoolUpdate) SetNillableGrokReasoningCheckEnabled(v *bool) *DynamicProxyPoolUpdate {
+	if v != nil {
+		_u.SetGrokReasoningCheckEnabled(*v)
+	}
+	return _u
+}
+
+// SetGrokReasoningCheckAccountID sets the "grok_reasoning_check_account_id" field.
+func (_u *DynamicProxyPoolUpdate) SetGrokReasoningCheckAccountID(v int64) *DynamicProxyPoolUpdate {
+	_u.mutation.ResetGrokReasoningCheckAccountID()
+	_u.mutation.SetGrokReasoningCheckAccountID(v)
+	return _u
+}
+
+// SetNillableGrokReasoningCheckAccountID sets the "grok_reasoning_check_account_id" field if the given value is not nil.
+func (_u *DynamicProxyPoolUpdate) SetNillableGrokReasoningCheckAccountID(v *int64) *DynamicProxyPoolUpdate {
+	if v != nil {
+		_u.SetGrokReasoningCheckAccountID(*v)
+	}
+	return _u
+}
+
+// AddGrokReasoningCheckAccountID adds value to the "grok_reasoning_check_account_id" field.
+func (_u *DynamicProxyPoolUpdate) AddGrokReasoningCheckAccountID(v int64) *DynamicProxyPoolUpdate {
+	_u.mutation.AddGrokReasoningCheckAccountID(v)
+	return _u
+}
+
+// ClearGrokReasoningCheckAccountID clears the value of the "grok_reasoning_check_account_id" field.
+func (_u *DynamicProxyPoolUpdate) ClearGrokReasoningCheckAccountID() *DynamicProxyPoolUpdate {
+	_u.mutation.ClearGrokReasoningCheckAccountID()
+	return _u
+}
+
+// SetGrokReasoningCheckIntervalSec sets the "grok_reasoning_check_interval_sec" field.
+func (_u *DynamicProxyPoolUpdate) SetGrokReasoningCheckIntervalSec(v int) *DynamicProxyPoolUpdate {
+	_u.mutation.ResetGrokReasoningCheckIntervalSec()
+	_u.mutation.SetGrokReasoningCheckIntervalSec(v)
+	return _u
+}
+
+// SetNillableGrokReasoningCheckIntervalSec sets the "grok_reasoning_check_interval_sec" field if the given value is not nil.
+func (_u *DynamicProxyPoolUpdate) SetNillableGrokReasoningCheckIntervalSec(v *int) *DynamicProxyPoolUpdate {
+	if v != nil {
+		_u.SetGrokReasoningCheckIntervalSec(*v)
+	}
+	return _u
+}
+
+// AddGrokReasoningCheckIntervalSec adds value to the "grok_reasoning_check_interval_sec" field.
+func (_u *DynamicProxyPoolUpdate) AddGrokReasoningCheckIntervalSec(v int) *DynamicProxyPoolUpdate {
+	_u.mutation.AddGrokReasoningCheckIntervalSec(v)
+	return _u
+}
+
 // Mutation returns the DynamicProxyPoolMutation object of the builder.
 func (_u *DynamicProxyPoolUpdate) Mutation() *DynamicProxyPoolMutation {
 	return _u.mutation
@@ -701,6 +763,24 @@ func (_u *DynamicProxyPoolUpdate) sqlSave(ctx context.Context) (_node int, err e
 	}
 	if value, ok := _u.mutation.AddedHealthCheckIntervalSec(); ok {
 		_spec.AddField(dynamicproxypool.FieldHealthCheckIntervalSec, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.GrokReasoningCheckEnabled(); ok {
+		_spec.SetField(dynamicproxypool.FieldGrokReasoningCheckEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.GrokReasoningCheckAccountID(); ok {
+		_spec.SetField(dynamicproxypool.FieldGrokReasoningCheckAccountID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedGrokReasoningCheckAccountID(); ok {
+		_spec.AddField(dynamicproxypool.FieldGrokReasoningCheckAccountID, field.TypeInt64, value)
+	}
+	if _u.mutation.GrokReasoningCheckAccountIDCleared() {
+		_spec.ClearField(dynamicproxypool.FieldGrokReasoningCheckAccountID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.GrokReasoningCheckIntervalSec(); ok {
+		_spec.SetField(dynamicproxypool.FieldGrokReasoningCheckIntervalSec, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedGrokReasoningCheckIntervalSec(); ok {
+		_spec.AddField(dynamicproxypool.FieldGrokReasoningCheckIntervalSec, field.TypeInt, value)
 	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -1153,6 +1233,68 @@ func (_u *DynamicProxyPoolUpdateOne) AddHealthCheckIntervalSec(v int) *DynamicPr
 	return _u
 }
 
+// SetGrokReasoningCheckEnabled sets the "grok_reasoning_check_enabled" field.
+func (_u *DynamicProxyPoolUpdateOne) SetGrokReasoningCheckEnabled(v bool) *DynamicProxyPoolUpdateOne {
+	_u.mutation.SetGrokReasoningCheckEnabled(v)
+	return _u
+}
+
+// SetNillableGrokReasoningCheckEnabled sets the "grok_reasoning_check_enabled" field if the given value is not nil.
+func (_u *DynamicProxyPoolUpdateOne) SetNillableGrokReasoningCheckEnabled(v *bool) *DynamicProxyPoolUpdateOne {
+	if v != nil {
+		_u.SetGrokReasoningCheckEnabled(*v)
+	}
+	return _u
+}
+
+// SetGrokReasoningCheckAccountID sets the "grok_reasoning_check_account_id" field.
+func (_u *DynamicProxyPoolUpdateOne) SetGrokReasoningCheckAccountID(v int64) *DynamicProxyPoolUpdateOne {
+	_u.mutation.ResetGrokReasoningCheckAccountID()
+	_u.mutation.SetGrokReasoningCheckAccountID(v)
+	return _u
+}
+
+// SetNillableGrokReasoningCheckAccountID sets the "grok_reasoning_check_account_id" field if the given value is not nil.
+func (_u *DynamicProxyPoolUpdateOne) SetNillableGrokReasoningCheckAccountID(v *int64) *DynamicProxyPoolUpdateOne {
+	if v != nil {
+		_u.SetGrokReasoningCheckAccountID(*v)
+	}
+	return _u
+}
+
+// AddGrokReasoningCheckAccountID adds value to the "grok_reasoning_check_account_id" field.
+func (_u *DynamicProxyPoolUpdateOne) AddGrokReasoningCheckAccountID(v int64) *DynamicProxyPoolUpdateOne {
+	_u.mutation.AddGrokReasoningCheckAccountID(v)
+	return _u
+}
+
+// ClearGrokReasoningCheckAccountID clears the value of the "grok_reasoning_check_account_id" field.
+func (_u *DynamicProxyPoolUpdateOne) ClearGrokReasoningCheckAccountID() *DynamicProxyPoolUpdateOne {
+	_u.mutation.ClearGrokReasoningCheckAccountID()
+	return _u
+}
+
+// SetGrokReasoningCheckIntervalSec sets the "grok_reasoning_check_interval_sec" field.
+func (_u *DynamicProxyPoolUpdateOne) SetGrokReasoningCheckIntervalSec(v int) *DynamicProxyPoolUpdateOne {
+	_u.mutation.ResetGrokReasoningCheckIntervalSec()
+	_u.mutation.SetGrokReasoningCheckIntervalSec(v)
+	return _u
+}
+
+// SetNillableGrokReasoningCheckIntervalSec sets the "grok_reasoning_check_interval_sec" field if the given value is not nil.
+func (_u *DynamicProxyPoolUpdateOne) SetNillableGrokReasoningCheckIntervalSec(v *int) *DynamicProxyPoolUpdateOne {
+	if v != nil {
+		_u.SetGrokReasoningCheckIntervalSec(*v)
+	}
+	return _u
+}
+
+// AddGrokReasoningCheckIntervalSec adds value to the "grok_reasoning_check_interval_sec" field.
+func (_u *DynamicProxyPoolUpdateOne) AddGrokReasoningCheckIntervalSec(v int) *DynamicProxyPoolUpdateOne {
+	_u.mutation.AddGrokReasoningCheckIntervalSec(v)
+	return _u
+}
+
 // Mutation returns the DynamicProxyPoolMutation object of the builder.
 func (_u *DynamicProxyPoolUpdateOne) Mutation() *DynamicProxyPoolMutation {
 	return _u.mutation
@@ -1425,6 +1567,24 @@ func (_u *DynamicProxyPoolUpdateOne) sqlSave(ctx context.Context) (_node *Dynami
 	}
 	if value, ok := _u.mutation.AddedHealthCheckIntervalSec(); ok {
 		_spec.AddField(dynamicproxypool.FieldHealthCheckIntervalSec, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.GrokReasoningCheckEnabled(); ok {
+		_spec.SetField(dynamicproxypool.FieldGrokReasoningCheckEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.GrokReasoningCheckAccountID(); ok {
+		_spec.SetField(dynamicproxypool.FieldGrokReasoningCheckAccountID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedGrokReasoningCheckAccountID(); ok {
+		_spec.AddField(dynamicproxypool.FieldGrokReasoningCheckAccountID, field.TypeInt64, value)
+	}
+	if _u.mutation.GrokReasoningCheckAccountIDCleared() {
+		_spec.ClearField(dynamicproxypool.FieldGrokReasoningCheckAccountID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.GrokReasoningCheckIntervalSec(); ok {
+		_spec.SetField(dynamicproxypool.FieldGrokReasoningCheckIntervalSec, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedGrokReasoningCheckIntervalSec(); ok {
+		_spec.AddField(dynamicproxypool.FieldGrokReasoningCheckIntervalSec, field.TypeInt, value)
 	}
 	_node = &DynamicProxyPool{config: _u.config}
 	_spec.Assign = _node.assignValues

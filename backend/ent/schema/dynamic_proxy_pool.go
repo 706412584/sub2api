@@ -111,6 +111,15 @@ func (DynamicProxyPool) Fields() []ent.Field {
 		field.Int("health_check_interval_sec").
 			Default(0).
 			Comment("Health check interval in seconds (0 = disabled)"),
+		field.Bool("grok_reasoning_check_enabled").
+			Default(false).
+			Comment("Whether to Grok-reasoning-probe pool proxies and filter entry proxy selection"),
+		field.Int64("grok_reasoning_check_account_id").
+			Optional().Nillable().
+			Comment("Grok OAuth account used for pool proxy reasoning probes"),
+		field.Int("grok_reasoning_check_interval_sec").
+			Default(300).
+			Comment("Interval between Grok reasoning probes of pool proxies (seconds)"),
 	}
 }
 

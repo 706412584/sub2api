@@ -51,23 +51,26 @@ func (h *DynamicProxyPoolHandler) List(c *gin.Context) {
 // Create creates a new dynamic proxy pool.
 func (h *DynamicProxyPoolHandler) Create(c *gin.Context) {
 	var req struct {
-		Name                   string `json:"name" binding:"required"`
-		SourceType             string `json:"source_type"`
-		SubscriptionID         *int64 `json:"subscription_id"`
-		ExtractURL             string `json:"extract_url"`
-		Protocol               string `json:"protocol"`
-		AuthMode               string `json:"auth_mode"`
-		Username               string `json:"username"`
-		Password               string `json:"password"`
-		ResponseFormat         string `json:"response_format"`
-		LineSeparator          string `json:"line_separator"`
-		IPFieldPath            string `json:"ip_field_path"`
-		PortFieldPath          string `json:"port_field_path"`
-		RefreshIntervalSec     int    `json:"refresh_interval_sec"`
-		IPDurationSec          int    `json:"ip_duration_sec"`
-		ExtractCount           int    `json:"extract_count"`
-		MinAlive               int    `json:"min_alive"`
-		HealthCheckIntervalSec int    `json:"health_check_interval_sec"`
+		Name                          string `json:"name" binding:"required"`
+		SourceType                    string `json:"source_type"`
+		SubscriptionID                *int64 `json:"subscription_id"`
+		ExtractURL                    string `json:"extract_url"`
+		Protocol                      string `json:"protocol"`
+		AuthMode                      string `json:"auth_mode"`
+		Username                      string `json:"username"`
+		Password                      string `json:"password"`
+		ResponseFormat                string `json:"response_format"`
+		LineSeparator                 string `json:"line_separator"`
+		IPFieldPath                   string `json:"ip_field_path"`
+		PortFieldPath                 string `json:"port_field_path"`
+		RefreshIntervalSec            int    `json:"refresh_interval_sec"`
+		IPDurationSec                 int    `json:"ip_duration_sec"`
+		ExtractCount                  int    `json:"extract_count"`
+		MinAlive                      int    `json:"min_alive"`
+		HealthCheckIntervalSec        int    `json:"health_check_interval_sec"`
+		GrokReasoningCheckEnabled     bool   `json:"grok_reasoning_check_enabled"`
+		GrokReasoningCheckAccountID   *int64 `json:"grok_reasoning_check_account_id"`
+		GrokReasoningCheckIntervalSec int    `json:"grok_reasoning_check_interval_sec"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid request: "+err.Error())
@@ -75,23 +78,26 @@ func (h *DynamicProxyPoolHandler) Create(c *gin.Context) {
 	}
 
 	pool, err := h.svc.Create(c.Request.Context(), service.DynamicProxyPoolCreateParams{
-		Name:                   req.Name,
-		SourceType:             req.SourceType,
-		SubscriptionID:         req.SubscriptionID,
-		ExtractURL:             req.ExtractURL,
-		Protocol:               req.Protocol,
-		AuthMode:               req.AuthMode,
-		Username:               req.Username,
-		Password:               req.Password,
-		ResponseFormat:         req.ResponseFormat,
-		LineSeparator:          req.LineSeparator,
-		IPFieldPath:            req.IPFieldPath,
-		PortFieldPath:          req.PortFieldPath,
-		RefreshIntervalSec:     req.RefreshIntervalSec,
-		IPDurationSec:          req.IPDurationSec,
-		ExtractCount:           req.ExtractCount,
-		MinAlive:               req.MinAlive,
-		HealthCheckIntervalSec: req.HealthCheckIntervalSec,
+		Name:                          req.Name,
+		SourceType:                    req.SourceType,
+		SubscriptionID:                req.SubscriptionID,
+		ExtractURL:                    req.ExtractURL,
+		Protocol:                      req.Protocol,
+		AuthMode:                      req.AuthMode,
+		Username:                      req.Username,
+		Password:                      req.Password,
+		ResponseFormat:                req.ResponseFormat,
+		LineSeparator:                 req.LineSeparator,
+		IPFieldPath:                   req.IPFieldPath,
+		PortFieldPath:                 req.PortFieldPath,
+		RefreshIntervalSec:            req.RefreshIntervalSec,
+		IPDurationSec:                 req.IPDurationSec,
+		ExtractCount:                  req.ExtractCount,
+		MinAlive:                      req.MinAlive,
+		HealthCheckIntervalSec:        req.HealthCheckIntervalSec,
+		GrokReasoningCheckEnabled:     req.GrokReasoningCheckEnabled,
+		GrokReasoningCheckAccountID:   req.GrokReasoningCheckAccountID,
+		GrokReasoningCheckIntervalSec: req.GrokReasoningCheckIntervalSec,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -123,24 +129,27 @@ func (h *DynamicProxyPoolHandler) Update(c *gin.Context) {
 		return
 	}
 	var req struct {
-		Name                   *string `json:"name"`
-		Enabled                *bool   `json:"enabled"`
-		SourceType             *string `json:"source_type"`
-		SubscriptionID         *int64  `json:"subscription_id"`
-		ExtractURL             *string `json:"extract_url"`
-		Protocol               *string `json:"protocol"`
-		AuthMode               *string `json:"auth_mode"`
-		Username               *string `json:"username"`
-		Password               *string `json:"password"`
-		ResponseFormat         *string `json:"response_format"`
-		LineSeparator          *string `json:"line_separator"`
-		IPFieldPath            *string `json:"ip_field_path"`
-		PortFieldPath          *string `json:"port_field_path"`
-		RefreshIntervalSec     *int    `json:"refresh_interval_sec"`
-		IPDurationSec          *int    `json:"ip_duration_sec"`
-		ExtractCount           *int    `json:"extract_count"`
-		MinAlive               *int    `json:"min_alive"`
-		HealthCheckIntervalSec *int    `json:"health_check_interval_sec"`
+		Name                          *string `json:"name"`
+		Enabled                       *bool   `json:"enabled"`
+		SourceType                    *string `json:"source_type"`
+		SubscriptionID                *int64  `json:"subscription_id"`
+		ExtractURL                    *string `json:"extract_url"`
+		Protocol                      *string `json:"protocol"`
+		AuthMode                      *string `json:"auth_mode"`
+		Username                      *string `json:"username"`
+		Password                      *string `json:"password"`
+		ResponseFormat                *string `json:"response_format"`
+		LineSeparator                 *string `json:"line_separator"`
+		IPFieldPath                   *string `json:"ip_field_path"`
+		PortFieldPath                 *string `json:"port_field_path"`
+		RefreshIntervalSec            *int    `json:"refresh_interval_sec"`
+		IPDurationSec                 *int    `json:"ip_duration_sec"`
+		ExtractCount                  *int    `json:"extract_count"`
+		MinAlive                      *int    `json:"min_alive"`
+		HealthCheckIntervalSec        *int    `json:"health_check_interval_sec"`
+		GrokReasoningCheckEnabled     *bool   `json:"grok_reasoning_check_enabled"`
+		GrokReasoningCheckAccountID   *int64  `json:"grok_reasoning_check_account_id"`
+		GrokReasoningCheckIntervalSec *int    `json:"grok_reasoning_check_interval_sec"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid request: "+err.Error())
@@ -148,24 +157,27 @@ func (h *DynamicProxyPoolHandler) Update(c *gin.Context) {
 	}
 
 	pool, err := h.svc.Update(c.Request.Context(), id, service.DynamicProxyPoolUpdateParams{
-		Name:                   req.Name,
-		Enabled:                req.Enabled,
-		SourceType:             req.SourceType,
-		SubscriptionID:         req.SubscriptionID,
-		ExtractURL:             req.ExtractURL,
-		Protocol:               req.Protocol,
-		AuthMode:               req.AuthMode,
-		Username:               req.Username,
-		Password:               req.Password,
-		ResponseFormat:         req.ResponseFormat,
-		LineSeparator:          req.LineSeparator,
-		IPFieldPath:            req.IPFieldPath,
-		PortFieldPath:          req.PortFieldPath,
-		RefreshIntervalSec:     req.RefreshIntervalSec,
-		IPDurationSec:          req.IPDurationSec,
-		ExtractCount:           req.ExtractCount,
-		MinAlive:               req.MinAlive,
-		HealthCheckIntervalSec: req.HealthCheckIntervalSec,
+		Name:                          req.Name,
+		Enabled:                       req.Enabled,
+		SourceType:                    req.SourceType,
+		SubscriptionID:                req.SubscriptionID,
+		ExtractURL:                    req.ExtractURL,
+		Protocol:                      req.Protocol,
+		AuthMode:                      req.AuthMode,
+		Username:                      req.Username,
+		Password:                      req.Password,
+		ResponseFormat:                req.ResponseFormat,
+		LineSeparator:                 req.LineSeparator,
+		IPFieldPath:                   req.IPFieldPath,
+		PortFieldPath:                 req.PortFieldPath,
+		RefreshIntervalSec:            req.RefreshIntervalSec,
+		IPDurationSec:                 req.IPDurationSec,
+		ExtractCount:                  req.ExtractCount,
+		MinAlive:                      req.MinAlive,
+		HealthCheckIntervalSec:        req.HealthCheckIntervalSec,
+		GrokReasoningCheckEnabled:     req.GrokReasoningCheckEnabled,
+		GrokReasoningCheckAccountID:   req.GrokReasoningCheckAccountID,
+		GrokReasoningCheckIntervalSec: req.GrokReasoningCheckIntervalSec,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -238,7 +250,8 @@ func (h *DynamicProxyPoolHandler) StopEntryProxy(c *gin.Context) {
 	response.Success(c, gin.H{"status": "stopped"})
 }
 
-// ListPoolProxies returns proxies owned by the pool (matching name_prefix).
+// ListPoolProxies returns proxies owned by the pool (matching name_prefix),
+// enriched with cached Grok reasoning status when available.
 func (h *DynamicProxyPoolHandler) ListPoolProxies(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
@@ -250,12 +263,17 @@ func (h *DynamicProxyPoolHandler) ListPoolProxies(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	proxies, err := h.svc.ListPoolProxies(c.Request.Context(), pool.NamePrefix)
+	proxies, err := h.svc.ListPoolProxiesWithGrok(c.Request.Context(), pool.NamePrefix)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, gin.H{"items": proxies, "total": len(proxies)})
+	response.Success(c, gin.H{
+		"items":                           proxies,
+		"total":                           len(proxies),
+		"grok_reasoning_check_enabled":    pool.GrokReasoningCheckEnabled,
+		"grok_reasoning_check_account_id": pool.GrokReasoningCheckAccountID,
+	})
 }
 
 // AssociateProxies adds existing proxies to the pool.
@@ -349,14 +367,19 @@ func (h *DynamicProxyPoolHandler) AddSubscriptionNodes(c *gin.Context) {
 	response.Success(c, gin.H{"created": len(createdIDs), "ids": createdIDs})
 }
 
-// TestPoolProxy tests a pool-owned proxy.
+// TestPoolProxy tests a pool-owned proxy (connectivity + optional Grok reasoning).
 func (h *DynamicProxyPoolHandler) TestPoolProxy(c *gin.Context) {
+	poolID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid pool ID")
+		return
+	}
 	proxyID, err := strconv.ParseInt(c.Param("proxyId"), 10, 64)
 	if err != nil {
 		response.BadRequest(c, "Invalid proxy ID")
 		return
 	}
-	result, err := h.svc.TestPoolProxy(c.Request.Context(), proxyID)
+	result, err := h.svc.TestPoolProxy(c.Request.Context(), poolID, proxyID)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

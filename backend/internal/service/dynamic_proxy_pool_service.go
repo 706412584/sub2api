@@ -28,15 +28,24 @@ const (
 	DynamicPoolNamePrefixBase     = "dpool-"
 )
 
+// poolGrokQualityMark is an in-memory Grok reasoning probe cache entry for pool proxies.
+type poolGrokQualityMark struct {
+	Status  GrokReasoningProbeStatus
+	Message string
+}
+
 // DynamicProxyPoolService manages CRUD and extraction for dynamic proxy pools.
 type DynamicProxyPoolService struct {
-	repo            DynamicProxyPoolRepository
-	proxyRepo       ProxyRepository
-	subRepo         ProxySubscriptionRepository
-	httpClient      *http.Client
-	entryMu         sync.Mutex
-	entries         map[int64]*poolEntryServer // pool ID -> entry server
-	healthCheckLast map[int64]time.Time        // pool ID -> last health check time
+	repo             DynamicProxyPoolRepository
+	proxyRepo        ProxyRepository
+	subRepo          ProxySubscriptionRepository
+	httpClient       *http.Client
+	entryMu          sync.Mutex
+	entries          map[int64]*poolEntryServer    // pool ID -> entry server
+	healthCheckLast  map[int64]time.Time           // pool ID -> last health check time
+	grokCheckLast    map[int64]time.Time           // pool ID -> last Grok reasoning check time
+	grokProbeSvc     *GrokReasoningProbeService    // optional Grok reasoning probe
+	grokQualityMarks map[int64]poolGrokQualityMark // proxyID -> cached probe status+message
 }
 
 // NewDynamicProxyPoolService constructs the service.
@@ -58,32 +67,44 @@ func NewDynamicProxyPoolService(
 				Proxy: nil, // nil = no proxy, bypasses HTTP_PROXY env var
 			},
 		},
-		entries:         make(map[int64]*poolEntryServer),
-		healthCheckLast: make(map[int64]time.Time),
+		entries:          make(map[int64]*poolEntryServer),
+		healthCheckLast:  make(map[int64]time.Time),
+		grokCheckLast:    make(map[int64]time.Time),
+		grokQualityMarks: make(map[int64]poolGrokQualityMark),
 	}
+}
+
+// SetGrokReasoningProbeService sets the optional Grok reasoning probe service.
+// When set, pools with grok_reasoning_check_enabled will periodically probe
+// each pool proxy and exclude non-visible-reasoning proxies from entry proxy selection.
+func (s *DynamicProxyPoolService) SetGrokReasoningProbeService(p *GrokReasoningProbeService) {
+	s.grokProbeSvc = p
 }
 
 // Create validates and persists a new dynamic proxy pool.
 func (s *DynamicProxyPoolService) Create(ctx context.Context, p DynamicProxyPoolCreateParams) (*DynamicProxyPool, error) {
 	m := &DynamicProxyPool{
-		Name:                   p.Name,
-		Enabled:                true,
-		SourceType:             coalesce(p.SourceType, DynamicPoolSourceExtractAPI),
-		SubscriptionID:         p.SubscriptionID,
-		ExtractURL:             p.ExtractURL,
-		Protocol:               coalesce(p.Protocol, "http"),
-		AuthMode:               coalesce(p.AuthMode, "none"),
-		Username:               p.Username,
-		Password:               p.Password,
-		ResponseFormat:         coalesce(p.ResponseFormat, "txt"),
-		LineSeparator:          coalesce(p.LineSeparator, "\r\n"),
-		IPFieldPath:            p.IPFieldPath,
-		PortFieldPath:          p.PortFieldPath,
-		RefreshIntervalSec:     max(p.RefreshIntervalSec, 60),
-		IPDurationSec:          max(p.IPDurationSec, 30),
-		ExtractCount:           max(p.ExtractCount, 1),
-		MinAlive:               max(p.MinAlive, 1),
-		HealthCheckIntervalSec: max(p.HealthCheckIntervalSec, 0),
+		Name:                          p.Name,
+		Enabled:                       true,
+		SourceType:                    coalesce(p.SourceType, DynamicPoolSourceExtractAPI),
+		SubscriptionID:                p.SubscriptionID,
+		ExtractURL:                    p.ExtractURL,
+		Protocol:                      coalesce(p.Protocol, "http"),
+		AuthMode:                      coalesce(p.AuthMode, "none"),
+		Username:                      p.Username,
+		Password:                      p.Password,
+		ResponseFormat:                coalesce(p.ResponseFormat, "txt"),
+		LineSeparator:                 coalesce(p.LineSeparator, "\r\n"),
+		IPFieldPath:                   p.IPFieldPath,
+		PortFieldPath:                 p.PortFieldPath,
+		RefreshIntervalSec:            max(p.RefreshIntervalSec, 60),
+		IPDurationSec:                 max(p.IPDurationSec, 30),
+		ExtractCount:                  max(p.ExtractCount, 1),
+		MinAlive:                      max(p.MinAlive, 1),
+		HealthCheckIntervalSec:        max(p.HealthCheckIntervalSec, 0),
+		GrokReasoningCheckEnabled:     p.GrokReasoningCheckEnabled,
+		GrokReasoningCheckAccountID:   p.GrokReasoningCheckAccountID,
+		GrokReasoningCheckIntervalSec: max(p.GrokReasoningCheckIntervalSec, 60),
 	}
 
 	// Generate name prefix
@@ -169,6 +190,17 @@ func (s *DynamicProxyPoolService) Update(ctx context.Context, id int64, p Dynami
 	if p.HealthCheckIntervalSec != nil {
 		m.HealthCheckIntervalSec = max(*p.HealthCheckIntervalSec, 0)
 	}
+	if p.GrokReasoningCheckEnabled != nil {
+		m.GrokReasoningCheckEnabled = *p.GrokReasoningCheckEnabled
+	}
+	if p.GrokReasoningCheckAccountID != nil {
+		m.GrokReasoningCheckAccountID = p.GrokReasoningCheckAccountID
+	} else if p.GrokReasoningCheckEnabled != nil && !*p.GrokReasoningCheckEnabled {
+		m.GrokReasoningCheckAccountID = nil
+	}
+	if p.GrokReasoningCheckIntervalSec != nil {
+		m.GrokReasoningCheckIntervalSec = max(*p.GrokReasoningCheckIntervalSec, 60)
+	}
 
 	if err := s.validate(ctx, m, id); err != nil {
 		return nil, err
@@ -253,6 +285,12 @@ func (s *DynamicProxyPoolService) RefreshDue(ctx context.Context, now time.Time)
 			s.healthCheckPool(ctx, m, now)
 			alive, _ = s.pruneAndCount(ctx, m.NamePrefix, now)
 			_ = s.repo.UpdateAliveCount(ctx, m.ID, alive)
+		}
+
+		// Run periodic Grok reasoning quality checks if enabled. This filters
+		// entry proxy selection to proxies that return visible reasoning.
+		if m.GrokReasoningCheckEnabled && m.GrokReasoningCheckAccountID != nil {
+			s.grokReasoningCheckPool(ctx, m, now)
 		}
 
 		due := alive < m.MinAlive
@@ -587,8 +625,46 @@ func extractNodeServerPort(node clashsub.Node) (server, port string) {
 	return
 }
 
+// PoolProxyTestResult is the connectivity (+ optional Grok reasoning) probe result
+// for a pool-owned proxy shown in the manage-pool UI.
+type PoolProxyTestResult struct {
+	Success              bool   `json:"success"`
+	Message              string `json:"message"`
+	LatencyMs            int64  `json:"latency_ms,omitempty"`
+	GrokReasoningStatus  string `json:"grok_reasoning_status,omitempty"`
+	GrokReasoningMessage string `json:"grok_reasoning_message,omitempty"`
+	GrokLatencyMs        int64  `json:"grok_latency_ms,omitempty"`
+}
+
+// PoolProxyListItem is a pool-owned proxy plus cached Grok reasoning mark for UI.
+type PoolProxyListItem struct {
+	ProxyWithAccountCount
+	GrokReasoningStatus  string `json:"grok_reasoning_status,omitempty"`
+	GrokReasoningMessage string `json:"grok_reasoning_message,omitempty"`
+}
+
+// ListPoolProxiesWithGrok returns pool-owned proxies enriched with cached Grok marks.
+func (s *DynamicProxyPoolService) ListPoolProxiesWithGrok(ctx context.Context, prefix string) ([]PoolProxyListItem, error) {
+	owned, err := s.proxyRepo.ListOwnedByPrefix(ctx, prefix)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]PoolProxyListItem, 0, len(owned))
+	for _, p := range owned {
+		item := PoolProxyListItem{ProxyWithAccountCount: p}
+		if mark, ok := s.grokQualityMarks[p.ID]; ok && mark.Status != "" {
+			item.GrokReasoningStatus = string(mark.Status)
+			item.GrokReasoningMessage = mark.Message
+		}
+		items = append(items, item)
+	}
+	return items, nil
+}
+
 // TestPoolProxy tests a pool-owned proxy connection.
-func (s *DynamicProxyPoolService) TestPoolProxy(ctx context.Context, proxyID int64) (*ProxyTestResult, error) {
+// When the pool has Grok reasoning check enabled with a configured account,
+// it also runs a Grok visible-reasoning probe and returns/caches that status.
+func (s *DynamicProxyPoolService) TestPoolProxy(ctx context.Context, poolID, proxyID int64) (*PoolProxyTestResult, error) {
 	proxy, err := s.proxyRepo.GetByID(ctx, proxyID)
 	if err != nil {
 		return nil, err
@@ -605,12 +681,51 @@ func (s *DynamicProxyPoolService) TestPoolProxy(ctx context.Context, proxyID int
 	}
 	t0 := time.Now()
 	resp, err := client.Get("http://api64.ipify.org?format=json")
+	out := &PoolProxyTestResult{}
 	if err != nil {
-		return &ProxyTestResult{Success: false, Message: err.Error()}, nil
+		out.Success = false
+		out.Message = err.Error()
+	} else {
+		status := resp.StatusCode
+		_ = resp.Body.Close()
+		out.LatencyMs = time.Since(t0).Milliseconds()
+		// Local sidecar may accept TCP/HTTP but still return 5xx when the
+		// selected node cannot reach the target. Treat non-2xx as unreachable.
+		if status >= 200 && status < 300 {
+			out.Success = true
+			out.Message = "proxy is accessible"
+		} else {
+			out.Success = false
+			out.Message = fmt.Sprintf("proxy HTTP %d via %s", status, proxyURL)
+		}
 	}
-	defer func() { _ = resp.Body.Close() }()
-	latency := time.Since(t0).Milliseconds()
-	return &ProxyTestResult{Success: true, LatencyMs: latency, Message: "proxy is accessible"}, nil
+
+	// Optional Grok reasoning probe when the pool has it enabled.
+	if poolID > 0 {
+		if m, getErr := s.repo.GetByID(ctx, poolID); getErr == nil && m != nil &&
+			m.GrokReasoningCheckEnabled && m.GrokReasoningCheckAccountID != nil &&
+			*m.GrokReasoningCheckAccountID > 0 && s.grokProbeSvc != nil {
+			probe := s.grokProbeSvc.ProbeForPool(ctx, proxyID, *m.GrokReasoningCheckAccountID)
+			if probe != nil {
+				out.GrokReasoningStatus = string(probe.Status)
+				out.GrokReasoningMessage = probe.Message
+				out.GrokLatencyMs = probe.LatencyMs
+				s.grokQualityMarks[proxyID] = poolGrokQualityMark{
+					Status:  probe.Status,
+					Message: probe.Message,
+				}
+				if out.Success && probe.Status != GrokReasoningProbeStatusVisible && probe.Status != "" {
+					if out.Message == "proxy is accessible" {
+						out.Message = "proxy is accessible; grok reasoning=" + string(probe.Status)
+					}
+				}
+			}
+		} else if mark, ok := s.grokQualityMarks[proxyID]; ok && mark.Status != "" {
+			out.GrokReasoningStatus = string(mark.Status)
+			out.GrokReasoningMessage = mark.Message
+		}
+	}
+	return out, nil
 }
 
 // QualityCheckPoolProxy checks a pool-owned proxy against common AI targets.
@@ -789,12 +904,12 @@ func (s *DynamicProxyPoolService) EnsureEntryProxy(ctx context.Context, poolID i
 		addr:   bindAddr,
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", entry.serveHTTP)
-
+	// Do NOT use ServeMux: CONNECT requests have opaque host:port targets and
+	// modern ServeMux returns 404 for them (Go client surfaces as "Not Found").
+	// Use the entry handler directly so both CONNECT tunnels and plain HTTP work.
 	entry.server = &http.Server{
 		Addr:    bindAddr,
-		Handler: mux,
+		Handler: http.HandlerFunc(entry.serveHTTP),
 	}
 
 	go func() {
@@ -882,7 +997,49 @@ func (s *DynamicProxyPoolService) StopAllEntryProxies() {
 	}
 }
 
+// grokReasoningCheckPool probes each active pool proxy through the configured
+// Grok OAuth account and caches the reasoning quality result. Proxies that fail
+// or return no visible reasoning will be excluded from entry proxy selection.
+func (s *DynamicProxyPoolService) grokReasoningCheckPool(ctx context.Context, m *DynamicProxyPool, now time.Time) {
+	if m == nil || !m.GrokReasoningCheckEnabled || m.GrokReasoningCheckAccountID == nil {
+		return
+	}
+	if s.grokProbeSvc == nil {
+		return
+	}
+	interval := m.GrokReasoningCheckIntervalSec
+	if interval <= 0 {
+		interval = 300
+	}
+	lastCheck, ok := s.grokCheckLast[m.ID]
+	if ok && now.Sub(lastCheck) < time.Duration(interval)*time.Second {
+		return
+	}
+	s.grokCheckLast[m.ID] = now
+
+	owned, err := s.proxyRepo.ListOwnedByPrefix(ctx, m.NamePrefix)
+	if err != nil {
+		return
+	}
+	for _, p := range owned {
+		if p.IsExpired(now) || p.Status != StatusActive {
+			continue
+		}
+		result := s.grokProbeSvc.ProbeForPool(ctx, p.ID, *m.GrokReasoningCheckAccountID)
+		if result == nil {
+			continue
+		}
+		s.grokQualityMarks[p.ID] = poolGrokQualityMark{
+			Status:  result.Status,
+			Message: result.Message,
+		}
+	}
+}
+
 // pickRandomAlive picks a random alive proxy from the pool. Returns nil if none.
+// When the pool has Grok reasoning check enabled, only proxies that have passed
+// visible reasoning detection are eligible. Unprobed proxies fall back to being
+// eligible (graceful degradation before first check completes).
 func (s *DynamicProxyPoolService) pickRandomAlive(ctx context.Context, poolID int64) (*Proxy, error) {
 	m, err := s.repo.GetByID(ctx, poolID)
 	if err != nil {
@@ -896,6 +1053,14 @@ func (s *DynamicProxyPoolService) pickRandomAlive(ctx context.Context, poolID in
 	var alive []*ProxyWithAccountCount
 	for _, p := range owned {
 		if p.Status == StatusActive && !p.IsExpired(now) {
+			// When Grok reasoning check is enabled, skip proxies that have
+			// been probed and found to lack visible reasoning. Unprobed proxies
+			// are still eligible (graceful degradation before first check).
+			if m.GrokReasoningCheckEnabled && len(s.grokQualityMarks) > 0 {
+				if mark, checked := s.grokQualityMarks[p.ID]; checked && mark.Status != GrokReasoningProbeStatusVisible {
+					continue
+				}
+			}
 			alive = append(alive, &p)
 		}
 	}

@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"regexp"
 	"strings"
 	"sync"
@@ -57,6 +58,12 @@ type TestEvent struct {
 	ProxyName string `json:"proxy_name,omitempty"`
 	// ProxyURL is the proxy URL used for the test (if any).
 	ProxyURL string `json:"proxy_url,omitempty"`
+	// EgressIP is the public IP observed through the same proxy hop used by the test.
+	EgressIP string `json:"egress_ip,omitempty"`
+	// EgressLatencyMs is the latency of the egress IP probe (not the model call).
+	EgressLatencyMs int64 `json:"egress_latency_ms,omitempty"`
+	// EgressError is set when the egress IP probe failed (proxy may still work for the model call).
+	EgressError string `json:"egress_error,omitempty"`
 }
 
 const (
@@ -213,6 +220,51 @@ func (s *AccountTestService) resolveTestProxyName(ctx context.Context, account *
 	return ""
 }
 
+// probeTestEgressIP fetches the public IP through the same proxy hop the account
+// test will use. Empty proxyURL means direct egress. Failures are non-fatal.
+func probeTestEgressIP(proxyURL string) (ip string, latencyMs int64, err error) {
+	const probeURL = "http://api64.ipify.org?format=json"
+	transport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+	}
+	if strings.TrimSpace(proxyURL) != "" {
+		parsed, parseErr := url.Parse(proxyURL)
+		if parseErr != nil {
+			return "", 0, parseErr
+		}
+		transport.Proxy = http.ProxyURL(parsed)
+	}
+	client := &http.Client{
+		Transport: transport,
+		Timeout:   5 * time.Second,
+	}
+	start := time.Now()
+	resp, doErr := client.Get(probeURL)
+	latencyMs = time.Since(start).Milliseconds()
+	if doErr != nil {
+		return "", latencyMs, doErr
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", latencyMs, fmt.Errorf("egress probe HTTP %d", resp.StatusCode)
+	}
+	body, readErr := io.ReadAll(io.LimitReader(resp.Body, 512))
+	if readErr != nil {
+		return "", latencyMs, readErr
+	}
+	var parsed struct {
+		IP string `json:"ip"`
+	}
+	if jsonErr := json.Unmarshal(body, &parsed); jsonErr != nil {
+		return "", latencyMs, jsonErr
+	}
+	ip = strings.TrimSpace(parsed.IP)
+	if ip == "" {
+		return "", latencyMs, fmt.Errorf("empty egress ip")
+	}
+	return ip, latencyMs, nil
+}
+
 func withTestProxyOverride(ctx context.Context, override *TestProxyOverride) context.Context {
 	if override == nil {
 		return ctx
@@ -314,12 +366,23 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 		return s.sendErrorAndEnd(c, "Account not found")
 	}
 
-	// Send proxy info event so the UI can show which proxy is being used
+	// Send proxy info event (always) so the UI can show which proxy is being used + egress IP
 	proxyName := s.resolveTestProxyName(ctx, account)
 	proxyURL := s.resolveTestProxyURL(ctx, account)
-	if proxyName != "" || proxyURL != "" {
-		s.sendEvent(c, TestEvent{Type: "proxy_info", ProxyName: proxyName, ProxyURL: proxyURL})
+	egressIP, egressLatency, egressErr := probeTestEgressIP(proxyURL)
+	var egressErrStr string
+	if egressErr != nil {
+		egressErrStr = egressErr.Error()
 	}
+	event := TestEvent{
+		Type:            "proxy_info",
+		ProxyName:       proxyName,
+		ProxyURL:        proxyURL,
+		EgressIP:        egressIP,
+		EgressLatencyMs: egressLatency,
+		EgressError:     egressErrStr,
+	}
+	s.sendEvent(c, event)
 
 	// Synthetic UI load-test accounts exercise the real SSE parsing and modal
 	// interactions, but intentionally do not send their placeholder credentials

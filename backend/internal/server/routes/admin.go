@@ -829,6 +829,7 @@ func registerProxySubscriptionRoutes(admin *gin.RouterGroup, h *handler.Handlers
 		subs.DELETE("/:id", h.Admin.ProxySubscription.Delete)
 		subs.POST("/:id/sync", h.Admin.ProxySubscription.Sync)
 		subs.POST("/:id/preview-nodes", h.Admin.ProxySubscription.PreviewNodes)
+		subs.POST("/:id/nodes/test", h.Admin.ProxySubscription.TestNode)
 	}
 }
 

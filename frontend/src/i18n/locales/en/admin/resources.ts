@@ -304,6 +304,7 @@ export default {
         },
         form: {
           name: 'Name',
+          enabled: 'Enabled',
           sourceType: 'Source type',
           sourceExtractApi: 'Extract API',
           sourceSubscription: 'Subscription',
@@ -327,6 +328,11 @@ export default {
           minAlive: 'Min alive',
           healthCheckInterval: 'Health check interval (sec)',
           healthCheckHint: 'Periodically test pool proxies; 0 = disabled',
+          grokReasoningCheckEnabled: 'Grok reasoning check',
+          grokReasoningCheckHint: 'Probe pool proxies for visible Grok reasoning; entry proxy only selects passing proxies',
+          grokReasoningCheckAccount: 'Grok account for probing',
+          grokReasoningCheckAccountPlaceholder: 'Select a Grok account',
+          grokReasoningCheckInterval: 'Reasoning check interval (sec)',
         },
         manage: 'Manage',
         manageTitle: 'Manage Pool Proxies',
@@ -340,9 +346,12 @@ export default {
         statusError: 'Error',
         statusIdle: 'Idle',
         testProxy: 'Test',
+        testAll: 'Test all',
         testing: 'Testing…',
+        testingAll: 'Testing all…',
         testSuccess: 'OK',
         testFail: 'Failed',
+        testAllDone: 'Test done: {ok} ok, {fail} failed',
         nodes: 'Nodes',
         nodesLoading: 'Loading…',
         nodesTitle: 'Subscription Nodes',
@@ -354,7 +363,23 @@ export default {
         entryProxyStop: 'Stop Entry Proxy',
         entryProxyRunning: 'Entry proxy running',
         entryProxyStopped: 'Entry proxy stopped',
-        testLatency: '{ms}ms'
+        entryProxyBind: 'Bind address',
+        entryProxyHint:
+          'Bind accounts/groups to the pool-entry-* row in IP management (not dpool members). Restart requires starting the entry again.',
+        testLatency: '{ms}ms',
+        grokStatus: 'Grok reasoning',
+        grokStatusVisible: 'Visible',
+        grokStatusEncrypted: 'Encrypted only',
+        grokStatusNone: 'No reasoning',
+        grokStatusError: 'Probe error',
+        grokStatusUnknown: 'Not checked',
+        grokDetailTitle: 'Grok reasoning probe detail',
+        grokDetailStatus: 'Status',
+        grokDetailReason: 'Reason',
+        grokDetailNoReason: 'No detailed error message',
+        grokDetailClickHint: 'Click to view failure reason',
+        testCached: 'cached',
+        grokCheckOn: 'Grok reasoning check is on (tests also report visible reasoning)'
       },
       subscriptions: {
         create: 'Add Subscription',
@@ -438,7 +463,9 @@ export default {
           noNodesLoaded: 'No nodes loaded yet',
           nodesLoadFailed: 'Failed to load nodes',
           missingFromPreview: 'Saved but missing from current preview',
-          whitelistCount: 'whitelist {count}'
+          whitelistCount: 'whitelist {count}',
+          testNode: 'Test',
+          testNodeFail: 'Fail'
         }
       },
     },

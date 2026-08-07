@@ -2,9 +2,7 @@ package admin
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
@@ -194,32 +192,22 @@ func (h *KiroOAuthHandler) CreateAPIKeyAccount(c *gin.Context) {
 		response.InternalError(c, "Account test service is not configured")
 		return
 	}
-	models, err := h.accountTestService.FetchUpstreamSupportedModels(c.Request.Context(), &service.Account{
+	// Model sync is best-effort: a regional/config mismatch must not block account
+	// creation. If it fails, the account is still created and models can be synced
+	// later from the account detail page.
+	if models, modelErr := h.accountTestService.FetchUpstreamSupportedModels(c.Request.Context(), &service.Account{
 		Platform:    service.PlatformKiro,
 		Type:        service.AccountTypeAPIKey,
 		Credentials: credentials,
 		ProxyID:     req.ProxyID,
 		Concurrency: concurrency,
-	})
-	if err != nil {
-		var syncErr *service.UpstreamModelSyncError
-		if errors.As(err, &syncErr) {
-			switch syncErr.Kind {
-			case service.UpstreamModelSyncErrorConfiguration, service.UpstreamModelSyncErrorUnsupported:
-				response.BadRequest(c, syncErr.SafeMessage())
-			default:
-				response.Error(c, http.StatusBadGateway, syncErr.SafeMessage())
-			}
-			return
+	}); modelErr == nil && len(models) > 0 {
+		modelMapping := make(map[string]any, len(models))
+		for _, model := range models {
+			modelMapping[model] = model
 		}
-		response.Error(c, http.StatusBadGateway, "Failed to sync Kiro models from upstream")
-		return
+		credentials["model_mapping"] = modelMapping
 	}
-	modelMapping := make(map[string]any, len(models))
-	for _, model := range models {
-		modelMapping[model] = model
-	}
-	credentials["model_mapping"] = modelMapping
 	extra := map[string]any{}
 	tempAccount := &service.Account{
 		Platform:    service.PlatformKiro,

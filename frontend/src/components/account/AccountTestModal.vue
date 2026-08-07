@@ -492,6 +492,9 @@ const handleEvent = (event: {
   mime_type?: string
   proxy_name?: string
   proxy_url?: string
+  egress_ip?: string
+  egress_latency_ms?: number
+  egress_error?: string
 }) => {
   switch (event.type) {
     case 'test_start':
@@ -509,15 +512,20 @@ const handleEvent = (event: {
       addLine(t('admin.accounts.response'), 'text-yellow-400')
       break
 
-    case 'proxy_info':
-      if (event.proxy_name) {
-        addLine(t('admin.accounts.usingProxy', { name: event.proxy_name }), 'text-purple-400')
-      } else if (event.proxy_url) {
-        addLine(t('admin.accounts.usingProxy', { name: event.proxy_url }), 'text-purple-400')
-      } else {
-        addLine(t('admin.accounts.testDirect'), 'text-gray-500')
-      }
-      break
+	    case 'proxy_info': {
+	      const proxyName = event.proxy_name || event.proxy_url
+	      if (proxyName) {
+	        addLine(t('admin.accounts.usingProxy', { name: proxyName }), 'text-purple-400')
+	      } else {
+	        addLine(t('admin.accounts.testDirect'), 'text-gray-500')
+	      }
+	      if (event.egress_ip) {
+	        addLine(t('admin.accounts.usingEgressIP', { ip: event.egress_ip, ms: event.egress_latency_ms || 0 }), 'text-cyan-400')
+	      } else if (event.egress_error) {
+	        addLine(t('admin.accounts.egressProbeFailed', { error: event.egress_error }), 'text-red-400')
+	      }
+	      break
+	    }
 
     case 'content':
       if (event.text) {

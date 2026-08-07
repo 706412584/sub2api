@@ -15,32 +15,35 @@ var (
 
 // DynamicProxyPool represents a dynamic IP extraction pool configuration.
 type DynamicProxyPool struct {
-	ID                     int64      `json:"id"`
-	Name                   string     `json:"name"`
-	Enabled                bool       `json:"enabled"`
-	SourceType             string     `json:"source_type"` // extract_api | subscription
-	SubscriptionID         *int64     `json:"subscription_id"`
-	ExtractURL             string     `json:"extract_url"`
-	Protocol               string     `json:"protocol"`
-	AuthMode               string     `json:"auth_mode"` // none | fixed | from_response
-	Username               string     `json:"username"`
-	Password               string     `json:"password"`
-	ResponseFormat         string     `json:"response_format"` // txt | json
-	LineSeparator          string     `json:"line_separator"`
-	IPFieldPath            string     `json:"ip_field_path"`
-	PortFieldPath          string     `json:"port_field_path"`
-	RefreshIntervalSec     int        `json:"refresh_interval_sec"`
-	IPDurationSec          int        `json:"ip_duration_sec"`
-	ExtractCount           int        `json:"extract_count"`
-	MinAlive               int        `json:"min_alive"`
-	NamePrefix             string     `json:"name_prefix"`
-	LastExtractAt          *time.Time `json:"last_extract_at"`
-	LastExtractStatus      string     `json:"last_extract_status"`
-	LastExtractError       string     `json:"last_extract_error"`
-	AliveCount             int        `json:"alive_count"`
-	HealthCheckIntervalSec int        `json:"health_check_interval_sec"`
-	CreatedAt              time.Time  `json:"created_at"`
-	UpdatedAt              time.Time  `json:"updated_at"`
+	ID                            int64      `json:"id"`
+	Name                          string     `json:"name"`
+	Enabled                       bool       `json:"enabled"`
+	SourceType                    string     `json:"source_type"` // extract_api | subscription
+	SubscriptionID                *int64     `json:"subscription_id"`
+	ExtractURL                    string     `json:"extract_url"`
+	Protocol                      string     `json:"protocol"`
+	AuthMode                      string     `json:"auth_mode"` // none | fixed | from_response
+	Username                      string     `json:"username"`
+	Password                      string     `json:"password"`
+	ResponseFormat                string     `json:"response_format"` // txt | json
+	LineSeparator                 string     `json:"line_separator"`
+	IPFieldPath                   string     `json:"ip_field_path"`
+	PortFieldPath                 string     `json:"port_field_path"`
+	RefreshIntervalSec            int        `json:"refresh_interval_sec"`
+	IPDurationSec                 int        `json:"ip_duration_sec"`
+	ExtractCount                  int        `json:"extract_count"`
+	MinAlive                      int        `json:"min_alive"`
+	NamePrefix                    string     `json:"name_prefix"`
+	LastExtractAt                 *time.Time `json:"last_extract_at"`
+	LastExtractStatus             string     `json:"last_extract_status"`
+	LastExtractError              string     `json:"last_extract_error"`
+	AliveCount                    int        `json:"alive_count"`
+	HealthCheckIntervalSec        int        `json:"health_check_interval_sec"`
+	GrokReasoningCheckEnabled     bool       `json:"grok_reasoning_check_enabled"`
+	GrokReasoningCheckAccountID   *int64     `json:"grok_reasoning_check_account_id"`
+	GrokReasoningCheckIntervalSec int        `json:"grok_reasoning_check_interval_sec"`
+	CreatedAt                     time.Time  `json:"created_at"`
+	UpdatedAt                     time.Time  `json:"updated_at"`
 }
 
 // DynamicProxyPoolRepository defines data access for dynamic proxy pools.
@@ -66,45 +69,51 @@ type DynamicProxyPoolListParams struct {
 
 // DynamicProxyPoolCreateParams is the input for creating a pool.
 type DynamicProxyPoolCreateParams struct {
-	Name                   string `json:"name"`
-	SourceType             string `json:"source_type"`
-	SubscriptionID         *int64 `json:"subscription_id"`
-	ExtractURL             string `json:"extract_url"`
-	Protocol               string `json:"protocol"`
-	AuthMode               string `json:"auth_mode"`
-	Username               string `json:"username"`
-	Password               string `json:"password"`
-	ResponseFormat         string `json:"response_format"`
-	LineSeparator          string `json:"line_separator"`
-	IPFieldPath            string `json:"ip_field_path"`
-	PortFieldPath          string `json:"port_field_path"`
-	RefreshIntervalSec     int    `json:"refresh_interval_sec"`
-	IPDurationSec          int    `json:"ip_duration_sec"`
-	ExtractCount           int    `json:"extract_count"`
-	MinAlive               int    `json:"min_alive"`
-	HealthCheckIntervalSec int    `json:"health_check_interval_sec"`
+	Name                          string `json:"name"`
+	SourceType                    string `json:"source_type"`
+	SubscriptionID                *int64 `json:"subscription_id"`
+	ExtractURL                    string `json:"extract_url"`
+	Protocol                      string `json:"protocol"`
+	AuthMode                      string `json:"auth_mode"`
+	Username                      string `json:"username"`
+	Password                      string `json:"password"`
+	ResponseFormat                string `json:"response_format"`
+	LineSeparator                 string `json:"line_separator"`
+	IPFieldPath                   string `json:"ip_field_path"`
+	PortFieldPath                 string `json:"port_field_path"`
+	RefreshIntervalSec            int    `json:"refresh_interval_sec"`
+	IPDurationSec                 int    `json:"ip_duration_sec"`
+	ExtractCount                  int    `json:"extract_count"`
+	MinAlive                      int    `json:"min_alive"`
+	HealthCheckIntervalSec        int    `json:"health_check_interval_sec"`
+	GrokReasoningCheckEnabled     bool   `json:"grok_reasoning_check_enabled"`
+	GrokReasoningCheckAccountID   *int64 `json:"grok_reasoning_check_account_id"`
+	GrokReasoningCheckIntervalSec int    `json:"grok_reasoning_check_interval_sec"`
 }
 
 // DynamicProxyPoolUpdateParams is the input for updating a pool.
 type DynamicProxyPoolUpdateParams struct {
-	Name                   *string `json:"name"`
-	Enabled                *bool   `json:"enabled"`
-	SourceType             *string `json:"source_type"`
-	SubscriptionID         *int64  `json:"subscription_id"`
-	ExtractURL             *string `json:"extract_url"`
-	Protocol               *string `json:"protocol"`
-	AuthMode               *string `json:"auth_mode"`
-	Username               *string `json:"username"`
-	Password               *string `json:"password"`
-	ResponseFormat         *string `json:"response_format"`
-	LineSeparator          *string `json:"line_separator"`
-	IPFieldPath            *string `json:"ip_field_path"`
-	PortFieldPath          *string `json:"port_field_path"`
-	RefreshIntervalSec     *int    `json:"refresh_interval_sec"`
-	IPDurationSec          *int    `json:"ip_duration_sec"`
-	ExtractCount           *int    `json:"extract_count"`
-	MinAlive               *int    `json:"min_alive"`
-	HealthCheckIntervalSec *int    `json:"health_check_interval_sec"`
+	Name                          *string `json:"name"`
+	Enabled                       *bool   `json:"enabled"`
+	SourceType                    *string `json:"source_type"`
+	SubscriptionID                *int64  `json:"subscription_id"`
+	ExtractURL                    *string `json:"extract_url"`
+	Protocol                      *string `json:"protocol"`
+	AuthMode                      *string `json:"auth_mode"`
+	Username                      *string `json:"username"`
+	Password                      *string `json:"password"`
+	ResponseFormat                *string `json:"response_format"`
+	LineSeparator                 *string `json:"line_separator"`
+	IPFieldPath                   *string `json:"ip_field_path"`
+	PortFieldPath                 *string `json:"port_field_path"`
+	RefreshIntervalSec            *int    `json:"refresh_interval_sec"`
+	IPDurationSec                 *int    `json:"ip_duration_sec"`
+	ExtractCount                  *int    `json:"extract_count"`
+	MinAlive                      *int    `json:"min_alive"`
+	HealthCheckIntervalSec        *int    `json:"health_check_interval_sec"`
+	GrokReasoningCheckEnabled     *bool   `json:"grok_reasoning_check_enabled"`
+	GrokReasoningCheckAccountID   *int64  `json:"grok_reasoning_check_account_id"`
+	GrokReasoningCheckIntervalSec *int    `json:"grok_reasoning_check_interval_sec"`
 }
 
 // DynamicProxyPoolExtractResult summarizes one extraction run.

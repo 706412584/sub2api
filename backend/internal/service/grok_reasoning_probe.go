@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -19,6 +20,7 @@ const (
 	grokReasoningProbeInput       = "What is 17*19? Reply with only the number."
 	grokReasoningProbeTimeout     = 45 * time.Second
 	grokReasoningProbeMaxBodyScan = 2 * 1024 * 1024
+	grokReasoningProbePoolTimeout = 30 * time.Second
 )
 
 type GrokReasoningProbeStatus string
@@ -104,6 +106,46 @@ func (s *GrokReasoningProbeService) SetMarkStore(store GrokReasoningQualityMarkS
 	s.markStore = store
 }
 
+// ProbeForPool runs a reasoning probe without requiring the admin quota-confirmation
+// flag. Used by the dynamic proxy pool background Grok reasoning check. The probe
+// still consumes Grok quota, and always uses the given account for credentials.
+func (s *GrokReasoningProbeService) ProbeForPool(ctx context.Context, proxyID int64, accountID int64) *GrokReasoningProbeResult {
+	if s == nil || proxyID <= 0 || accountID <= 0 {
+		return &GrokReasoningProbeResult{
+			ProxyID:   proxyID,
+			AccountID: accountID,
+			Status:    GrokReasoningProbeStatusError,
+			Message:   "invalid probe inputs",
+			ProbedAt:  time.Now().Unix(),
+		}
+	}
+	ctx, cancel := context.WithTimeout(ctx, grokReasoningProbePoolTimeout)
+	defer cancel()
+	res, err := s.Probe(ctx, proxyID, GrokReasoningProbeRequest{
+		AccountID:        accountID,
+		ConfirmQuotaCost: true,
+	})
+	if err != nil {
+		return &GrokReasoningProbeResult{
+			ProxyID:   proxyID,
+			AccountID: accountID,
+			Status:    GrokReasoningProbeStatusError,
+			Message:   err.Error(),
+			ProbedAt:  time.Now().Unix(),
+		}
+	}
+	if res == nil {
+		return &GrokReasoningProbeResult{
+			ProxyID:   proxyID,
+			AccountID: accountID,
+			Status:    GrokReasoningProbeStatusError,
+			Message:   "empty probe result",
+			ProbedAt:  time.Now().Unix(),
+		}
+	}
+	return res
+}
+
 // Probe uses the selected account only for OAuth credentials. The fixed model,
 // official CLI endpoint, request headers, and forced proxy isolate egress as the
 // only variable under test.
@@ -175,8 +217,10 @@ func (s *GrokReasoningProbeService) Probe(ctx context.Context, proxyID int64, re
 			Model:       grokReasoningProbeModel,
 			LatencyMs:   latencyMs,
 			Status:      GrokReasoningProbeStatusError,
-			Message:     "upstream request failed",
-			ProbedAt:    time.Now().Unix(),
+			// Keep a stable prefix for UI grouping, but include the real transport
+			// error so operators can tell proxy/node failures from Grok API issues.
+			Message:  summarizeGrokReasoningProbeTransportError(err),
+			ProbedAt: time.Now().Unix(),
 		}, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
@@ -392,4 +436,32 @@ func classifyGrokReasoningProbe(result *GrokReasoningProbeResult) (GrokReasoning
 
 func summarizeGrokReasoningProbeHTTPError(status int) string {
 	return fmt.Sprintf("upstream HTTP %d", status)
+}
+
+// summarizeGrokReasoningProbeTransportError returns a UI-safe transport error.
+// Credentials in proxy URLs are redacted; the underlying dial/timeout cause is kept.
+func summarizeGrokReasoningProbeTransportError(err error) string {
+	if err == nil {
+		return "upstream request failed"
+	}
+	msg := strings.TrimSpace(err.Error())
+	if msg == "" {
+		return "upstream request failed"
+	}
+	msg = redactProxyCredentialsInError(msg)
+	// Cap length so UI dialogs stay readable.
+	const maxLen = 400
+	if len(msg) > maxLen {
+		msg = msg[:maxLen] + "..."
+	}
+	return "upstream request failed: " + msg
+}
+
+var proxyCredentialPattern = regexp.MustCompile(`(?i)(://)([^/@\s:]+):([^/@\s]+)@`)
+
+func redactProxyCredentialsInError(msg string) string {
+	if msg == "" {
+		return msg
+	}
+	return proxyCredentialPattern.ReplaceAllString(msg, `${1}***:***@`)
 }

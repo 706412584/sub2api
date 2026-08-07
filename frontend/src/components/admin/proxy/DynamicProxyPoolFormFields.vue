@@ -70,6 +70,33 @@
       <Input :model-value="modelValue.health_check_interval_sec" type="number" min="0" @update:model-value="patchNumber('health_check_interval_sec', $event)" />
       <p class="mt-1 text-xs text-gray-400">{{ t('admin.proxies.pools.form.healthCheckHint') }}</p>
     </div>
+    <div class="sm:col-span-2">
+      <label class="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          class="toggle"
+          :checked="!!modelValue.grok_reasoning_check_enabled"
+          @change="onGrokCheckToggle(($event.target as HTMLInputElement).checked)"
+        />
+        {{ t('admin.proxies.pools.form.grokReasoningCheckEnabled') }}
+      </label>
+      <p class="mt-1 text-xs text-gray-400">{{ t('admin.proxies.pools.form.grokReasoningCheckHint') }}</p>
+    </div>
+    <div v-if="modelValue.grok_reasoning_check_enabled" class="sm:col-span-2">
+      <label class="input-label">{{ t('admin.proxies.pools.form.grokReasoningCheckAccount') }}</label>
+      <Select
+        :model-value="modelValue.grok_reasoning_check_account_id ?? null"
+        :options="grokAccountOptions"
+        :placeholder="t('admin.proxies.pools.form.grokReasoningCheckAccountPlaceholder')"
+        :searchable="true"
+        clearable
+        @update:model-value="onGrokAccountChange"
+      />
+    </div>
+    <div v-if="modelValue.grok_reasoning_check_enabled">
+      <label class="input-label">{{ t('admin.proxies.pools.form.grokReasoningCheckInterval') }}</label>
+      <Input :model-value="modelValue.grok_reasoning_check_interval_sec" type="number" min="60" @update:model-value="patchNumber('grok_reasoning_check_interval_sec', $event)" />
+    </div>
   </div>
 </template>
 
@@ -96,6 +123,9 @@ export type PoolFormModel = {
   extract_count: number
   min_alive: number
   health_check_interval_sec: number
+  grok_reasoning_check_enabled: boolean
+  grok_reasoning_check_account_id: number | null
+  grok_reasoning_check_interval_sec: number
   enabled?: boolean
 }
 
@@ -106,8 +136,10 @@ const props = withDefaults(defineProps<{
   formatOptions: Array<{ value: string; label: string }>
   sourceTypeOptions?: Array<{ value: string; label: string }>
   subscriptionOptions?: Array<{ value: string | number | boolean | null; label: string }>
+  grokAccountOptions?: Array<{ value: string | number | boolean | null; label: string }>
 }>(), {
-  subscriptionOptions: () => []
+  subscriptionOptions: () => [],
+  grokAccountOptions: () => []
 })
 
 const emit = defineEmits<{
@@ -138,11 +170,23 @@ function onSubscriptionChange(val: unknown) {
   patch('subscription_id', n)
 }
 
+function onGrokCheckToggle(checked: boolean) {
+  patch('grok_reasoning_check_enabled', checked)
+  if (!checked) {
+    patch('grok_reasoning_check_account_id', null)
+  }
+}
+
+function onGrokAccountChange(val: unknown) {
+  const n = val === null ? null : Number(val)
+  patch('grok_reasoning_check_account_id', n)
+}
+
 function patch<K extends keyof PoolFormModel>(key: K, value: PoolFormModel[K]) {
   emit('update:modelValue', { ...props.modelValue, [key]: value })
 }
 
-function patchNumber(key: 'refresh_interval_sec' | 'ip_duration_sec' | 'extract_count' | 'min_alive' | 'health_check_interval_sec', raw: unknown) {
+function patchNumber(key: 'refresh_interval_sec' | 'ip_duration_sec' | 'extract_count' | 'min_alive' | 'health_check_interval_sec' | 'grok_reasoning_check_interval_sec', raw: unknown) {
   const n = typeof raw === 'number' ? raw : Number(raw)
   patch(key, Number.isFinite(n) ? n : 0)
 }

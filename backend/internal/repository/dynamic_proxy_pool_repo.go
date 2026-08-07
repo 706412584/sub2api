@@ -42,7 +42,12 @@ func (r *dynamicProxyPoolRepository) Create(ctx context.Context, m *service.Dyna
 		SetNamePrefix(m.NamePrefix).
 		SetLastExtractStatus(m.LastExtractStatus).
 		SetLastExtractError(m.LastExtractError).
-		SetAliveCount(m.AliveCount)
+		SetAliveCount(m.AliveCount).
+		SetGrokReasoningCheckEnabled(m.GrokReasoningCheckEnabled).
+		SetGrokReasoningCheckIntervalSec(m.GrokReasoningCheckIntervalSec)
+	if m.GrokReasoningCheckAccountID != nil {
+		builder = builder.SetGrokReasoningCheckAccountID(*m.GrokReasoningCheckAccountID)
+	}
 	if m.SubscriptionID != nil {
 		builder = builder.SetSubscriptionID(*m.SubscriptionID)
 	}
@@ -87,7 +92,14 @@ func (r *dynamicProxyPoolRepository) Update(ctx context.Context, m *service.Dyna
 		SetMinAlive(m.MinAlive).
 		SetNamePrefix(m.NamePrefix).
 		SetAliveCount(m.AliveCount).
-		SetHealthCheckIntervalSec(m.HealthCheckIntervalSec)
+		SetHealthCheckIntervalSec(m.HealthCheckIntervalSec).
+		SetGrokReasoningCheckEnabled(m.GrokReasoningCheckEnabled).
+		SetGrokReasoningCheckIntervalSec(m.GrokReasoningCheckIntervalSec)
+	if m.GrokReasoningCheckAccountID != nil {
+		updater = updater.SetGrokReasoningCheckAccountID(*m.GrokReasoningCheckAccountID)
+	} else {
+		updater = updater.ClearGrokReasoningCheckAccountID()
+	}
 	if m.SubscriptionID != nil {
 		updater = updater.SetSubscriptionID(*m.SubscriptionID)
 	} else {
@@ -205,31 +217,34 @@ func entToDynamicProxyPool(row *dbent.DynamicProxyPool) *service.DynamicProxyPoo
 		return nil
 	}
 	return &service.DynamicProxyPool{
-		ID:                     row.ID,
-		Name:                   row.Name,
-		Enabled:                row.Enabled,
-		SourceType:             row.SourceType,
-		SubscriptionID:         row.SubscriptionID,
-		ExtractURL:             row.ExtractURL,
-		Protocol:               row.Protocol,
-		AuthMode:               row.AuthMode,
-		Username:               row.Username,
-		Password:               row.Password,
-		ResponseFormat:         row.ResponseFormat,
-		LineSeparator:          row.LineSeparator,
-		IPFieldPath:            row.IPFieldPath,
-		PortFieldPath:          row.PortFieldPath,
-		RefreshIntervalSec:     row.RefreshIntervalSec,
-		IPDurationSec:          row.IPDurationSec,
-		ExtractCount:           row.ExtractCount,
-		MinAlive:               row.MinAlive,
-		NamePrefix:             row.NamePrefix,
-		LastExtractAt:          row.LastExtractAt,
-		LastExtractStatus:      row.LastExtractStatus,
-		LastExtractError:       row.LastExtractError,
-		AliveCount:             row.AliveCount,
-		HealthCheckIntervalSec: row.HealthCheckIntervalSec,
-		CreatedAt:              row.CreatedAt,
-		UpdatedAt:              row.UpdatedAt,
+		ID:                            row.ID,
+		Name:                          row.Name,
+		Enabled:                       row.Enabled,
+		SourceType:                    row.SourceType,
+		SubscriptionID:                row.SubscriptionID,
+		ExtractURL:                    row.ExtractURL,
+		Protocol:                      row.Protocol,
+		AuthMode:                      row.AuthMode,
+		Username:                      row.Username,
+		Password:                      row.Password,
+		ResponseFormat:                row.ResponseFormat,
+		LineSeparator:                 row.LineSeparator,
+		IPFieldPath:                   row.IPFieldPath,
+		PortFieldPath:                 row.PortFieldPath,
+		RefreshIntervalSec:            row.RefreshIntervalSec,
+		IPDurationSec:                 row.IPDurationSec,
+		ExtractCount:                  row.ExtractCount,
+		MinAlive:                      row.MinAlive,
+		NamePrefix:                    row.NamePrefix,
+		LastExtractAt:                 row.LastExtractAt,
+		LastExtractStatus:             row.LastExtractStatus,
+		LastExtractError:              row.LastExtractError,
+		AliveCount:                    row.AliveCount,
+		HealthCheckIntervalSec:        row.HealthCheckIntervalSec,
+		GrokReasoningCheckEnabled:     row.GrokReasoningCheckEnabled,
+		GrokReasoningCheckAccountID:   row.GrokReasoningCheckAccountID,
+		GrokReasoningCheckIntervalSec: row.GrokReasoningCheckIntervalSec,
+		CreatedAt:                     row.CreatedAt,
+		UpdatedAt:                     row.UpdatedAt,
 	}
 }

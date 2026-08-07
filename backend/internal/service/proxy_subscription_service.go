@@ -724,6 +724,28 @@ func (s *ProxySubscriptionService) validateModel(ctx context.Context, m *ProxySu
 	return nil
 }
 
+// TestNode performs a TCP dial test to the node's server:port and returns
+// connectivity result with latency. This is a lightweight liveness check
+// for raw clash nodes (VLESS/Trojan/SS) that cannot be used as HTTP proxies.
+func (s *ProxySubscriptionService) TestNode(ctx context.Context, node ProxySubscriptionPreviewNode) *ProxyNodeTestResult {
+	addr := net.JoinHostPort(node.Server, node.Port)
+	start := time.Now()
+	conn, err := net.DialTimeout("tcp", addr, 10*time.Second)
+	if err != nil {
+		return &ProxyNodeTestResult{
+			Success: false,
+			Message: err.Error(),
+		}
+	}
+	_ = conn.Close()
+	latency := time.Since(start).Milliseconds()
+	return &ProxyNodeTestResult{
+		Success:   true,
+		Message:   "connected",
+		LatencyMs: latency,
+	}
+}
+
 func validateLoopbackBind(addr string, allowNonLocal bool) error {
 	if allowNonLocal {
 		return nil

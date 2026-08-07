@@ -67,7 +67,13 @@ type DynamicProxyPool struct {
 	AliveCount int `json:"alive_count,omitempty"`
 	// Health check interval in seconds (0 = disabled)
 	HealthCheckIntervalSec int `json:"health_check_interval_sec,omitempty"`
-	selectValues           sql.SelectValues
+	// Whether to Grok-reasoning-probe pool proxies and filter entry proxy selection
+	GrokReasoningCheckEnabled bool `json:"grok_reasoning_check_enabled,omitempty"`
+	// Grok OAuth account used for pool proxy reasoning probes
+	GrokReasoningCheckAccountID *int64 `json:"grok_reasoning_check_account_id,omitempty"`
+	// Interval between Grok reasoning probes of pool proxies (seconds)
+	GrokReasoningCheckIntervalSec int `json:"grok_reasoning_check_interval_sec,omitempty"`
+	selectValues                  sql.SelectValues
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -75,9 +81,9 @@ func (*DynamicProxyPool) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case dynamicproxypool.FieldEnabled:
+		case dynamicproxypool.FieldEnabled, dynamicproxypool.FieldGrokReasoningCheckEnabled:
 			values[i] = new(sql.NullBool)
-		case dynamicproxypool.FieldID, dynamicproxypool.FieldSubscriptionID, dynamicproxypool.FieldRefreshIntervalSec, dynamicproxypool.FieldIPDurationSec, dynamicproxypool.FieldExtractCount, dynamicproxypool.FieldMinAlive, dynamicproxypool.FieldAliveCount, dynamicproxypool.FieldHealthCheckIntervalSec:
+		case dynamicproxypool.FieldID, dynamicproxypool.FieldSubscriptionID, dynamicproxypool.FieldRefreshIntervalSec, dynamicproxypool.FieldIPDurationSec, dynamicproxypool.FieldExtractCount, dynamicproxypool.FieldMinAlive, dynamicproxypool.FieldAliveCount, dynamicproxypool.FieldHealthCheckIntervalSec, dynamicproxypool.FieldGrokReasoningCheckAccountID, dynamicproxypool.FieldGrokReasoningCheckIntervalSec:
 			values[i] = new(sql.NullInt64)
 		case dynamicproxypool.FieldName, dynamicproxypool.FieldSourceType, dynamicproxypool.FieldExtractURL, dynamicproxypool.FieldProtocol, dynamicproxypool.FieldAuthMode, dynamicproxypool.FieldUsername, dynamicproxypool.FieldPassword, dynamicproxypool.FieldResponseFormat, dynamicproxypool.FieldLineSeparator, dynamicproxypool.FieldIPFieldPath, dynamicproxypool.FieldPortFieldPath, dynamicproxypool.FieldNamePrefix, dynamicproxypool.FieldLastExtractStatus, dynamicproxypool.FieldLastExtractError:
 			values[i] = new(sql.NullString)
@@ -256,6 +262,25 @@ func (_m *DynamicProxyPool) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.HealthCheckIntervalSec = int(value.Int64)
 			}
+		case dynamicproxypool.FieldGrokReasoningCheckEnabled:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field grok_reasoning_check_enabled", values[i])
+			} else if value.Valid {
+				_m.GrokReasoningCheckEnabled = value.Bool
+			}
+		case dynamicproxypool.FieldGrokReasoningCheckAccountID:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field grok_reasoning_check_account_id", values[i])
+			} else if value.Valid {
+				_m.GrokReasoningCheckAccountID = new(int64)
+				*_m.GrokReasoningCheckAccountID = value.Int64
+			}
+		case dynamicproxypool.FieldGrokReasoningCheckIntervalSec:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field grok_reasoning_check_interval_sec", values[i])
+			} else if value.Valid {
+				_m.GrokReasoningCheckIntervalSec = int(value.Int64)
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -368,6 +393,17 @@ func (_m *DynamicProxyPool) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("health_check_interval_sec=")
 	builder.WriteString(fmt.Sprintf("%v", _m.HealthCheckIntervalSec))
+	builder.WriteString(", ")
+	builder.WriteString("grok_reasoning_check_enabled=")
+	builder.WriteString(fmt.Sprintf("%v", _m.GrokReasoningCheckEnabled))
+	builder.WriteString(", ")
+	if v := _m.GrokReasoningCheckAccountID; v != nil {
+		builder.WriteString("grok_reasoning_check_account_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	builder.WriteString("grok_reasoning_check_interval_sec=")
+	builder.WriteString(fmt.Sprintf("%v", _m.GrokReasoningCheckIntervalSec))
 	builder.WriteByte(')')
 	return builder.String()
 }

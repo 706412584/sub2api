@@ -20528,45 +20528,50 @@ func (m *CompositeModelRouteMutation) ResetEdge(name string) error {
 // DynamicProxyPoolMutation represents an operation that mutates the DynamicProxyPool nodes in the graph.
 type DynamicProxyPoolMutation struct {
 	config
-	op                           Op
-	typ                          string
-	id                           *int64
-	created_at                   *time.Time
-	updated_at                   *time.Time
-	name                         *string
-	enabled                      *bool
-	source_type                  *string
-	subscription_id              *int64
-	addsubscription_id           *int64
-	extract_url                  *string
-	protocol                     *string
-	auth_mode                    *string
-	username                     *string
-	password                     *string
-	response_format              *string
-	line_separator               *string
-	ip_field_path                *string
-	port_field_path              *string
-	refresh_interval_sec         *int
-	addrefresh_interval_sec      *int
-	ip_duration_sec              *int
-	addip_duration_sec           *int
-	extract_count                *int
-	addextract_count             *int
-	min_alive                    *int
-	addmin_alive                 *int
-	name_prefix                  *string
-	last_extract_at              *time.Time
-	last_extract_status          *string
-	last_extract_error           *string
-	alive_count                  *int
-	addalive_count               *int
-	health_check_interval_sec    *int
-	addhealth_check_interval_sec *int
-	clearedFields                map[string]struct{}
-	done                         bool
-	oldValue                     func(context.Context) (*DynamicProxyPool, error)
-	predicates                   []predicate.DynamicProxyPool
+	op                                   Op
+	typ                                  string
+	id                                   *int64
+	created_at                           *time.Time
+	updated_at                           *time.Time
+	name                                 *string
+	enabled                              *bool
+	source_type                          *string
+	subscription_id                      *int64
+	addsubscription_id                   *int64
+	extract_url                          *string
+	protocol                             *string
+	auth_mode                            *string
+	username                             *string
+	password                             *string
+	response_format                      *string
+	line_separator                       *string
+	ip_field_path                        *string
+	port_field_path                      *string
+	refresh_interval_sec                 *int
+	addrefresh_interval_sec              *int
+	ip_duration_sec                      *int
+	addip_duration_sec                   *int
+	extract_count                        *int
+	addextract_count                     *int
+	min_alive                            *int
+	addmin_alive                         *int
+	name_prefix                          *string
+	last_extract_at                      *time.Time
+	last_extract_status                  *string
+	last_extract_error                   *string
+	alive_count                          *int
+	addalive_count                       *int
+	health_check_interval_sec            *int
+	addhealth_check_interval_sec         *int
+	grok_reasoning_check_enabled         *bool
+	grok_reasoning_check_account_id      *int64
+	addgrok_reasoning_check_account_id   *int64
+	grok_reasoning_check_interval_sec    *int
+	addgrok_reasoning_check_interval_sec *int
+	clearedFields                        map[string]struct{}
+	done                                 bool
+	oldValue                             func(context.Context) (*DynamicProxyPool, error)
+	predicates                           []predicate.DynamicProxyPool
 }
 
 var _ ent.Mutation = (*DynamicProxyPoolMutation)(nil)
@@ -21825,6 +21830,168 @@ func (m *DynamicProxyPoolMutation) ResetHealthCheckIntervalSec() {
 	m.addhealth_check_interval_sec = nil
 }
 
+// SetGrokReasoningCheckEnabled sets the "grok_reasoning_check_enabled" field.
+func (m *DynamicProxyPoolMutation) SetGrokReasoningCheckEnabled(b bool) {
+	m.grok_reasoning_check_enabled = &b
+}
+
+// GrokReasoningCheckEnabled returns the value of the "grok_reasoning_check_enabled" field in the mutation.
+func (m *DynamicProxyPoolMutation) GrokReasoningCheckEnabled() (r bool, exists bool) {
+	v := m.grok_reasoning_check_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGrokReasoningCheckEnabled returns the old "grok_reasoning_check_enabled" field's value of the DynamicProxyPool entity.
+// If the DynamicProxyPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DynamicProxyPoolMutation) OldGrokReasoningCheckEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGrokReasoningCheckEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGrokReasoningCheckEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGrokReasoningCheckEnabled: %w", err)
+	}
+	return oldValue.GrokReasoningCheckEnabled, nil
+}
+
+// ResetGrokReasoningCheckEnabled resets all changes to the "grok_reasoning_check_enabled" field.
+func (m *DynamicProxyPoolMutation) ResetGrokReasoningCheckEnabled() {
+	m.grok_reasoning_check_enabled = nil
+}
+
+// SetGrokReasoningCheckAccountID sets the "grok_reasoning_check_account_id" field.
+func (m *DynamicProxyPoolMutation) SetGrokReasoningCheckAccountID(i int64) {
+	m.grok_reasoning_check_account_id = &i
+	m.addgrok_reasoning_check_account_id = nil
+}
+
+// GrokReasoningCheckAccountID returns the value of the "grok_reasoning_check_account_id" field in the mutation.
+func (m *DynamicProxyPoolMutation) GrokReasoningCheckAccountID() (r int64, exists bool) {
+	v := m.grok_reasoning_check_account_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGrokReasoningCheckAccountID returns the old "grok_reasoning_check_account_id" field's value of the DynamicProxyPool entity.
+// If the DynamicProxyPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DynamicProxyPoolMutation) OldGrokReasoningCheckAccountID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGrokReasoningCheckAccountID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGrokReasoningCheckAccountID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGrokReasoningCheckAccountID: %w", err)
+	}
+	return oldValue.GrokReasoningCheckAccountID, nil
+}
+
+// AddGrokReasoningCheckAccountID adds i to the "grok_reasoning_check_account_id" field.
+func (m *DynamicProxyPoolMutation) AddGrokReasoningCheckAccountID(i int64) {
+	if m.addgrok_reasoning_check_account_id != nil {
+		*m.addgrok_reasoning_check_account_id += i
+	} else {
+		m.addgrok_reasoning_check_account_id = &i
+	}
+}
+
+// AddedGrokReasoningCheckAccountID returns the value that was added to the "grok_reasoning_check_account_id" field in this mutation.
+func (m *DynamicProxyPoolMutation) AddedGrokReasoningCheckAccountID() (r int64, exists bool) {
+	v := m.addgrok_reasoning_check_account_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearGrokReasoningCheckAccountID clears the value of the "grok_reasoning_check_account_id" field.
+func (m *DynamicProxyPoolMutation) ClearGrokReasoningCheckAccountID() {
+	m.grok_reasoning_check_account_id = nil
+	m.addgrok_reasoning_check_account_id = nil
+	m.clearedFields[dynamicproxypool.FieldGrokReasoningCheckAccountID] = struct{}{}
+}
+
+// GrokReasoningCheckAccountIDCleared returns if the "grok_reasoning_check_account_id" field was cleared in this mutation.
+func (m *DynamicProxyPoolMutation) GrokReasoningCheckAccountIDCleared() bool {
+	_, ok := m.clearedFields[dynamicproxypool.FieldGrokReasoningCheckAccountID]
+	return ok
+}
+
+// ResetGrokReasoningCheckAccountID resets all changes to the "grok_reasoning_check_account_id" field.
+func (m *DynamicProxyPoolMutation) ResetGrokReasoningCheckAccountID() {
+	m.grok_reasoning_check_account_id = nil
+	m.addgrok_reasoning_check_account_id = nil
+	delete(m.clearedFields, dynamicproxypool.FieldGrokReasoningCheckAccountID)
+}
+
+// SetGrokReasoningCheckIntervalSec sets the "grok_reasoning_check_interval_sec" field.
+func (m *DynamicProxyPoolMutation) SetGrokReasoningCheckIntervalSec(i int) {
+	m.grok_reasoning_check_interval_sec = &i
+	m.addgrok_reasoning_check_interval_sec = nil
+}
+
+// GrokReasoningCheckIntervalSec returns the value of the "grok_reasoning_check_interval_sec" field in the mutation.
+func (m *DynamicProxyPoolMutation) GrokReasoningCheckIntervalSec() (r int, exists bool) {
+	v := m.grok_reasoning_check_interval_sec
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGrokReasoningCheckIntervalSec returns the old "grok_reasoning_check_interval_sec" field's value of the DynamicProxyPool entity.
+// If the DynamicProxyPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DynamicProxyPoolMutation) OldGrokReasoningCheckIntervalSec(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGrokReasoningCheckIntervalSec is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGrokReasoningCheckIntervalSec requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGrokReasoningCheckIntervalSec: %w", err)
+	}
+	return oldValue.GrokReasoningCheckIntervalSec, nil
+}
+
+// AddGrokReasoningCheckIntervalSec adds i to the "grok_reasoning_check_interval_sec" field.
+func (m *DynamicProxyPoolMutation) AddGrokReasoningCheckIntervalSec(i int) {
+	if m.addgrok_reasoning_check_interval_sec != nil {
+		*m.addgrok_reasoning_check_interval_sec += i
+	} else {
+		m.addgrok_reasoning_check_interval_sec = &i
+	}
+}
+
+// AddedGrokReasoningCheckIntervalSec returns the value that was added to the "grok_reasoning_check_interval_sec" field in this mutation.
+func (m *DynamicProxyPoolMutation) AddedGrokReasoningCheckIntervalSec() (r int, exists bool) {
+	v := m.addgrok_reasoning_check_interval_sec
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetGrokReasoningCheckIntervalSec resets all changes to the "grok_reasoning_check_interval_sec" field.
+func (m *DynamicProxyPoolMutation) ResetGrokReasoningCheckIntervalSec() {
+	m.grok_reasoning_check_interval_sec = nil
+	m.addgrok_reasoning_check_interval_sec = nil
+}
+
 // Where appends a list predicates to the DynamicProxyPoolMutation builder.
 func (m *DynamicProxyPoolMutation) Where(ps ...predicate.DynamicProxyPool) {
 	m.predicates = append(m.predicates, ps...)
@@ -21859,7 +22026,7 @@ func (m *DynamicProxyPoolMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *DynamicProxyPoolMutation) Fields() []string {
-	fields := make([]string, 0, 25)
+	fields := make([]string, 0, 28)
 	if m.created_at != nil {
 		fields = append(fields, dynamicproxypool.FieldCreatedAt)
 	}
@@ -21935,6 +22102,15 @@ func (m *DynamicProxyPoolMutation) Fields() []string {
 	if m.health_check_interval_sec != nil {
 		fields = append(fields, dynamicproxypool.FieldHealthCheckIntervalSec)
 	}
+	if m.grok_reasoning_check_enabled != nil {
+		fields = append(fields, dynamicproxypool.FieldGrokReasoningCheckEnabled)
+	}
+	if m.grok_reasoning_check_account_id != nil {
+		fields = append(fields, dynamicproxypool.FieldGrokReasoningCheckAccountID)
+	}
+	if m.grok_reasoning_check_interval_sec != nil {
+		fields = append(fields, dynamicproxypool.FieldGrokReasoningCheckIntervalSec)
+	}
 	return fields
 }
 
@@ -21993,6 +22169,12 @@ func (m *DynamicProxyPoolMutation) Field(name string) (ent.Value, bool) {
 		return m.AliveCount()
 	case dynamicproxypool.FieldHealthCheckIntervalSec:
 		return m.HealthCheckIntervalSec()
+	case dynamicproxypool.FieldGrokReasoningCheckEnabled:
+		return m.GrokReasoningCheckEnabled()
+	case dynamicproxypool.FieldGrokReasoningCheckAccountID:
+		return m.GrokReasoningCheckAccountID()
+	case dynamicproxypool.FieldGrokReasoningCheckIntervalSec:
+		return m.GrokReasoningCheckIntervalSec()
 	}
 	return nil, false
 }
@@ -22052,6 +22234,12 @@ func (m *DynamicProxyPoolMutation) OldField(ctx context.Context, name string) (e
 		return m.OldAliveCount(ctx)
 	case dynamicproxypool.FieldHealthCheckIntervalSec:
 		return m.OldHealthCheckIntervalSec(ctx)
+	case dynamicproxypool.FieldGrokReasoningCheckEnabled:
+		return m.OldGrokReasoningCheckEnabled(ctx)
+	case dynamicproxypool.FieldGrokReasoningCheckAccountID:
+		return m.OldGrokReasoningCheckAccountID(ctx)
+	case dynamicproxypool.FieldGrokReasoningCheckIntervalSec:
+		return m.OldGrokReasoningCheckIntervalSec(ctx)
 	}
 	return nil, fmt.Errorf("unknown DynamicProxyPool field %s", name)
 }
@@ -22236,6 +22424,27 @@ func (m *DynamicProxyPoolMutation) SetField(name string, value ent.Value) error 
 		}
 		m.SetHealthCheckIntervalSec(v)
 		return nil
+	case dynamicproxypool.FieldGrokReasoningCheckEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGrokReasoningCheckEnabled(v)
+		return nil
+	case dynamicproxypool.FieldGrokReasoningCheckAccountID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGrokReasoningCheckAccountID(v)
+		return nil
+	case dynamicproxypool.FieldGrokReasoningCheckIntervalSec:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGrokReasoningCheckIntervalSec(v)
+		return nil
 	}
 	return fmt.Errorf("unknown DynamicProxyPool field %s", name)
 }
@@ -22265,6 +22474,12 @@ func (m *DynamicProxyPoolMutation) AddedFields() []string {
 	if m.addhealth_check_interval_sec != nil {
 		fields = append(fields, dynamicproxypool.FieldHealthCheckIntervalSec)
 	}
+	if m.addgrok_reasoning_check_account_id != nil {
+		fields = append(fields, dynamicproxypool.FieldGrokReasoningCheckAccountID)
+	}
+	if m.addgrok_reasoning_check_interval_sec != nil {
+		fields = append(fields, dynamicproxypool.FieldGrokReasoningCheckIntervalSec)
+	}
 	return fields
 }
 
@@ -22287,6 +22502,10 @@ func (m *DynamicProxyPoolMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedAliveCount()
 	case dynamicproxypool.FieldHealthCheckIntervalSec:
 		return m.AddedHealthCheckIntervalSec()
+	case dynamicproxypool.FieldGrokReasoningCheckAccountID:
+		return m.AddedGrokReasoningCheckAccountID()
+	case dynamicproxypool.FieldGrokReasoningCheckIntervalSec:
+		return m.AddedGrokReasoningCheckIntervalSec()
 	}
 	return nil, false
 }
@@ -22345,6 +22564,20 @@ func (m *DynamicProxyPoolMutation) AddField(name string, value ent.Value) error 
 		}
 		m.AddHealthCheckIntervalSec(v)
 		return nil
+	case dynamicproxypool.FieldGrokReasoningCheckAccountID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddGrokReasoningCheckAccountID(v)
+		return nil
+	case dynamicproxypool.FieldGrokReasoningCheckIntervalSec:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddGrokReasoningCheckIntervalSec(v)
+		return nil
 	}
 	return fmt.Errorf("unknown DynamicProxyPool numeric field %s", name)
 }
@@ -22379,6 +22612,9 @@ func (m *DynamicProxyPoolMutation) ClearedFields() []string {
 	}
 	if m.FieldCleared(dynamicproxypool.FieldLastExtractError) {
 		fields = append(fields, dynamicproxypool.FieldLastExtractError)
+	}
+	if m.FieldCleared(dynamicproxypool.FieldGrokReasoningCheckAccountID) {
+		fields = append(fields, dynamicproxypool.FieldGrokReasoningCheckAccountID)
 	}
 	return fields
 }
@@ -22420,6 +22656,9 @@ func (m *DynamicProxyPoolMutation) ClearField(name string) error {
 		return nil
 	case dynamicproxypool.FieldLastExtractError:
 		m.ClearLastExtractError()
+		return nil
+	case dynamicproxypool.FieldGrokReasoningCheckAccountID:
+		m.ClearGrokReasoningCheckAccountID()
 		return nil
 	}
 	return fmt.Errorf("unknown DynamicProxyPool nullable field %s", name)
@@ -22503,6 +22742,15 @@ func (m *DynamicProxyPoolMutation) ResetField(name string) error {
 		return nil
 	case dynamicproxypool.FieldHealthCheckIntervalSec:
 		m.ResetHealthCheckIntervalSec()
+		return nil
+	case dynamicproxypool.FieldGrokReasoningCheckEnabled:
+		m.ResetGrokReasoningCheckEnabled()
+		return nil
+	case dynamicproxypool.FieldGrokReasoningCheckAccountID:
+		m.ResetGrokReasoningCheckAccountID()
+		return nil
+	case dynamicproxypool.FieldGrokReasoningCheckIntervalSec:
+		m.ResetGrokReasoningCheckIntervalSec()
 		return nil
 	}
 	return fmt.Errorf("unknown DynamicProxyPool field %s", name)

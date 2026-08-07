@@ -424,9 +424,64 @@
                     <td class="px-2 py-2 font-mono text-gray-500">
                       {{ node.server }}{{ node.port ? ':' + node.port : '' }}
                     </td>
+                    <td class="px-2 py-2 text-right">
+                      <div class="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          class="btn btn-xs btn-secondary"
+                          :disabled="testingNodeIdentities.has(nodeKey(node))"
+                          :title="t('admin.proxies.subscriptions.form.testNode')"
+                          @click="testNode(node)"
+                        >
+                          <svg
+                            v-if="testingNodeIdentities.has(nodeKey(node))"
+                            class="h-3 w-3 animate-spin"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              class="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              stroke-width="4"
+                            ></circle>
+                            <path
+                              class="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                            ></path>
+                          </svg>
+                          <Icon v-else name="play" size="xs" />
+                        </button>
+                        <span v-if="getNodeResult(node)" class="text-xs">
+                          <span
+                            v-if="getNodeResult(node)!.success"
+                            class="text-emerald-600 dark:text-emerald-400"
+                          >
+                            {{ getNodeResult(node)!.latency_ms }}ms
+                            <span
+                              v-if="isNodeResultFresh(node)"
+                              class="ml-1 text-[10px] text-gray-400"
+                            >
+                              ({{ t('admin.proxies.pools.testCached') }})
+                            </span>
+                          </span>
+                          <span
+                            v-else
+                            class="cursor-pointer text-red-500 dark:text-red-400"
+                            :title="getNodeResult(node)!.message"
+                            @click.stop="openNodeFailDetail(node)"
+                          >
+                            {{ t('admin.proxies.subscriptions.form.testNodeFail') }}
+                          </span>
+                        </span>
+                      </div>
+                    </td>
                   </tr>
                   <tr v-if="filteredPreviewNodes.length === 0">
-                    <td colspan="4" class="px-3 py-4 text-center text-gray-400">
+                    <td colspan="5" class="px-3 py-4 text-center text-gray-400">
                       {{ t('admin.proxies.subscriptions.form.noNodesLoaded') }}
                     </td>
                   </tr>
@@ -456,6 +511,27 @@
       @confirm="handleDelete"
       @cancel="showDeleteDialog = false"
     />
+
+    <BaseDialog
+      :show="showNodeFailModal"
+      :title="t('admin.proxies.subscriptions.form.testNodeFail')"
+      width="narrow"
+      :z-index="80"
+      @close="showNodeFailModal = false"
+    >
+      <div v-if="nodeFailDetail" class="space-y-2 text-sm">
+        <div class="font-medium text-gray-800 dark:text-gray-100">{{ nodeFailDetail.name }}</div>
+        <div class="font-mono text-xs text-gray-500">{{ nodeFailDetail.server }}:{{ nodeFailDetail.port }}</div>
+        <pre
+          class="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-200"
+        >{{ nodeFailDetail.message || t('admin.proxies.pools.grokDetailNoReason') }}</pre>
+      </div>
+      <template #footer>
+        <button type="button" class="btn btn-secondary" @click="showNodeFailModal = false">
+          {{ t('common.close') }}
+        </button>
+      </template>
+    </BaseDialog>
   </div>
 </template>
 
@@ -480,6 +556,13 @@ import Icon from '@/components/icons/Icon.vue'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { formatDateTime } from '@/utils/format'
+import {
+  getFreshNodeTest,
+  isNodeTestFresh,
+  nodeTestCacheKey,
+  setNodeTest,
+  type NodeTestCacheEntry
+} from '@/utils/nodeTestCache'
 
 const emit = defineEmits<{
   synced: []
@@ -529,6 +612,35 @@ const previewNodes = ref<ProxySubscriptionPreviewNode[]>([])
 const previewLoading = ref(false)
 const selectedIdentities = ref<Set<string>>(new Set())
 const nodeSearch = ref('')
+const nodeTestResults = reactive<Record<string, NodeTestCacheEntry>>({})
+const testingNodeIdentities = reactive(new Set<string>())
+const showNodeFailModal = ref(false)
+const nodeFailDetail = ref<{ name: string; server: string; port: string; message: string } | null>(null)
+
+function nodeKey(node: { identity?: string; server?: string; port?: string | number }) {
+  return nodeTestCacheKey(node.identity || '', node.server, node.port)
+}
+
+function getNodeResult(node: { identity?: string; server?: string; port?: string | number }) {
+  const key = nodeKey(node)
+  return nodeTestResults[key] || getFreshNodeTest(key)
+}
+
+function isNodeResultFresh(node: { identity?: string; server?: string; port?: string | number }) {
+  return isNodeTestFresh(nodeKey(node))
+}
+
+function openNodeFailDetail(node: ProxySubscriptionPreviewNode) {
+  const result = getNodeResult(node)
+  if (!result || result.success) return
+  nodeFailDetail.value = {
+    name: node.name || node.identity,
+    server: node.server,
+    port: String(node.port || ''),
+    message: result.message || ''
+  }
+  showNodeFailModal.value = true
+}
 
 const filteredPreviewNodes = computed(() => {
   const q = nodeSearch.value.trim().toLowerCase()
@@ -755,6 +867,36 @@ function clearPreviewSelection() {
   selectedIdentities.value = new Set()
 }
 
+async function testNode(node: ProxySubscriptionPreviewNode, force = false) {
+  const key = nodeKey(node)
+  if (testingNodeIdentities.has(key)) return
+  if (!force && isNodeTestFresh(key)) {
+    const cached = getFreshNodeTest(key)
+    if (cached) nodeTestResults[key] = cached
+    return
+  }
+  testingNodeIdentities.add(key)
+  try {
+    const res = await adminAPI.proxySubscriptions.testNode(editing.value?.id || 0, node.server, node.port)
+    setNodeTest(key, {
+      success: !!res.success,
+      latency_ms: res.latency_ms,
+      message: res.message || ''
+    })
+    const cached = getFreshNodeTest(key)
+    if (cached) nodeTestResults[key] = cached
+  } catch (error: any) {
+    setNodeTest(key, {
+      success: false,
+      message: extractApiErrorMessage(error, t('admin.proxies.subscriptions.form.testNodeFail'))
+    })
+    const cached = getFreshNodeTest(key)
+    if (cached) nodeTestResults[key] = cached
+  } finally {
+    testingNodeIdentities.delete(key)
+  }
+}
+
 async function loadPreviewNodes() {
   previewLoading.value = true
   try {
@@ -779,6 +921,13 @@ async function loadPreviewNodes() {
       })
     }
     previewNodes.value = res.nodes || []
+    // Restore 5-minute connectivity cache so reopening the form doesn't retest.
+    Object.keys(nodeTestResults).forEach((k) => delete nodeTestResults[k])
+    for (const node of previewNodes.value) {
+      const key = nodeKey(node)
+      const cached = getFreshNodeTest(key)
+      if (cached) nodeTestResults[key] = cached
+    }
     // Keep existing selection; if server returned selected_identities on edit and local empty, use it.
     if (selectedIdentities.value.size === 0 && (res.selected_identities || []).length > 0) {
       selectedIdentities.value = new Set(res.selected_identities)
