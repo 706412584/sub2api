@@ -42,7 +42,12 @@ func (r *dynamicProxyPoolRepository) Create(ctx context.Context, m *service.Dyna
 		SetNamePrefix(m.NamePrefix).
 		SetLastExtractStatus(m.LastExtractStatus).
 		SetLastExtractError(m.LastExtractError).
-		SetAliveCount(m.AliveCount)
+		SetAliveCount(m.AliveCount).
+		SetGrokReasoningCheckEnabled(m.GrokReasoningCheckEnabled).
+		SetGrokReasoningCheckIntervalSec(m.GrokReasoningCheckIntervalSec)
+	if m.GrokReasoningCheckAccountID != nil {
+		builder = builder.SetGrokReasoningCheckAccountID(*m.GrokReasoningCheckAccountID)
+	}
 	if m.SubscriptionID != nil {
 		builder = builder.SetSubscriptionID(*m.SubscriptionID)
 	}
@@ -87,7 +92,14 @@ func (r *dynamicProxyPoolRepository) Update(ctx context.Context, m *service.Dyna
 		SetMinAlive(m.MinAlive).
 		SetNamePrefix(m.NamePrefix).
 		SetAliveCount(m.AliveCount).
-		SetHealthCheckIntervalSec(m.HealthCheckIntervalSec)
+		SetHealthCheckIntervalSec(m.HealthCheckIntervalSec).
+		SetGrokReasoningCheckEnabled(m.GrokReasoningCheckEnabled).
+		SetGrokReasoningCheckIntervalSec(m.GrokReasoningCheckIntervalSec)
+	if m.GrokReasoningCheckAccountID != nil {
+		updater = updater.SetGrokReasoningCheckAccountID(*m.GrokReasoningCheckAccountID)
+	} else {
+		updater = updater.ClearGrokReasoningCheckAccountID()
+	}
 	if m.SubscriptionID != nil {
 		updater = updater.SetSubscriptionID(*m.SubscriptionID)
 	} else {
@@ -229,6 +241,9 @@ func entToDynamicProxyPool(row *dbent.DynamicProxyPool) *service.DynamicProxyPoo
 		LastExtractError:       row.LastExtractError,
 		AliveCount:             row.AliveCount,
 		HealthCheckIntervalSec: row.HealthCheckIntervalSec,
+			GrokReasoningCheckEnabled:   row.GrokReasoningCheckEnabled,
+			GrokReasoningCheckAccountID: row.GrokReasoningCheckAccountID,
+			GrokReasoningCheckIntervalSec: row.GrokReasoningCheckIntervalSec,
 		CreatedAt:              row.CreatedAt,
 		UpdatedAt:              row.UpdatedAt,
 	}

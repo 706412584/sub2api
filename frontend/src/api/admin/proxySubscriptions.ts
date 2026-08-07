@@ -195,6 +195,18 @@ export async function previewNodesDraft(
   return data
 }
 
+export async function testNode(
+  id: number,
+  server: string,
+  port: string
+): Promise<{ success: boolean; message: string; latency_ms?: number }> {
+  const { data } = await apiClient.post(`/admin/proxy-subscriptions/${id}/nodes/test`, {
+    server,
+    port
+  })
+  return data
+}
+
 export const proxySubscriptionsAPI = {
   list,
   get,
@@ -204,7 +216,8 @@ export const proxySubscriptionsAPI = {
   sync,
   engineStatus,
   previewNodes,
-  previewNodesDraft
+  previewNodesDraft,
+  testNode
 }
 
 export default proxySubscriptionsAPI

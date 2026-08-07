@@ -279,6 +279,33 @@ type proxySubscriptionPreviewDraftRequest struct {
 	NodeAllowContains []string `json:"node_allow_contains"`
 }
 
+type proxyNodeTestRequest struct {
+	Server string `json:"server" binding:"required"`
+	Port   string `json:"port" binding:"required"`
+}
+
+// TestNode POST /admin/proxy-subscriptions/:id/nodes/test
+// Tests a single subscription node's TCP connectivity. The preview node list
+// contains raw clash nodes (VLESS/Trojan/SS) which are not HTTP proxies, so
+// this performs a lightweight TCP dial liveness check. The node test itself
+// does not depend on the subscription, so a draft (id=0) is also accepted.
+func (h *ProxySubscriptionHandler) TestNode(c *gin.Context) {
+	if _, err := strconv.ParseInt(c.Param("id"), 10, 64); err != nil || c.Param("id") == "" {
+		response.BadRequest(c, "invalid id")
+		return
+	}
+	var req proxyNodeTestRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	result := h.svc.TestNode(c.Request.Context(), service.ProxySubscriptionPreviewNode{
+		Server: req.Server,
+		Port:   req.Port,
+	})
+	response.Success(c, result)
+}
+
 // PreviewNodes POST /admin/proxy-subscriptions/:id/preview-nodes
 func (h *ProxySubscriptionHandler) PreviewNodes(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)

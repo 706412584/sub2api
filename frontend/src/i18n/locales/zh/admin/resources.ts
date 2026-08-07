@@ -302,6 +302,7 @@ export default {
         },
         form: {
           name: '名称',
+          enabled: '启用',
           sourceType: '来源类型',
           sourceExtractApi: '提取 API',
           sourceSubscription: '订阅源',
@@ -325,6 +326,11 @@ export default {
           minAlive: '最低存活数',
           healthCheckInterval: '健康检查间隔（秒）',
           healthCheckHint: '定期检测池代理连通性，0=关闭',
+          grokReasoningCheckEnabled: 'Grok 思考检测',
+          grokReasoningCheckHint: '开启后用指定 Grok 账号检测池代理是否返回可见思考，入口代理只选用通过检测的代理',
+          grokReasoningCheckAccount: '检测用 Grok 账号',
+          grokReasoningCheckAccountPlaceholder: '选择 Grok 账号',
+          grokReasoningCheckInterval: '思考检测间隔（秒）',
         },
         manage: '管理',
         manageTitle: '管理池代理',
@@ -338,9 +344,12 @@ export default {
         statusError: '失败',
         statusIdle: '未提取',
         testProxy: '测试连接',
+        testAll: '一键测活',
         testing: '测试中…',
+        testingAll: '测活中…',
         testSuccess: '连接成功',
         testFail: '连接失败',
+        testAllDone: '测活完成：成功 {ok}，失败 {fail}',
         nodes: '节点列表',
         nodesLoading: '加载中…',
         nodesTitle: '订阅节点',
@@ -352,7 +361,23 @@ export default {
         entryProxyStop: '停止入口代理',
         entryProxyRunning: '入口代理运行中',
         entryProxyStopped: '入口代理未启动',
-        testLatency: '延迟 {ms}ms'
+        entryProxyBind: '监听地址',
+        entryProxyHint:
+          '账号/分组请绑定 IP 管理中的 pool-entry-* 记录（不是池内 dpool 节点）。进程重启后需重新启动入口。',
+        testLatency: '延迟 {ms}ms',
+        grokStatus: 'Grok 思考',
+        grokStatusVisible: '可见思考',
+        grokStatusEncrypted: '仅加密',
+        grokStatusNone: '无思考',
+        grokStatusError: '探测失败',
+        grokStatusUnknown: '未检测',
+        grokDetailTitle: 'Grok 思考探测详情',
+        grokDetailStatus: '状态',
+        grokDetailReason: '原因',
+        grokDetailNoReason: '暂无详细错误信息',
+        grokDetailClickHint: '点击查看失败原因',
+        testCached: '缓存',
+        grokCheckOn: '已开启 Grok 思考检测（测活会返回思考是否可见）'
       },
       subscriptions: {
         create: '添加订阅源',
@@ -434,7 +459,9 @@ export default {
           noNodesLoaded: '尚未加载节点',
           nodesLoadFailed: '加载节点失败',
           missingFromPreview: '已保存但当前预览中不存在',
-          whitelistCount: '白名单 {count}'
+          whitelistCount: '白名单 {count}',
+          testNode: '测试连接',
+          testNodeFail: '失败'
         }
       },
     },

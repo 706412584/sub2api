@@ -623,11 +623,30 @@ const handleEvent = (event: {
   image_url?: string
   mime_type?: string
   latency_ms?: number
+  proxy_name?: string
+  proxy_url?: string
+  egress_ip?: string
+  egress_latency_ms?: number
+  egress_error?: string
 }) => {
   if (typeof event.latency_ms === 'number' && event.latency_ms > 0) {
     latencyMs.value = event.latency_ms
   }
   switch (event.type) {
+    case 'proxy_info': {
+      const proxyName = event.proxy_name || event.proxy_url
+      if (proxyName) {
+        addLine(t('admin.accounts.usingProxy', { name: proxyName }), 'text-purple-400')
+      } else {
+        addLine(t('admin.accounts.testDirect'), 'text-gray-500')
+      }
+      if (event.egress_ip) {
+        addLine(t('admin.accounts.usingEgressIP', { ip: event.egress_ip, ms: event.egress_latency_ms || 0 }), 'text-cyan-400')
+      } else if (event.egress_error) {
+        addLine(t('admin.accounts.egressProbeFailed', { error: event.egress_error }), 'text-red-400')
+      }
+      break
+    }
     case 'test_start':
       addLine(t('admin.accounts.connectedToApi'), 'text-green-400')
       if (event.model) {

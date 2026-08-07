@@ -112,6 +112,13 @@ type ProxySubscriptionPreviewResult struct {
 	SelectedIdentities []string                       `json:"selected_identities"`
 }
 
+// ProxyNodeTestResult is the outcome of a subscription node connectivity test.
+type ProxyNodeTestResult struct {
+	Success   bool   `json:"success"`
+	Message   string `json:"message"`
+	LatencyMs int64  `json:"latency_ms,omitempty"`
+}
+
 // ProxySubscriptionPreviewParams previews nodes from draft source fields (unsaved).
 type ProxySubscriptionPreviewParams struct {
 	SourceType        string

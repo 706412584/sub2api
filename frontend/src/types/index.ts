@@ -919,6 +919,9 @@ export interface DynamicProxyPool {
   last_extract_status: string
   last_extract_error: string
   alive_count: number
+  grok_reasoning_check_enabled: boolean
+  grok_reasoning_check_account_id: number | null
+  grok_reasoning_check_interval_sec: number
   created_at: string
   updated_at: string
 }

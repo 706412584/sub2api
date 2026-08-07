@@ -179,6 +179,21 @@ func HealthCheckIntervalSec(v int) predicate.DynamicProxyPool {
 	return predicate.DynamicProxyPool(sql.FieldEQ(FieldHealthCheckIntervalSec, v))
 }
 
+// GrokReasoningCheckEnabled applies equality check predicate on the "grok_reasoning_check_enabled" field. It's identical to GrokReasoningCheckEnabledEQ.
+func GrokReasoningCheckEnabled(v bool) predicate.DynamicProxyPool {
+	return predicate.DynamicProxyPool(sql.FieldEQ(FieldGrokReasoningCheckEnabled, v))
+}
+
+// GrokReasoningCheckAccountID applies equality check predicate on the "grok_reasoning_check_account_id" field. It's identical to GrokReasoningCheckAccountIDEQ.
+func GrokReasoningCheckAccountID(v int64) predicate.DynamicProxyPool {
+	return predicate.DynamicProxyPool(sql.FieldEQ(FieldGrokReasoningCheckAccountID, v))
+}
+
+// GrokReasoningCheckIntervalSec applies equality check predicate on the "grok_reasoning_check_interval_sec" field. It's identical to GrokReasoningCheckIntervalSecEQ.
+func GrokReasoningCheckIntervalSec(v int) predicate.DynamicProxyPool {
+	return predicate.DynamicProxyPool(sql.FieldEQ(FieldGrokReasoningCheckIntervalSec, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.DynamicProxyPool {
 	return predicate.DynamicProxyPool(sql.FieldEQ(FieldCreatedAt, v))
@@ -1587,6 +1602,106 @@ func HealthCheckIntervalSecLT(v int) predicate.DynamicProxyPool {
 // HealthCheckIntervalSecLTE applies the LTE predicate on the "health_check_interval_sec" field.
 func HealthCheckIntervalSecLTE(v int) predicate.DynamicProxyPool {
 	return predicate.DynamicProxyPool(sql.FieldLTE(FieldHealthCheckIntervalSec, v))
+}
+
+// GrokReasoningCheckEnabledEQ applies the EQ predicate on the "grok_reasoning_check_enabled" field.
+func GrokReasoningCheckEnabledEQ(v bool) predicate.DynamicProxyPool {
+	return predicate.DynamicProxyPool(sql.FieldEQ(FieldGrokReasoningCheckEnabled, v))
+}
+
+// GrokReasoningCheckEnabledNEQ applies the NEQ predicate on the "grok_reasoning_check_enabled" field.
+func GrokReasoningCheckEnabledNEQ(v bool) predicate.DynamicProxyPool {
+	return predicate.DynamicProxyPool(sql.FieldNEQ(FieldGrokReasoningCheckEnabled, v))
+}
+
+// GrokReasoningCheckAccountIDEQ applies the EQ predicate on the "grok_reasoning_check_account_id" field.
+func GrokReasoningCheckAccountIDEQ(v int64) predicate.DynamicProxyPool {
+	return predicate.DynamicProxyPool(sql.FieldEQ(FieldGrokReasoningCheckAccountID, v))
+}
+
+// GrokReasoningCheckAccountIDNEQ applies the NEQ predicate on the "grok_reasoning_check_account_id" field.
+func GrokReasoningCheckAccountIDNEQ(v int64) predicate.DynamicProxyPool {
+	return predicate.DynamicProxyPool(sql.FieldNEQ(FieldGrokReasoningCheckAccountID, v))
+}
+
+// GrokReasoningCheckAccountIDIn applies the In predicate on the "grok_reasoning_check_account_id" field.
+func GrokReasoningCheckAccountIDIn(vs ...int64) predicate.DynamicProxyPool {
+	return predicate.DynamicProxyPool(sql.FieldIn(FieldGrokReasoningCheckAccountID, vs...))
+}
+
+// GrokReasoningCheckAccountIDNotIn applies the NotIn predicate on the "grok_reasoning_check_account_id" field.
+func GrokReasoningCheckAccountIDNotIn(vs ...int64) predicate.DynamicProxyPool {
+	return predicate.DynamicProxyPool(sql.FieldNotIn(FieldGrokReasoningCheckAccountID, vs...))
+}
+
+// GrokReasoningCheckAccountIDGT applies the GT predicate on the "grok_reasoning_check_account_id" field.
+func GrokReasoningCheckAccountIDGT(v int64) predicate.DynamicProxyPool {
+	return predicate.DynamicProxyPool(sql.FieldGT(FieldGrokReasoningCheckAccountID, v))
+}
+
+// GrokReasoningCheckAccountIDGTE applies the GTE predicate on the "grok_reasoning_check_account_id" field.
+func GrokReasoningCheckAccountIDGTE(v int64) predicate.DynamicProxyPool {
+	return predicate.DynamicProxyPool(sql.FieldGTE(FieldGrokReasoningCheckAccountID, v))
+}
+
+// GrokReasoningCheckAccountIDLT applies the LT predicate on the "grok_reasoning_check_account_id" field.
+func GrokReasoningCheckAccountIDLT(v int64) predicate.DynamicProxyPool {
+	return predicate.DynamicProxyPool(sql.FieldLT(FieldGrokReasoningCheckAccountID, v))
+}
+
+// GrokReasoningCheckAccountIDLTE applies the LTE predicate on the "grok_reasoning_check_account_id" field.
+func GrokReasoningCheckAccountIDLTE(v int64) predicate.DynamicProxyPool {
+	return predicate.DynamicProxyPool(sql.FieldLTE(FieldGrokReasoningCheckAccountID, v))
+}
+
+// GrokReasoningCheckAccountIDIsNil applies the IsNil predicate on the "grok_reasoning_check_account_id" field.
+func GrokReasoningCheckAccountIDIsNil() predicate.DynamicProxyPool {
+	return predicate.DynamicProxyPool(sql.FieldIsNull(FieldGrokReasoningCheckAccountID))
+}
+
+// GrokReasoningCheckAccountIDNotNil applies the NotNil predicate on the "grok_reasoning_check_account_id" field.
+func GrokReasoningCheckAccountIDNotNil() predicate.DynamicProxyPool {
+	return predicate.DynamicProxyPool(sql.FieldNotNull(FieldGrokReasoningCheckAccountID))
+}
+
+// GrokReasoningCheckIntervalSecEQ applies the EQ predicate on the "grok_reasoning_check_interval_sec" field.
+func GrokReasoningCheckIntervalSecEQ(v int) predicate.DynamicProxyPool {
+	return predicate.DynamicProxyPool(sql.FieldEQ(FieldGrokReasoningCheckIntervalSec, v))
+}
+
+// GrokReasoningCheckIntervalSecNEQ applies the NEQ predicate on the "grok_reasoning_check_interval_sec" field.
+func GrokReasoningCheckIntervalSecNEQ(v int) predicate.DynamicProxyPool {
+	return predicate.DynamicProxyPool(sql.FieldNEQ(FieldGrokReasoningCheckIntervalSec, v))
+}
+
+// GrokReasoningCheckIntervalSecIn applies the In predicate on the "grok_reasoning_check_interval_sec" field.
+func GrokReasoningCheckIntervalSecIn(vs ...int) predicate.DynamicProxyPool {
+	return predicate.DynamicProxyPool(sql.FieldIn(FieldGrokReasoningCheckIntervalSec, vs...))
+}
+
+// GrokReasoningCheckIntervalSecNotIn applies the NotIn predicate on the "grok_reasoning_check_interval_sec" field.
+func GrokReasoningCheckIntervalSecNotIn(vs ...int) predicate.DynamicProxyPool {
+	return predicate.DynamicProxyPool(sql.FieldNotIn(FieldGrokReasoningCheckIntervalSec, vs...))
+}
+
+// GrokReasoningCheckIntervalSecGT applies the GT predicate on the "grok_reasoning_check_interval_sec" field.
+func GrokReasoningCheckIntervalSecGT(v int) predicate.DynamicProxyPool {
+	return predicate.DynamicProxyPool(sql.FieldGT(FieldGrokReasoningCheckIntervalSec, v))
+}
+
+// GrokReasoningCheckIntervalSecGTE applies the GTE predicate on the "grok_reasoning_check_interval_sec" field.
+func GrokReasoningCheckIntervalSecGTE(v int) predicate.DynamicProxyPool {
+	return predicate.DynamicProxyPool(sql.FieldGTE(FieldGrokReasoningCheckIntervalSec, v))
+}
+
+// GrokReasoningCheckIntervalSecLT applies the LT predicate on the "grok_reasoning_check_interval_sec" field.
+func GrokReasoningCheckIntervalSecLT(v int) predicate.DynamicProxyPool {
+	return predicate.DynamicProxyPool(sql.FieldLT(FieldGrokReasoningCheckIntervalSec, v))
+}
+
+// GrokReasoningCheckIntervalSecLTE applies the LTE predicate on the "grok_reasoning_check_interval_sec" field.
+func GrokReasoningCheckIntervalSecLTE(v int) predicate.DynamicProxyPool {
+	return predicate.DynamicProxyPool(sql.FieldLTE(FieldGrokReasoningCheckIntervalSec, v))
 }
 
 // And groups predicates with the AND operator between them.

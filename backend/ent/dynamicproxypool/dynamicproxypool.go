@@ -63,6 +63,12 @@ const (
 	FieldAliveCount = "alive_count"
 	// FieldHealthCheckIntervalSec holds the string denoting the health_check_interval_sec field in the database.
 	FieldHealthCheckIntervalSec = "health_check_interval_sec"
+	// FieldGrokReasoningCheckEnabled holds the string denoting the grok_reasoning_check_enabled field in the database.
+	FieldGrokReasoningCheckEnabled = "grok_reasoning_check_enabled"
+	// FieldGrokReasoningCheckAccountID holds the string denoting the grok_reasoning_check_account_id field in the database.
+	FieldGrokReasoningCheckAccountID = "grok_reasoning_check_account_id"
+	// FieldGrokReasoningCheckIntervalSec holds the string denoting the grok_reasoning_check_interval_sec field in the database.
+	FieldGrokReasoningCheckIntervalSec = "grok_reasoning_check_interval_sec"
 	// Table holds the table name of the dynamicproxypool in the database.
 	Table = "dynamic_proxy_pools"
 )
@@ -95,6 +101,9 @@ var Columns = []string{
 	FieldLastExtractError,
 	FieldAliveCount,
 	FieldHealthCheckIntervalSec,
+	FieldGrokReasoningCheckEnabled,
+	FieldGrokReasoningCheckAccountID,
+	FieldGrokReasoningCheckIntervalSec,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -180,6 +189,10 @@ var (
 	DefaultAliveCount int
 	// DefaultHealthCheckIntervalSec holds the default value on creation for the "health_check_interval_sec" field.
 	DefaultHealthCheckIntervalSec int
+	// DefaultGrokReasoningCheckEnabled holds the default value on creation for the "grok_reasoning_check_enabled" field.
+	DefaultGrokReasoningCheckEnabled bool
+	// DefaultGrokReasoningCheckIntervalSec holds the default value on creation for the "grok_reasoning_check_interval_sec" field.
+	DefaultGrokReasoningCheckIntervalSec int
 )
 
 // OrderOption defines the ordering options for the DynamicProxyPool queries.
@@ -313,4 +326,19 @@ func ByAliveCount(opts ...sql.OrderTermOption) OrderOption {
 // ByHealthCheckIntervalSec orders the results by the health_check_interval_sec field.
 func ByHealthCheckIntervalSec(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldHealthCheckIntervalSec, opts...).ToFunc()
+}
+
+// ByGrokReasoningCheckEnabled orders the results by the grok_reasoning_check_enabled field.
+func ByGrokReasoningCheckEnabled(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldGrokReasoningCheckEnabled, opts...).ToFunc()
+}
+
+// ByGrokReasoningCheckAccountID orders the results by the grok_reasoning_check_account_id field.
+func ByGrokReasoningCheckAccountID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldGrokReasoningCheckAccountID, opts...).ToFunc()
+}
+
+// ByGrokReasoningCheckIntervalSec orders the results by the grok_reasoning_check_interval_sec field.
+func ByGrokReasoningCheckIntervalSec(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldGrokReasoningCheckIntervalSec, opts...).ToFunc()
 }

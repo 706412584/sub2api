@@ -883,6 +883,9 @@ var (
 		{Name: "last_extract_error", Type: field.TypeString, Nullable: true, Size: 2147483647, Default: ""},
 		{Name: "alive_count", Type: field.TypeInt, Default: 0},
 		{Name: "health_check_interval_sec", Type: field.TypeInt, Default: 0},
+		{Name: "grok_reasoning_check_enabled", Type: field.TypeBool, Default: false},
+		{Name: "grok_reasoning_check_account_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "grok_reasoning_check_interval_sec", Type: field.TypeInt, Default: 300},
 	}
 	// DynamicProxyPoolsTable holds the schema information for the "dynamic_proxy_pools" table.
 	DynamicProxyPoolsTable = &schema.Table{

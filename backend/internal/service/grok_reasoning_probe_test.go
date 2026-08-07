@@ -318,6 +318,8 @@ func TestGrokReasoningProbeService_TransportErrorDoesNotLeakProxyCredentials(t *
 	result, err := svc.Probe(context.Background(), 5, GrokReasoningProbeRequest{AccountID: 9, ConfirmQuotaCost: true})
 	require.NoError(t, err)
 	require.Equal(t, GrokReasoningProbeStatusError, result.Status)
-	require.Equal(t, "upstream request failed", result.Message)
+	require.Contains(t, result.Message, "upstream request failed")
+	require.Contains(t, result.Message, "dial socks5")
+	require.Contains(t, result.Message, "***:***@")
 	require.NotContains(t, result.Message, "password")
 }
