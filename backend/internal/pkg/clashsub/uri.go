@@ -86,10 +86,65 @@ func parseShareLink(raw string) (Node, error) {
 		return parseTrojan(raw)
 	case strings.HasPrefix(lower, "ss://"):
 		return parseShadowsocks(raw)
+	case strings.HasPrefix(lower, "hysteria2://"), strings.HasPrefix(lower, "hy2://"):
+		return parseHysteria2(raw)
 	default:
 		scheme := strings.SplitN(raw, "://", 2)[0]
 		return Node{}, fmt.Errorf("unsupported share scheme %q", scheme)
 	}
+}
+
+// parseHysteria2 parses hysteria2://udp_password@host:port/?params#name
+// and hy2:// aliases. Common params: insecure, sni, pinSHA256, obfs,
+// obfs-password, up, down, alpn, mport.
+func parseHysteria2(raw string) (Node, error) {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return Node{}, err
+	}
+	host := u.Hostname()
+	port := u.Port()
+	password := u.User.Username()
+	if host == "" || port == "" || password == "" {
+		return Node{}, fmt.Errorf("hysteria2 missing host/port/password")
+	}
+	q := u.Query()
+	name := host + ":" + port
+	if frag := strings.TrimSpace(u.Fragment); frag != "" {
+		if unescaped, err := url.QueryUnescape(frag); err == nil {
+			name = strings.TrimSpace(unescaped)
+		}
+	}
+	portN, _ := strconv.Atoi(port)
+	m := map[string]any{
+		"name":          name,
+		"type":          "hysteria2",
+		"server":        host,
+		"port":          portN,
+		"password":      password,
+		"obfs":          q.Get("obfs"),
+		"obfs-password": q.Get("obfs-password"),
+	}
+	if sni := firstNonEmpty(q.Get("sni"), q.Get("peer"), q.Get("servername")); sni != "" {
+		m["sni"] = sni
+	}
+	if insecure := q.Get("insecure"); insecure != "" {
+		m["skip-cert-verify"] = insecure == "true" || insecure == "1"
+	}
+	if pin := q.Get("pinSHA256"); pin != "" {
+		m["pinSHA256"] = pin
+	}
+	if up := q.Get("up"); up != "" {
+		m["up"] = up
+	}
+	if down := q.Get("down"); down != "" {
+		m["down"] = down
+	}
+	if alpn := q.Get("alpn"); alpn != "" {
+		m["alpn"] = splitCSV(alpn)
+	}
+	id := identityOf(name, "hysteria2", m)
+	return Node{Name: name, Type: "hysteria2", Raw: m, Identity: id}, nil
 }
 
 func parseVLESS(raw string) (Node, error) {
