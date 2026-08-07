@@ -25,6 +25,7 @@ export interface CreateDynamicProxyPoolRequest {
   ip_duration_sec?: number
   extract_count?: number
   min_alive?: number
+  health_check_interval_sec?: number
 }
 
 export interface UpdateDynamicProxyPoolRequest {
@@ -45,6 +46,7 @@ export interface UpdateDynamicProxyPoolRequest {
   ip_duration_sec?: number
   extract_count?: number
   min_alive?: number
+  health_check_interval_sec?: number
 }
 
 export interface DynamicProxyPoolExtractResult {

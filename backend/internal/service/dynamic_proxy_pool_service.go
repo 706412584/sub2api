@@ -36,6 +36,8 @@ type DynamicProxyPoolService struct {
 	httpClient *http.Client
 	entryMu    sync.Mutex
 	entries    map[int64]*poolEntryServer // pool ID -> entry server
+	healthMu   sync.Mutex
+	healthCheckLast map[int64]time.Time // pool ID -> last health check time
 }
 
 // NewDynamicProxyPoolService constructs the service.
@@ -57,7 +59,8 @@ func NewDynamicProxyPoolService(
 				Proxy: nil, // nil = no proxy, bypasses HTTP_PROXY env var
 			},
 		},
-		entries: make(map[int64]*poolEntryServer),
+		entries:         make(map[int64]*poolEntryServer),
+		healthCheckLast: make(map[int64]time.Time),
 	}
 }
 
@@ -81,6 +84,7 @@ func (s *DynamicProxyPoolService) Create(ctx context.Context, p DynamicProxyPool
 		IPDurationSec:      max(p.IPDurationSec, 30),
 		ExtractCount:       max(p.ExtractCount, 1),
 		MinAlive:           max(p.MinAlive, 1),
+		HealthCheckIntervalSec: max(p.HealthCheckIntervalSec, 0),
 	}
 
 	// Generate name prefix
@@ -163,6 +167,9 @@ func (s *DynamicProxyPoolService) Update(ctx context.Context, id int64, p Dynami
 	if p.MinAlive != nil {
 		m.MinAlive = max(*p.MinAlive, 1)
 	}
+	if p.HealthCheckIntervalSec != nil {
+		m.HealthCheckIntervalSec = max(*p.HealthCheckIntervalSec, 0)
+	}
 
 	if err := s.validate(ctx, m, id); err != nil {
 		return nil, err
@@ -240,6 +247,15 @@ func (s *DynamicProxyPoolService) RefreshDue(ctx context.Context, now time.Time)
 		if alive != m.AliveCount {
 			_ = s.repo.UpdateAliveCount(ctx, m.ID, alive)
 		}
+
+		// Run periodic health checks if enabled; mark dead proxies inactive so
+		// the entry proxy won't pick them, and refresh when too few remain.
+		if m.HealthCheckIntervalSec > 0 {
+			s.healthCheckPool(ctx, m, now)
+			alive, _ = s.pruneAndCount(ctx, m.NamePrefix, now)
+			_ = s.repo.UpdateAliveCount(ctx, m.ID, alive)
+		}
+
 		due := alive < m.MinAlive
 		if !due && m.LastExtractAt != nil {
 			due = now.Sub(*m.LastExtractAt) >= time.Duration(m.RefreshIntervalSec)*time.Second
@@ -255,6 +271,66 @@ func (s *DynamicProxyPoolService) RefreshDue(ctx context.Context, now time.Time)
 		}
 	}
 	return nil
+}
+
+// healthCheckPool tests each active pool-owned proxy and marks failures inactive.
+// The last check time is tracked in-memory per pool to respect the interval.
+func (s *DynamicProxyPoolService) healthCheckPool(ctx context.Context, m *DynamicProxyPool, now time.Time) {
+	if m == nil || m.HealthCheckIntervalSec <= 0 {
+		return
+	}
+	// Respect interval: only check if enough time has passed since last check.
+	lastCheck, ok := s.healthCheckLast[m.ID]
+	if ok && now.Sub(lastCheck) < time.Duration(m.HealthCheckIntervalSec)*time.Second {
+		return
+	}
+	s.healthCheckLast[m.ID] = now
+
+	owned, err := s.proxyRepo.ListOwnedByPrefix(ctx, m.NamePrefix)
+	if err != nil {
+		return
+	}
+	for _, p := range owned {
+		if p.IsExpired(now) {
+			continue
+		}
+		// Only check active or previously-unhealthy proxies; skip already-expired/inactive.
+		if p.Status != StatusActive && p.Status != StatusError {
+			continue
+		}
+		ok := s.testProxyLive(p.Proxy)
+		target := StatusActive
+		if !ok {
+			target = StatusError
+		}
+		if p.Status != target {
+			// Fetch fresh proxy to preserve all fields, then update status.
+			proxy, err := s.proxyRepo.GetByID(ctx, p.ID)
+			if err == nil && proxy != nil {
+				proxy.Status = target
+				_ = s.proxyRepo.Update(ctx, proxy)
+			}
+		}
+	}
+}
+
+// testProxyLive performs a lightweight HTTP GET through the proxy to verify it works.
+func (s *DynamicProxyPoolService) testProxyLive(p Proxy) bool {
+	proxyURL := p.URL()
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			Proxy: func(*http.Request) (*url.URL, error) {
+				return url.Parse(proxyURL)
+			},
+		},
+	}
+	resp, err := client.Get("http://api64.ipify.org?format=json")
+	if err != nil {
+		return false
+	}
+	_ = resp.Body.Close()
+	return true
 }
 
 func (s *DynamicProxyPoolService) refreshOne(ctx context.Context, m *DynamicProxyPool) error {
