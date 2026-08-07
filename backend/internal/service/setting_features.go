@@ -11,6 +11,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // IsRegistrationEnabled 检查是否开放注册
@@ -1247,6 +1248,71 @@ func (s *SettingService) SetStreamTimeoutSettings(ctx context.Context, settings 
 	}
 
 	return s.settingRepo.Set(ctx, SettingKeyStreamTimeoutSettings, string(data))
+}
+
+// GetGrokReasoningVisibilitySettings 获取网关级 Grok 思考明文调度配置。
+func (s *SettingService) GetGrokReasoningVisibilitySettings(ctx context.Context) (*GrokReasoningVisibilitySettings, error) {
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyGrokReasoningVisibility)
+	if err != nil {
+		if errors.Is(err, ErrSettingNotFound) {
+			return DefaultGrokReasoningVisibilitySettings(), nil
+		}
+		return nil, fmt.Errorf("get grok reasoning visibility settings: %w", err)
+	}
+	if value == "" {
+		return DefaultGrokReasoningVisibilitySettings(), nil
+	}
+
+	var settings GrokReasoningVisibilitySettings
+	if err := json.Unmarshal([]byte(value), &settings); err != nil {
+		return DefaultGrokReasoningVisibilitySettings(), nil
+	}
+
+	// inherit 在网关级没有上层可继承，归一化为 off 保持现状行为。
+	settings.Mode = NormalizeGrokReasoningVisibilityMode(settings.Mode)
+	if settings.Mode == GrokReasoningVisibilityModeInherit {
+		settings.Mode = GrokReasoningVisibilityModeOff
+	}
+	if settings.ProbeTTLSec < 0 {
+		settings.ProbeTTLSec = 0
+	}
+	if settings.ProbeTTLSec > GrokReasoningVisibilityProbeTTLMaxSec {
+		settings.ProbeTTLSec = GrokReasoningVisibilityProbeTTLMaxSec
+	}
+
+	return &settings, nil
+}
+
+// SetGrokReasoningVisibilitySettings 设置网关级 Grok 思考明文调度配置。
+func (s *SettingService) SetGrokReasoningVisibilitySettings(ctx context.Context, settings *GrokReasoningVisibilitySettings) error {
+	if settings == nil {
+		return fmt.Errorf("settings cannot be nil")
+	}
+
+	switch settings.Mode {
+	case GrokReasoningVisibilityModeOff, GrokReasoningVisibilityModeSoft, GrokReasoningVisibilityModeEnforce:
+		// valid
+	default:
+		return fmt.Errorf("invalid mode: %s", settings.Mode)
+	}
+	if settings.ProbeTTLSec < 0 || settings.ProbeTTLSec > GrokReasoningVisibilityProbeTTLMaxSec {
+		return fmt.Errorf("probe_ttl_sec must be between 0-%d", GrokReasoningVisibilityProbeTTLMaxSec)
+	}
+
+	data, err := json.Marshal(settings)
+	if err != nil {
+		return fmt.Errorf("marshal grok reasoning visibility settings: %w", err)
+	}
+
+	if err := s.settingRepo.Set(ctx, SettingKeyGrokReasoningVisibility, string(data)); err != nil {
+		return err
+	}
+	// Write through so the scheduling hot path sees the new value without waiting for TTL.
+	s.grokReasoningVisibilityCache.Store(&cachedGrokReasoningVisibilitySettings{
+		value:     *settings,
+		expiresAt: time.Now().Add(grokReasoningVisibilityCacheTTL).UnixNano(),
+	})
+	return nil
 }
 
 // GetDefaultPlatformQuotas 读取系统全局 platform quota JSON key，返回全部允许平台 x 3 window 的设置。

@@ -94,6 +94,9 @@ type Group struct {
 	// GrokMessagesProtocol selects the upstream protocol for native /v1/messages
 	// on Grok groups: "responses" (default, native) or "chat_completions" (opt-in visible thinking).
 	GrokMessagesProtocol string
+	// GrokReasoningVisibilityMode controls how Grok accounts without visible plaintext
+	// reasoning are scheduled: "inherit" (follow gateway setting), "off", "soft", "enforce".
+	GrokReasoningVisibilityMode string
 
 	// RPMLimit 分组级每分钟请求数上限（0 = 不限制）。
 	// 一旦设置即接管该分组用户的限流（覆盖用户级 rpm_limit），可被 user-group rpm_override 进一步覆盖。

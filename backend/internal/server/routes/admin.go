@@ -594,6 +594,9 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		adminSettings.PUT("/panel-rate-limit", h.Admin.Setting.UpdatePanelRateLimitSettings)
 		adminSettings.GET("/stream-timeout", h.Admin.Setting.GetStreamTimeoutSettings)
 		adminSettings.PUT("/stream-timeout", h.Admin.Setting.UpdateStreamTimeoutSettings)
+		// Grok 思考明文调度配置
+		adminSettings.GET("/grok-reasoning-visibility", h.Admin.Setting.GetGrokReasoningVisibilitySettings)
+		adminSettings.PUT("/grok-reasoning-visibility", h.Admin.Setting.UpdateGrokReasoningVisibilitySettings)
 		// 请求整流器配置
 		adminSettings.GET("/rectifier", h.Admin.Setting.GetRectifierSettings)
 		adminSettings.PUT("/rectifier", h.Admin.Setting.UpdateRectifierSettings)

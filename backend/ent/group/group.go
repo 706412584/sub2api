@@ -118,6 +118,8 @@ const (
 	FieldModelsListConfig = "models_list_config"
 	// FieldGrokMessagesProtocol holds the string denoting the grok_messages_protocol field in the database.
 	FieldGrokMessagesProtocol = "grok_messages_protocol"
+	// FieldGrokReasoningVisibilityMode holds the string denoting the grok_reasoning_visibility_mode field in the database.
+	FieldGrokReasoningVisibilityMode = "grok_reasoning_visibility_mode"
 	// FieldRpmLimit holds the string denoting the rpm_limit field in the database.
 	FieldRpmLimit = "rpm_limit"
 	// FieldMaxReasoningEffort holds the string denoting the max_reasoning_effort field in the database.
@@ -252,6 +254,7 @@ var Columns = []string{
 	FieldMessagesDispatchModelConfig,
 	FieldModelsListConfig,
 	FieldGrokMessagesProtocol,
+	FieldGrokReasoningVisibilityMode,
 	FieldRpmLimit,
 	FieldMaxReasoningEffort,
 	FieldReasoningEffortMappings,
@@ -371,6 +374,10 @@ var (
 	DefaultGrokMessagesProtocol string
 	// GrokMessagesProtocolValidator is a validator for the "grok_messages_protocol" field. It is called by the builders before save.
 	GrokMessagesProtocolValidator func(string) error
+	// DefaultGrokReasoningVisibilityMode holds the default value on creation for the "grok_reasoning_visibility_mode" field.
+	DefaultGrokReasoningVisibilityMode string
+	// GrokReasoningVisibilityModeValidator is a validator for the "grok_reasoning_visibility_mode" field. It is called by the builders before save.
+	GrokReasoningVisibilityModeValidator func(string) error
 	// DefaultRpmLimit holds the default value on creation for the "rpm_limit" field.
 	DefaultRpmLimit int
 	// DefaultMaxReasoningEffort holds the default value on creation for the "max_reasoning_effort" field.
@@ -624,6 +631,11 @@ func ByDefaultMappedModel(opts ...sql.OrderTermOption) OrderOption {
 // ByGrokMessagesProtocol orders the results by the grok_messages_protocol field.
 func ByGrokMessagesProtocol(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldGrokMessagesProtocol, opts...).ToFunc()
+}
+
+// ByGrokReasoningVisibilityMode orders the results by the grok_reasoning_visibility_mode field.
+func ByGrokReasoningVisibilityMode(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldGrokReasoningVisibilityMode, opts...).ToFunc()
 }
 
 // ByRpmLimit orders the results by the rpm_limit field.

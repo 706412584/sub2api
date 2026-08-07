@@ -76,6 +76,11 @@ type SettingService struct {
 	// instance owns its own cache, no shared package-level state.
 	openAIQuotaAutoPauseSettingsCache atomic.Value // *cachedOpenAIQuotaAutoPauseSettings
 	openAIQuotaAutoPauseSettingsSF    singleflight.Group
+
+	// grokReasoningVisibilityCache 网关级 Grok 思考明文调度配置进程内缓存。
+	// 每个 Grok 账号的调度候选过滤都会读取，禁止在热路径上直接访问 DB。
+	grokReasoningVisibilityCache atomic.Value // *cachedGrokReasoningVisibilitySettings
+	grokReasoningVisibilitySF    singleflight.Group
 }
 
 // DefaultPlatformQuotaSetting 单 platform 三档限额（nil = 沿用上层；0 = 显式禁用；>0 = 上限）

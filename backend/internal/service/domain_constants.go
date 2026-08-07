@@ -443,6 +443,14 @@ const (
 	SettingKeyStreamTimeoutSettings = "stream_timeout_settings"
 
 	// =========================
+	// Grok Reasoning Visibility Scheduling
+	// =========================
+
+	// SettingKeyGrokReasoningVisibility stores JSON config for the gateway-level
+	// Grok reasoning visibility scheduling policy.
+	SettingKeyGrokReasoningVisibility = "grok_reasoning_visibility_settings"
+
+	// =========================
 	// Request Rectifier (请求整流器)
 	// =========================
 

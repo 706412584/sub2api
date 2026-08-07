@@ -24203,6 +24203,7 @@ type GroupMutation struct {
 	messages_dispatch_model_config          *domain.OpenAIMessagesDispatchModelConfig
 	models_list_config                      *domain.GroupModelsListConfig
 	grok_messages_protocol                  *string
+	grok_reasoning_visibility_mode          *string
 	rpm_limit                               *int
 	addrpm_limit                            *int
 	max_reasoning_effort                    *string
@@ -26836,6 +26837,42 @@ func (m *GroupMutation) ResetGrokMessagesProtocol() {
 	m.grok_messages_protocol = nil
 }
 
+// SetGrokReasoningVisibilityMode sets the "grok_reasoning_visibility_mode" field.
+func (m *GroupMutation) SetGrokReasoningVisibilityMode(s string) {
+	m.grok_reasoning_visibility_mode = &s
+}
+
+// GrokReasoningVisibilityMode returns the value of the "grok_reasoning_visibility_mode" field in the mutation.
+func (m *GroupMutation) GrokReasoningVisibilityMode() (r string, exists bool) {
+	v := m.grok_reasoning_visibility_mode
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGrokReasoningVisibilityMode returns the old "grok_reasoning_visibility_mode" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldGrokReasoningVisibilityMode(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGrokReasoningVisibilityMode is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGrokReasoningVisibilityMode requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGrokReasoningVisibilityMode: %w", err)
+	}
+	return oldValue.GrokReasoningVisibilityMode, nil
+}
+
+// ResetGrokReasoningVisibilityMode resets all changes to the "grok_reasoning_visibility_mode" field.
+func (m *GroupMutation) ResetGrokReasoningVisibilityMode() {
+	m.grok_reasoning_visibility_mode = nil
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (m *GroupMutation) SetRpmLimit(i int) {
 	m.rpm_limit = &i
@@ -27373,7 +27410,7 @@ func (m *GroupMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *GroupMutation) Fields() []string {
-	fields := make([]string, 0, 55)
+	fields := make([]string, 0, 56)
 	if m.created_at != nil {
 		fields = append(fields, group.FieldCreatedAt)
 	}
@@ -27527,6 +27564,9 @@ func (m *GroupMutation) Fields() []string {
 	if m.grok_messages_protocol != nil {
 		fields = append(fields, group.FieldGrokMessagesProtocol)
 	}
+	if m.grok_reasoning_visibility_mode != nil {
+		fields = append(fields, group.FieldGrokReasoningVisibilityMode)
+	}
 	if m.rpm_limit != nil {
 		fields = append(fields, group.FieldRpmLimit)
 	}
@@ -27649,6 +27689,8 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.ModelsListConfig()
 	case group.FieldGrokMessagesProtocol:
 		return m.GrokMessagesProtocol()
+	case group.FieldGrokReasoningVisibilityMode:
+		return m.GrokReasoningVisibilityMode()
 	case group.FieldRpmLimit:
 		return m.RpmLimit()
 	case group.FieldMaxReasoningEffort:
@@ -27768,6 +27810,8 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldModelsListConfig(ctx)
 	case group.FieldGrokMessagesProtocol:
 		return m.OldGrokMessagesProtocol(ctx)
+	case group.FieldGrokReasoningVisibilityMode:
+		return m.OldGrokReasoningVisibilityMode(ctx)
 	case group.FieldRpmLimit:
 		return m.OldRpmLimit(ctx)
 	case group.FieldMaxReasoningEffort:
@@ -28141,6 +28185,13 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetGrokMessagesProtocol(v)
+		return nil
+	case group.FieldGrokReasoningVisibilityMode:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGrokReasoningVisibilityMode(v)
 		return nil
 	case group.FieldRpmLimit:
 		v, ok := value.(int)
@@ -28743,6 +28794,9 @@ func (m *GroupMutation) ResetField(name string) error {
 		return nil
 	case group.FieldGrokMessagesProtocol:
 		m.ResetGrokMessagesProtocol()
+		return nil
+	case group.FieldGrokReasoningVisibilityMode:
+		m.ResetGrokReasoningVisibilityMode()
 		return nil
 	case group.FieldRpmLimit:
 		m.ResetRpmLimit()

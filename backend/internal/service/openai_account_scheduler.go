@@ -1736,6 +1736,17 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatibleReason(ctx con
 	if !accountSupportsOpenAICapabilities(account, req.RequiredCapability, req.RequiredImageCapability) {
 		return false, "capability_mismatch"
 	}
+	// Grok visible-reasoning enforcement: exclude accounts whose latest probe says
+	// reasoning is encrypted-only or absent. Unprobed/expired marks pass through.
+	if account.IsGrok() && s != nil && s.service != nil {
+		mode := s.service.resolveGrokReasoningVisibilityMode(ctx, req.GroupID)
+		if decision := ResolveGrokReasoningVisibilityDecision(
+			ctx, s.service.grokReasoningQualityMarks, account, mode,
+		); decision.Excluded {
+			s.service.applyGrokReasoningVisibilityQuarantine(ctx, account.ID, decision)
+			return false, "grok_reasoning_not_visible"
+		}
+	}
 	return true, ""
 }
 

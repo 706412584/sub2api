@@ -462,6 +462,13 @@ type StreamTimeoutSettings struct {
 	ThresholdWindowMinutes int    `json:"threshold_window_minutes"`
 }
 
+// GrokReasoningVisibilitySettings 网关级 Grok 思考明文调度配置 DTO
+type GrokReasoningVisibilitySettings struct {
+	Mode                 string `json:"mode"`
+	ProbeTTLSec          int    `json:"probe_ttl_sec"`
+	ProbeAccountFallback bool   `json:"probe_account_fallback"`
+}
+
 // RectifierSettings 请求整流器配置 DTO
 type RectifierSettings struct {
 	Enabled                  bool     `json:"enabled"`

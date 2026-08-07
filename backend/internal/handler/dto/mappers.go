@@ -153,6 +153,7 @@ func GroupFromServiceAdmin(g *service.Group) *AdminGroup {
 		MessagesDispatchModelConfig: g.MessagesDispatchModelConfig,
 		ModelsListConfig:            g.ModelsListConfig,
 		GrokMessagesProtocol:        g.GrokMessagesProtocol,
+		GrokReasoningVisibilityMode: g.GrokReasoningVisibilityMode,
 		SupportedModelScopes:        g.SupportedModelScopes,
 		AccountCount:                g.AccountCount,
 		ActiveAccountCount:          g.ActiveAccountCount,

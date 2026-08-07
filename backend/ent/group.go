@@ -121,6 +121,8 @@ type Group struct {
 	ModelsListConfig domain.GroupModelsListConfig `json:"models_list_config,omitempty"`
 	// Grok 分组处理 /v1/messages 时使用的上游协议：responses（默认原生）或 chat_completions（可选可见思考）
 	GrokMessagesProtocol string `json:"grok_messages_protocol,omitempty"`
+	// Grok 思考明文调度模式：空=继承网关默认，off=不检查，soft=降权，enforce=排除并冷却
+	GrokReasoningVisibilityMode string `json:"grok_reasoning_visibility_mode,omitempty"`
 	// 分组 RPM 上限，0 表示不限制；设置后接管该分组用户的限流
 	RpmLimit int `json:"rpm_limit,omitempty"`
 	// OpenAI reasoning effort 上限；可选 minimal/low/medium/high/xhigh/max
@@ -243,7 +245,7 @@ func (*Group) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullFloat64)
 		case group.FieldID, group.FieldDefaultValidityDays, group.FieldFallbackGroupID, group.FieldFallbackGroupIDOnInvalidRequest, group.FieldDefaultProxyID, group.FieldSortOrder, group.FieldRpmLimit:
 			values[i] = new(sql.NullInt64)
-		case group.FieldName, group.FieldDescription, group.FieldPeakStart, group.FieldPeakEnd, group.FieldStatus, group.FieldDuplicateOperationID, group.FieldPlatform, group.FieldSubscriptionType, group.FieldDefaultMappedModel, group.FieldGrokMessagesProtocol, group.FieldMaxReasoningEffort:
+		case group.FieldName, group.FieldDescription, group.FieldPeakStart, group.FieldPeakEnd, group.FieldStatus, group.FieldDuplicateOperationID, group.FieldPlatform, group.FieldSubscriptionType, group.FieldDefaultMappedModel, group.FieldGrokMessagesProtocol, group.FieldGrokReasoningVisibilityMode, group.FieldMaxReasoningEffort:
 			values[i] = new(sql.NullString)
 		case group.FieldCreatedAt, group.FieldUpdatedAt, group.FieldDeletedAt:
 			values[i] = new(sql.NullTime)
@@ -598,6 +600,12 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.GrokMessagesProtocol = value.String
 			}
+		case group.FieldGrokReasoningVisibilityMode:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field grok_reasoning_visibility_mode", values[i])
+			} else if value.Valid {
+				_m.GrokReasoningVisibilityMode = value.String
+			}
 		case group.FieldRpmLimit:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for field rpm_limit", values[i])
@@ -886,6 +894,9 @@ func (_m *Group) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("grok_messages_protocol=")
 	builder.WriteString(_m.GrokMessagesProtocol)
+	builder.WriteString(", ")
+	builder.WriteString("grok_reasoning_visibility_mode=")
+	builder.WriteString(_m.GrokReasoningVisibilityMode)
 	builder.WriteString(", ")
 	builder.WriteString("rpm_limit=")
 	builder.WriteString(fmt.Sprintf("%v", _m.RpmLimit))

@@ -719,6 +719,20 @@ func (_c *GroupCreate) SetNillableGrokMessagesProtocol(v *string) *GroupCreate {
 	return _c
 }
 
+// SetGrokReasoningVisibilityMode sets the "grok_reasoning_visibility_mode" field.
+func (_c *GroupCreate) SetGrokReasoningVisibilityMode(v string) *GroupCreate {
+	_c.mutation.SetGrokReasoningVisibilityMode(v)
+	return _c
+}
+
+// SetNillableGrokReasoningVisibilityMode sets the "grok_reasoning_visibility_mode" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableGrokReasoningVisibilityMode(v *string) *GroupCreate {
+	if v != nil {
+		_c.SetGrokReasoningVisibilityMode(*v)
+	}
+	return _c
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_c *GroupCreate) SetRpmLimit(v int) *GroupCreate {
 	_c.mutation.SetRpmLimit(v)
@@ -1032,6 +1046,10 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultGrokMessagesProtocol
 		_c.mutation.SetGrokMessagesProtocol(v)
 	}
+	if _, ok := _c.mutation.GrokReasoningVisibilityMode(); !ok {
+		v := group.DefaultGrokReasoningVisibilityMode
+		_c.mutation.SetGrokReasoningVisibilityMode(v)
+	}
 	if _, ok := _c.mutation.RpmLimit(); !ok {
 		v := group.DefaultRpmLimit
 		_c.mutation.SetRpmLimit(v)
@@ -1198,6 +1216,14 @@ func (_c *GroupCreate) check() error {
 	if v, ok := _c.mutation.GrokMessagesProtocol(); ok {
 		if err := group.GrokMessagesProtocolValidator(v); err != nil {
 			return &ValidationError{Name: "grok_messages_protocol", err: fmt.Errorf(`ent: validator failed for field "Group.grok_messages_protocol": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.GrokReasoningVisibilityMode(); !ok {
+		return &ValidationError{Name: "grok_reasoning_visibility_mode", err: errors.New(`ent: missing required field "Group.grok_reasoning_visibility_mode"`)}
+	}
+	if v, ok := _c.mutation.GrokReasoningVisibilityMode(); ok {
+		if err := group.GrokReasoningVisibilityModeValidator(v); err != nil {
+			return &ValidationError{Name: "grok_reasoning_visibility_mode", err: fmt.Errorf(`ent: validator failed for field "Group.grok_reasoning_visibility_mode": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.RpmLimit(); !ok {
@@ -1447,6 +1473,10 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.GrokMessagesProtocol(); ok {
 		_spec.SetField(group.FieldGrokMessagesProtocol, field.TypeString, value)
 		_node.GrokMessagesProtocol = value
+	}
+	if value, ok := _c.mutation.GrokReasoningVisibilityMode(); ok {
+		_spec.SetField(group.FieldGrokReasoningVisibilityMode, field.TypeString, value)
+		_node.GrokReasoningVisibilityMode = value
 	}
 	if value, ok := _c.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)
@@ -2427,6 +2457,18 @@ func (u *GroupUpsert) SetGrokMessagesProtocol(v string) *GroupUpsert {
 // UpdateGrokMessagesProtocol sets the "grok_messages_protocol" field to the value that was provided on create.
 func (u *GroupUpsert) UpdateGrokMessagesProtocol() *GroupUpsert {
 	u.SetExcluded(group.FieldGrokMessagesProtocol)
+	return u
+}
+
+// SetGrokReasoningVisibilityMode sets the "grok_reasoning_visibility_mode" field.
+func (u *GroupUpsert) SetGrokReasoningVisibilityMode(v string) *GroupUpsert {
+	u.Set(group.FieldGrokReasoningVisibilityMode, v)
+	return u
+}
+
+// UpdateGrokReasoningVisibilityMode sets the "grok_reasoning_visibility_mode" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateGrokReasoningVisibilityMode() *GroupUpsert {
+	u.SetExcluded(group.FieldGrokReasoningVisibilityMode)
 	return u
 }
 
@@ -3474,6 +3516,20 @@ func (u *GroupUpsertOne) SetGrokMessagesProtocol(v string) *GroupUpsertOne {
 func (u *GroupUpsertOne) UpdateGrokMessagesProtocol() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateGrokMessagesProtocol()
+	})
+}
+
+// SetGrokReasoningVisibilityMode sets the "grok_reasoning_visibility_mode" field.
+func (u *GroupUpsertOne) SetGrokReasoningVisibilityMode(v string) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetGrokReasoningVisibilityMode(v)
+	})
+}
+
+// UpdateGrokReasoningVisibilityMode sets the "grok_reasoning_visibility_mode" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateGrokReasoningVisibilityMode() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateGrokReasoningVisibilityMode()
 	})
 }
 
@@ -4696,6 +4752,20 @@ func (u *GroupUpsertBulk) SetGrokMessagesProtocol(v string) *GroupUpsertBulk {
 func (u *GroupUpsertBulk) UpdateGrokMessagesProtocol() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateGrokMessagesProtocol()
+	})
+}
+
+// SetGrokReasoningVisibilityMode sets the "grok_reasoning_visibility_mode" field.
+func (u *GroupUpsertBulk) SetGrokReasoningVisibilityMode(v string) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetGrokReasoningVisibilityMode(v)
+	})
+}
+
+// UpdateGrokReasoningVisibilityMode sets the "grok_reasoning_visibility_mode" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateGrokReasoningVisibilityMode() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateGrokReasoningVisibilityMode()
 	})
 }
 

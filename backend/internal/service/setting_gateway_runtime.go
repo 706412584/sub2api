@@ -122,6 +122,52 @@ const cyberSessionBlockRuntimeCacheTTL = 60 * time.Second
 const cyberSessionBlockRuntimeErrorTTL = 5 * time.Second
 const cyberSessionBlockRuntimeDBTimeout = 5 * time.Second
 
+// cachedGrokReasoningVisibilitySettings 网关级 Grok 思考明文调度配置进程内缓存。
+// 该配置在每个 Grok 账号的调度候选过滤上被读取，禁止在热路径上直接访问 DB。
+type cachedGrokReasoningVisibilitySettings struct {
+	value     GrokReasoningVisibilitySettings
+	expiresAt int64 // unix nano
+}
+
+const grokReasoningVisibilityCacheTTL = 30 * time.Second
+const grokReasoningVisibilityDBTimeout = 5 * time.Second
+
+// GetGrokReasoningVisibilityRuntime 返回网关级 Grok 思考明文调度配置，进程内缓存 ~30s。
+// 调度热路径专用：读取失败时回退默认（off），保证不会因配置读不到而误杀账号。
+func (s *SettingService) GetGrokReasoningVisibilityRuntime(ctx context.Context) GrokReasoningVisibilitySettings {
+	if s == nil {
+		return *DefaultGrokReasoningVisibilitySettings()
+	}
+	if cached, ok := s.grokReasoningVisibilityCache.Load().(*cachedGrokReasoningVisibilitySettings); ok && cached != nil {
+		if time.Now().UnixNano() < cached.expiresAt {
+			return cached.value
+		}
+	}
+	result, _, _ := s.grokReasoningVisibilitySF.Do("grok_reasoning_visibility", func() (any, error) {
+		if cached, ok := s.grokReasoningVisibilityCache.Load().(*cachedGrokReasoningVisibilitySettings); ok && cached != nil {
+			if time.Now().UnixNano() < cached.expiresAt {
+				return cached.value, nil
+			}
+		}
+		dbCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), grokReasoningVisibilityDBTimeout)
+		defer cancel()
+
+		settings := *DefaultGrokReasoningVisibilitySettings()
+		if loaded, err := s.GetGrokReasoningVisibilitySettings(dbCtx); err == nil && loaded != nil {
+			settings = *loaded
+		}
+		s.grokReasoningVisibilityCache.Store(&cachedGrokReasoningVisibilitySettings{
+			value:     settings,
+			expiresAt: time.Now().Add(grokReasoningVisibilityCacheTTL).UnixNano(),
+		})
+		return settings, nil
+	})
+	if settings, ok := result.(GrokReasoningVisibilitySettings); ok {
+		return settings
+	}
+	return *DefaultGrokReasoningVisibilitySettings()
+}
+
 const openAIQuotaAutoPauseSettingsCacheTTL = 60 * time.Second
 const openAIQuotaAutoPauseSettingsErrorTTL = 5 * time.Second
 const openAIQuotaAutoPauseSettingsDBTimeout = 5 * time.Second

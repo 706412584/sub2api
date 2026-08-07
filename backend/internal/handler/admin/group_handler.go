@@ -144,6 +144,8 @@ type CreateGroupRequest struct {
 	MessagesDispatchModelConfig service.OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config"`
 	ModelsListConfig            service.GroupModelsListConfig             `json:"models_list_config"`
 	GrokMessagesProtocol        string                                    `json:"grok_messages_protocol"`
+	// Grok 思考明文可见性调度模式：inherit（跟随网关）/off/soft/enforce
+	GrokReasoningVisibilityMode string `json:"grok_reasoning_visibility_mode"`
 	// 分组 RPM 上限（0 = 不限制）
 	RPMLimit int `json:"rpm_limit"`
 	// OpenAI/Codex 请求推理强度上限，空字符串表示不限制。
@@ -207,6 +209,8 @@ type UpdateGroupRequest struct {
 	MessagesDispatchModelConfig *service.OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config"`
 	ModelsListConfig            *service.GroupModelsListConfig             `json:"models_list_config"`
 	GrokMessagesProtocol        *string                                    `json:"grok_messages_protocol"`
+	// Grok 思考明文可见性调度模式；nil 表示未提供不改动。
+	GrokReasoningVisibilityMode *string `json:"grok_reasoning_visibility_mode"`
 	// 分组 RPM 上限（0 = 不限制）；nil 表示未提供不改动
 	RPMLimit *int `json:"rpm_limit"`
 	// OpenAI/Codex 请求推理强度上限；空字符串清除，nil 不修改。
@@ -528,6 +532,7 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		MessagesDispatchModelConfig:     req.MessagesDispatchModelConfig,
 		ModelsListConfig:                req.ModelsListConfig,
 		GrokMessagesProtocol:            req.GrokMessagesProtocol,
+		GrokReasoningVisibilityMode:     req.GrokReasoningVisibilityMode,
 		RPMLimit:                        req.RPMLimit,
 		MaxReasoningEffort:              req.MaxReasoningEffort,
 		ReasoningEffortMappings:         req.ReasoningEffortMappings,
@@ -650,6 +655,7 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		MessagesDispatchModelConfig:     req.MessagesDispatchModelConfig,
 		ModelsListConfig:                req.ModelsListConfig,
 		GrokMessagesProtocol:            req.GrokMessagesProtocol,
+		GrokReasoningVisibilityMode:     req.GrokReasoningVisibilityMode,
 		RPMLimit:                        req.RPMLimit,
 		MaxReasoningEffort:              req.MaxReasoningEffort,
 		ReasoningEffortMappings:         req.ReasoningEffortMappings,

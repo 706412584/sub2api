@@ -947,6 +947,20 @@ func (_u *GroupUpdate) SetNillableGrokMessagesProtocol(v *string) *GroupUpdate {
 	return _u
 }
 
+// SetGrokReasoningVisibilityMode sets the "grok_reasoning_visibility_mode" field.
+func (_u *GroupUpdate) SetGrokReasoningVisibilityMode(v string) *GroupUpdate {
+	_u.mutation.SetGrokReasoningVisibilityMode(v)
+	return _u
+}
+
+// SetNillableGrokReasoningVisibilityMode sets the "grok_reasoning_visibility_mode" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableGrokReasoningVisibilityMode(v *string) *GroupUpdate {
+	if v != nil {
+		_u.SetGrokReasoningVisibilityMode(*v)
+	}
+	return _u
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_u *GroupUpdate) SetRpmLimit(v int) *GroupUpdate {
 	_u.mutation.ResetRpmLimit()
@@ -1313,6 +1327,11 @@ func (_u *GroupUpdate) check() error {
 			return &ValidationError{Name: "grok_messages_protocol", err: fmt.Errorf(`ent: validator failed for field "Group.grok_messages_protocol": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.GrokReasoningVisibilityMode(); ok {
+		if err := group.GrokReasoningVisibilityModeValidator(v); err != nil {
+			return &ValidationError{Name: "grok_reasoning_visibility_mode", err: fmt.Errorf(`ent: validator failed for field "Group.grok_reasoning_visibility_mode": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.MaxReasoningEffort(); ok {
 		if err := group.MaxReasoningEffortValidator(v); err != nil {
 			return &ValidationError{Name: "max_reasoning_effort", err: fmt.Errorf(`ent: validator failed for field "Group.max_reasoning_effort": %w`, err)}
@@ -1598,6 +1617,9 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.GrokMessagesProtocol(); ok {
 		_spec.SetField(group.FieldGrokMessagesProtocol, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.GrokReasoningVisibilityMode(); ok {
+		_spec.SetField(group.FieldGrokReasoningVisibilityMode, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)
@@ -2844,6 +2866,20 @@ func (_u *GroupUpdateOne) SetNillableGrokMessagesProtocol(v *string) *GroupUpdat
 	return _u
 }
 
+// SetGrokReasoningVisibilityMode sets the "grok_reasoning_visibility_mode" field.
+func (_u *GroupUpdateOne) SetGrokReasoningVisibilityMode(v string) *GroupUpdateOne {
+	_u.mutation.SetGrokReasoningVisibilityMode(v)
+	return _u
+}
+
+// SetNillableGrokReasoningVisibilityMode sets the "grok_reasoning_visibility_mode" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableGrokReasoningVisibilityMode(v *string) *GroupUpdateOne {
+	if v != nil {
+		_u.SetGrokReasoningVisibilityMode(*v)
+	}
+	return _u
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_u *GroupUpdateOne) SetRpmLimit(v int) *GroupUpdateOne {
 	_u.mutation.ResetRpmLimit()
@@ -3223,6 +3259,11 @@ func (_u *GroupUpdateOne) check() error {
 			return &ValidationError{Name: "grok_messages_protocol", err: fmt.Errorf(`ent: validator failed for field "Group.grok_messages_protocol": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.GrokReasoningVisibilityMode(); ok {
+		if err := group.GrokReasoningVisibilityModeValidator(v); err != nil {
+			return &ValidationError{Name: "grok_reasoning_visibility_mode", err: fmt.Errorf(`ent: validator failed for field "Group.grok_reasoning_visibility_mode": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.MaxReasoningEffort(); ok {
 		if err := group.MaxReasoningEffortValidator(v); err != nil {
 			return &ValidationError{Name: "max_reasoning_effort", err: fmt.Errorf(`ent: validator failed for field "Group.max_reasoning_effort": %w`, err)}
@@ -3525,6 +3566,9 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if value, ok := _u.mutation.GrokMessagesProtocol(); ok {
 		_spec.SetField(group.FieldGrokMessagesProtocol, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.GrokReasoningVisibilityMode(); ok {
+		_spec.SetField(group.FieldGrokReasoningVisibilityMode, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)

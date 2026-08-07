@@ -648,6 +648,58 @@ func (h *SettingHandler) UpdateBetaPolicySettings(c *gin.Context) {
 	response.Success(c, dto.BetaPolicySettings{Rules: outRules})
 }
 
+// GetGrokReasoningVisibilitySettings 获取网关级 Grok 思考明文调度配置
+// GET /api/v1/admin/settings/grok-reasoning-visibility
+func (h *SettingHandler) GetGrokReasoningVisibilitySettings(c *gin.Context) {
+	settings, err := h.settingService.GetGrokReasoningVisibilitySettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dto.GrokReasoningVisibilitySettings{
+		Mode:                 settings.Mode,
+		ProbeTTLSec:          settings.ProbeTTLSec,
+		ProbeAccountFallback: settings.ProbeAccountFallback,
+	})
+}
+
+// UpdateGrokReasoningVisibilitySettingsRequest 更新 Grok 思考明文调度配置请求
+type UpdateGrokReasoningVisibilitySettingsRequest struct {
+	Mode                 string `json:"mode"`
+	ProbeTTLSec          int    `json:"probe_ttl_sec"`
+	ProbeAccountFallback bool   `json:"probe_account_fallback"`
+}
+
+// UpdateGrokReasoningVisibilitySettings 更新网关级 Grok 思考明文调度配置
+// PUT /api/v1/admin/settings/grok-reasoning-visibility
+func (h *SettingHandler) UpdateGrokReasoningVisibilitySettings(c *gin.Context) {
+	var req UpdateGrokReasoningVisibilitySettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	if err := h.settingService.SetGrokReasoningVisibilitySettings(c.Request.Context(), &service.GrokReasoningVisibilitySettings{
+		Mode:                 req.Mode,
+		ProbeTTLSec:          req.ProbeTTLSec,
+		ProbeAccountFallback: req.ProbeAccountFallback,
+	}); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	updated, err := h.settingService.GetGrokReasoningVisibilitySettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dto.GrokReasoningVisibilitySettings{
+		Mode:                 updated.Mode,
+		ProbeTTLSec:          updated.ProbeTTLSec,
+		ProbeAccountFallback: updated.ProbeAccountFallback,
+	})
+}
+
 // UpdateStreamTimeoutSettingsRequest 更新流超时配置请求
 type UpdateStreamTimeoutSettingsRequest struct {
 	Enabled                bool   `json:"enabled"`

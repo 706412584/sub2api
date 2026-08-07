@@ -229,6 +229,10 @@ func (Group) Fields() []ent.Field {
 			MaxLen(32).
 			Default("responses").
 			Comment("Grok 分组处理 /v1/messages 时使用的上游协议：responses（默认原生）或 chat_completions（可选可见思考）"),
+		field.String("grok_reasoning_visibility_mode").
+			MaxLen(16).
+			Default("").
+			Comment("Grok 思考明文调度模式：空=继承网关默认，off=不检查，soft=降权，enforce=排除并冷却"),
 
 		// 分组级每分钟请求数上限（0 = 不限制）。设置后优先于用户级兜底生效。
 		field.Int("rpm_limit").

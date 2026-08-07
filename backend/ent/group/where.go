@@ -290,6 +290,11 @@ func GrokMessagesProtocol(v string) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldGrokMessagesProtocol, v))
 }
 
+// GrokReasoningVisibilityMode applies equality check predicate on the "grok_reasoning_visibility_mode" field. It's identical to GrokReasoningVisibilityModeEQ.
+func GrokReasoningVisibilityMode(v string) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldGrokReasoningVisibilityMode, v))
+}
+
 // RpmLimit applies equality check predicate on the "rpm_limit" field. It's identical to RpmLimitEQ.
 func RpmLimit(v int) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldRpmLimit, v))
@@ -2208,6 +2213,71 @@ func GrokMessagesProtocolEqualFold(v string) predicate.Group {
 // GrokMessagesProtocolContainsFold applies the ContainsFold predicate on the "grok_messages_protocol" field.
 func GrokMessagesProtocolContainsFold(v string) predicate.Group {
 	return predicate.Group(sql.FieldContainsFold(FieldGrokMessagesProtocol, v))
+}
+
+// GrokReasoningVisibilityModeEQ applies the EQ predicate on the "grok_reasoning_visibility_mode" field.
+func GrokReasoningVisibilityModeEQ(v string) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldGrokReasoningVisibilityMode, v))
+}
+
+// GrokReasoningVisibilityModeNEQ applies the NEQ predicate on the "grok_reasoning_visibility_mode" field.
+func GrokReasoningVisibilityModeNEQ(v string) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldGrokReasoningVisibilityMode, v))
+}
+
+// GrokReasoningVisibilityModeIn applies the In predicate on the "grok_reasoning_visibility_mode" field.
+func GrokReasoningVisibilityModeIn(vs ...string) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldGrokReasoningVisibilityMode, vs...))
+}
+
+// GrokReasoningVisibilityModeNotIn applies the NotIn predicate on the "grok_reasoning_visibility_mode" field.
+func GrokReasoningVisibilityModeNotIn(vs ...string) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldGrokReasoningVisibilityMode, vs...))
+}
+
+// GrokReasoningVisibilityModeGT applies the GT predicate on the "grok_reasoning_visibility_mode" field.
+func GrokReasoningVisibilityModeGT(v string) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldGrokReasoningVisibilityMode, v))
+}
+
+// GrokReasoningVisibilityModeGTE applies the GTE predicate on the "grok_reasoning_visibility_mode" field.
+func GrokReasoningVisibilityModeGTE(v string) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldGrokReasoningVisibilityMode, v))
+}
+
+// GrokReasoningVisibilityModeLT applies the LT predicate on the "grok_reasoning_visibility_mode" field.
+func GrokReasoningVisibilityModeLT(v string) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldGrokReasoningVisibilityMode, v))
+}
+
+// GrokReasoningVisibilityModeLTE applies the LTE predicate on the "grok_reasoning_visibility_mode" field.
+func GrokReasoningVisibilityModeLTE(v string) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldGrokReasoningVisibilityMode, v))
+}
+
+// GrokReasoningVisibilityModeContains applies the Contains predicate on the "grok_reasoning_visibility_mode" field.
+func GrokReasoningVisibilityModeContains(v string) predicate.Group {
+	return predicate.Group(sql.FieldContains(FieldGrokReasoningVisibilityMode, v))
+}
+
+// GrokReasoningVisibilityModeHasPrefix applies the HasPrefix predicate on the "grok_reasoning_visibility_mode" field.
+func GrokReasoningVisibilityModeHasPrefix(v string) predicate.Group {
+	return predicate.Group(sql.FieldHasPrefix(FieldGrokReasoningVisibilityMode, v))
+}
+
+// GrokReasoningVisibilityModeHasSuffix applies the HasSuffix predicate on the "grok_reasoning_visibility_mode" field.
+func GrokReasoningVisibilityModeHasSuffix(v string) predicate.Group {
+	return predicate.Group(sql.FieldHasSuffix(FieldGrokReasoningVisibilityMode, v))
+}
+
+// GrokReasoningVisibilityModeEqualFold applies the EqualFold predicate on the "grok_reasoning_visibility_mode" field.
+func GrokReasoningVisibilityModeEqualFold(v string) predicate.Group {
+	return predicate.Group(sql.FieldEqualFold(FieldGrokReasoningVisibilityMode, v))
+}
+
+// GrokReasoningVisibilityModeContainsFold applies the ContainsFold predicate on the "grok_reasoning_visibility_mode" field.
+func GrokReasoningVisibilityModeContainsFold(v string) predicate.Group {
+	return predicate.Group(sql.FieldContainsFold(FieldGrokReasoningVisibilityMode, v))
 }
 
 // RpmLimitEQ applies the EQ predicate on the "rpm_limit" field.

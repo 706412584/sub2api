@@ -452,6 +452,30 @@ func DefaultStreamTimeoutSettings() *StreamTimeoutSettings {
 	}
 }
 
+// GrokReasoningVisibilitySettings 网关级 Grok 思考明文调度配置。
+// 分组字段为 inherit 时回落到这里的 Mode。
+type GrokReasoningVisibilitySettings struct {
+	// Mode 网关默认模式: "off" | "soft" | "enforce"
+	Mode string `json:"mode"`
+	// ProbeTTLSec 探测结果复用时长（秒）。0 表示每次建链前都实时探测。
+	ProbeTTLSec int `json:"probe_ttl_sec"`
+	// ProbeAccountFallback 为 true 时，enforce 模式下若全组账号都不可见思考，
+	// 允许放行最近一次探测的账号，避免整组不可用。
+	ProbeAccountFallback bool `json:"probe_account_fallback"`
+}
+
+// GrokReasoningVisibilityProbeTTLMaxSec 限制探测复用时长上限（24h）。
+const GrokReasoningVisibilityProbeTTLMaxSec = 86400
+
+// DefaultGrokReasoningVisibilitySettings 返回默认配置（保持现状：仅软降权）。
+func DefaultGrokReasoningVisibilitySettings() *GrokReasoningVisibilitySettings {
+	return &GrokReasoningVisibilitySettings{
+		Mode:                 GrokReasoningVisibilityModeOff,
+		ProbeTTLSec:          0,
+		ProbeAccountFallback: false,
+	}
+}
+
 // RectifierSettings 请求整流器配置
 type RectifierSettings struct {
 	Enabled                  bool     `json:"enabled"`                    // 总开关
