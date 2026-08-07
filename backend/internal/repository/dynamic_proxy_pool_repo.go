@@ -86,7 +86,8 @@ func (r *dynamicProxyPoolRepository) Update(ctx context.Context, m *service.Dyna
 		SetExtractCount(m.ExtractCount).
 		SetMinAlive(m.MinAlive).
 		SetNamePrefix(m.NamePrefix).
-		SetAliveCount(m.AliveCount)
+		SetAliveCount(m.AliveCount).
+		SetHealthCheckIntervalSec(m.HealthCheckIntervalSec)
 	if m.SubscriptionID != nil {
 		updater = updater.SetSubscriptionID(*m.SubscriptionID)
 	} else {
@@ -204,30 +205,31 @@ func entToDynamicProxyPool(row *dbent.DynamicProxyPool) *service.DynamicProxyPoo
 		return nil
 	}
 	return &service.DynamicProxyPool{
-		ID:                 row.ID,
-		Name:               row.Name,
-		Enabled:            row.Enabled,
-		SourceType:         row.SourceType,
-		SubscriptionID:     row.SubscriptionID,
-		ExtractURL:         row.ExtractURL,
-		Protocol:           row.Protocol,
-		AuthMode:           row.AuthMode,
-		Username:           row.Username,
-		Password:           row.Password,
-		ResponseFormat:     row.ResponseFormat,
-		LineSeparator:      row.LineSeparator,
-		IPFieldPath:        row.IPFieldPath,
-		PortFieldPath:      row.PortFieldPath,
-		RefreshIntervalSec: row.RefreshIntervalSec,
-		IPDurationSec:      row.IPDurationSec,
-		ExtractCount:       row.ExtractCount,
-		MinAlive:           row.MinAlive,
-		NamePrefix:         row.NamePrefix,
-		LastExtractAt:      row.LastExtractAt,
-		LastExtractStatus:  row.LastExtractStatus,
-		LastExtractError:   row.LastExtractError,
-		AliveCount:         row.AliveCount,
-		CreatedAt:          row.CreatedAt,
-		UpdatedAt:          row.UpdatedAt,
+		ID:                     row.ID,
+		Name:                   row.Name,
+		Enabled:                row.Enabled,
+		SourceType:             row.SourceType,
+		SubscriptionID:         row.SubscriptionID,
+		ExtractURL:             row.ExtractURL,
+		Protocol:               row.Protocol,
+		AuthMode:               row.AuthMode,
+		Username:               row.Username,
+		Password:               row.Password,
+		ResponseFormat:         row.ResponseFormat,
+		LineSeparator:          row.LineSeparator,
+		IPFieldPath:            row.IPFieldPath,
+		PortFieldPath:          row.PortFieldPath,
+		RefreshIntervalSec:     row.RefreshIntervalSec,
+		IPDurationSec:          row.IPDurationSec,
+		ExtractCount:           row.ExtractCount,
+		MinAlive:               row.MinAlive,
+		NamePrefix:             row.NamePrefix,
+		LastExtractAt:          row.LastExtractAt,
+		LastExtractStatus:      row.LastExtractStatus,
+		LastExtractError:       row.LastExtractError,
+		AliveCount:             row.AliveCount,
+		HealthCheckIntervalSec: row.HealthCheckIntervalSec,
+		CreatedAt:              row.CreatedAt,
+		UpdatedAt:              row.UpdatedAt,
 	}
 }
