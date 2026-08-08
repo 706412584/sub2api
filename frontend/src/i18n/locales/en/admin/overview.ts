@@ -1086,6 +1086,14 @@ export default {
         chatCompletions: 'Chat Completions (optional: visible thinking)',
         hint: 'Only affects native /v1/messages for this Grok group. Default is native Responses; choose Chat Completions only when you need visible thinking conversion.'
       },
+      grokReasoningVisibility: {
+        title: 'Grok Reasoning Visibility',
+        inherit: 'Inherit (use gateway default)',
+        off: 'Off (no enforcement)',
+        soft: 'Soft (deprioritize only)',
+        enforce: 'Enforce (exclude non-visible)',
+        hint: 'Override the gateway-level Grok reasoning visibility mode for this group only.'
+      },
       openaiMessages: {
         title: 'OpenAI Messages Dispatch',
         allowDispatch: 'Allow /v1/messages dispatch',

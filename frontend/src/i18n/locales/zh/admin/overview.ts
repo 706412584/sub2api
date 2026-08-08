@@ -1084,6 +1084,14 @@ export default {
         chatCompletions: 'Chat Completions（可选：返回可见思考）',
         hint: '仅影响此 Grok 分组接收原生 /v1/messages 请求。默认走原生 Responses；仅在选择 Chat Completions 时转换并返回可见思考。'
       },
+      grokReasoningVisibility: {
+        title: 'Grok 思考明文可见性',
+        inherit: '继承网关设置',
+        off: '关闭',
+        soft: '软执行（仅影响负载均衡评分）',
+        enforce: '强制（排除加密推理账号）',
+        hint: '覆盖网关级别的 Grok 推理可见性模式。inherit = 跟随网关全局设置。'
+      },
       openaiMessages: {
         title: 'OpenAI Messages 调度配置',
         allowDispatch: '允许 /v1/messages 调度',

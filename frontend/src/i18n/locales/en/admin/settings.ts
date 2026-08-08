@@ -1033,6 +1033,19 @@ export default {
         saved: 'Grok ops proxy settings saved',
         saveFailed: 'Failed to save Grok ops proxy settings'
       },
+      grokReasoningVisibility: {
+        title: 'Grok Reasoning Visibility Enforcement',
+        description: 'Exclude accounts with encrypted/missing reasoning from scheduling. When enforced, requests that route to such accounts return 504.',
+        mode: 'Enforcement mode',
+        modeHint: 'off = disabled; soft = lower score only; enforce = exclude from scheduling (504 if no alternative)',
+        modeOff: 'Off',
+        modeSoft: 'Soft (lower LB score)',
+        modeEnforce: 'Enforce (exclude)',
+        probeTtl: 'Probe TTL (seconds)',
+        probeTtlHint: 'How long a probe result is considered valid before re-checking the account.',
+        saved: 'Grok reasoning visibility settings saved',
+        saveFailed: 'Failed to save Grok reasoning visibility settings'
+      },
       grokCliIdentity: {
         title: 'Grok CLI Identity Version',
         description: 'x-grok-client-version / User-Agent reported to cli-chat-proxy. Hot-applies without restart. Precedence: settings override > env XAI_GROK_CLI_VERSION > compile default',

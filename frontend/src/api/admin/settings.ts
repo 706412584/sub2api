@@ -1300,6 +1300,31 @@ export async function updateGrokOpsProxySettings(
   return data;
 }
 
+// ==================== Grok Reasoning Visibility Settings ====================
+
+export interface GrokReasoningVisibilitySettings {
+  mode: string;
+  probe_ttl_sec: number;
+  probe_account_fallback: boolean;
+}
+
+export async function getGrokReasoningVisibilitySettings(): Promise<GrokReasoningVisibilitySettings> {
+  const { data } = await apiClient.get<GrokReasoningVisibilitySettings>(
+    "/admin/settings/grok-reasoning-visibility",
+  );
+  return data;
+}
+
+export async function updateGrokReasoningVisibilitySettings(
+  settings: GrokReasoningVisibilitySettings,
+): Promise<GrokReasoningVisibilitySettings> {
+  const { data } = await apiClient.put<GrokReasoningVisibilitySettings>(
+    "/admin/settings/grok-reasoning-visibility",
+    settings,
+  );
+  return data;
+}
+
 // ==================== Grok CLI Identity Settings ====================
 
 export interface GrokCLIIdentityStatus {
@@ -1616,6 +1641,8 @@ export const settingsAPI = {
   updateAccountPoolProbeSettings,
   getGrokOpsProxySettings,
   updateGrokOpsProxySettings,
+  getGrokReasoningVisibilitySettings,
+  updateGrokReasoningVisibilitySettings,
   getGrokCLIIdentitySettings,
   updateGrokCLIIdentitySettings,
   checkGrokCLIIdentityLatest,

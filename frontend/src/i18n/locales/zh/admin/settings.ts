@@ -1027,6 +1027,21 @@ export default {
         saved: 'Grok ops 出口设置保存成功',
         saveFailed: '保存 Grok ops 出口设置失败'
       },
+      grokReasoningVisibility: {
+        title: 'Grok 思考明文强制检查',
+        description: '调度时排除推理不可见（加密/缺失）的 Grok 账号，确保返回可读思考过程',
+        mode: '默认模式',
+        modeHint: 'off=不检查；soft=仅降低 LB 评分；enforce=排除不可见账号（被排除时返回 504）',
+        modeOff: '关闭',
+        modeSoft: '软限制（降分）',
+        modeEnforce: '强制排除',
+        probeTtl: '探测缓存 TTL（秒）',
+        probeTtlHint: '探测结果保持有效的时长；到期后重新探测',
+        probeAccountFallback: '未探测账号放行',
+        probeAccountFallbackHint: '开启后，尚未探测的账号不会被排除（fail-open）',
+        saved: 'Grok 思考明文检查设置保存成功',
+        saveFailed: '保存 Grok 思考明文检查设置失败'
+      },
       grokCliIdentity: {
         title: 'Grok CLI 身份版本',
         description: '上报给 cli-chat-proxy 的 x-grok-client-version / User-Agent。热生效，无需重启。优先级：设置覆盖 > 环境变量 XAI_GROK_CLI_VERSION > 编译默认',

@@ -1115,6 +1115,15 @@
           <p class="input-hint">{{ t("admin.groups.grokMessages.hint") }}</p>
         </div>
 
+        <div v-if="createForm.platform === 'grok'" class="border-t pt-4">
+          <label class="input-label">{{ t("admin.groups.grokReasoningVisibility.title") }}</label>
+          <Select
+            v-model="createForm.grok_reasoning_visibility_mode"
+            :options="grokReasoningVisibilityModeOptions"
+          />
+          <p class="input-hint">{{ t("admin.groups.grokReasoningVisibility.hint") }}</p>
+        </div>
+
         <!-- 高峰时段倍率配置（仅订阅类型分组） -->
         <div v-if="createForm.subscription_type === 'subscription'" class="border-t pt-4">
           <div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -2678,6 +2687,15 @@
             :options="grokMessagesProtocolOptions"
           />
           <p class="input-hint">{{ t("admin.groups.grokMessages.hint") }}</p>
+        </div>
+
+        <div v-if="editForm.platform === 'grok'" class="border-t pt-4">
+          <label class="input-label">{{ t("admin.groups.grokReasoningVisibility.title") }}</label>
+          <Select
+            v-model="editForm.grok_reasoning_visibility_mode"
+            :options="grokReasoningVisibilityModeOptions"
+          />
+          <p class="input-hint">{{ t("admin.groups.grokReasoningVisibility.hint") }}</p>
         </div>
 
         <!-- 高峰时段倍率配置（仅订阅类型分组） -->
@@ -4395,6 +4413,13 @@ const grokMessagesProtocolOptions = computed(() => [
   },
 ]);
 
+const grokReasoningVisibilityModeOptions = computed(() => [
+  { value: "inherit", label: t("admin.groups.grokReasoningVisibility.inherit") },
+  { value: "off", label: t("admin.groups.grokReasoningVisibility.off") },
+  { value: "soft", label: t("admin.groups.grokReasoningVisibility.soft") },
+  { value: "enforce", label: t("admin.groups.grokReasoningVisibility.enforce") },
+]);
+
 // 降级分组选项（创建时）- 仅包含 anthropic 平台且未启用 claude_code_only 的分组
 const fallbackGroupOptions = computed(() => {
   const options: { value: number | null; label: string }[] = [
@@ -4662,6 +4687,7 @@ const createForm = reactive({
   // OpenAI Messages 调度配置（仅 openai 平台使用）
   allow_messages_dispatch: false,
   grok_messages_protocol: "responses" as GrokMessagesProtocol,
+  grok_reasoning_visibility_mode: "inherit",
   allow_live: false,
   opus_mapped_model: createMessagesDispatchDefaults.opus_mapped_model,
   sonnet_mapped_model: createMessagesDispatchDefaults.sonnet_mapped_model,
@@ -5017,6 +5043,7 @@ const editForm = reactive({
   // OpenAI Messages 调度配置（仅 openai 平台使用）
   allow_messages_dispatch: false,
   grok_messages_protocol: "responses" as GrokMessagesProtocol,
+  grok_reasoning_visibility_mode: "inherit",
   allow_live: false,
   default_mapped_model: '',
   opus_mapped_model: editMessagesDispatchDefaults.opus_mapped_model,
@@ -5464,6 +5491,7 @@ const closeCreateModal = () => {
   createForm.fallback_group_id_on_invalid_request = null;
   resetMessagesDispatchFormState(createForm);
   createForm.grok_messages_protocol = "responses";
+  createForm.grok_reasoning_visibility_mode = "inherit";
   createForm.allow_live = false;
   createForm.require_oauth_only = false;
   createForm.require_privacy_set = false;
@@ -5675,6 +5703,7 @@ const handleEdit = async (group: AdminGroup) => {
       group.platform,
       group.grok_messages_protocol,
     );
+    editForm.grok_reasoning_visibility_mode = group.grok_reasoning_visibility_mode || "inherit";
     editForm.opus_mapped_model = messagesDispatchFormState.opus_mapped_model;
     editForm.sonnet_mapped_model = messagesDispatchFormState.sonnet_mapped_model;
     editForm.haiku_mapped_model = messagesDispatchFormState.haiku_mapped_model;
@@ -5740,6 +5769,7 @@ const closeEditModal = () => {
   editForm.web_search_price_per_call = null;
   resetMessagesDispatchFormState(editForm);
   editForm.grok_messages_protocol = "responses";
+  editForm.grok_reasoning_visibility_mode = "inherit";
   editForm.allow_live = false;
   resetModelsListState(editModelsListState);
 };

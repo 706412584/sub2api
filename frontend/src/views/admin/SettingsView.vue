@@ -874,6 +874,86 @@
             </div>
           </div>
 
+          <!-- Grok Reasoning Visibility Settings -->
+          <div class="card">
+            <div
+              class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+            >
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ t("admin.settings.grokReasoningVisibility.title") }}
+              </h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.grokReasoningVisibility.description") }}
+              </p>
+            </div>
+            <div class="space-y-5 p-6">
+              <div
+                v-if="grokReasoningVisibilityLoading"
+                class="flex items-center gap-2 text-gray-500"
+              >
+                <div
+                  class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"
+                ></div>
+                {{ t("common.loading") }}
+              </div>
+
+              <template v-else>
+                <div>
+                  <label
+                    class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    {{ t("admin.settings.grokReasoningVisibility.mode") }}
+                  </label>
+                  <select
+                    class="input w-full max-w-md"
+                    v-model="grokReasoningVisibilityForm.mode"
+                  >
+                    <option value="off">{{ t("admin.settings.grokReasoningVisibility.modeOff") }}</option>
+                    <option value="soft">{{ t("admin.settings.grokReasoningVisibility.modeSoft") }}</option>
+                    <option value="enforce">{{ t("admin.settings.grokReasoningVisibility.modeEnforce") }}</option>
+                  </select>
+                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.grokReasoningVisibility.modeHint") }}
+                  </p>
+                </div>
+
+                <div v-if="grokReasoningVisibilityForm.mode !== 'off'">
+                  <label
+                    class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    {{ t("admin.settings.grokReasoningVisibility.probeTtl") }}
+                  </label>
+                  <input
+                    type="number"
+                    class="input w-full max-w-md"
+                    v-model.number="grokReasoningVisibilityForm.probe_ttl_sec"
+                    min="60"
+                    max="86400"
+                  />
+                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.grokReasoningVisibility.probeTtlHint") }}
+                  </p>
+                </div>
+
+                <div
+                  class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700"
+                >
+                  <button
+                    type="button"
+                    @click="saveGrokReasoningVisibilitySettings"
+                    :disabled="grokReasoningVisibilitySaving"
+                    class="btn btn-primary btn-sm"
+                  >
+                    {{
+                      grokReasoningVisibilitySaving
+                        ? t("common.saving")
+                        : t("common.save")
+                    }}
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
 
           <!-- Grok CLI Identity Settings -->
           <div class="card">
@@ -8764,6 +8844,15 @@ function onGrokOpsProxySelectChange(value: string) {
 }
 
 
+// Grok Reasoning Visibility 状态
+const grokReasoningVisibilityLoading = ref(true);
+const grokReasoningVisibilitySaving = ref(false);
+const grokReasoningVisibilityForm = reactive({
+  mode: "off",
+  probe_ttl_sec: 600,
+  probe_account_fallback: true,
+});
+
 // Grok CLI Identity 状态
 const grokCliIdentityLoading = ref(true);
 const grokCliIdentitySaving = ref(false);
@@ -11665,6 +11754,47 @@ async function saveGrokOpsProxySettings() {
   }
 }
 
+// Grok Reasoning Visibility 方法
+async function loadGrokReasoningVisibilitySettings() {
+  grokReasoningVisibilityLoading.value = true;
+  try {
+    const settings = await adminAPI.settings.getGrokReasoningVisibilitySettings();
+    Object.assign(grokReasoningVisibilityForm, {
+      mode: settings.mode || "off",
+      probe_ttl_sec: settings.probe_ttl_sec ?? 3600,
+    });
+  } catch (_error: unknown) {
+    // Silent fail - defaults apply
+  } finally {
+    grokReasoningVisibilityLoading.value = false;
+  }
+}
+
+async function saveGrokReasoningVisibilitySettings() {
+  grokReasoningVisibilitySaving.value = true;
+  try {
+    const updated = await adminAPI.settings.updateGrokReasoningVisibilitySettings({
+      mode: grokReasoningVisibilityForm.mode,
+      probe_ttl_sec: grokReasoningVisibilityForm.probe_ttl_sec,
+      probe_account_fallback: false,
+    });
+    Object.assign(grokReasoningVisibilityForm, {
+      mode: updated.mode || "off",
+      probe_ttl_sec: updated.probe_ttl_sec ?? 3600,
+    });
+    appStore.showSuccess(t("admin.settings.grokReasoningVisibility.saved"));
+  } catch (error: unknown) {
+    appStore.showError(
+      extractApiErrorMessage(
+        error,
+        t("admin.settings.grokReasoningVisibility.saveFailed"),
+      ),
+    );
+  } finally {
+    grokReasoningVisibilitySaving.value = false;
+  }
+}
+
 // Grok CLI Identity 方法
 async function loadGrokCliIdentitySettings() {
   grokCliIdentityLoading.value = true;
@@ -12387,6 +12517,7 @@ onMounted(() => {
   loadOpenAIGrok429ExhaustionSettings();
   loadAccountPoolProbeSettings();
   loadGrokOpsProxySettings();
+  loadGrokReasoningVisibilitySettings();
   loadGrokCliIdentitySettings();
   loadStreamTimeoutSettings();
   loadRectifierSettings();

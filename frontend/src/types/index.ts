@@ -562,6 +562,7 @@ export interface Group {
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
   grok_messages_protocol?: GrokMessagesProtocol
+  grok_reasoning_visibility_mode?: string
   require_oauth_only: boolean
   require_privacy_set: boolean
   created_at: string
