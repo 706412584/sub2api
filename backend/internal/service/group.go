@@ -98,9 +98,9 @@ type Group struct {
 	// GrokReasoningVisibilityMode controls how Grok accounts without visible plaintext
 	// reasoning are scheduled: "inherit" (follow gateway setting), "off", "soft", "enforce".
 	GrokReasoningVisibilityMode string
-		// GrokReasoningProbeTTLSec is the probe-result reuse TTL in seconds.
-		// -1 = inherit gateway setting, 0 = probe every time, N = cache N seconds.
-		GrokReasoningProbeTTLSec int
+	// GrokReasoningProbeTTLSec is the probe-result reuse TTL in seconds.
+	// -1 = inherit gateway setting, 0 = probe every time, N = cache N seconds.
+	GrokReasoningProbeTTLSec int
 
 	// RPMLimit 分组级每分钟请求数上限（0 = 不限制）。
 	// 一旦设置即接管该分组用户的限流（覆盖用户级 rpm_limit），可被 user-group rpm_override 进一步覆盖。

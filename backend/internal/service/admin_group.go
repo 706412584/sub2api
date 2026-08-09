@@ -502,7 +502,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		ModelsListConfig:                normalizeGroupModelsListConfig(input.ModelsListConfig),
 		GrokMessagesProtocol:            input.GrokMessagesProtocol,
 		GrokReasoningVisibilityMode:     NormalizeGrokReasoningVisibilityMode(input.GrokReasoningVisibilityMode),
-		GrokReasoningProbeTTLSec:     input.GrokReasoningProbeTTLSec,
+		GrokReasoningProbeTTLSec:        input.GrokReasoningProbeTTLSec,
 		RPMLimit:                        input.RPMLimit,
 		MaxReasoningEffort:              maxReasoningEffort,
 		ReasoningEffortMappings:         reasoningEffortMappings,
