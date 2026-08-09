@@ -1090,7 +1090,9 @@ export default {
         off: '关闭',
         soft: '软执行（仅影响负载均衡评分）',
         enforce: '强制（排除加密推理账号）',
-        hint: '覆盖网关级别的 Grok 推理可见性模式。inherit = 跟随网关全局设置。'
+        hint: '覆盖网关级别的 Grok 推理可见性模式。inherit = 跟随网关全局设置。',
+        probeTTL: '探测缓存 TTL（秒）',
+        probeTTLHint: '-1=继承网关；0=每次重探测；N=缓存 N 秒'
       },
       openaiMessages: {
         title: 'OpenAI Messages 调度配置',

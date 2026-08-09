@@ -99,6 +99,7 @@ func createGroupRecord(ctx context.Context, client *dbent.Client, groupIn *servi
 		SetModelsListConfig(groupIn.ModelsListConfig).
 		SetGrokMessagesProtocol(service.NormalizeGrokMessagesProtocol(groupIn.Platform, groupIn.GrokMessagesProtocol)).
 		SetGrokReasoningVisibilityMode(service.NormalizeGrokReasoningVisibilityMode(groupIn.GrokReasoningVisibilityMode)).
+			SetGrokReasoningProbeTTLSec(groupIn.GrokReasoningProbeTTLSec).
 		SetRpmLimit(groupIn.RPMLimit).
 		SetMaxReasoningEffort(groupIn.MaxReasoningEffort).
 		SetReasoningEffortMappings(groupIn.ReasoningEffortMappings).
@@ -268,6 +269,7 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		SetModelsListConfig(groupIn.ModelsListConfig).
 		SetGrokMessagesProtocol(service.NormalizeGrokMessagesProtocol(groupIn.Platform, groupIn.GrokMessagesProtocol)).
 		SetGrokReasoningVisibilityMode(service.NormalizeGrokReasoningVisibilityMode(groupIn.GrokReasoningVisibilityMode)).
+			SetGrokReasoningProbeTTLSec(groupIn.GrokReasoningProbeTTLSec).
 		SetRpmLimit(groupIn.RPMLimit).
 		SetMaxReasoningEffort(groupIn.MaxReasoningEffort).
 		SetReasoningEffortMappings(groupIn.ReasoningEffortMappings).

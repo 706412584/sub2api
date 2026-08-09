@@ -295,6 +295,11 @@ func GrokReasoningVisibilityMode(v string) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldGrokReasoningVisibilityMode, v))
 }
 
+// GrokReasoningProbeTTLSec applies equality check predicate on the "grok_reasoning_probe_ttl_sec" field. It's identical to GrokReasoningProbeTTLSecEQ.
+func GrokReasoningProbeTTLSec(v int) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldGrokReasoningProbeTTLSec, v))
+}
+
 // RpmLimit applies equality check predicate on the "rpm_limit" field. It's identical to RpmLimitEQ.
 func RpmLimit(v int) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldRpmLimit, v))
@@ -2278,6 +2283,46 @@ func GrokReasoningVisibilityModeEqualFold(v string) predicate.Group {
 // GrokReasoningVisibilityModeContainsFold applies the ContainsFold predicate on the "grok_reasoning_visibility_mode" field.
 func GrokReasoningVisibilityModeContainsFold(v string) predicate.Group {
 	return predicate.Group(sql.FieldContainsFold(FieldGrokReasoningVisibilityMode, v))
+}
+
+// GrokReasoningProbeTTLSecEQ applies the EQ predicate on the "grok_reasoning_probe_ttl_sec" field.
+func GrokReasoningProbeTTLSecEQ(v int) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldGrokReasoningProbeTTLSec, v))
+}
+
+// GrokReasoningProbeTTLSecNEQ applies the NEQ predicate on the "grok_reasoning_probe_ttl_sec" field.
+func GrokReasoningProbeTTLSecNEQ(v int) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldGrokReasoningProbeTTLSec, v))
+}
+
+// GrokReasoningProbeTTLSecIn applies the In predicate on the "grok_reasoning_probe_ttl_sec" field.
+func GrokReasoningProbeTTLSecIn(vs ...int) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldGrokReasoningProbeTTLSec, vs...))
+}
+
+// GrokReasoningProbeTTLSecNotIn applies the NotIn predicate on the "grok_reasoning_probe_ttl_sec" field.
+func GrokReasoningProbeTTLSecNotIn(vs ...int) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldGrokReasoningProbeTTLSec, vs...))
+}
+
+// GrokReasoningProbeTTLSecGT applies the GT predicate on the "grok_reasoning_probe_ttl_sec" field.
+func GrokReasoningProbeTTLSecGT(v int) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldGrokReasoningProbeTTLSec, v))
+}
+
+// GrokReasoningProbeTTLSecGTE applies the GTE predicate on the "grok_reasoning_probe_ttl_sec" field.
+func GrokReasoningProbeTTLSecGTE(v int) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldGrokReasoningProbeTTLSec, v))
+}
+
+// GrokReasoningProbeTTLSecLT applies the LT predicate on the "grok_reasoning_probe_ttl_sec" field.
+func GrokReasoningProbeTTLSecLT(v int) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldGrokReasoningProbeTTLSec, v))
+}
+
+// GrokReasoningProbeTTLSecLTE applies the LTE predicate on the "grok_reasoning_probe_ttl_sec" field.
+func GrokReasoningProbeTTLSecLTE(v int) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldGrokReasoningProbeTTLSec, v))
 }
 
 // RpmLimitEQ applies the EQ predicate on the "rpm_limit" field.

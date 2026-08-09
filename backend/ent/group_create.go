@@ -733,6 +733,20 @@ func (_c *GroupCreate) SetNillableGrokReasoningVisibilityMode(v *string) *GroupC
 	return _c
 }
 
+// SetGrokReasoningProbeTTLSec sets the "grok_reasoning_probe_ttl_sec" field.
+func (_c *GroupCreate) SetGrokReasoningProbeTTLSec(v int) *GroupCreate {
+	_c.mutation.SetGrokReasoningProbeTTLSec(v)
+	return _c
+}
+
+// SetNillableGrokReasoningProbeTTLSec sets the "grok_reasoning_probe_ttl_sec" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableGrokReasoningProbeTTLSec(v *int) *GroupCreate {
+	if v != nil {
+		_c.SetGrokReasoningProbeTTLSec(*v)
+	}
+	return _c
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_c *GroupCreate) SetRpmLimit(v int) *GroupCreate {
 	_c.mutation.SetRpmLimit(v)
@@ -1050,6 +1064,10 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultGrokReasoningVisibilityMode
 		_c.mutation.SetGrokReasoningVisibilityMode(v)
 	}
+	if _, ok := _c.mutation.GrokReasoningProbeTTLSec(); !ok {
+		v := group.DefaultGrokReasoningProbeTTLSec
+		_c.mutation.SetGrokReasoningProbeTTLSec(v)
+	}
 	if _, ok := _c.mutation.RpmLimit(); !ok {
 		v := group.DefaultRpmLimit
 		_c.mutation.SetRpmLimit(v)
@@ -1225,6 +1243,9 @@ func (_c *GroupCreate) check() error {
 		if err := group.GrokReasoningVisibilityModeValidator(v); err != nil {
 			return &ValidationError{Name: "grok_reasoning_visibility_mode", err: fmt.Errorf(`ent: validator failed for field "Group.grok_reasoning_visibility_mode": %w`, err)}
 		}
+	}
+	if _, ok := _c.mutation.GrokReasoningProbeTTLSec(); !ok {
+		return &ValidationError{Name: "grok_reasoning_probe_ttl_sec", err: errors.New(`ent: missing required field "Group.grok_reasoning_probe_ttl_sec"`)}
 	}
 	if _, ok := _c.mutation.RpmLimit(); !ok {
 		return &ValidationError{Name: "rpm_limit", err: errors.New(`ent: missing required field "Group.rpm_limit"`)}
@@ -1477,6 +1498,10 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.GrokReasoningVisibilityMode(); ok {
 		_spec.SetField(group.FieldGrokReasoningVisibilityMode, field.TypeString, value)
 		_node.GrokReasoningVisibilityMode = value
+	}
+	if value, ok := _c.mutation.GrokReasoningProbeTTLSec(); ok {
+		_spec.SetField(group.FieldGrokReasoningProbeTTLSec, field.TypeInt, value)
+		_node.GrokReasoningProbeTTLSec = value
 	}
 	if value, ok := _c.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)
@@ -2469,6 +2494,24 @@ func (u *GroupUpsert) SetGrokReasoningVisibilityMode(v string) *GroupUpsert {
 // UpdateGrokReasoningVisibilityMode sets the "grok_reasoning_visibility_mode" field to the value that was provided on create.
 func (u *GroupUpsert) UpdateGrokReasoningVisibilityMode() *GroupUpsert {
 	u.SetExcluded(group.FieldGrokReasoningVisibilityMode)
+	return u
+}
+
+// SetGrokReasoningProbeTTLSec sets the "grok_reasoning_probe_ttl_sec" field.
+func (u *GroupUpsert) SetGrokReasoningProbeTTLSec(v int) *GroupUpsert {
+	u.Set(group.FieldGrokReasoningProbeTTLSec, v)
+	return u
+}
+
+// UpdateGrokReasoningProbeTTLSec sets the "grok_reasoning_probe_ttl_sec" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateGrokReasoningProbeTTLSec() *GroupUpsert {
+	u.SetExcluded(group.FieldGrokReasoningProbeTTLSec)
+	return u
+}
+
+// AddGrokReasoningProbeTTLSec adds v to the "grok_reasoning_probe_ttl_sec" field.
+func (u *GroupUpsert) AddGrokReasoningProbeTTLSec(v int) *GroupUpsert {
+	u.Add(group.FieldGrokReasoningProbeTTLSec, v)
 	return u
 }
 
@@ -3530,6 +3573,27 @@ func (u *GroupUpsertOne) SetGrokReasoningVisibilityMode(v string) *GroupUpsertOn
 func (u *GroupUpsertOne) UpdateGrokReasoningVisibilityMode() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateGrokReasoningVisibilityMode()
+	})
+}
+
+// SetGrokReasoningProbeTTLSec sets the "grok_reasoning_probe_ttl_sec" field.
+func (u *GroupUpsertOne) SetGrokReasoningProbeTTLSec(v int) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetGrokReasoningProbeTTLSec(v)
+	})
+}
+
+// AddGrokReasoningProbeTTLSec adds v to the "grok_reasoning_probe_ttl_sec" field.
+func (u *GroupUpsertOne) AddGrokReasoningProbeTTLSec(v int) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddGrokReasoningProbeTTLSec(v)
+	})
+}
+
+// UpdateGrokReasoningProbeTTLSec sets the "grok_reasoning_probe_ttl_sec" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateGrokReasoningProbeTTLSec() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateGrokReasoningProbeTTLSec()
 	})
 }
 
@@ -4766,6 +4830,27 @@ func (u *GroupUpsertBulk) SetGrokReasoningVisibilityMode(v string) *GroupUpsertB
 func (u *GroupUpsertBulk) UpdateGrokReasoningVisibilityMode() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateGrokReasoningVisibilityMode()
+	})
+}
+
+// SetGrokReasoningProbeTTLSec sets the "grok_reasoning_probe_ttl_sec" field.
+func (u *GroupUpsertBulk) SetGrokReasoningProbeTTLSec(v int) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetGrokReasoningProbeTTLSec(v)
+	})
+}
+
+// AddGrokReasoningProbeTTLSec adds v to the "grok_reasoning_probe_ttl_sec" field.
+func (u *GroupUpsertBulk) AddGrokReasoningProbeTTLSec(v int) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddGrokReasoningProbeTTLSec(v)
+	})
+}
+
+// UpdateGrokReasoningProbeTTLSec sets the "grok_reasoning_probe_ttl_sec" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateGrokReasoningProbeTTLSec() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateGrokReasoningProbeTTLSec()
 	})
 }
 

@@ -563,6 +563,7 @@ export interface Group {
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
   grok_messages_protocol?: GrokMessagesProtocol
   grok_reasoning_visibility_mode?: string
+  grok_reasoning_probe_ttl_sec?: number
   require_oauth_only: boolean
   require_privacy_set: boolean
   created_at: string
@@ -784,6 +785,7 @@ export interface CreateGroupRequest {
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
   grok_messages_protocol?: GrokMessagesProtocol
+  grok_reasoning_probe_ttl_sec?: number
   model_routing?: Record<string, number[]> | null
   model_routing_enabled?: boolean
   rpm_limit?: number
@@ -838,6 +840,7 @@ export interface UpdateGroupRequest {
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
   grok_messages_protocol?: GrokMessagesProtocol
+  grok_reasoning_probe_ttl_sec?: number
   model_routing?: Record<string, number[]> | null
   model_routing_enabled?: boolean
   rpm_limit?: number

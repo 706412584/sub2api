@@ -491,6 +491,10 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 					h.handleStreamingAwareError(c, http.StatusServiceUnavailable, "compact_not_supported", "No available accounts support /responses/compact", streamStarted)
 					return
 				}
+				if errors.Is(err, service.ErrGrokReasoningFiltered) {
+					h.handleStreamingAwareError(c, http.StatusBadGateway, "grok_reasoning_blocked", "All accounts blocked by reasoning visibility enforcement", streamStarted)
+					return
+				}
 				cls := classifyNoAccountErrorFromGin(c, h.gatewayService, apiKey, reqModel, reqModel, requestPlatform)
 				if !cls.ModelNotFound {
 					markOpsRoutingCapacityLimitedIfNoAvailable(c, err)

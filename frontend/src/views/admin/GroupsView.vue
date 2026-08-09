@@ -1122,6 +1122,15 @@
             :options="grokReasoningVisibilityModeOptions"
           />
           <p class="input-hint">{{ t("admin.groups.grokReasoningVisibility.hint") }}</p>
+          <label class="input-label mt-2">{{ t("admin.groups.grokReasoningVisibility.probeTTL") }}</label>
+          <input
+            v-model.number="createForm.grok_reasoning_probe_ttl_sec"
+            type="number"
+            min="-1"
+            class="input w-full"
+            placeholder="-1"
+          />
+          <p class="input-hint">{{ t("admin.groups.grokReasoningVisibility.probeTTLHint") }}</p>
         </div>
 
         <!-- 高峰时段倍率配置（仅订阅类型分组） -->
@@ -2696,6 +2705,15 @@
             :options="grokReasoningVisibilityModeOptions"
           />
           <p class="input-hint">{{ t("admin.groups.grokReasoningVisibility.hint") }}</p>
+          <label class="input-label mt-2">{{ t("admin.groups.grokReasoningVisibility.probeTTL") }}</label>
+          <input
+            v-model.number="editForm.grok_reasoning_probe_ttl_sec"
+            type="number"
+            min="-1"
+            class="input w-full"
+            placeholder="-1"
+          />
+          <p class="input-hint">{{ t("admin.groups.grokReasoningVisibility.probeTTLHint") }}</p>
         </div>
 
         <!-- 高峰时段倍率配置（仅订阅类型分组） -->
@@ -4688,6 +4706,7 @@ const createForm = reactive({
   allow_messages_dispatch: false,
   grok_messages_protocol: "responses" as GrokMessagesProtocol,
   grok_reasoning_visibility_mode: "inherit",
+  grok_reasoning_probe_ttl_sec: -1,
   allow_live: false,
   opus_mapped_model: createMessagesDispatchDefaults.opus_mapped_model,
   sonnet_mapped_model: createMessagesDispatchDefaults.sonnet_mapped_model,
@@ -5044,6 +5063,7 @@ const editForm = reactive({
   allow_messages_dispatch: false,
   grok_messages_protocol: "responses" as GrokMessagesProtocol,
   grok_reasoning_visibility_mode: "inherit",
+  grok_reasoning_probe_ttl_sec: -1,
   allow_live: false,
   default_mapped_model: '',
   opus_mapped_model: editMessagesDispatchDefaults.opus_mapped_model,
@@ -5492,6 +5512,7 @@ const closeCreateModal = () => {
   resetMessagesDispatchFormState(createForm);
   createForm.grok_messages_protocol = "responses";
   createForm.grok_reasoning_visibility_mode = "inherit";
+  createForm.grok_reasoning_probe_ttl_sec = -1;
   createForm.allow_live = false;
   createForm.require_oauth_only = false;
   createForm.require_privacy_set = false;
@@ -5704,6 +5725,7 @@ const handleEdit = async (group: AdminGroup) => {
       group.grok_messages_protocol,
     );
     editForm.grok_reasoning_visibility_mode = group.grok_reasoning_visibility_mode || "inherit";
+    editForm.grok_reasoning_probe_ttl_sec = group.grok_reasoning_probe_ttl_sec ?? -1;
     editForm.opus_mapped_model = messagesDispatchFormState.opus_mapped_model;
     editForm.sonnet_mapped_model = messagesDispatchFormState.sonnet_mapped_model;
     editForm.haiku_mapped_model = messagesDispatchFormState.haiku_mapped_model;
@@ -5770,6 +5792,7 @@ const closeEditModal = () => {
   resetMessagesDispatchFormState(editForm);
   editForm.grok_messages_protocol = "responses";
   editForm.grok_reasoning_visibility_mode = "inherit";
+  editForm.grok_reasoning_probe_ttl_sec = -1;
   editForm.allow_live = false;
   resetModelsListState(editModelsListState);
 };

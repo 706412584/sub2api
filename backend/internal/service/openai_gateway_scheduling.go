@@ -231,6 +231,32 @@ func (e openAINoAvailableSelectionError) Unwrap() error {
 	return ErrNoAvailableAccounts
 }
 
+// grokReasoningFilteredError wraps ErrGrokReasoningFiltered. It is distinct
+// from the generic no-available-accounts error so handlers can emit a 502
+// instead of 503 when the entire pool was excluded by the enforce gate.
+type grokReasoningFilteredError struct {
+	message string
+}
+
+func (e grokReasoningFilteredError) Error() string {
+	return e.message
+}
+
+func (e grokReasoningFilteredError) Unwrap() error {
+	return ErrGrokReasoningFiltered
+}
+
+func newGrokReasoningFilteredError(requestedModel string, details string) error {
+	message := "all Grok accounts filtered by reasoning visibility enforcement"
+	if requestedModel != "" {
+		message = fmt.Sprintf("all Grok accounts supporting model: %s filtered by reasoning visibility enforcement", requestedModel)
+	}
+	if details != "" {
+		message += " (" + details + ")"
+	}
+	return grokReasoningFilteredError{message: message}
+}
+
 // openAICompactSupportTier classifies an OpenAI-compatible account by compact capability.
 // 0 = explicitly unsupported, 1 = unknown / not yet probed, 2 = explicitly supported.
 func openAICompactSupportTier(account *Account) int {

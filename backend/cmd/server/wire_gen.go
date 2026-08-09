@@ -215,7 +215,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	tokenRefreshService := service.ProvideTokenRefreshService(accountRepository, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, grokOAuthService, compositeTokenCacheInvalidator, schedulerCache, configConfig, tempUnschedCache, privacyClientFactory, proxyRepository, oAuthRefreshAPI, openAIGatewayService)
 	grokOAuthHandler := admin.NewGrokOAuthHandler(grokOAuthService, adminService, grokQuotaService, tokenRefreshService)
 	grokReasoningQualityMarkStore := repository.NewGrokReasoningQualityMarkCache(redisClient)
-	grokReasoningProbeService := service.ProvideGrokReasoningProbeService(accountRepository, proxyRepository, grokTokenProvider, httpUpstream, grokReasoningQualityMarkStore)
+	grokReasoningProbeService := service.ProvideGrokReasoningProbeService(accountRepository, proxyRepository, grokTokenProvider, httpUpstream, grokReasoningQualityMarkStore, openAIGatewayService)
 	proxyHandler := admin.NewProxyHandler(adminService, grokReasoningProbeService)
 	adminRedeemHandler := admin.NewRedeemHandler(adminService, redeemService)
 	promoHandler := admin.NewPromoHandler(promoService)

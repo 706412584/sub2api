@@ -42,9 +42,12 @@ const (
 	openAIUpstreamCostNeutralFactor            = 0.5
 	defaultOpenAIOAuthSchedulingRateMultiplier = 1.0
 	// Grok Free 剩余额度软加分：不依赖 QuotaHeadroom 权重，避免默认 0 时仍优先撞满额 free 号。
-	openAIGrokFreeHeadroomWeight     = 1.0
-	openAIGrokFreeSnapshotStaleAfter = 24 * time.Hour
-	openAIGrokFreeHeadroomLowRemain  = 0.05
+	openAIGrokFreeHeadroomWeight = 1.0
+	// grokReasoningVisibleAffinityWeight boosts Grok accounts with a known
+	// visible-reasoning mark so they are preferred over unmarked peers.
+	grokReasoningVisibleAffinityWeight = 0.5
+	openAIGrokFreeSnapshotStaleAfter   = 24 * time.Hour
+	openAIGrokFreeHeadroomLowRemain    = 0.05
 )
 
 type cachedOpenAIAdvancedSchedulerSetting struct {
@@ -969,6 +972,7 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlan(
 			openAIGrokFreeHeadroomWeight*grokFreeHeadroomFactor(item.account, now)
 		if s != nil && s.service != nil {
 			item.score -= ResolveGrokReasoningQualitySoftPenalty(ctx, s.service.grokReasoningQualityMarks, item.account)
+			item.score += resolveGrokReasoningVisibleAffinity(ctx, s.service.grokReasoningQualityMarks, item.account)
 		}
 		if req.StickyWeighted {
 			if req.PreviousResponseCanMove && req.StickyPreviousAccountID > 0 && item.account.ID == req.StickyPreviousAccountID {
@@ -1298,6 +1302,17 @@ func (s *openAISelectionFilterStats) exclude(reason string) {
 	s.reasons[reason]++
 }
 
+// allExcludedBy reports whether every candidate was dropped by the given
+// reason (i.e. the pool is non-empty but uniformly filtered by it). Used to
+// distinguish "all accounts failed Grok reasoning visibility" from generic
+// "no available accounts".
+func (s *openAISelectionFilterStats) allExcludedBy(reason string) bool {
+	if s == nil || s.pool <= 0 || len(s.reasons) == 0 {
+		return false
+	}
+	return s.reasons[reason] == s.pool
+}
+
 // summary renders deterministic exclusion statistics for scheduling error
 // messages, e.g. "pool=3, filtered: model_not_supported=2 quota_auto_pause_7d=1".
 // Reasons are sorted lexicographically so the output is stable for tests and
@@ -1392,6 +1407,9 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 		})
 	}
 	if len(filtered) == 0 {
+		if filterStats.allExcludedBy("grok_reasoning_not_visible") {
+			return nil, 0, 0, 0, newGrokReasoningFilteredError(req.RequestedModel, filterStats.summary(""))
+		}
 		return nil, 0, 0, 0, noAvailableOpenAISelectionError(req.RequestedModel, false, filterStats.summary(""))
 	}
 
@@ -1737,13 +1755,16 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatibleReason(ctx con
 		return false, "capability_mismatch"
 	}
 	// Grok visible-reasoning enforcement: exclude accounts whose latest probe says
-	// reasoning is encrypted-only or absent. Unprobed/expired marks pass through.
+	// reasoning is encrypted-only or absent. Unprobed accounts pass through the
+	// initial filter; the real-time synchronous probe fires later for the
+	// specifically selected account (see probeSelectedGrokAccount).
 	if account.IsGrok() && s != nil && s.service != nil {
 		mode := s.service.resolveGrokReasoningVisibilityMode(ctx, req.GroupID)
-		if decision := ResolveGrokReasoningVisibilityDecision(
+		decision := ResolveGrokReasoningVisibilityDecision(
 			ctx, s.service.grokReasoningQualityMarks, account, mode,
-		); decision.Excluded {
-			s.service.applyGrokReasoningVisibilityQuarantine(ctx, account.ID, decision)
+		)
+		if decision.Excluded {
+			s.service.applyGrokReasoningVisibilityQuarantine(ctx, account.ID, decision, mode)
 			return false, "grok_reasoning_not_visible"
 		}
 	}
@@ -2144,6 +2165,19 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerOnce(
 					return selection, decision, nil
 				}
 				if accountSupportsOpenAICapabilities(selection.Account, requiredCapability, requiredImageCapability) {
+					if rejected, reason := s.rejectGrokAccountByReasoning(ctx, selection.Account, groupID); rejected {
+						s.applyGrokReasoningVisibilityQuarantine(ctx, selection.Account.ID,
+							GrokReasoningVisibilityDecision{Excluded: true, Status: GrokReasoningProbeStatus(reason)},
+							GrokReasoningVisibilityModeEnforce)
+						if selection.ReleaseFunc != nil {
+							selection.ReleaseFunc()
+						}
+						if effectiveExcludedIDs == nil {
+							effectiveExcludedIDs = make(map[int64]struct{})
+						}
+						effectiveExcludedIDs[selection.Account.ID] = struct{}{}
+						continue
+					}
 					return selection, decision, nil
 				}
 				if selection.ReleaseFunc != nil {
@@ -2170,6 +2204,19 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerOnce(
 			}
 			if s.isOpenAIAccountTransportCompatible(selection.Account, requiredTransport) &&
 				accountSupportsOpenAICapabilities(selection.Account, requiredCapability, requiredImageCapability) {
+				if rejected, reason := s.rejectGrokAccountByReasoning(ctx, selection.Account, groupID); rejected {
+					s.applyGrokReasoningVisibilityQuarantine(ctx, selection.Account.ID,
+						GrokReasoningVisibilityDecision{Excluded: true, Status: GrokReasoningProbeStatus(reason)},
+						GrokReasoningVisibilityModeEnforce)
+					if selection.ReleaseFunc != nil {
+						selection.ReleaseFunc()
+					}
+					if effectiveExcludedIDs == nil {
+						effectiveExcludedIDs = make(map[int64]struct{})
+					}
+					effectiveExcludedIDs[selection.Account.ID] = struct{}{}
+					continue
+				}
 				return selection, decision, nil
 			}
 			if selection.ReleaseFunc != nil {
@@ -2205,24 +2252,52 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerOnce(
 		stickyPreviousAccountID = s.ResolveAccountIDByPreviousResponseIDForScheduler(ctx, groupID, previousResponseID, requestedModel, excludedIDs, requiredCapability, requireCompact)
 	}
 
-	return scheduler.Select(ctx, OpenAIAccountScheduleRequest{
-		GroupID:                 groupID,
-		Platform:                platform,
-		SessionHash:             sessionHash,
-		StickyAccountID:         stickyAccountID,
-		StickyPreviousAccountID: stickyPreviousAccountID,
-		StickyWeighted:          stickyWeighted,
-		SubscriptionPriority:    subscriptionPriority,
-		PreviousResponseID:      previousResponseID,
-		PreviousResponseCanMove: previousResponseCanMove,
-		UseUpstreamTokenCost:    useUpstreamTokenCost,
-		RequestedModel:          requestedModel,
-		RequiredTransport:       requiredTransport,
-		RequiredCapability:      requiredCapability,
-		RequiredImageCapability: requiredImageCapability,
-		RequireCompact:          requireCompact,
-		ExcludedIDs:             excludedIDs,
-	})
+	var schedDecision OpenAIAccountScheduleDecision
+	var loopSelection *AccountSelectionResult
+	var loopErr error
+	effectiveExcludedIDs := cloneExcludedAccountIDs(excludedIDs)
+	for retries := 0; retries < 10; retries++ {
+		loopSelection, schedDecision, loopErr = scheduler.Select(ctx, OpenAIAccountScheduleRequest{
+			GroupID:                 groupID,
+			Platform:                platform,
+			SessionHash:             sessionHash,
+			StickyAccountID:         stickyAccountID,
+			StickyPreviousAccountID: stickyPreviousAccountID,
+			StickyWeighted:          stickyWeighted,
+			SubscriptionPriority:    subscriptionPriority,
+			PreviousResponseID:      previousResponseID,
+			PreviousResponseCanMove: previousResponseCanMove,
+			UseUpstreamTokenCost:    useUpstreamTokenCost,
+			RequestedModel:          requestedModel,
+			RequiredTransport:       requiredTransport,
+			RequiredCapability:      requiredCapability,
+			RequiredImageCapability: requiredImageCapability,
+			RequireCompact:          requireCompact,
+			ExcludedIDs:             effectiveExcludedIDs,
+		})
+		if loopErr != nil {
+			return nil, decision, loopErr
+		}
+		if loopSelection == nil || loopSelection.Account == nil {
+			return loopSelection, decision, nil
+		}
+		if rejected, reason := s.rejectGrokAccountByReasoning(ctx, loopSelection.Account, groupID); rejected {
+			s.applyGrokReasoningVisibilityQuarantine(ctx, loopSelection.Account.ID,
+				GrokReasoningVisibilityDecision{Excluded: true, Status: GrokReasoningProbeStatus(reason)},
+				GrokReasoningVisibilityModeEnforce)
+			if loopSelection.ReleaseFunc != nil {
+				loopSelection.ReleaseFunc()
+			}
+			if effectiveExcludedIDs == nil {
+				effectiveExcludedIDs = make(map[int64]struct{})
+			}
+			effectiveExcludedIDs[loopSelection.Account.ID] = struct{}{}
+			continue
+		}
+		decision = schedDecision
+		return loopSelection, decision, nil
+	}
+	return nil, schedDecision, ErrGrokReasoningFiltered
 }
 
 func accountSupportsOpenAICapabilities(account *Account, requiredCapability OpenAIEndpointCapability, requiredImageCapability OpenAIImagesCapability) bool {

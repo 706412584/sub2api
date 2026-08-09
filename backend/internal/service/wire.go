@@ -179,16 +179,23 @@ func ProvideAccountUsageService(
 	return service
 }
 
-// ProvideGrokReasoningProbeService wires the optional reasoning quality mark store.
+// ProvideGrokReasoningProbeService wires the optional reasoning quality mark store
+// into both the probe service and the OpenAI gateway scheduler, so that the
+// per-group "enforce" visibility mode can actually read probe marks.
 func ProvideGrokReasoningProbeService(
 	accountRepo AccountRepository,
 	proxyRepo ProxyRepository,
 	grokTokenProvider *GrokTokenProvider,
 	httpUpstream HTTPUpstream,
 	markStore GrokReasoningQualityMarkStore,
+	openAIGatewayService *OpenAIGatewayService,
 ) *GrokReasoningProbeService {
 	svc := NewGrokReasoningProbeService(accountRepo, proxyRepo, grokTokenProvider, httpUpstream)
 	svc.SetMarkStore(markStore)
+	if openAIGatewayService != nil {
+		openAIGatewayService.SetGrokReasoningQualityMarkStore(markStore)
+		openAIGatewayService.SetGrokReasoningProbeService(svc)
+	}
 	return svc
 }
 

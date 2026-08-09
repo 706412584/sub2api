@@ -1326,22 +1326,26 @@ func init() {
 	group.DefaultGrokReasoningVisibilityMode = groupDescGrokReasoningVisibilityMode.Default.(string)
 	// group.GrokReasoningVisibilityModeValidator is a validator for the "grok_reasoning_visibility_mode" field. It is called by the builders before save.
 	group.GrokReasoningVisibilityModeValidator = groupDescGrokReasoningVisibilityMode.Validators[0].(func(string) error)
+	// groupDescGrokReasoningProbeTTLSec is the schema descriptor for grok_reasoning_probe_ttl_sec field.
+	groupDescGrokReasoningProbeTTLSec := groupFields[49].Descriptor()
+	// group.DefaultGrokReasoningProbeTTLSec holds the default value on creation for the grok_reasoning_probe_ttl_sec field.
+	group.DefaultGrokReasoningProbeTTLSec = groupDescGrokReasoningProbeTTLSec.Default.(int)
 	// groupDescRpmLimit is the schema descriptor for rpm_limit field.
-	groupDescRpmLimit := groupFields[49].Descriptor()
+	groupDescRpmLimit := groupFields[50].Descriptor()
 	// group.DefaultRpmLimit holds the default value on creation for the rpm_limit field.
 	group.DefaultRpmLimit = groupDescRpmLimit.Default.(int)
 	// groupDescMaxReasoningEffort is the schema descriptor for max_reasoning_effort field.
-	groupDescMaxReasoningEffort := groupFields[50].Descriptor()
+	groupDescMaxReasoningEffort := groupFields[51].Descriptor()
 	// group.DefaultMaxReasoningEffort holds the default value on creation for the max_reasoning_effort field.
 	group.DefaultMaxReasoningEffort = groupDescMaxReasoningEffort.Default.(string)
 	// group.MaxReasoningEffortValidator is a validator for the "max_reasoning_effort" field. It is called by the builders before save.
 	group.MaxReasoningEffortValidator = groupDescMaxReasoningEffort.Validators[0].(func(string) error)
 	// groupDescReasoningEffortMappings is the schema descriptor for reasoning_effort_mappings field.
-	groupDescReasoningEffortMappings := groupFields[51].Descriptor()
+	groupDescReasoningEffortMappings := groupFields[52].Descriptor()
 	// group.DefaultReasoningEffortMappings holds the default value on creation for the reasoning_effort_mappings field.
 	group.DefaultReasoningEffortMappings = groupDescReasoningEffortMappings.Default.([]domain.ReasoningEffortMapping)
 	// groupDescPromptPolicy is the schema descriptor for prompt_policy field.
-	groupDescPromptPolicy := groupFields[52].Descriptor()
+	groupDescPromptPolicy := groupFields[53].Descriptor()
 	// group.DefaultPromptPolicy holds the default value on creation for the prompt_policy field.
 	group.DefaultPromptPolicy = groupDescPromptPolicy.Default.(domain.GroupPromptPolicy)
 	idempotencyrecordMixin := schema.IdempotencyRecord{}.Mixin()

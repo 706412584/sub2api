@@ -961,6 +961,27 @@ func (_u *GroupUpdate) SetNillableGrokReasoningVisibilityMode(v *string) *GroupU
 	return _u
 }
 
+// SetGrokReasoningProbeTTLSec sets the "grok_reasoning_probe_ttl_sec" field.
+func (_u *GroupUpdate) SetGrokReasoningProbeTTLSec(v int) *GroupUpdate {
+	_u.mutation.ResetGrokReasoningProbeTTLSec()
+	_u.mutation.SetGrokReasoningProbeTTLSec(v)
+	return _u
+}
+
+// SetNillableGrokReasoningProbeTTLSec sets the "grok_reasoning_probe_ttl_sec" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableGrokReasoningProbeTTLSec(v *int) *GroupUpdate {
+	if v != nil {
+		_u.SetGrokReasoningProbeTTLSec(*v)
+	}
+	return _u
+}
+
+// AddGrokReasoningProbeTTLSec adds value to the "grok_reasoning_probe_ttl_sec" field.
+func (_u *GroupUpdate) AddGrokReasoningProbeTTLSec(v int) *GroupUpdate {
+	_u.mutation.AddGrokReasoningProbeTTLSec(v)
+	return _u
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_u *GroupUpdate) SetRpmLimit(v int) *GroupUpdate {
 	_u.mutation.ResetRpmLimit()
@@ -1620,6 +1641,12 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.GrokReasoningVisibilityMode(); ok {
 		_spec.SetField(group.FieldGrokReasoningVisibilityMode, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.GrokReasoningProbeTTLSec(); ok {
+		_spec.SetField(group.FieldGrokReasoningProbeTTLSec, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedGrokReasoningProbeTTLSec(); ok {
+		_spec.AddField(group.FieldGrokReasoningProbeTTLSec, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)
@@ -2880,6 +2907,27 @@ func (_u *GroupUpdateOne) SetNillableGrokReasoningVisibilityMode(v *string) *Gro
 	return _u
 }
 
+// SetGrokReasoningProbeTTLSec sets the "grok_reasoning_probe_ttl_sec" field.
+func (_u *GroupUpdateOne) SetGrokReasoningProbeTTLSec(v int) *GroupUpdateOne {
+	_u.mutation.ResetGrokReasoningProbeTTLSec()
+	_u.mutation.SetGrokReasoningProbeTTLSec(v)
+	return _u
+}
+
+// SetNillableGrokReasoningProbeTTLSec sets the "grok_reasoning_probe_ttl_sec" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableGrokReasoningProbeTTLSec(v *int) *GroupUpdateOne {
+	if v != nil {
+		_u.SetGrokReasoningProbeTTLSec(*v)
+	}
+	return _u
+}
+
+// AddGrokReasoningProbeTTLSec adds value to the "grok_reasoning_probe_ttl_sec" field.
+func (_u *GroupUpdateOne) AddGrokReasoningProbeTTLSec(v int) *GroupUpdateOne {
+	_u.mutation.AddGrokReasoningProbeTTLSec(v)
+	return _u
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_u *GroupUpdateOne) SetRpmLimit(v int) *GroupUpdateOne {
 	_u.mutation.ResetRpmLimit()
@@ -3569,6 +3617,12 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if value, ok := _u.mutation.GrokReasoningVisibilityMode(); ok {
 		_spec.SetField(group.FieldGrokReasoningVisibilityMode, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.GrokReasoningProbeTTLSec(); ok {
+		_spec.SetField(group.FieldGrokReasoningProbeTTLSec, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedGrokReasoningProbeTTLSec(); ok {
+		_spec.AddField(group.FieldGrokReasoningProbeTTLSec, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)

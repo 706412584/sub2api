@@ -1092,7 +1092,9 @@ export default {
         off: 'Off (no enforcement)',
         soft: 'Soft (deprioritize only)',
         enforce: 'Enforce (exclude non-visible)',
-        hint: 'Override the gateway-level Grok reasoning visibility mode for this group only.'
+        hint: 'Override the gateway-level Grok reasoning visibility mode for this group only.',
+        probeTTL: 'Probe cache TTL (seconds)',
+        probeTTLHint: '-1=inherit gateway; 0=re-probe every selection; N=cache for N seconds'
       },
       openaiMessages: {
         title: 'OpenAI Messages Dispatch',

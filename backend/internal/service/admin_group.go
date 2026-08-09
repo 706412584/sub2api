@@ -488,6 +488,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		ModelsListConfig:                normalizeGroupModelsListConfig(input.ModelsListConfig),
 		GrokMessagesProtocol:            input.GrokMessagesProtocol,
 		GrokReasoningVisibilityMode:     NormalizeGrokReasoningVisibilityMode(input.GrokReasoningVisibilityMode),
+		GrokReasoningProbeTTLSec:     input.GrokReasoningProbeTTLSec,
 		RPMLimit:                        input.RPMLimit,
 		MaxReasoningEffort:              maxReasoningEffort,
 		ReasoningEffortMappings:         reasoningEffortMappings,
@@ -831,6 +832,9 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	}
 	if input.GrokReasoningVisibilityMode != nil {
 		group.GrokReasoningVisibilityMode = NormalizeGrokReasoningVisibilityMode(*input.GrokReasoningVisibilityMode)
+	}
+	if input.GrokReasoningProbeTTLSec != nil {
+		group.GrokReasoningProbeTTLSec = *input.GrokReasoningProbeTTLSec
 	}
 	if input.RPMLimit != nil {
 		group.RPMLimit = *input.RPMLimit

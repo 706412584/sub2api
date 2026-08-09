@@ -120,6 +120,8 @@ const (
 	FieldGrokMessagesProtocol = "grok_messages_protocol"
 	// FieldGrokReasoningVisibilityMode holds the string denoting the grok_reasoning_visibility_mode field in the database.
 	FieldGrokReasoningVisibilityMode = "grok_reasoning_visibility_mode"
+	// FieldGrokReasoningProbeTTLSec holds the string denoting the grok_reasoning_probe_ttl_sec field in the database.
+	FieldGrokReasoningProbeTTLSec = "grok_reasoning_probe_ttl_sec"
 	// FieldRpmLimit holds the string denoting the rpm_limit field in the database.
 	FieldRpmLimit = "rpm_limit"
 	// FieldMaxReasoningEffort holds the string denoting the max_reasoning_effort field in the database.
@@ -255,6 +257,7 @@ var Columns = []string{
 	FieldModelsListConfig,
 	FieldGrokMessagesProtocol,
 	FieldGrokReasoningVisibilityMode,
+	FieldGrokReasoningProbeTTLSec,
 	FieldRpmLimit,
 	FieldMaxReasoningEffort,
 	FieldReasoningEffortMappings,
@@ -378,6 +381,8 @@ var (
 	DefaultGrokReasoningVisibilityMode string
 	// GrokReasoningVisibilityModeValidator is a validator for the "grok_reasoning_visibility_mode" field. It is called by the builders before save.
 	GrokReasoningVisibilityModeValidator func(string) error
+	// DefaultGrokReasoningProbeTTLSec holds the default value on creation for the "grok_reasoning_probe_ttl_sec" field.
+	DefaultGrokReasoningProbeTTLSec int
 	// DefaultRpmLimit holds the default value on creation for the "rpm_limit" field.
 	DefaultRpmLimit int
 	// DefaultMaxReasoningEffort holds the default value on creation for the "max_reasoning_effort" field.
@@ -636,6 +641,11 @@ func ByGrokMessagesProtocol(opts ...sql.OrderTermOption) OrderOption {
 // ByGrokReasoningVisibilityMode orders the results by the grok_reasoning_visibility_mode field.
 func ByGrokReasoningVisibilityMode(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldGrokReasoningVisibilityMode, opts...).ToFunc()
+}
+
+// ByGrokReasoningProbeTTLSec orders the results by the grok_reasoning_probe_ttl_sec field.
+func ByGrokReasoningProbeTTLSec(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldGrokReasoningProbeTTLSec, opts...).ToFunc()
 }
 
 // ByRpmLimit orders the results by the rpm_limit field.

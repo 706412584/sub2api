@@ -997,6 +997,7 @@ var (
 		{Name: "models_list_config", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
 		{Name: "grok_messages_protocol", Type: field.TypeString, Size: 32, Default: "responses"},
 		{Name: "grok_reasoning_visibility_mode", Type: field.TypeString, Size: 16, Default: ""},
+		{Name: "grok_reasoning_probe_ttl_sec", Type: field.TypeInt, Default: -1},
 		{Name: "rpm_limit", Type: field.TypeInt, Default: 0},
 		{Name: "max_reasoning_effort", Type: field.TypeString, Size: 20, Default: ""},
 		{Name: "reasoning_effort_mappings", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},

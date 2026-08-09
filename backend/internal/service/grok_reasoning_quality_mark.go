@@ -158,6 +158,23 @@ func ResolveGrokReasoningQualitySoftPenalty(ctx context.Context, store GrokReaso
 	return grokReasoningQualitySoftScorePenalty(mark.Status)
 }
 
+// resolveGrokReasoningVisibleAffinity returns a positive LB boost for Grok
+// accounts with a known visible-reasoning mark, so they are preferred over
+// unmarked peers in the load-balance selection order.
+func resolveGrokReasoningVisibleAffinity(ctx context.Context, store GrokReasoningQualityMarkStore, account *Account) float64 {
+	if store == nil || account == nil || !account.IsGrok() || account.ID <= 0 {
+		return 0
+	}
+	mark, err := store.Get(ctx, account.ID)
+	if err != nil || mark == nil {
+		return 0
+	}
+	if mark.Status == GrokReasoningProbeStatusVisible {
+		return grokReasoningVisibleAffinityWeight
+	}
+	return 0
+}
+
 // GrokReasoningMarkIsNonVisible reports whether a probe outcome means the account
 // did not return plaintext (visible) reasoning.
 func GrokReasoningMarkIsNonVisible(status GrokReasoningProbeStatus) bool {

@@ -388,6 +388,12 @@ var defaultOpenAICodexSnapshotPersistThrottle = newAccountWriteThrottle(openAICo
 // support but no compatible account is available.
 var ErrNoAvailableCompactAccounts = errors.New("no available accounts support /responses/compact")
 
+// ErrGrokReasoningFiltered indicates all Grok accounts in the group were
+// filtered out by the reasoning visibility enforce gate. Handlers SHOULD
+// respond with 502 Bad Gateway so clients can distinguish this from
+// generic 503 "no available accounts" (e.g. rate-limited or paused).
+var ErrGrokReasoningFiltered = errors.New("all Grok accounts filtered by reasoning visibility enforcement")
+
 // OpenAIGatewayService handles OpenAI API gateway operations
 type OpenAIGatewayService struct {
 	accountRepo           AccountRepository
@@ -419,6 +425,8 @@ type OpenAIGatewayService struct {
 	liveAttestationCipher SecretEncryptor
 	// Optional Grok reasoning quality marks (account_id keyed) for soft LB deprioritization.
 	grokReasoningQualityMarks GrokReasoningQualityMarkStore
+	// Optional Grok reasoning probe service for real-time probing in enforce mode.
+	grokReasoningProbeSvc *GrokReasoningProbeService
 
 	openaiWSPoolOnce               sync.Once
 	openaiWSStateStoreOnce         sync.Once
@@ -460,6 +468,15 @@ func (s *OpenAIGatewayService) SetGrokReasoningQualityMarkStore(store GrokReason
 		return
 	}
 	s.grokReasoningQualityMarks = store
+}
+
+// SetGrokReasoningProbeService injects the optional real-time reasoning probe
+// service used by the enforce scheduling mode to probe unmarked accounts.
+func (s *OpenAIGatewayService) SetGrokReasoningProbeService(probe *GrokReasoningProbeService) {
+	if s == nil {
+		return
+	}
+	s.grokReasoningProbeSvc = probe
 }
 
 func NewOpenAIGatewayService(
