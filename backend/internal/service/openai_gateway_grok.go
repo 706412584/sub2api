@@ -1632,6 +1632,13 @@ func (s *OpenAIGatewayService) rateLimitGrok(ctx context.Context, account *Accou
 	}
 	resetAt = normalizeGrokRateLimitResetAt(account, resetAt, time.Now())
 
+	// Pool mode keeps scheduling available and relies on same-account retry budget;
+	// still persist quota snapshot via updateGrokUsageSnapshot, but do not install
+	// account-level rate-limit / runtime block.
+	if account.IsPoolMode() {
+		return
+	}
+
 	runtimeUntil := resetAt
 	if account.TempUnschedulableUntil != nil && account.TempUnschedulableUntil.After(runtimeUntil) {
 		runtimeUntil = *account.TempUnschedulableUntil
@@ -1652,14 +1659,25 @@ func (s *OpenAIGatewayService) handleGrokAccountUpstreamError(ctx context.Contex
 	s.updateGrokUsageSnapshot(ctx, account, parseGrokQuotaSnapshot(headers, statusCode, now))
 	switch class {
 	case grokFailAuth:
+		// Pool mode relies on same-account retry budget; skip account-level temp unscheduling
+		// for default auth/payment/forbidden cooldowns (explicit temporary rules still apply).
+		if account.IsPoolMode() {
+			return
+		}
 		s.tempUnscheduleGrokUntil(ctx, account, now.Add(grokAuthCooldownDuration), "grok credentials unauthorized")
 	case grokFailPayment:
+		if account.IsPoolMode() {
+			return
+		}
 		// 402 exhaustion: billing/Retry-After aware cooldown; never SetError; auto re-enter pool.
 		until := resolveGrokExhaustionUntil(account, headers, now)
 		s.tempUnscheduleGrokUntil(ctx, account, until, "grok payment required")
 		s.persistGrokQuotaBlockMarker(ctx, account, until, "payment_required")
 	case grokFailForbidden:
 		if s.applyGrokForbiddenPolicy(ctx, account, responseBody) {
+			return
+		}
+		if account.IsPoolMode() {
 			return
 		}
 		s.tempUnscheduleGrokUntil(ctx, account, now.Add(grokForbiddenCooldownDuration), "grok access or entitlement denied")
