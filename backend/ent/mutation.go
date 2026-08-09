@@ -24206,6 +24206,8 @@ type GroupMutation struct {
 	grok_reasoning_visibility_mode          *string
 	grok_reasoning_probe_ttl_sec            *int
 	addgrok_reasoning_probe_ttl_sec         *int
+	grok_reasoning_quarantine_sec           *int
+	addgrok_reasoning_quarantine_sec        *int
 	rpm_limit                               *int
 	addrpm_limit                            *int
 	max_reasoning_effort                    *string
@@ -26936,6 +26938,62 @@ func (m *GroupMutation) ResetGrokReasoningProbeTTLSec() {
 	m.addgrok_reasoning_probe_ttl_sec = nil
 }
 
+// SetGrokReasoningQuarantineSec sets the "grok_reasoning_quarantine_sec" field.
+func (m *GroupMutation) SetGrokReasoningQuarantineSec(i int) {
+	m.grok_reasoning_quarantine_sec = &i
+	m.addgrok_reasoning_quarantine_sec = nil
+}
+
+// GrokReasoningQuarantineSec returns the value of the "grok_reasoning_quarantine_sec" field in the mutation.
+func (m *GroupMutation) GrokReasoningQuarantineSec() (r int, exists bool) {
+	v := m.grok_reasoning_quarantine_sec
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGrokReasoningQuarantineSec returns the old "grok_reasoning_quarantine_sec" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldGrokReasoningQuarantineSec(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGrokReasoningQuarantineSec is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGrokReasoningQuarantineSec requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGrokReasoningQuarantineSec: %w", err)
+	}
+	return oldValue.GrokReasoningQuarantineSec, nil
+}
+
+// AddGrokReasoningQuarantineSec adds i to the "grok_reasoning_quarantine_sec" field.
+func (m *GroupMutation) AddGrokReasoningQuarantineSec(i int) {
+	if m.addgrok_reasoning_quarantine_sec != nil {
+		*m.addgrok_reasoning_quarantine_sec += i
+	} else {
+		m.addgrok_reasoning_quarantine_sec = &i
+	}
+}
+
+// AddedGrokReasoningQuarantineSec returns the value that was added to the "grok_reasoning_quarantine_sec" field in this mutation.
+func (m *GroupMutation) AddedGrokReasoningQuarantineSec() (r int, exists bool) {
+	v := m.addgrok_reasoning_quarantine_sec
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetGrokReasoningQuarantineSec resets all changes to the "grok_reasoning_quarantine_sec" field.
+func (m *GroupMutation) ResetGrokReasoningQuarantineSec() {
+	m.grok_reasoning_quarantine_sec = nil
+	m.addgrok_reasoning_quarantine_sec = nil
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (m *GroupMutation) SetRpmLimit(i int) {
 	m.rpm_limit = &i
@@ -27621,7 +27679,7 @@ func (m *GroupMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *GroupMutation) Fields() []string {
-	fields := make([]string, 0, 60)
+	fields := make([]string, 0, 61)
 	if m.created_at != nil {
 		fields = append(fields, group.FieldCreatedAt)
 	}
@@ -27781,6 +27839,9 @@ func (m *GroupMutation) Fields() []string {
 	if m.grok_reasoning_probe_ttl_sec != nil {
 		fields = append(fields, group.FieldGrokReasoningProbeTTLSec)
 	}
+	if m.grok_reasoning_quarantine_sec != nil {
+		fields = append(fields, group.FieldGrokReasoningQuarantineSec)
+	}
 	if m.rpm_limit != nil {
 		fields = append(fields, group.FieldRpmLimit)
 	}
@@ -27916,6 +27977,8 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.GrokReasoningVisibilityMode()
 	case group.FieldGrokReasoningProbeTTLSec:
 		return m.GrokReasoningProbeTTLSec()
+	case group.FieldGrokReasoningQuarantineSec:
+		return m.GrokReasoningQuarantineSec()
 	case group.FieldRpmLimit:
 		return m.RpmLimit()
 	case group.FieldMaxReasoningEffort:
@@ -28045,6 +28108,8 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldGrokReasoningVisibilityMode(ctx)
 	case group.FieldGrokReasoningProbeTTLSec:
 		return m.OldGrokReasoningProbeTTLSec(ctx)
+	case group.FieldGrokReasoningQuarantineSec:
+		return m.OldGrokReasoningQuarantineSec(ctx)
 	case group.FieldRpmLimit:
 		return m.OldRpmLimit(ctx)
 	case group.FieldMaxReasoningEffort:
@@ -28439,6 +28504,13 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetGrokReasoningProbeTTLSec(v)
 		return nil
+	case group.FieldGrokReasoningQuarantineSec:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGrokReasoningQuarantineSec(v)
+		return nil
 	case group.FieldRpmLimit:
 		v, ok := value.(int)
 		if !ok {
@@ -28562,6 +28634,9 @@ func (m *GroupMutation) AddedFields() []string {
 	if m.addgrok_reasoning_probe_ttl_sec != nil {
 		fields = append(fields, group.FieldGrokReasoningProbeTTLSec)
 	}
+	if m.addgrok_reasoning_quarantine_sec != nil {
+		fields = append(fields, group.FieldGrokReasoningQuarantineSec)
+	}
 	if m.addrpm_limit != nil {
 		fields = append(fields, group.FieldRpmLimit)
 	}
@@ -28623,6 +28698,8 @@ func (m *GroupMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedSortOrder()
 	case group.FieldGrokReasoningProbeTTLSec:
 		return m.AddedGrokReasoningProbeTTLSec()
+	case group.FieldGrokReasoningQuarantineSec:
+		return m.AddedGrokReasoningQuarantineSec()
 	case group.FieldRpmLimit:
 		return m.AddedRpmLimit()
 	case group.FieldProfitMinMargin:
@@ -28791,6 +28868,13 @@ func (m *GroupMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddGrokReasoningProbeTTLSec(v)
+		return nil
+	case group.FieldGrokReasoningQuarantineSec:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddGrokReasoningQuarantineSec(v)
 		return nil
 	case group.FieldRpmLimit:
 		v, ok := value.(int)
@@ -29103,6 +29187,9 @@ func (m *GroupMutation) ResetField(name string) error {
 		return nil
 	case group.FieldGrokReasoningProbeTTLSec:
 		m.ResetGrokReasoningProbeTTLSec()
+		return nil
+	case group.FieldGrokReasoningQuarantineSec:
+		m.ResetGrokReasoningQuarantineSec()
 		return nil
 	case group.FieldRpmLimit:
 		m.ResetRpmLimit()

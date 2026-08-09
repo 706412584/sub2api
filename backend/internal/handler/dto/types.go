@@ -180,6 +180,7 @@ type AdminGroup struct {
 	GrokMessagesProtocol        string                                   `json:"grok_messages_protocol"`
 	GrokReasoningVisibilityMode string                                   `json:"grok_reasoning_visibility_mode"`
 	GrokReasoningProbeTTLSec    int                                      `json:"grok_reasoning_probe_ttl_sec"`
+	GrokReasoningQuarantineSec  int                                      `json:"grok_reasoning_quarantine_sec"`
 
 	// 支持的模型系列（仅 antigravity 平台使用）
 	SupportedModelScopes    []string       `json:"supported_model_scopes"`

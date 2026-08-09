@@ -659,6 +659,7 @@ func (h *SettingHandler) GetGrokReasoningVisibilitySettings(c *gin.Context) {
 	response.Success(c, dto.GrokReasoningVisibilitySettings{
 		Mode:                 settings.Mode,
 		ProbeTTLSec:          settings.ProbeTTLSec,
+		QuarantineSec:        settings.QuarantineSec,
 		ProbeAccountFallback: settings.ProbeAccountFallback,
 	})
 }
@@ -667,6 +668,7 @@ func (h *SettingHandler) GetGrokReasoningVisibilitySettings(c *gin.Context) {
 type UpdateGrokReasoningVisibilitySettingsRequest struct {
 	Mode                 string `json:"mode"`
 	ProbeTTLSec          int    `json:"probe_ttl_sec"`
+	QuarantineSec        int    `json:"quarantine_sec"`
 	ProbeAccountFallback bool   `json:"probe_account_fallback"`
 }
 
@@ -682,6 +684,7 @@ func (h *SettingHandler) UpdateGrokReasoningVisibilitySettings(c *gin.Context) {
 	if err := h.settingService.SetGrokReasoningVisibilitySettings(c.Request.Context(), &service.GrokReasoningVisibilitySettings{
 		Mode:                 req.Mode,
 		ProbeTTLSec:          req.ProbeTTLSec,
+		QuarantineSec:        req.QuarantineSec,
 		ProbeAccountFallback: req.ProbeAccountFallback,
 	}); err != nil {
 		response.BadRequest(c, err.Error())
@@ -696,6 +699,7 @@ func (h *SettingHandler) UpdateGrokReasoningVisibilitySettings(c *gin.Context) {
 	response.Success(c, dto.GrokReasoningVisibilitySettings{
 		Mode:                 updated.Mode,
 		ProbeTTLSec:          updated.ProbeTTLSec,
+		QuarantineSec:        updated.QuarantineSec,
 		ProbeAccountFallback: updated.ProbeAccountFallback,
 	})
 }

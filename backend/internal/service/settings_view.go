@@ -487,6 +487,9 @@ type GrokReasoningVisibilitySettings struct {
 	Mode string `json:"mode"`
 	// ProbeTTLSec 探测结果复用时长（秒）。0 表示每次建链前都实时探测。
 	ProbeTTLSec int `json:"probe_ttl_sec"`
+	// QuarantineSec enforce 探测失败后的临时不可调度冷却秒数。
+	// 0=不写 temp-unsched（仅本轮排除）；N=冷却 N 秒。网关级不允许负数。
+	QuarantineSec int `json:"quarantine_sec"`
 	// ProbeAccountFallback 为 true 时，enforce 模式下若全组账号都不可见思考，
 	// 允许放行最近一次探测的账号，避免整组不可用。
 	ProbeAccountFallback bool `json:"probe_account_fallback"`
@@ -495,11 +498,21 @@ type GrokReasoningVisibilitySettings struct {
 // GrokReasoningVisibilityProbeTTLMaxSec 限制探测复用时长上限（24h）。
 const GrokReasoningVisibilityProbeTTLMaxSec = 86400
 
+// GrokReasoningVisibilityQuarantineMaxSec 限制冷却秒数上限（24h）。
+const GrokReasoningVisibilityQuarantineMaxSec = 86400
+
+// GrokReasoningVisibilityQuarantineDefaultSec 网关默认冷却（与历史硬编码 2 分钟一致）。
+const GrokReasoningVisibilityQuarantineDefaultSec = 120
+
+// GrokReasoningQuarantinePauseSchedulable 分组级特殊值：探测失败后将账号设为暂停调度。
+const GrokReasoningQuarantinePauseSchedulable = -2
+
 // DefaultGrokReasoningVisibilitySettings 返回默认配置（保持现状：仅软降权）。
 func DefaultGrokReasoningVisibilitySettings() *GrokReasoningVisibilitySettings {
 	return &GrokReasoningVisibilitySettings{
 		Mode:                 GrokReasoningVisibilityModeOff,
 		ProbeTTLSec:          0,
+		QuarantineSec:        GrokReasoningVisibilityQuarantineDefaultSec,
 		ProbeAccountFallback: false,
 	}
 }

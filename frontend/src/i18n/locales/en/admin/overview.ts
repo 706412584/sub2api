@@ -1106,7 +1106,9 @@ export default {
         enforce: 'Enforce (exclude non-visible)',
         hint: 'Override the gateway-level Grok reasoning visibility mode for this group only.',
         probeTTL: 'Probe cache TTL (seconds)',
-        probeTTLHint: '-1=inherit gateway; 0=re-probe every selection; N=cache for N seconds'
+        probeTTLHint: '-1=inherit gateway; 0=re-probe every selection; N=cache for N seconds',
+        quarantineSec: 'Quarantine cooldown (seconds)',
+        quarantineSecHint: '-1=inherit gateway; -2=pause scheduling; 0=exclude this round only; N=temp-unschedulable for N seconds'
       },
       openaiMessages: {
         title: 'OpenAI Messages Dispatch',

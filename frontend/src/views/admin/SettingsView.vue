@@ -927,11 +927,29 @@
                     type="number"
                     class="input w-full max-w-md"
                     v-model.number="grokReasoningVisibilityForm.probe_ttl_sec"
-                    min="60"
+                    min="0"
                     max="86400"
                   />
                   <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
                     {{ t("admin.settings.grokReasoningVisibility.probeTtlHint") }}
+                  </p>
+                </div>
+
+                <div v-if="grokReasoningVisibilityForm.mode === 'enforce'">
+                  <label
+                    class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    {{ t("admin.settings.grokReasoningVisibility.quarantineSec") }}
+                  </label>
+                  <input
+                    type="number"
+                    class="input w-full max-w-md"
+                    v-model.number="grokReasoningVisibilityForm.quarantine_sec"
+                    min="0"
+                    max="86400"
+                  />
+                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.grokReasoningVisibility.quarantineSecHint") }}
                   </p>
                 </div>
 
@@ -9444,8 +9462,9 @@ const grokReasoningVisibilityLoading = ref(true);
 const grokReasoningVisibilitySaving = ref(false);
 const grokReasoningVisibilityForm = reactive({
   mode: "off",
-  probe_ttl_sec: 600,
-  probe_account_fallback: true,
+  probe_ttl_sec: 0,
+  quarantine_sec: 120,
+  probe_account_fallback: false,
 });
 
 // Grok CLI Identity 状态
@@ -12505,7 +12524,8 @@ async function loadGrokReasoningVisibilitySettings() {
     const settings = await adminAPI.settings.getGrokReasoningVisibilitySettings();
     Object.assign(grokReasoningVisibilityForm, {
       mode: settings.mode || "off",
-      probe_ttl_sec: settings.probe_ttl_sec ?? 3600,
+      probe_ttl_sec: settings.probe_ttl_sec ?? 0,
+      quarantine_sec: settings.quarantine_sec ?? 120,
     });
   } catch (_error: unknown) {
     // Silent fail - defaults apply
@@ -12520,11 +12540,13 @@ async function saveGrokReasoningVisibilitySettings() {
     const updated = await adminAPI.settings.updateGrokReasoningVisibilitySettings({
       mode: grokReasoningVisibilityForm.mode,
       probe_ttl_sec: grokReasoningVisibilityForm.probe_ttl_sec,
+      quarantine_sec: grokReasoningVisibilityForm.quarantine_sec,
       probe_account_fallback: false,
     });
     Object.assign(grokReasoningVisibilityForm, {
       mode: updated.mode || "off",
-      probe_ttl_sec: updated.probe_ttl_sec ?? 3600,
+      probe_ttl_sec: updated.probe_ttl_sec ?? 0,
+      quarantine_sec: updated.quarantine_sec ?? 120,
     });
     appStore.showSuccess(t("admin.settings.grokReasoningVisibility.saved"));
   } catch (error: unknown) {

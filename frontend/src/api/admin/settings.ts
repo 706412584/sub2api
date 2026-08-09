@@ -1336,6 +1336,7 @@ export async function updateGrokOpsProxySettings(
 export interface GrokReasoningVisibilitySettings {
   mode: string;
   probe_ttl_sec: number;
+  quarantine_sec: number;
   probe_account_fallback: boolean;
 }
 

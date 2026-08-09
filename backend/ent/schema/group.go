@@ -236,6 +236,9 @@ func (Group) Fields() []ent.Field {
 		field.Int("grok_reasoning_probe_ttl_sec").
 			Default(-1).
 			Comment("Grok 思考探测复用秒数：-1=继承网关，0=每次探测，N=缓存N秒"),
+		field.Int("grok_reasoning_quarantine_sec").
+			Default(-1).
+			Comment("Grok enforce 冷却秒数：-1=继承网关，-2=暂停调度，0=仅本轮排除，N=临时不可调度N秒"),
 
 		// 分组级每分钟请求数上限（0 = 不限制）。设置后优先于用户级兜底生效。
 		field.Int("rpm_limit").

@@ -1104,7 +1104,9 @@ export default {
         enforce: '强制（排除加密推理账号）',
         hint: '覆盖网关级别的 Grok 推理可见性模式。inherit = 跟随网关全局设置。',
         probeTTL: '探测缓存 TTL（秒）',
-        probeTTLHint: '-1=继承网关；0=每次重探测；N=缓存 N 秒'
+        probeTTLHint: '-1=继承网关；0=每次重探测；N=缓存 N 秒',
+        quarantineSec: '探测失败冷却（秒）',
+        quarantineSecHint: '-1=继承网关；-2=暂停调度；0=仅本轮排除；N=临时不可调度 N 秒'
       },
       openaiMessages: {
         title: 'OpenAI Messages 调度配置',
