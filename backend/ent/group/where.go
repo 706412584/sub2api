@@ -300,6 +300,11 @@ func GrokReasoningProbeTTLSec(v int) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldGrokReasoningProbeTTLSec, v))
 }
 
+// GrokReasoningQuarantineSec applies equality check predicate on the "grok_reasoning_quarantine_sec" field. It's identical to GrokReasoningQuarantineSecEQ.
+func GrokReasoningQuarantineSec(v int) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldGrokReasoningQuarantineSec, v))
+}
+
 // RpmLimit applies equality check predicate on the "rpm_limit" field. It's identical to RpmLimitEQ.
 func RpmLimit(v int) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldRpmLimit, v))
@@ -2338,6 +2343,46 @@ func GrokReasoningProbeTTLSecLT(v int) predicate.Group {
 // GrokReasoningProbeTTLSecLTE applies the LTE predicate on the "grok_reasoning_probe_ttl_sec" field.
 func GrokReasoningProbeTTLSecLTE(v int) predicate.Group {
 	return predicate.Group(sql.FieldLTE(FieldGrokReasoningProbeTTLSec, v))
+}
+
+// GrokReasoningQuarantineSecEQ applies the EQ predicate on the "grok_reasoning_quarantine_sec" field.
+func GrokReasoningQuarantineSecEQ(v int) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldGrokReasoningQuarantineSec, v))
+}
+
+// GrokReasoningQuarantineSecNEQ applies the NEQ predicate on the "grok_reasoning_quarantine_sec" field.
+func GrokReasoningQuarantineSecNEQ(v int) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldGrokReasoningQuarantineSec, v))
+}
+
+// GrokReasoningQuarantineSecIn applies the In predicate on the "grok_reasoning_quarantine_sec" field.
+func GrokReasoningQuarantineSecIn(vs ...int) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldGrokReasoningQuarantineSec, vs...))
+}
+
+// GrokReasoningQuarantineSecNotIn applies the NotIn predicate on the "grok_reasoning_quarantine_sec" field.
+func GrokReasoningQuarantineSecNotIn(vs ...int) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldGrokReasoningQuarantineSec, vs...))
+}
+
+// GrokReasoningQuarantineSecGT applies the GT predicate on the "grok_reasoning_quarantine_sec" field.
+func GrokReasoningQuarantineSecGT(v int) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldGrokReasoningQuarantineSec, v))
+}
+
+// GrokReasoningQuarantineSecGTE applies the GTE predicate on the "grok_reasoning_quarantine_sec" field.
+func GrokReasoningQuarantineSecGTE(v int) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldGrokReasoningQuarantineSec, v))
+}
+
+// GrokReasoningQuarantineSecLT applies the LT predicate on the "grok_reasoning_quarantine_sec" field.
+func GrokReasoningQuarantineSecLT(v int) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldGrokReasoningQuarantineSec, v))
+}
+
+// GrokReasoningQuarantineSecLTE applies the LTE predicate on the "grok_reasoning_quarantine_sec" field.
+func GrokReasoningQuarantineSecLTE(v int) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldGrokReasoningQuarantineSec, v))
 }
 
 // RpmLimitEQ applies the EQ predicate on the "rpm_limit" field.

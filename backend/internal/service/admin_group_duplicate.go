@@ -143,6 +143,8 @@ func cloneGroupForDuplicate(source *Group, operationID string) *Group {
 		MessagesDispatchModelConfig:     cloneGroupMessagesDispatchModelConfig(source.MessagesDispatchModelConfig),
 		GrokMessagesProtocol:            source.GrokMessagesProtocol,
 		GrokReasoningVisibilityMode:     source.GrokReasoningVisibilityMode,
+		GrokReasoningProbeTTLSec:        source.GrokReasoningProbeTTLSec,
+		GrokReasoningQuarantineSec:      source.GrokReasoningQuarantineSec,
 		ModelsListConfig: GroupModelsListConfig{
 			Enabled: source.ModelsListConfig.Enabled,
 			Models:  append([]string(nil), source.ModelsListConfig.Models...),

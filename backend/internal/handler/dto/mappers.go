@@ -157,6 +157,8 @@ func GroupFromServiceAdmin(g *service.Group) *AdminGroup {
 		ModelsListConfig:            g.ModelsListConfig,
 		GrokMessagesProtocol:        g.GrokMessagesProtocol,
 		GrokReasoningVisibilityMode: g.GrokReasoningVisibilityMode,
+		GrokReasoningProbeTTLSec:    g.GrokReasoningProbeTTLSec,
+		GrokReasoningQuarantineSec:  g.GrokReasoningQuarantineSec,
 		SupportedModelScopes:        g.SupportedModelScopes,
 		AccountCount:                g.AccountCount,
 		ActiveAccountCount:          g.ActiveAccountCount,

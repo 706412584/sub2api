@@ -490,6 +490,7 @@ type StreamTimeoutSettings struct {
 type GrokReasoningVisibilitySettings struct {
 	Mode                 string `json:"mode"`
 	ProbeTTLSec          int    `json:"probe_ttl_sec"`
+	QuarantineSec        int    `json:"quarantine_sec"`
 	ProbeAccountFallback bool   `json:"probe_account_fallback"`
 }
 

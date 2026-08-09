@@ -1102,7 +1102,9 @@ export default {
         modeSoft: 'Soft (lower LB score)',
         modeEnforce: 'Enforce (exclude)',
         probeTtl: 'Probe TTL (seconds)',
-        probeTtlHint: 'How long a probe result is considered valid before re-checking the account.',
+        probeTtlHint: 'How long a probe result is considered valid; 0=re-probe every time; N=cache for N seconds.',
+        quarantineSec: 'Quarantine cooldown (seconds)',
+        quarantineSecHint: 'After enforce rejection: 0=exclude this round only; N=temp-unschedulable for N seconds (default 120).',
         saved: 'Grok reasoning visibility settings saved',
         saveFailed: 'Failed to save Grok reasoning visibility settings'
       },

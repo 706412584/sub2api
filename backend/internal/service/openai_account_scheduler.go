@@ -1764,7 +1764,7 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatibleReason(ctx con
 			ctx, s.service.grokReasoningQualityMarks, account, mode,
 		)
 		if decision.Excluded {
-			s.service.applyGrokReasoningVisibilityQuarantine(ctx, account.ID, decision, mode)
+			s.service.applyGrokReasoningVisibilityQuarantine(ctx, account.ID, decision, mode, req.GroupID)
 			return false, "grok_reasoning_not_visible"
 		}
 	}
@@ -2184,7 +2184,7 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerOnce(
 					if rejected, reason := s.rejectGrokAccountByReasoning(ctx, selection.Account, groupID); rejected {
 						s.applyGrokReasoningVisibilityQuarantine(ctx, selection.Account.ID,
 							GrokReasoningVisibilityDecision{Excluded: true, Status: GrokReasoningProbeStatus(reason)},
-							GrokReasoningVisibilityModeEnforce)
+							GrokReasoningVisibilityModeEnforce, groupID)
 						if selection.ReleaseFunc != nil {
 							selection.ReleaseFunc()
 						}
@@ -2223,7 +2223,7 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerOnce(
 				if rejected, reason := s.rejectGrokAccountByReasoning(ctx, selection.Account, groupID); rejected {
 					s.applyGrokReasoningVisibilityQuarantine(ctx, selection.Account.ID,
 						GrokReasoningVisibilityDecision{Excluded: true, Status: GrokReasoningProbeStatus(reason)},
-						GrokReasoningVisibilityModeEnforce)
+						GrokReasoningVisibilityModeEnforce, groupID)
 					if selection.ReleaseFunc != nil {
 						selection.ReleaseFunc()
 					}
@@ -2303,7 +2303,7 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerOnce(
 		if rejected, reason := s.rejectGrokAccountByReasoning(ctx, loopSelection.Account, groupID); rejected {
 			s.applyGrokReasoningVisibilityQuarantine(ctx, loopSelection.Account.ID,
 				GrokReasoningVisibilityDecision{Excluded: true, Status: GrokReasoningProbeStatus(reason)},
-				GrokReasoningVisibilityModeEnforce)
+				GrokReasoningVisibilityModeEnforce, groupID)
 			if loopSelection.ReleaseFunc != nil {
 				loopSelection.ReleaseFunc()
 			}

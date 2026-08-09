@@ -1344,11 +1344,22 @@ func (s *SettingService) GetGrokReasoningVisibilitySettings(ctx context.Context)
 		return DefaultGrokReasoningVisibilitySettings(), nil
 	}
 
-	var settings GrokReasoningVisibilitySettings
-	if err := json.Unmarshal([]byte(value), &settings); err != nil {
+	// quarantine_sec 用指针区分“旧配置缺省”与“显式 0=仅本轮排除”。
+	var raw struct {
+		Mode                 string `json:"mode"`
+		ProbeTTLSec          int    `json:"probe_ttl_sec"`
+		QuarantineSec        *int   `json:"quarantine_sec"`
+		ProbeAccountFallback bool   `json:"probe_account_fallback"`
+	}
+	if err := json.Unmarshal([]byte(value), &raw); err != nil {
 		return DefaultGrokReasoningVisibilitySettings(), nil
 	}
 
+	settings := GrokReasoningVisibilitySettings{
+		Mode:                 raw.Mode,
+		ProbeTTLSec:          raw.ProbeTTLSec,
+		ProbeAccountFallback: raw.ProbeAccountFallback,
+	}
 	// inherit 在网关级没有上层可继承，归一化为 off 保持现状行为。
 	settings.Mode = NormalizeGrokReasoningVisibilityMode(settings.Mode)
 	if settings.Mode == GrokReasoningVisibilityModeInherit {
@@ -1359,6 +1370,18 @@ func (s *SettingService) GetGrokReasoningVisibilitySettings(ctx context.Context)
 	}
 	if settings.ProbeTTLSec > GrokReasoningVisibilityProbeTTLMaxSec {
 		settings.ProbeTTLSec = GrokReasoningVisibilityProbeTTLMaxSec
+	}
+	// 兼容旧 JSON：缺省 quarantine_sec 时回落默认 120，保持历史 2 分钟冷却。
+	if raw.QuarantineSec == nil {
+		settings.QuarantineSec = GrokReasoningVisibilityQuarantineDefaultSec
+	} else {
+		settings.QuarantineSec = *raw.QuarantineSec
+		if settings.QuarantineSec < 0 {
+			settings.QuarantineSec = GrokReasoningVisibilityQuarantineDefaultSec
+		}
+	}
+	if settings.QuarantineSec > GrokReasoningVisibilityQuarantineMaxSec {
+		settings.QuarantineSec = GrokReasoningVisibilityQuarantineMaxSec
 	}
 
 	return &settings, nil
@@ -1378,6 +1401,9 @@ func (s *SettingService) SetGrokReasoningVisibilitySettings(ctx context.Context,
 	}
 	if settings.ProbeTTLSec < 0 || settings.ProbeTTLSec > GrokReasoningVisibilityProbeTTLMaxSec {
 		return fmt.Errorf("probe_ttl_sec must be between 0-%d", GrokReasoningVisibilityProbeTTLMaxSec)
+	}
+	if settings.QuarantineSec < 0 || settings.QuarantineSec > GrokReasoningVisibilityQuarantineMaxSec {
+		return fmt.Errorf("quarantine_sec must be between 0-%d", GrokReasoningVisibilityQuarantineMaxSec)
 	}
 
 	data, err := json.Marshal(settings)

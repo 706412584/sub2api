@@ -101,6 +101,9 @@ type Group struct {
 	// GrokReasoningProbeTTLSec is the probe-result reuse TTL in seconds.
 	// -1 = inherit gateway setting, 0 = probe every time, N = cache N seconds.
 	GrokReasoningProbeTTLSec int
+	// GrokReasoningQuarantineSec is the enforce cooldown in seconds.
+	// -1 = inherit gateway, -2 = pause scheduling, 0 = exclude this round only, N = temp-unsched N seconds.
+	GrokReasoningQuarantineSec int
 
 	// RPMLimit 分组级每分钟请求数上限（0 = 不限制）。
 	// 一旦设置即接管该分组用户的限流（覆盖用户级 rpm_limit），可被 user-group rpm_override 进一步覆盖。
