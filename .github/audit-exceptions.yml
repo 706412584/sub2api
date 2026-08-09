@@ -43,3 +43,11 @@ exceptions:
     expires_on: "2026-10-24"
     owner: "security@your-domain"
 
+  - package: nanoid
+    advisory: "GHSA-2v37-7h3g-55p8"
+    severity: high
+    reason: "nanoid size=0 infinite loop only with custom alphabet generators; we use default nanoid via Vite/build tooling, no user-controlled size=0 generation"
+    mitigation: "Not used with attacker-controlled size; upgrade when fixed 3.x release is available"
+    expires_on: "2026-12-31"
+    owner: "security@your-domain"
+

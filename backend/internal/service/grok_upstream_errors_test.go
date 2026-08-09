@@ -313,6 +313,8 @@ func TestHandleGrokAccountUpstreamErrorPaymentRequiredTempUnschedules(t *testing
 	require.Less(t, repo.lastTempUnschedUntil, before.Add(31*time.Minute))
 	require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))
 
+}
+
 func TestHandleGrokAccountUpstreamErrorDefaultCooldownsRespectPoolMode(t *testing.T) {
 	for _, statusCode := range []int{
 		http.StatusUnauthorized,
