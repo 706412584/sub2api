@@ -2291,11 +2291,14 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerOnce(
 			RequireCompact:          requireCompact,
 			ExcludedIDs:             effectiveExcludedIDs,
 		})
+		// Always surface the scheduler decision (Layer/CandidateCount/...), including
+		// no-available error paths. Empty outer `decision` would break diagnostics and
+		// tests that assert load_balance metadata on ErrNoAvailableAccounts.
 		if loopErr != nil {
-			return nil, decision, loopErr
+			return nil, schedDecision, loopErr
 		}
 		if loopSelection == nil || loopSelection.Account == nil {
-			return loopSelection, decision, nil
+			return loopSelection, schedDecision, nil
 		}
 		if rejected, reason := s.rejectGrokAccountByReasoning(ctx, loopSelection.Account, groupID); rejected {
 			s.applyGrokReasoningVisibilityQuarantine(ctx, loopSelection.Account.ID,
@@ -2310,8 +2313,7 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerOnce(
 			effectiveExcludedIDs[loopSelection.Account.ID] = struct{}{}
 			continue
 		}
-		decision = schedDecision
-		return loopSelection, decision, nil
+		return loopSelection, schedDecision, nil
 	}
 	return nil, schedDecision, ErrGrokReasoningFiltered
 }
