@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 18 // v18: include the Grok Messages upstream protocol
+const apiKeyAuthSnapshotVersion = 20 // v20: grok reasoning quarantine_sec on group snapshot
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -415,6 +415,8 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			ModelsListConfig:                apiKey.Group.ModelsListConfig,
 			GrokMessagesProtocol:            apiKey.Group.GrokMessagesProtocol,
 			GrokReasoningVisibilityMode:     apiKey.Group.GrokReasoningVisibilityMode,
+			GrokReasoningProbeTTLSec:        apiKey.Group.GrokReasoningProbeTTLSec,
+			GrokReasoningQuarantineSec:      apiKey.Group.GrokReasoningQuarantineSec,
 			RPMLimit:                        apiKey.Group.RPMLimit,
 			MaxReasoningEffort:              apiKey.Group.MaxReasoningEffort,
 			ReasoningEffortMappings:         apiKey.Group.ReasoningEffortMappings,
@@ -422,6 +424,9 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			PeakStart:                       apiKey.Group.PeakStart,
 			PeakEnd:                         apiKey.Group.PeakEnd,
 			PeakRateMultiplier:              apiKey.Group.PeakRateMultiplier,
+			ProfitControlEnabled:            apiKey.Group.ProfitControlEnabled,
+			ProfitMinMargin:                 apiKey.Group.ProfitMinMargin,
+			ProfitSafetyBuffer:              apiKey.Group.ProfitSafetyBuffer,
 		}
 	}
 	return snapshot
@@ -504,6 +509,8 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			ModelsListConfig:                snapshot.Group.ModelsListConfig,
 			GrokMessagesProtocol:            NormalizeGrokMessagesProtocol(snapshot.Group.Platform, snapshot.Group.GrokMessagesProtocol),
 			GrokReasoningVisibilityMode:     NormalizeGrokReasoningVisibilityMode(snapshot.Group.GrokReasoningVisibilityMode),
+			GrokReasoningProbeTTLSec:        snapshot.Group.GrokReasoningProbeTTLSec,
+			GrokReasoningQuarantineSec:      snapshot.Group.GrokReasoningQuarantineSec,
 			RPMLimit:                        snapshot.Group.RPMLimit,
 			MaxReasoningEffort:              snapshot.Group.MaxReasoningEffort,
 			ReasoningEffortMappings:         snapshot.Group.ReasoningEffortMappings,
@@ -511,6 +518,9 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			PeakStart:                       snapshot.Group.PeakStart,
 			PeakEnd:                         snapshot.Group.PeakEnd,
 			PeakRateMultiplier:              snapshot.Group.PeakRateMultiplier,
+			ProfitControlEnabled:            snapshot.Group.ProfitControlEnabled,
+			ProfitMinMargin:                 snapshot.Group.ProfitMinMargin,
+			ProfitSafetyBuffer:              snapshot.Group.ProfitSafetyBuffer,
 		}
 	}
 	s.compileAPIKeyIPRules(apiKey)

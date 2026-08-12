@@ -38,12 +38,28 @@ type SystemSettings struct {
 	SMTPFromName           string
 	SMTPUseTLS             bool
 
-	TurnstileEnabled             bool
-	TurnstileSiteKey             string
-	TurnstileSecretKey           string
-	TurnstileSecretKeyConfigured bool
-	APIKeyACLTrustForwardedIP    bool
-	ForwardedClientIPHeaders     []string
+	TurnstileEnabled                       bool
+	TurnstileSiteKey                       string
+	TurnstileSecretKey                     string
+	TurnstileSecretKeyConfigured           bool
+	TencentCaptchaEnabled                  bool
+	TencentCaptchaAppID                    string
+	TencentCaptchaAppSecretKey             string
+	TencentCaptchaAppSecretKeyConfigured   bool
+	TencentCaptchaCloudSecretID            string
+	TencentCaptchaCloudSecretIDConfigured  bool
+	TencentCaptchaCloudSecretKey           string
+	TencentCaptchaCloudSecretKeyConfigured bool
+	TencentCaptchaRegion                   string
+	AliyunCaptchaEnabled                   bool
+	AliyunCaptchaAccessKeyID               string
+	AliyunCaptchaAccessKeySecret           string
+	AliyunCaptchaAccessKeySecretConfigured bool
+	AliyunCaptchaSceneID                   string
+	AliyunCaptchaPrefix                    string
+	AliyunCaptchaRegion                    string
+	APIKeyACLTrustForwardedIP              bool
+	ForwardedClientIPHeaders               []string
 
 	// LinuxDo Connect OAuth 登录
 	LinuxDoConnectEnabled                bool
@@ -139,6 +155,7 @@ type SystemSettings struct {
 	ContactInfo                 string
 	DocURL                      string
 	HomeContent                 string
+	CompactHomeEnabled          bool
 	HideCcsImportButton         bool
 	PurchaseSubscriptionEnabled bool
 	PurchaseSubscriptionURL     string
@@ -211,7 +228,10 @@ type SystemSettings struct {
 	EnableClientDatelineNormalization      bool   // 是否对 Anthropic OAuth/SetupToken 请求体做客户端 dateline 归一化（默认 true）
 	RewriteMessageCacheControl             bool   // 是否改写 messages[*].content[*].cache_control（默认 false）
 	AntigravityUserAgentVersion            string // Antigravity 上游 User-Agent 版本号；空值使用配置/默认值
-	OpenAICodexUserAgent                   string // OpenAI Codex 上游完整 User-Agent；空值使用内置默认
+	OpenAICodexUserAgent                   string // OpenAI Codex 上游完整 User-Agent；空值由 Codex 客户端版本号拼出标准 TUI UA
+	OpenAICodexClientVersion               string // 出站声明的 Codex 客户端版本号（管理员覆写）；空值跟随自动同步值
+	OpenAICodexClientVersionSynced         string // 自动同步到的官方最新稳定版版本号（只读展示）
+	OpenAICodexVersionAutoSyncEnabled      bool   // 是否启用 Codex 客户端版本号自动同步（默认 true）
 	MinCodexVersion                        string // codex_cli_only 最低 Codex 引擎版本；空=不检查
 	MaxCodexVersion                        string // codex_cli_only 最高 Codex 引擎版本；空=不检查
 	CodexCLIOnlyBlacklist                  string // codex_cli_only 全局黑名单 JSON（[]AllowedClientEntry，OR deny）
@@ -298,6 +318,13 @@ type PublicSettings struct {
 	LoginAgreementDocuments          []LoginAgreementDocument
 	TurnstileEnabled                 bool
 	TurnstileSiteKey                 string
+	TencentCaptchaEnabled            bool
+	TencentCaptchaAppID              string
+	TencentCaptchaRegion             string
+	AliyunCaptchaEnabled             bool
+	AliyunCaptchaSceneID             string
+	AliyunCaptchaPrefix              string
+	AliyunCaptchaRegion              string
 	SiteName                         string
 	SiteLogo                         string
 	SiteSubtitle                     string
@@ -305,6 +332,7 @@ type PublicSettings struct {
 	ContactInfo                      string
 	DocURL                           string
 	HomeContent                      string
+	CompactHomeEnabled               bool
 	HideCcsImportButton              bool
 
 	PurchaseSubscriptionEnabled bool
@@ -459,6 +487,9 @@ type GrokReasoningVisibilitySettings struct {
 	Mode string `json:"mode"`
 	// ProbeTTLSec 探测结果复用时长（秒）。0 表示每次建链前都实时探测。
 	ProbeTTLSec int `json:"probe_ttl_sec"`
+	// QuarantineSec enforce 探测失败后的临时不可调度冷却秒数。
+	// 0=不写 temp-unsched（仅本轮排除）；N=冷却 N 秒。网关级不允许负数。
+	QuarantineSec int `json:"quarantine_sec"`
 	// ProbeAccountFallback 为 true 时，enforce 模式下若全组账号都不可见思考，
 	// 允许放行最近一次探测的账号，避免整组不可用。
 	ProbeAccountFallback bool `json:"probe_account_fallback"`
@@ -467,11 +498,21 @@ type GrokReasoningVisibilitySettings struct {
 // GrokReasoningVisibilityProbeTTLMaxSec 限制探测复用时长上限（24h）。
 const GrokReasoningVisibilityProbeTTLMaxSec = 86400
 
+// GrokReasoningVisibilityQuarantineMaxSec 限制冷却秒数上限（24h）。
+const GrokReasoningVisibilityQuarantineMaxSec = 86400
+
+// GrokReasoningVisibilityQuarantineDefaultSec 网关默认冷却（与历史硬编码 2 分钟一致）。
+const GrokReasoningVisibilityQuarantineDefaultSec = 120
+
+// GrokReasoningQuarantinePauseSchedulable 分组级特殊值：探测失败后将账号设为暂停调度。
+const GrokReasoningQuarantinePauseSchedulable = -2
+
 // DefaultGrokReasoningVisibilitySettings 返回默认配置（保持现状：仅软降权）。
 func DefaultGrokReasoningVisibilitySettings() *GrokReasoningVisibilitySettings {
 	return &GrokReasoningVisibilitySettings{
 		Mode:                 GrokReasoningVisibilityModeOff,
 		ProbeTTLSec:          0,
+		QuarantineSec:        GrokReasoningVisibilityQuarantineDefaultSec,
 		ProbeAccountFallback: false,
 	}
 }

@@ -747,6 +747,20 @@ func (_c *GroupCreate) SetNillableGrokReasoningProbeTTLSec(v *int) *GroupCreate 
 	return _c
 }
 
+// SetGrokReasoningQuarantineSec sets the "grok_reasoning_quarantine_sec" field.
+func (_c *GroupCreate) SetGrokReasoningQuarantineSec(v int) *GroupCreate {
+	_c.mutation.SetGrokReasoningQuarantineSec(v)
+	return _c
+}
+
+// SetNillableGrokReasoningQuarantineSec sets the "grok_reasoning_quarantine_sec" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableGrokReasoningQuarantineSec(v *int) *GroupCreate {
+	if v != nil {
+		_c.SetGrokReasoningQuarantineSec(*v)
+	}
+	return _c
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_c *GroupCreate) SetRpmLimit(v int) *GroupCreate {
 	_c.mutation.SetRpmLimit(v)
@@ -791,6 +805,48 @@ func (_c *GroupCreate) SetPromptPolicy(v domain.GroupPromptPolicy) *GroupCreate 
 func (_c *GroupCreate) SetNillablePromptPolicy(v *domain.GroupPromptPolicy) *GroupCreate {
 	if v != nil {
 		_c.SetPromptPolicy(*v)
+	}
+	return _c
+}
+
+// SetProfitControlEnabled sets the "profit_control_enabled" field.
+func (_c *GroupCreate) SetProfitControlEnabled(v bool) *GroupCreate {
+	_c.mutation.SetProfitControlEnabled(v)
+	return _c
+}
+
+// SetNillableProfitControlEnabled sets the "profit_control_enabled" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableProfitControlEnabled(v *bool) *GroupCreate {
+	if v != nil {
+		_c.SetProfitControlEnabled(*v)
+	}
+	return _c
+}
+
+// SetProfitMinMargin sets the "profit_min_margin" field.
+func (_c *GroupCreate) SetProfitMinMargin(v float64) *GroupCreate {
+	_c.mutation.SetProfitMinMargin(v)
+	return _c
+}
+
+// SetNillableProfitMinMargin sets the "profit_min_margin" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableProfitMinMargin(v *float64) *GroupCreate {
+	if v != nil {
+		_c.SetProfitMinMargin(*v)
+	}
+	return _c
+}
+
+// SetProfitSafetyBuffer sets the "profit_safety_buffer" field.
+func (_c *GroupCreate) SetProfitSafetyBuffer(v float64) *GroupCreate {
+	_c.mutation.SetProfitSafetyBuffer(v)
+	return _c
+}
+
+// SetNillableProfitSafetyBuffer sets the "profit_safety_buffer" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableProfitSafetyBuffer(v *float64) *GroupCreate {
+	if v != nil {
+		_c.SetProfitSafetyBuffer(*v)
 	}
 	return _c
 }
@@ -1068,6 +1124,10 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultGrokReasoningProbeTTLSec
 		_c.mutation.SetGrokReasoningProbeTTLSec(v)
 	}
+	if _, ok := _c.mutation.GrokReasoningQuarantineSec(); !ok {
+		v := group.DefaultGrokReasoningQuarantineSec
+		_c.mutation.SetGrokReasoningQuarantineSec(v)
+	}
 	if _, ok := _c.mutation.RpmLimit(); !ok {
 		v := group.DefaultRpmLimit
 		_c.mutation.SetRpmLimit(v)
@@ -1083,6 +1143,18 @@ func (_c *GroupCreate) defaults() error {
 	if _, ok := _c.mutation.PromptPolicy(); !ok {
 		v := group.DefaultPromptPolicy
 		_c.mutation.SetPromptPolicy(v)
+	}
+	if _, ok := _c.mutation.ProfitControlEnabled(); !ok {
+		v := group.DefaultProfitControlEnabled
+		_c.mutation.SetProfitControlEnabled(v)
+	}
+	if _, ok := _c.mutation.ProfitMinMargin(); !ok {
+		v := group.DefaultProfitMinMargin
+		_c.mutation.SetProfitMinMargin(v)
+	}
+	if _, ok := _c.mutation.ProfitSafetyBuffer(); !ok {
+		v := group.DefaultProfitSafetyBuffer
+		_c.mutation.SetProfitSafetyBuffer(v)
 	}
 	return nil
 }
@@ -1247,6 +1319,9 @@ func (_c *GroupCreate) check() error {
 	if _, ok := _c.mutation.GrokReasoningProbeTTLSec(); !ok {
 		return &ValidationError{Name: "grok_reasoning_probe_ttl_sec", err: errors.New(`ent: missing required field "Group.grok_reasoning_probe_ttl_sec"`)}
 	}
+	if _, ok := _c.mutation.GrokReasoningQuarantineSec(); !ok {
+		return &ValidationError{Name: "grok_reasoning_quarantine_sec", err: errors.New(`ent: missing required field "Group.grok_reasoning_quarantine_sec"`)}
+	}
 	if _, ok := _c.mutation.RpmLimit(); !ok {
 		return &ValidationError{Name: "rpm_limit", err: errors.New(`ent: missing required field "Group.rpm_limit"`)}
 	}
@@ -1263,6 +1338,15 @@ func (_c *GroupCreate) check() error {
 	}
 	if _, ok := _c.mutation.PromptPolicy(); !ok {
 		return &ValidationError{Name: "prompt_policy", err: errors.New(`ent: missing required field "Group.prompt_policy"`)}
+	}
+	if _, ok := _c.mutation.ProfitControlEnabled(); !ok {
+		return &ValidationError{Name: "profit_control_enabled", err: errors.New(`ent: missing required field "Group.profit_control_enabled"`)}
+	}
+	if _, ok := _c.mutation.ProfitMinMargin(); !ok {
+		return &ValidationError{Name: "profit_min_margin", err: errors.New(`ent: missing required field "Group.profit_min_margin"`)}
+	}
+	if _, ok := _c.mutation.ProfitSafetyBuffer(); !ok {
+		return &ValidationError{Name: "profit_safety_buffer", err: errors.New(`ent: missing required field "Group.profit_safety_buffer"`)}
 	}
 	return nil
 }
@@ -1503,6 +1587,10 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 		_spec.SetField(group.FieldGrokReasoningProbeTTLSec, field.TypeInt, value)
 		_node.GrokReasoningProbeTTLSec = value
 	}
+	if value, ok := _c.mutation.GrokReasoningQuarantineSec(); ok {
+		_spec.SetField(group.FieldGrokReasoningQuarantineSec, field.TypeInt, value)
+		_node.GrokReasoningQuarantineSec = value
+	}
 	if value, ok := _c.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)
 		_node.RpmLimit = value
@@ -1518,6 +1606,18 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.PromptPolicy(); ok {
 		_spec.SetField(group.FieldPromptPolicy, field.TypeJSON, value)
 		_node.PromptPolicy = value
+	}
+	if value, ok := _c.mutation.ProfitControlEnabled(); ok {
+		_spec.SetField(group.FieldProfitControlEnabled, field.TypeBool, value)
+		_node.ProfitControlEnabled = value
+	}
+	if value, ok := _c.mutation.ProfitMinMargin(); ok {
+		_spec.SetField(group.FieldProfitMinMargin, field.TypeFloat64, value)
+		_node.ProfitMinMargin = value
+	}
+	if value, ok := _c.mutation.ProfitSafetyBuffer(); ok {
+		_spec.SetField(group.FieldProfitSafetyBuffer, field.TypeFloat64, value)
+		_node.ProfitSafetyBuffer = value
 	}
 	if nodes := _c.mutation.APIKeysIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -2515,6 +2615,24 @@ func (u *GroupUpsert) AddGrokReasoningProbeTTLSec(v int) *GroupUpsert {
 	return u
 }
 
+// SetGrokReasoningQuarantineSec sets the "grok_reasoning_quarantine_sec" field.
+func (u *GroupUpsert) SetGrokReasoningQuarantineSec(v int) *GroupUpsert {
+	u.Set(group.FieldGrokReasoningQuarantineSec, v)
+	return u
+}
+
+// UpdateGrokReasoningQuarantineSec sets the "grok_reasoning_quarantine_sec" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateGrokReasoningQuarantineSec() *GroupUpsert {
+	u.SetExcluded(group.FieldGrokReasoningQuarantineSec)
+	return u
+}
+
+// AddGrokReasoningQuarantineSec adds v to the "grok_reasoning_quarantine_sec" field.
+func (u *GroupUpsert) AddGrokReasoningQuarantineSec(v int) *GroupUpsert {
+	u.Add(group.FieldGrokReasoningQuarantineSec, v)
+	return u
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (u *GroupUpsert) SetRpmLimit(v int) *GroupUpsert {
 	u.Set(group.FieldRpmLimit, v)
@@ -2566,6 +2684,54 @@ func (u *GroupUpsert) SetPromptPolicy(v domain.GroupPromptPolicy) *GroupUpsert {
 // UpdatePromptPolicy sets the "prompt_policy" field to the value that was provided on create.
 func (u *GroupUpsert) UpdatePromptPolicy() *GroupUpsert {
 	u.SetExcluded(group.FieldPromptPolicy)
+	return u
+}
+
+// SetProfitControlEnabled sets the "profit_control_enabled" field.
+func (u *GroupUpsert) SetProfitControlEnabled(v bool) *GroupUpsert {
+	u.Set(group.FieldProfitControlEnabled, v)
+	return u
+}
+
+// UpdateProfitControlEnabled sets the "profit_control_enabled" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateProfitControlEnabled() *GroupUpsert {
+	u.SetExcluded(group.FieldProfitControlEnabled)
+	return u
+}
+
+// SetProfitMinMargin sets the "profit_min_margin" field.
+func (u *GroupUpsert) SetProfitMinMargin(v float64) *GroupUpsert {
+	u.Set(group.FieldProfitMinMargin, v)
+	return u
+}
+
+// UpdateProfitMinMargin sets the "profit_min_margin" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateProfitMinMargin() *GroupUpsert {
+	u.SetExcluded(group.FieldProfitMinMargin)
+	return u
+}
+
+// AddProfitMinMargin adds v to the "profit_min_margin" field.
+func (u *GroupUpsert) AddProfitMinMargin(v float64) *GroupUpsert {
+	u.Add(group.FieldProfitMinMargin, v)
+	return u
+}
+
+// SetProfitSafetyBuffer sets the "profit_safety_buffer" field.
+func (u *GroupUpsert) SetProfitSafetyBuffer(v float64) *GroupUpsert {
+	u.Set(group.FieldProfitSafetyBuffer, v)
+	return u
+}
+
+// UpdateProfitSafetyBuffer sets the "profit_safety_buffer" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateProfitSafetyBuffer() *GroupUpsert {
+	u.SetExcluded(group.FieldProfitSafetyBuffer)
+	return u
+}
+
+// AddProfitSafetyBuffer adds v to the "profit_safety_buffer" field.
+func (u *GroupUpsert) AddProfitSafetyBuffer(v float64) *GroupUpsert {
+	u.Add(group.FieldProfitSafetyBuffer, v)
 	return u
 }
 
@@ -3597,6 +3763,27 @@ func (u *GroupUpsertOne) UpdateGrokReasoningProbeTTLSec() *GroupUpsertOne {
 	})
 }
 
+// SetGrokReasoningQuarantineSec sets the "grok_reasoning_quarantine_sec" field.
+func (u *GroupUpsertOne) SetGrokReasoningQuarantineSec(v int) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetGrokReasoningQuarantineSec(v)
+	})
+}
+
+// AddGrokReasoningQuarantineSec adds v to the "grok_reasoning_quarantine_sec" field.
+func (u *GroupUpsertOne) AddGrokReasoningQuarantineSec(v int) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddGrokReasoningQuarantineSec(v)
+	})
+}
+
+// UpdateGrokReasoningQuarantineSec sets the "grok_reasoning_quarantine_sec" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateGrokReasoningQuarantineSec() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateGrokReasoningQuarantineSec()
+	})
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (u *GroupUpsertOne) SetRpmLimit(v int) *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
@@ -3657,6 +3844,62 @@ func (u *GroupUpsertOne) SetPromptPolicy(v domain.GroupPromptPolicy) *GroupUpser
 func (u *GroupUpsertOne) UpdatePromptPolicy() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdatePromptPolicy()
+	})
+}
+
+// SetProfitControlEnabled sets the "profit_control_enabled" field.
+func (u *GroupUpsertOne) SetProfitControlEnabled(v bool) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetProfitControlEnabled(v)
+	})
+}
+
+// UpdateProfitControlEnabled sets the "profit_control_enabled" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateProfitControlEnabled() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateProfitControlEnabled()
+	})
+}
+
+// SetProfitMinMargin sets the "profit_min_margin" field.
+func (u *GroupUpsertOne) SetProfitMinMargin(v float64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetProfitMinMargin(v)
+	})
+}
+
+// AddProfitMinMargin adds v to the "profit_min_margin" field.
+func (u *GroupUpsertOne) AddProfitMinMargin(v float64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddProfitMinMargin(v)
+	})
+}
+
+// UpdateProfitMinMargin sets the "profit_min_margin" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateProfitMinMargin() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateProfitMinMargin()
+	})
+}
+
+// SetProfitSafetyBuffer sets the "profit_safety_buffer" field.
+func (u *GroupUpsertOne) SetProfitSafetyBuffer(v float64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetProfitSafetyBuffer(v)
+	})
+}
+
+// AddProfitSafetyBuffer adds v to the "profit_safety_buffer" field.
+func (u *GroupUpsertOne) AddProfitSafetyBuffer(v float64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddProfitSafetyBuffer(v)
+	})
+}
+
+// UpdateProfitSafetyBuffer sets the "profit_safety_buffer" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateProfitSafetyBuffer() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateProfitSafetyBuffer()
 	})
 }
 
@@ -4854,6 +5097,27 @@ func (u *GroupUpsertBulk) UpdateGrokReasoningProbeTTLSec() *GroupUpsertBulk {
 	})
 }
 
+// SetGrokReasoningQuarantineSec sets the "grok_reasoning_quarantine_sec" field.
+func (u *GroupUpsertBulk) SetGrokReasoningQuarantineSec(v int) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetGrokReasoningQuarantineSec(v)
+	})
+}
+
+// AddGrokReasoningQuarantineSec adds v to the "grok_reasoning_quarantine_sec" field.
+func (u *GroupUpsertBulk) AddGrokReasoningQuarantineSec(v int) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddGrokReasoningQuarantineSec(v)
+	})
+}
+
+// UpdateGrokReasoningQuarantineSec sets the "grok_reasoning_quarantine_sec" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateGrokReasoningQuarantineSec() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateGrokReasoningQuarantineSec()
+	})
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (u *GroupUpsertBulk) SetRpmLimit(v int) *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
@@ -4914,6 +5178,62 @@ func (u *GroupUpsertBulk) SetPromptPolicy(v domain.GroupPromptPolicy) *GroupUpse
 func (u *GroupUpsertBulk) UpdatePromptPolicy() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdatePromptPolicy()
+	})
+}
+
+// SetProfitControlEnabled sets the "profit_control_enabled" field.
+func (u *GroupUpsertBulk) SetProfitControlEnabled(v bool) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetProfitControlEnabled(v)
+	})
+}
+
+// UpdateProfitControlEnabled sets the "profit_control_enabled" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateProfitControlEnabled() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateProfitControlEnabled()
+	})
+}
+
+// SetProfitMinMargin sets the "profit_min_margin" field.
+func (u *GroupUpsertBulk) SetProfitMinMargin(v float64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetProfitMinMargin(v)
+	})
+}
+
+// AddProfitMinMargin adds v to the "profit_min_margin" field.
+func (u *GroupUpsertBulk) AddProfitMinMargin(v float64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddProfitMinMargin(v)
+	})
+}
+
+// UpdateProfitMinMargin sets the "profit_min_margin" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateProfitMinMargin() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateProfitMinMargin()
+	})
+}
+
+// SetProfitSafetyBuffer sets the "profit_safety_buffer" field.
+func (u *GroupUpsertBulk) SetProfitSafetyBuffer(v float64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetProfitSafetyBuffer(v)
+	})
+}
+
+// AddProfitSafetyBuffer adds v to the "profit_safety_buffer" field.
+func (u *GroupUpsertBulk) AddProfitSafetyBuffer(v float64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddProfitSafetyBuffer(v)
+	})
+}
+
+// UpdateProfitSafetyBuffer sets the "profit_safety_buffer" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateProfitSafetyBuffer() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateProfitSafetyBuffer()
 	})
 }
 

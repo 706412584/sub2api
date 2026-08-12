@@ -118,6 +118,9 @@ type CreateGroupRequest struct {
 	PeakStart                       string   `json:"peak_start"`
 	PeakEnd                         string   `json:"peak_end"`
 	PeakRateMultiplier              *float64 `json:"peak_rate_multiplier"`
+	ProfitControlEnabled            bool     `json:"profit_control_enabled"`
+	ProfitMinMargin                 *float64 `json:"profit_min_margin"`
+	ProfitSafetyBuffer              *float64 `json:"profit_safety_buffer"`
 	ImagePrice1K                    *float64 `json:"image_price_1k"`
 	ImagePrice2K                    *float64 `json:"image_price_2k"`
 	ImagePrice4K                    *float64 `json:"image_price_4k"`
@@ -146,6 +149,10 @@ type CreateGroupRequest struct {
 	GrokMessagesProtocol        string                                    `json:"grok_messages_protocol"`
 	// Grok 思考明文可见性调度模式：inherit（跟随网关）/off/soft/enforce
 	GrokReasoningVisibilityMode string `json:"grok_reasoning_visibility_mode"`
+	// 分组级探测复用秒数：-1=继承网关，0=每次探测，N=缓存N秒
+	GrokReasoningProbeTTLSec int `json:"grok_reasoning_probe_ttl_sec"`
+	// 分组级 enforce 冷却：-1=继承，-2=暂停调度，0=仅本轮排除，N=冷却N秒
+	GrokReasoningQuarantineSec int `json:"grok_reasoning_quarantine_sec"`
 	// 分组 RPM 上限（0 = 不限制）
 	RPMLimit int `json:"rpm_limit"`
 	// OpenAI/Codex 请求推理强度上限，空字符串表示不限制。
@@ -183,6 +190,9 @@ type UpdateGroupRequest struct {
 	PeakStart                       *string  `json:"peak_start"`
 	PeakEnd                         *string  `json:"peak_end"`
 	PeakRateMultiplier              *float64 `json:"peak_rate_multiplier"`
+	ProfitControlEnabled            *bool    `json:"profit_control_enabled"`
+	ProfitMinMargin                 *float64 `json:"profit_min_margin"`
+	ProfitSafetyBuffer              *float64 `json:"profit_safety_buffer"`
 	ImagePrice1K                    *float64 `json:"image_price_1k"`
 	ImagePrice2K                    *float64 `json:"image_price_2k"`
 	ImagePrice4K                    *float64 `json:"image_price_4k"`
@@ -211,6 +221,10 @@ type UpdateGroupRequest struct {
 	GrokMessagesProtocol        *string                                    `json:"grok_messages_protocol"`
 	// Grok 思考明文可见性调度模式；nil 表示未提供不改动。
 	GrokReasoningVisibilityMode *string `json:"grok_reasoning_visibility_mode"`
+	// 分组级探测复用秒数；nil 表示未提供不改动。
+	GrokReasoningProbeTTLSec *int `json:"grok_reasoning_probe_ttl_sec"`
+	// 分组级 enforce 冷却；nil 表示未提供不改动。
+	GrokReasoningQuarantineSec *int `json:"grok_reasoning_quarantine_sec"`
 	// 分组 RPM 上限（0 = 不限制）；nil 表示未提供不改动
 	RPMLimit *int `json:"rpm_limit"`
 	// OpenAI/Codex 请求推理强度上限；空字符串清除，nil 不修改。
@@ -487,6 +501,13 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		return
 	}
 
+	// platform 是 omitempty：预校验必须用与 CreateGroup 落库一致的归一化平台，
+	// 否则省略 platform 的请求会被误判成「平台不支持利润控制」。
+	if err := service.ValidateProfitControlConfig(service.NormalizeGroupPlatform(req.Platform), req.ProfitControlEnabled, float64ValueOrDefault(req.ProfitMinMargin, 0), float64ValueOrDefault(req.ProfitSafetyBuffer, 0)); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
 	group, err := h.adminService.CreateGroup(c.Request.Context(), &service.CreateGroupInput{
 		Name:                            req.Name,
 		Description:                     req.Description,
@@ -509,6 +530,9 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		PeakStart:                       req.PeakStart,
 		PeakEnd:                         req.PeakEnd,
 		PeakRateMultiplier:              req.PeakRateMultiplier,
+		ProfitControlEnabled:            req.ProfitControlEnabled,
+		ProfitMinMargin:                 req.ProfitMinMargin,
+		ProfitSafetyBuffer:              req.ProfitSafetyBuffer,
 		ImagePrice1K:                    req.ImagePrice1K,
 		ImagePrice2K:                    req.ImagePrice2K,
 		ImagePrice4K:                    req.ImagePrice4K,
@@ -533,6 +557,8 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		ModelsListConfig:                req.ModelsListConfig,
 		GrokMessagesProtocol:            req.GrokMessagesProtocol,
 		GrokReasoningVisibilityMode:     req.GrokReasoningVisibilityMode,
+		GrokReasoningProbeTTLSec:        req.GrokReasoningProbeTTLSec,
+		GrokReasoningQuarantineSec:      req.GrokReasoningQuarantineSec,
 		RPMLimit:                        req.RPMLimit,
 		MaxReasoningEffort:              req.MaxReasoningEffort,
 		ReasoningEffortMappings:         req.ReasoningEffortMappings,
@@ -632,6 +658,9 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		PeakStart:                       req.PeakStart,
 		PeakEnd:                         req.PeakEnd,
 		PeakRateMultiplier:              req.PeakRateMultiplier,
+		ProfitControlEnabled:            req.ProfitControlEnabled,
+		ProfitMinMargin:                 req.ProfitMinMargin,
+		ProfitSafetyBuffer:              req.ProfitSafetyBuffer,
 		ImagePrice1K:                    req.ImagePrice1K,
 		ImagePrice2K:                    req.ImagePrice2K,
 		ImagePrice4K:                    req.ImagePrice4K,
@@ -656,6 +685,8 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		ModelsListConfig:                req.ModelsListConfig,
 		GrokMessagesProtocol:            req.GrokMessagesProtocol,
 		GrokReasoningVisibilityMode:     req.GrokReasoningVisibilityMode,
+		GrokReasoningProbeTTLSec:        req.GrokReasoningProbeTTLSec,
+		GrokReasoningQuarantineSec:      req.GrokReasoningQuarantineSec,
 		RPMLimit:                        req.RPMLimit,
 		MaxReasoningEffort:              req.MaxReasoningEffort,
 		ReasoningEffortMappings:         req.ReasoningEffortMappings,

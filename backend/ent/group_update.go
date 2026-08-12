@@ -982,6 +982,27 @@ func (_u *GroupUpdate) AddGrokReasoningProbeTTLSec(v int) *GroupUpdate {
 	return _u
 }
 
+// SetGrokReasoningQuarantineSec sets the "grok_reasoning_quarantine_sec" field.
+func (_u *GroupUpdate) SetGrokReasoningQuarantineSec(v int) *GroupUpdate {
+	_u.mutation.ResetGrokReasoningQuarantineSec()
+	_u.mutation.SetGrokReasoningQuarantineSec(v)
+	return _u
+}
+
+// SetNillableGrokReasoningQuarantineSec sets the "grok_reasoning_quarantine_sec" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableGrokReasoningQuarantineSec(v *int) *GroupUpdate {
+	if v != nil {
+		_u.SetGrokReasoningQuarantineSec(*v)
+	}
+	return _u
+}
+
+// AddGrokReasoningQuarantineSec adds value to the "grok_reasoning_quarantine_sec" field.
+func (_u *GroupUpdate) AddGrokReasoningQuarantineSec(v int) *GroupUpdate {
+	_u.mutation.AddGrokReasoningQuarantineSec(v)
+	return _u
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_u *GroupUpdate) SetRpmLimit(v int) *GroupUpdate {
 	_u.mutation.ResetRpmLimit()
@@ -1040,6 +1061,62 @@ func (_u *GroupUpdate) SetNillablePromptPolicy(v *domain.GroupPromptPolicy) *Gro
 	if v != nil {
 		_u.SetPromptPolicy(*v)
 	}
+	return _u
+}
+
+// SetProfitControlEnabled sets the "profit_control_enabled" field.
+func (_u *GroupUpdate) SetProfitControlEnabled(v bool) *GroupUpdate {
+	_u.mutation.SetProfitControlEnabled(v)
+	return _u
+}
+
+// SetNillableProfitControlEnabled sets the "profit_control_enabled" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableProfitControlEnabled(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetProfitControlEnabled(*v)
+	}
+	return _u
+}
+
+// SetProfitMinMargin sets the "profit_min_margin" field.
+func (_u *GroupUpdate) SetProfitMinMargin(v float64) *GroupUpdate {
+	_u.mutation.ResetProfitMinMargin()
+	_u.mutation.SetProfitMinMargin(v)
+	return _u
+}
+
+// SetNillableProfitMinMargin sets the "profit_min_margin" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableProfitMinMargin(v *float64) *GroupUpdate {
+	if v != nil {
+		_u.SetProfitMinMargin(*v)
+	}
+	return _u
+}
+
+// AddProfitMinMargin adds value to the "profit_min_margin" field.
+func (_u *GroupUpdate) AddProfitMinMargin(v float64) *GroupUpdate {
+	_u.mutation.AddProfitMinMargin(v)
+	return _u
+}
+
+// SetProfitSafetyBuffer sets the "profit_safety_buffer" field.
+func (_u *GroupUpdate) SetProfitSafetyBuffer(v float64) *GroupUpdate {
+	_u.mutation.ResetProfitSafetyBuffer()
+	_u.mutation.SetProfitSafetyBuffer(v)
+	return _u
+}
+
+// SetNillableProfitSafetyBuffer sets the "profit_safety_buffer" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableProfitSafetyBuffer(v *float64) *GroupUpdate {
+	if v != nil {
+		_u.SetProfitSafetyBuffer(*v)
+	}
+	return _u
+}
+
+// AddProfitSafetyBuffer adds value to the "profit_safety_buffer" field.
+func (_u *GroupUpdate) AddProfitSafetyBuffer(v float64) *GroupUpdate {
+	_u.mutation.AddProfitSafetyBuffer(v)
 	return _u
 }
 
@@ -1648,6 +1725,12 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AddedGrokReasoningProbeTTLSec(); ok {
 		_spec.AddField(group.FieldGrokReasoningProbeTTLSec, field.TypeInt, value)
 	}
+	if value, ok := _u.mutation.GrokReasoningQuarantineSec(); ok {
+		_spec.SetField(group.FieldGrokReasoningQuarantineSec, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedGrokReasoningQuarantineSec(); ok {
+		_spec.AddField(group.FieldGrokReasoningQuarantineSec, field.TypeInt, value)
+	}
 	if value, ok := _u.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)
 	}
@@ -1667,6 +1750,21 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.PromptPolicy(); ok {
 		_spec.SetField(group.FieldPromptPolicy, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.ProfitControlEnabled(); ok {
+		_spec.SetField(group.FieldProfitControlEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.ProfitMinMargin(); ok {
+		_spec.SetField(group.FieldProfitMinMargin, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedProfitMinMargin(); ok {
+		_spec.AddField(group.FieldProfitMinMargin, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.ProfitSafetyBuffer(); ok {
+		_spec.SetField(group.FieldProfitSafetyBuffer, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedProfitSafetyBuffer(); ok {
+		_spec.AddField(group.FieldProfitSafetyBuffer, field.TypeFloat64, value)
 	}
 	if _u.mutation.APIKeysCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -2928,6 +3026,27 @@ func (_u *GroupUpdateOne) AddGrokReasoningProbeTTLSec(v int) *GroupUpdateOne {
 	return _u
 }
 
+// SetGrokReasoningQuarantineSec sets the "grok_reasoning_quarantine_sec" field.
+func (_u *GroupUpdateOne) SetGrokReasoningQuarantineSec(v int) *GroupUpdateOne {
+	_u.mutation.ResetGrokReasoningQuarantineSec()
+	_u.mutation.SetGrokReasoningQuarantineSec(v)
+	return _u
+}
+
+// SetNillableGrokReasoningQuarantineSec sets the "grok_reasoning_quarantine_sec" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableGrokReasoningQuarantineSec(v *int) *GroupUpdateOne {
+	if v != nil {
+		_u.SetGrokReasoningQuarantineSec(*v)
+	}
+	return _u
+}
+
+// AddGrokReasoningQuarantineSec adds value to the "grok_reasoning_quarantine_sec" field.
+func (_u *GroupUpdateOne) AddGrokReasoningQuarantineSec(v int) *GroupUpdateOne {
+	_u.mutation.AddGrokReasoningQuarantineSec(v)
+	return _u
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_u *GroupUpdateOne) SetRpmLimit(v int) *GroupUpdateOne {
 	_u.mutation.ResetRpmLimit()
@@ -2986,6 +3105,62 @@ func (_u *GroupUpdateOne) SetNillablePromptPolicy(v *domain.GroupPromptPolicy) *
 	if v != nil {
 		_u.SetPromptPolicy(*v)
 	}
+	return _u
+}
+
+// SetProfitControlEnabled sets the "profit_control_enabled" field.
+func (_u *GroupUpdateOne) SetProfitControlEnabled(v bool) *GroupUpdateOne {
+	_u.mutation.SetProfitControlEnabled(v)
+	return _u
+}
+
+// SetNillableProfitControlEnabled sets the "profit_control_enabled" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableProfitControlEnabled(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetProfitControlEnabled(*v)
+	}
+	return _u
+}
+
+// SetProfitMinMargin sets the "profit_min_margin" field.
+func (_u *GroupUpdateOne) SetProfitMinMargin(v float64) *GroupUpdateOne {
+	_u.mutation.ResetProfitMinMargin()
+	_u.mutation.SetProfitMinMargin(v)
+	return _u
+}
+
+// SetNillableProfitMinMargin sets the "profit_min_margin" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableProfitMinMargin(v *float64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetProfitMinMargin(*v)
+	}
+	return _u
+}
+
+// AddProfitMinMargin adds value to the "profit_min_margin" field.
+func (_u *GroupUpdateOne) AddProfitMinMargin(v float64) *GroupUpdateOne {
+	_u.mutation.AddProfitMinMargin(v)
+	return _u
+}
+
+// SetProfitSafetyBuffer sets the "profit_safety_buffer" field.
+func (_u *GroupUpdateOne) SetProfitSafetyBuffer(v float64) *GroupUpdateOne {
+	_u.mutation.ResetProfitSafetyBuffer()
+	_u.mutation.SetProfitSafetyBuffer(v)
+	return _u
+}
+
+// SetNillableProfitSafetyBuffer sets the "profit_safety_buffer" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableProfitSafetyBuffer(v *float64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetProfitSafetyBuffer(*v)
+	}
+	return _u
+}
+
+// AddProfitSafetyBuffer adds value to the "profit_safety_buffer" field.
+func (_u *GroupUpdateOne) AddProfitSafetyBuffer(v float64) *GroupUpdateOne {
+	_u.mutation.AddProfitSafetyBuffer(v)
 	return _u
 }
 
@@ -3624,6 +3799,12 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	if value, ok := _u.mutation.AddedGrokReasoningProbeTTLSec(); ok {
 		_spec.AddField(group.FieldGrokReasoningProbeTTLSec, field.TypeInt, value)
 	}
+	if value, ok := _u.mutation.GrokReasoningQuarantineSec(); ok {
+		_spec.SetField(group.FieldGrokReasoningQuarantineSec, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedGrokReasoningQuarantineSec(); ok {
+		_spec.AddField(group.FieldGrokReasoningQuarantineSec, field.TypeInt, value)
+	}
 	if value, ok := _u.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)
 	}
@@ -3643,6 +3824,21 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if value, ok := _u.mutation.PromptPolicy(); ok {
 		_spec.SetField(group.FieldPromptPolicy, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.ProfitControlEnabled(); ok {
+		_spec.SetField(group.FieldProfitControlEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.ProfitMinMargin(); ok {
+		_spec.SetField(group.FieldProfitMinMargin, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedProfitMinMargin(); ok {
+		_spec.AddField(group.FieldProfitMinMargin, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.ProfitSafetyBuffer(); ok {
+		_spec.SetField(group.FieldProfitSafetyBuffer, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedProfitSafetyBuffer(); ok {
+		_spec.AddField(group.FieldProfitSafetyBuffer, field.TypeFloat64, value)
 	}
 	if _u.mutation.APIKeysCleared() {
 		edge := &sqlgraph.EdgeSpec{

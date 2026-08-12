@@ -101,6 +101,9 @@ func cloneGroupForDuplicate(source *Group, operationID string) *Group {
 		PeakStart:                       source.PeakStart,
 		PeakEnd:                         source.PeakEnd,
 		PeakRateMultiplier:              source.PeakRateMultiplier,
+		ProfitControlEnabled:            source.ProfitControlEnabled,
+		ProfitMinMargin:                 source.ProfitMinMargin,
+		ProfitSafetyBuffer:              source.ProfitSafetyBuffer,
 		IsExclusive:                     source.IsExclusive,
 		Status:                          duplicateGroupInactiveStatus,
 		DuplicateOperationID:            operationID,
@@ -140,6 +143,8 @@ func cloneGroupForDuplicate(source *Group, operationID string) *Group {
 		MessagesDispatchModelConfig:     cloneGroupMessagesDispatchModelConfig(source.MessagesDispatchModelConfig),
 		GrokMessagesProtocol:            source.GrokMessagesProtocol,
 		GrokReasoningVisibilityMode:     source.GrokReasoningVisibilityMode,
+		GrokReasoningProbeTTLSec:        source.GrokReasoningProbeTTLSec,
+		GrokReasoningQuarantineSec:      source.GrokReasoningQuarantineSec,
 		ModelsListConfig: GroupModelsListConfig{
 			Enabled: source.ModelsListConfig.Enabled,
 			Models:  append([]string(nil), source.ModelsListConfig.Models...),

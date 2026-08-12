@@ -456,6 +456,87 @@ func (s *SettingService) GetTurnstileSecretKey(ctx context.Context) string {
 	return value
 }
 
+// TencentCaptchaConfig contains the credentials required by Tencent Cloud's
+// ticket verification API. It must never be returned by a public handler.
+type TencentCaptchaConfig struct {
+	Enabled        bool
+	AppID          string
+	AppSecretKey   string
+	CloudSecretID  string
+	CloudSecretKey string
+	Region         string
+}
+
+// AliyunCaptchaConfig contains the credentials required by Aliyun Captcha 2.0's
+// server-side verification API. It must never be returned by a public handler.
+type AliyunCaptchaConfig struct {
+	Enabled         bool
+	AccessKeyID     string
+	AccessKeySecret string
+	SceneID         string
+	Region          string
+}
+
+type CaptchaProviderConfig struct {
+	TurnstileEnabled   bool
+	TurnstileSecretKey string
+	Tencent            TencentCaptchaConfig
+	Aliyun             AliyunCaptchaConfig
+}
+
+func (s *SettingService) GetCaptchaProviderConfig(ctx context.Context) (CaptchaProviderConfig, error) {
+	values, err := s.settingRepo.GetMultiple(ctx, []string{
+		SettingKeyTurnstileEnabled,
+		SettingKeyTurnstileSecretKey,
+		SettingKeyTencentCaptchaEnabled,
+		SettingKeyTencentCaptchaAppID,
+		SettingKeyTencentCaptchaAppSecretKey,
+		SettingKeyTencentCaptchaCloudSecretID,
+		SettingKeyTencentCaptchaCloudSecretKey,
+		SettingKeyTencentCaptchaRegion,
+		SettingKeyAliyunCaptchaEnabled,
+		SettingKeyAliyunCaptchaAccessKeyID,
+		SettingKeyAliyunCaptchaAccessKeySecret,
+		SettingKeyAliyunCaptchaSceneID,
+		SettingKeyAliyunCaptchaRegion,
+	})
+	if err != nil {
+		return CaptchaProviderConfig{}, fmt.Errorf("read captcha provider settings: %w", err)
+	}
+	return CaptchaProviderConfig{
+		TurnstileEnabled:   values[SettingKeyTurnstileEnabled] == "true",
+		TurnstileSecretKey: values[SettingKeyTurnstileSecretKey],
+		Tencent: TencentCaptchaConfig{
+			Enabled:        values[SettingKeyTencentCaptchaEnabled] == "true",
+			AppID:          values[SettingKeyTencentCaptchaAppID],
+			AppSecretKey:   values[SettingKeyTencentCaptchaAppSecretKey],
+			CloudSecretID:  values[SettingKeyTencentCaptchaCloudSecretID],
+			CloudSecretKey: values[SettingKeyTencentCaptchaCloudSecretKey],
+			Region:         normalizeTencentCaptchaRegion(values[SettingKeyTencentCaptchaRegion]),
+		},
+		Aliyun: AliyunCaptchaConfig{
+			Enabled:         values[SettingKeyAliyunCaptchaEnabled] == "true",
+			AccessKeyID:     values[SettingKeyAliyunCaptchaAccessKeyID],
+			AccessKeySecret: values[SettingKeyAliyunCaptchaAccessKeySecret],
+			SceneID:         values[SettingKeyAliyunCaptchaSceneID],
+			Region:          normalizeAliyunCaptchaRegion(values[SettingKeyAliyunCaptchaRegion]),
+		},
+	}, nil
+}
+
+func (s *SettingService) IsTencentCaptchaEnabled(ctx context.Context) bool {
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyTencentCaptchaEnabled)
+	return err == nil && value == "true"
+}
+
+func (s *SettingService) GetTencentCaptchaConfig(ctx context.Context) TencentCaptchaConfig {
+	config, err := s.GetCaptchaProviderConfig(ctx)
+	if err != nil {
+		return TencentCaptchaConfig{}
+	}
+	return config.Tencent
+}
+
 // IsIdentityPatchEnabled 检查是否启用身份补丁（Claude -> Gemini systemInstruction 注入）
 func (s *SettingService) IsIdentityPatchEnabled(ctx context.Context) bool {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyEnableIdentityPatch)
@@ -1263,11 +1344,22 @@ func (s *SettingService) GetGrokReasoningVisibilitySettings(ctx context.Context)
 		return DefaultGrokReasoningVisibilitySettings(), nil
 	}
 
-	var settings GrokReasoningVisibilitySettings
-	if err := json.Unmarshal([]byte(value), &settings); err != nil {
+	// quarantine_sec 用指针区分“旧配置缺省”与“显式 0=仅本轮排除”。
+	var raw struct {
+		Mode                 string `json:"mode"`
+		ProbeTTLSec          int    `json:"probe_ttl_sec"`
+		QuarantineSec        *int   `json:"quarantine_sec"`
+		ProbeAccountFallback bool   `json:"probe_account_fallback"`
+	}
+	if err := json.Unmarshal([]byte(value), &raw); err != nil {
 		return DefaultGrokReasoningVisibilitySettings(), nil
 	}
 
+	settings := GrokReasoningVisibilitySettings{
+		Mode:                 raw.Mode,
+		ProbeTTLSec:          raw.ProbeTTLSec,
+		ProbeAccountFallback: raw.ProbeAccountFallback,
+	}
 	// inherit 在网关级没有上层可继承，归一化为 off 保持现状行为。
 	settings.Mode = NormalizeGrokReasoningVisibilityMode(settings.Mode)
 	if settings.Mode == GrokReasoningVisibilityModeInherit {
@@ -1278,6 +1370,18 @@ func (s *SettingService) GetGrokReasoningVisibilitySettings(ctx context.Context)
 	}
 	if settings.ProbeTTLSec > GrokReasoningVisibilityProbeTTLMaxSec {
 		settings.ProbeTTLSec = GrokReasoningVisibilityProbeTTLMaxSec
+	}
+	// 兼容旧 JSON：缺省 quarantine_sec 时回落默认 120，保持历史 2 分钟冷却。
+	if raw.QuarantineSec == nil {
+		settings.QuarantineSec = GrokReasoningVisibilityQuarantineDefaultSec
+	} else {
+		settings.QuarantineSec = *raw.QuarantineSec
+		if settings.QuarantineSec < 0 {
+			settings.QuarantineSec = GrokReasoningVisibilityQuarantineDefaultSec
+		}
+	}
+	if settings.QuarantineSec > GrokReasoningVisibilityQuarantineMaxSec {
+		settings.QuarantineSec = GrokReasoningVisibilityQuarantineMaxSec
 	}
 
 	return &settings, nil
@@ -1297,6 +1401,9 @@ func (s *SettingService) SetGrokReasoningVisibilitySettings(ctx context.Context,
 	}
 	if settings.ProbeTTLSec < 0 || settings.ProbeTTLSec > GrokReasoningVisibilityProbeTTLMaxSec {
 		return fmt.Errorf("probe_ttl_sec must be between 0-%d", GrokReasoningVisibilityProbeTTLMaxSec)
+	}
+	if settings.QuarantineSec < 0 || settings.QuarantineSec > GrokReasoningVisibilityQuarantineMaxSec {
+		return fmt.Errorf("quarantine_sec must be between 0-%d", GrokReasoningVisibilityQuarantineMaxSec)
 	}
 
 	data, err := json.Marshal(settings)

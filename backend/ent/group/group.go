@@ -122,6 +122,8 @@ const (
 	FieldGrokReasoningVisibilityMode = "grok_reasoning_visibility_mode"
 	// FieldGrokReasoningProbeTTLSec holds the string denoting the grok_reasoning_probe_ttl_sec field in the database.
 	FieldGrokReasoningProbeTTLSec = "grok_reasoning_probe_ttl_sec"
+	// FieldGrokReasoningQuarantineSec holds the string denoting the grok_reasoning_quarantine_sec field in the database.
+	FieldGrokReasoningQuarantineSec = "grok_reasoning_quarantine_sec"
 	// FieldRpmLimit holds the string denoting the rpm_limit field in the database.
 	FieldRpmLimit = "rpm_limit"
 	// FieldMaxReasoningEffort holds the string denoting the max_reasoning_effort field in the database.
@@ -130,6 +132,12 @@ const (
 	FieldReasoningEffortMappings = "reasoning_effort_mappings"
 	// FieldPromptPolicy holds the string denoting the prompt_policy field in the database.
 	FieldPromptPolicy = "prompt_policy"
+	// FieldProfitControlEnabled holds the string denoting the profit_control_enabled field in the database.
+	FieldProfitControlEnabled = "profit_control_enabled"
+	// FieldProfitMinMargin holds the string denoting the profit_min_margin field in the database.
+	FieldProfitMinMargin = "profit_min_margin"
+	// FieldProfitSafetyBuffer holds the string denoting the profit_safety_buffer field in the database.
+	FieldProfitSafetyBuffer = "profit_safety_buffer"
 	// EdgeAPIKeys holds the string denoting the api_keys edge name in mutations.
 	EdgeAPIKeys = "api_keys"
 	// EdgeRedeemCodes holds the string denoting the redeem_codes edge name in mutations.
@@ -258,10 +266,14 @@ var Columns = []string{
 	FieldGrokMessagesProtocol,
 	FieldGrokReasoningVisibilityMode,
 	FieldGrokReasoningProbeTTLSec,
+	FieldGrokReasoningQuarantineSec,
 	FieldRpmLimit,
 	FieldMaxReasoningEffort,
 	FieldReasoningEffortMappings,
 	FieldPromptPolicy,
+	FieldProfitControlEnabled,
+	FieldProfitMinMargin,
+	FieldProfitSafetyBuffer,
 }
 
 var (
@@ -383,6 +395,8 @@ var (
 	GrokReasoningVisibilityModeValidator func(string) error
 	// DefaultGrokReasoningProbeTTLSec holds the default value on creation for the "grok_reasoning_probe_ttl_sec" field.
 	DefaultGrokReasoningProbeTTLSec int
+	// DefaultGrokReasoningQuarantineSec holds the default value on creation for the "grok_reasoning_quarantine_sec" field.
+	DefaultGrokReasoningQuarantineSec int
 	// DefaultRpmLimit holds the default value on creation for the "rpm_limit" field.
 	DefaultRpmLimit int
 	// DefaultMaxReasoningEffort holds the default value on creation for the "max_reasoning_effort" field.
@@ -393,6 +407,12 @@ var (
 	DefaultReasoningEffortMappings []domain.ReasoningEffortMapping
 	// DefaultPromptPolicy holds the default value on creation for the "prompt_policy" field.
 	DefaultPromptPolicy domain.GroupPromptPolicy
+	// DefaultProfitControlEnabled holds the default value on creation for the "profit_control_enabled" field.
+	DefaultProfitControlEnabled bool
+	// DefaultProfitMinMargin holds the default value on creation for the "profit_min_margin" field.
+	DefaultProfitMinMargin float64
+	// DefaultProfitSafetyBuffer holds the default value on creation for the "profit_safety_buffer" field.
+	DefaultProfitSafetyBuffer float64
 )
 
 // OrderOption defines the ordering options for the Group queries.
@@ -648,6 +668,11 @@ func ByGrokReasoningProbeTTLSec(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldGrokReasoningProbeTTLSec, opts...).ToFunc()
 }
 
+// ByGrokReasoningQuarantineSec orders the results by the grok_reasoning_quarantine_sec field.
+func ByGrokReasoningQuarantineSec(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldGrokReasoningQuarantineSec, opts...).ToFunc()
+}
+
 // ByRpmLimit orders the results by the rpm_limit field.
 func ByRpmLimit(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRpmLimit, opts...).ToFunc()
@@ -656,6 +681,21 @@ func ByRpmLimit(opts ...sql.OrderTermOption) OrderOption {
 // ByMaxReasoningEffort orders the results by the max_reasoning_effort field.
 func ByMaxReasoningEffort(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldMaxReasoningEffort, opts...).ToFunc()
+}
+
+// ByProfitControlEnabled orders the results by the profit_control_enabled field.
+func ByProfitControlEnabled(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldProfitControlEnabled, opts...).ToFunc()
+}
+
+// ByProfitMinMargin orders the results by the profit_min_margin field.
+func ByProfitMinMargin(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldProfitMinMargin, opts...).ToFunc()
+}
+
+// ByProfitSafetyBuffer orders the results by the profit_safety_buffer field.
+func ByProfitSafetyBuffer(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldProfitSafetyBuffer, opts...).ToFunc()
 }
 
 // ByAPIKeysCount orders the results by api_keys count.

@@ -92,6 +92,64 @@ func TestResolveGrokReasoningVisibilityConfig(t *testing.T) {
 		cfg := svc.resolveGrokReasoningVisibilityConfig(ctxWithGroup, &groupID)
 		require.Equal(t, 120, cfg.ProbeTTLSec)
 	})
+	t.Run("legacy gateway json defaults quarantine to 120", func(t *testing.T) {
+		settingSvc := NewSettingService(&settingRepoStub{
+			values: map[string]string{
+				SettingKeyGrokReasoningVisibility: `{"mode":"enforce","probe_ttl_sec":60}`,
+			},
+		}, &config.Config{})
+		svc := &OpenAIGatewayService{settingService: settingSvc}
+		cfg := svc.resolveGrokReasoningVisibilityConfig(ctx, nil)
+		require.Equal(t, GrokReasoningVisibilityQuarantineDefaultSec, cfg.QuarantineSec)
+	})
+
+	t.Run("gateway quarantine propagates", func(t *testing.T) {
+		settingSvc := NewSettingService(&settingRepoStub{
+			values: map[string]string{
+				SettingKeyGrokReasoningVisibility: `{"mode":"enforce","probe_ttl_sec":0,"quarantine_sec":30}`,
+			},
+		}, &config.Config{})
+		svc := &OpenAIGatewayService{settingService: settingSvc}
+		cfg := svc.resolveGrokReasoningVisibilityConfig(ctx, nil)
+		require.Equal(t, 30, cfg.QuarantineSec)
+	})
+
+	t.Run("group quarantine -1 inherits gateway", func(t *testing.T) {
+		settingSvc := NewSettingService(&settingRepoStub{
+			values: map[string]string{
+				SettingKeyGrokReasoningVisibility: `{"mode":"enforce","quarantine_sec":90}`,
+			},
+		}, &config.Config{})
+		svc := &OpenAIGatewayService{settingService: settingSvc}
+		groupID := int64(1)
+		group := &Group{
+			ID:                          groupID,
+			Platform:                    PlatformGrok,
+			GrokReasoningVisibilityMode: "enforce",
+			GrokReasoningQuarantineSec:  -1,
+		}
+		cfg := svc.resolveGrokReasoningVisibilityConfig(context.WithValue(ctx, ctxkey.Group, group), &groupID)
+		require.Equal(t, 90, cfg.QuarantineSec)
+	})
+
+	t.Run("group quarantine 0 and -2 override", func(t *testing.T) {
+		settingSvc := NewSettingService(&settingRepoStub{
+			values: map[string]string{
+				SettingKeyGrokReasoningVisibility: `{"mode":"enforce","quarantine_sec":120}`,
+			},
+		}, &config.Config{})
+		svc := &OpenAIGatewayService{settingService: settingSvc}
+		groupID := int64(1)
+
+		zeroGroup := &Group{ID: groupID, Platform: PlatformGrok, GrokReasoningQuarantineSec: 0}
+		cfg := svc.resolveGrokReasoningVisibilityConfig(context.WithValue(ctx, ctxkey.Group, zeroGroup), &groupID)
+		require.Equal(t, 0, cfg.QuarantineSec)
+
+		pauseGroup := &Group{ID: groupID, Platform: PlatformGrok, GrokReasoningQuarantineSec: GrokReasoningQuarantinePauseSchedulable}
+		cfg = svc.resolveGrokReasoningVisibilityConfig(context.WithValue(ctx, ctxkey.Group, pauseGroup), &groupID)
+		require.Equal(t, GrokReasoningQuarantinePauseSchedulable, cfg.QuarantineSec)
+	})
+
 }
 
 func TestRejectGrokAccountByReasoning_MarkStore(t *testing.T) {
@@ -240,5 +298,104 @@ func TestResolveAccountProbeProxyID(t *testing.T) {
 
 	t.Run("nil account returns 0", func(t *testing.T) {
 		require.Equal(t, int64(0), svc.resolveAccountProbeProxyID(nil))
+	})
+}
+
+// quarantineAccountRepoStub records pause / temp-unsched writes for apply tests.
+type quarantineAccountRepoStub struct {
+	AccountRepository
+	pausedIDs []int64
+	tempCalls []struct {
+		id     int64
+		until  time.Time
+		reason string
+	}
+}
+
+func (r *quarantineAccountRepoStub) SetSchedulable(_ context.Context, id int64, schedulable bool) error {
+	if !schedulable {
+		r.pausedIDs = append(r.pausedIDs, id)
+	}
+	return nil
+}
+
+func (r *quarantineAccountRepoStub) SetTempUnschedulable(_ context.Context, id int64, until time.Time, reason string) error {
+	r.tempCalls = append(r.tempCalls, struct {
+		id     int64
+		until  time.Time
+		reason string
+	}{id: id, until: until, reason: reason})
+	return nil
+}
+
+func TestApplyGrokReasoningVisibilityQuarantine(t *testing.T) {
+	ctx := context.Background()
+	decision := GrokReasoningVisibilityDecision{Status: GrokReasoningProbeStatusEncryptedOnly}
+	groupID := int64(7)
+
+	t.Run("N seconds writes temp unschedulable", func(t *testing.T) {
+		repo := &quarantineAccountRepoStub{}
+		settingSvc := NewSettingService(&settingRepoStub{
+			values: map[string]string{
+				SettingKeyGrokReasoningVisibility: `{"mode":"enforce","quarantine_sec":45}`,
+			},
+		}, &config.Config{})
+		svc := &OpenAIGatewayService{settingService: settingSvc, accountRepo: repo}
+		before := time.Now()
+		svc.applyGrokReasoningVisibilityQuarantine(ctx, 42, decision, GrokReasoningVisibilityModeEnforce, nil)
+		require.Len(t, repo.tempCalls, 1)
+		require.Empty(t, repo.pausedIDs)
+		require.Equal(t, int64(42), repo.tempCalls[0].id)
+		require.True(t, repo.tempCalls[0].until.After(before.Add(40*time.Second)))
+		require.True(t, repo.tempCalls[0].until.Before(before.Add(50*time.Second)))
+	})
+
+	t.Run("0 skips temp unschedulable", func(t *testing.T) {
+		repo := &quarantineAccountRepoStub{}
+		settingSvc := NewSettingService(&settingRepoStub{
+			values: map[string]string{
+				SettingKeyGrokReasoningVisibility: `{"mode":"enforce","quarantine_sec":120}`,
+			},
+		}, &config.Config{})
+		svc := &OpenAIGatewayService{settingService: settingSvc, accountRepo: repo}
+		gctx := context.WithValue(ctx, ctxkey.Group, &Group{
+			ID: groupID, Platform: PlatformGrok,
+			GrokReasoningVisibilityMode: "enforce",
+			GrokReasoningQuarantineSec:  0,
+		})
+		svc.applyGrokReasoningVisibilityQuarantine(gctx, 42, decision, GrokReasoningVisibilityModeEnforce, &groupID)
+		require.Empty(t, repo.tempCalls)
+		require.Empty(t, repo.pausedIDs)
+	})
+
+	t.Run("-2 pauses scheduling", func(t *testing.T) {
+		repo := &quarantineAccountRepoStub{}
+		settingSvc := NewSettingService(&settingRepoStub{
+			values: map[string]string{
+				SettingKeyGrokReasoningVisibility: `{"mode":"enforce","quarantine_sec":120}`,
+			},
+		}, &config.Config{})
+		svc := &OpenAIGatewayService{settingService: settingSvc, accountRepo: repo}
+		gctx := context.WithValue(ctx, ctxkey.Group, &Group{
+			ID: groupID, Platform: PlatformGrok,
+			GrokReasoningVisibilityMode: "enforce",
+			GrokReasoningQuarantineSec:  GrokReasoningQuarantinePauseSchedulable,
+		})
+		svc.applyGrokReasoningVisibilityQuarantine(gctx, 99, decision, GrokReasoningVisibilityModeEnforce, &groupID)
+		require.Empty(t, repo.tempCalls)
+		require.Equal(t, []int64{99}, repo.pausedIDs)
+	})
+
+	t.Run("soft mode without quarantine until is no-op", func(t *testing.T) {
+		repo := &quarantineAccountRepoStub{}
+		settingSvc := NewSettingService(&settingRepoStub{
+			values: map[string]string{
+				SettingKeyGrokReasoningVisibility: `{"mode":"soft","quarantine_sec":120}`,
+			},
+		}, &config.Config{})
+		svc := &OpenAIGatewayService{settingService: settingSvc, accountRepo: repo}
+		svc.applyGrokReasoningVisibilityQuarantine(ctx, 42, decision, GrokReasoningVisibilityModeSoft, nil)
+		require.Empty(t, repo.tempCalls)
+		require.Empty(t, repo.pausedIDs)
 	})
 }

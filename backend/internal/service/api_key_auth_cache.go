@@ -101,7 +101,8 @@ type APIKeyAuthGroupSnapshot struct {
 	GrokMessagesProtocol        string                            `json:"grok_messages_protocol,omitempty"`
 	// GrokReasoningVisibilityMode gates Grok scheduling on visible reasoning marks.
 	GrokReasoningVisibilityMode string `json:"grok_reasoning_visibility_mode,omitempty"`
-	GrokReasoningProbeTTLSec        int                                      `json:"grok_reasoning_probe_ttl_sec,omitempty"`
+	GrokReasoningProbeTTLSec    int    `json:"grok_reasoning_probe_ttl_sec,omitempty"`
+	GrokReasoningQuarantineSec  int    `json:"grok_reasoning_quarantine_sec,omitempty"`
 
 	// RPMLimit 分组级每分钟请求数上限（0 = 不限制）；用于 billing_cache_service.checkRPM 级联判断。
 	RPMLimit int `json:"rpm_limit"`
@@ -118,6 +119,17 @@ type APIKeyAuthGroupSnapshot struct {
 	PeakStart          string  `json:"peak_start"`
 	PeakEnd            string  `json:"peak_end"`
 	PeakRateMultiplier float64 `json:"peak_rate_multiplier"`
+
+	// 分组利润控制：调度准入门在直连热路径上读的就是这份快照——门解析
+	// （resolveOpenAIProfitControlGate / resolveProfitControlGroup）优先取
+	// 认证中间件放入 ctx 的 Group，而它正是本快照物化出来的对象，生产绝大
+	// 多数流量走的都是这条路；只有 composite/模型路由等被调度分组与认证分组
+	// 不一致时才回源 schedulerSnapshot。
+	// 因此这三个字段与 GetByKeyForAuth 的投影都不得删减：漏掉任何一个，
+	// 门会拿到零值 ProfitControlEnabled=false 而静默失效（有集成测试兜底）。
+	ProfitControlEnabled bool    `json:"profit_control_enabled"`
+	ProfitMinMargin      float64 `json:"profit_min_margin"`
+	ProfitSafetyBuffer   float64 `json:"profit_safety_buffer"`
 }
 
 // APIKeyAuthCacheEntry 缓存条目，支持负缓存
