@@ -355,6 +355,11 @@ export default {
         batchCompleted: 'Probed {count} account(s)',
         batchPartial: 'Probe partially completed: {success} succeeded, {failed} failed'
       },
+      allRisk: 'All Risk States',
+      botRisk: 'Risk',
+      riskNormal: 'Normal',
+      botRiskSource1: 'Bot risk control (bot_flag_source/bfs=1)',
+      botRiskSource2: 'Bot risk control (bot_flag_source/bfs=2)',
       allPrivacyModes: 'All Privacy States',
       privacyUnset: 'Unset',
       privacyTrainingOff: 'Training data sharing disabled',

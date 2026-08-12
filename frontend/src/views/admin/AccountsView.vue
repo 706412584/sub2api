@@ -943,6 +943,7 @@ const {
     type: '',
     status: '',
     privacy_mode: '',
+    risk: '',
     group: '',
     search: '',
     include_scheduler_score: shouldIncludeSchedulerScore() ? '1' : '0',
@@ -1729,6 +1730,7 @@ const buildBulkEditFilterSnapshot = () => {
     group: typeof rawParams.group === 'string' ? rawParams.group : '',
     search: typeof rawParams.search === 'string' ? rawParams.search : '',
     privacy_mode: typeof rawParams.privacy_mode === 'string' ? rawParams.privacy_mode : '',
+    risk: typeof rawParams.risk === 'string' ? rawParams.risk : '',
     sort_by: typeof rawParams.sort_by === 'string' ? rawParams.sort_by : '',
     sort_order: sortOrder
   }

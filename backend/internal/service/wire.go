@@ -283,6 +283,13 @@ func ProvideGrokTokenProvider(
 	p.SetRefreshAPI(refreshAPI, executor)
 	p.SetRefreshPolicy(GrokProviderRefreshPolicy())
 	p.SetTempUnschedCache(tempUnschedCache)
+	// 启动时异步重建风控标记索引（覆盖存量账号）
+	go func() {
+		if err := context.Background().Err(); err != nil {
+			return
+		}
+		p.RebuildBuildBotFlagIndex(context.Background())
+	}()
 	return p
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -119,6 +120,8 @@ func (p *GrokTokenProvider) GetAccessToken(ctx context.Context, account *Account
 			}
 			account = result.Account
 			expiresAt = account.GetCredentialAsTime("expires_at")
+			// Token 刷新成功，持久化风控标记
+			p.persistGrokBotFlag(ctx, account)
 		}
 	}
 
@@ -342,4 +345,69 @@ func GrokTokenCacheKey(account *Account) string {
 		return "grok:account:0"
 	}
 	return "grok:account:" + strconv.FormatInt(account.ID, 10)
+}
+
+// RebuildBuildBotFlagIndex 在启动时异步重建所有 Grok 账号的风控标记索引。
+// 扫描 Grok 平台账号，解码 access token 的 JWT claims 提取 bot_flag_source/bfs，
+// 持久化到 accounts.extra，与后续单账号刷新路径互补覆盖存量账号。
+func (p *GrokTokenProvider) RebuildBuildBotFlagIndex(ctx context.Context) {
+	if p == nil || p.accountRepo == nil {
+		return
+	}
+	accounts, err := p.accountRepo.ListByPlatform(ctx, PlatformGrok)
+	if err != nil {
+		slog.Warn("grok_bot_flag_rebuild_list_failed", "error", err)
+		return
+	}
+	for i := range accounts {
+		acc := &accounts[i]
+		source := acc.GrokBotFlagSource()
+		if source != 1 && source != 2 {
+			source = 0
+		}
+		// 只在值与现有不同时写入
+		if current := extraIntValue(acc.Extra, GrokBotFlagSourceExtraKey); current == source {
+			continue
+		}
+		if err := p.accountRepo.UpdateExtra(ctx, acc.ID, map[string]any{
+			GrokBotFlagSourceExtraKey: source,
+		}); err != nil {
+			slog.Warn("grok_bot_flag_rebuild_update_failed", "account_id", acc.ID, "error", err)
+		}
+	}
+}
+
+// extraIntValue 从 extra 映射中读取指定键的 int 值，缺失或非 int 返回 0。
+func extraIntValue(extra map[string]any, key string) int {
+	if extra == nil {
+		return 0
+	}
+	switch v := extra[key].(type) {
+	case float64:
+		return int(v)
+	case int:
+		return v
+	case int64:
+		return int(v)
+	}
+	return 0
+}
+
+// persistGrokBotFlag 从 access token 的 JWT claims 提取风控标记并持久化到
+// accounts.extra。失败仅打日志，不影响请求路径（风控标记是展示/筛选元数据）。
+func (p *GrokTokenProvider) persistGrokBotFlag(ctx context.Context, account *Account) {
+	if p == nil || p.accountRepo == nil || account == nil || account.ID <= 0 {
+		return
+	}
+	source := account.GrokBotFlagSource()
+	if source != 1 && source != 2 {
+		source = 0
+	}
+	if err := p.accountRepo.UpdateExtra(ctx, account.ID, map[string]any{
+		GrokBotFlagSourceExtraKey: source,
+	}); err != nil {
+		slog.Warn("grok_persist_bot_flag_failed", "account_id", account.ID, "error", err)
+	} else if account.Extra != nil {
+		account.Extra[GrokBotFlagSourceExtraKey] = source
+	}
 }

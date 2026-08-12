@@ -261,6 +261,7 @@ func (h *GrokOAuthHandler) CreateAccountFromOAuth(c *gin.Context) {
 		Platform:    service.PlatformGrok,
 		Type:        service.AccountTypeOAuth,
 		Credentials: credentials,
+		Extra:       grokOAuthBotFlagExtra(tokenInfo.BotFlagSource),
 		ProxyID:     req.ProxyID,
 		Concurrency: req.Concurrency,
 		Priority:    req.Priority,
@@ -393,7 +394,7 @@ func (h *GrokOAuthHandler) createAccountFromSSOToken(ctx context.Context, req Gr
 		Platform:           service.PlatformGrok,
 		Type:               service.AccountTypeOAuth,
 		Credentials:        credentials,
-		Extra:              cloneGrokSSOMap(req.Extra),
+		Extra:              grokSSOImportExtra(req, tokenInfo),
 		ProxyID:            req.ProxyID,
 		Concurrency:        req.Concurrency,
 		LoadFactor:         req.LoadFactor,
@@ -441,6 +442,26 @@ func grokSSOImportExpiry(requestExpiresAt *int64, requestAutoPause *bool, tokenI
 	}
 	autoPause := true
 	return &expiresAt, &autoPause
+}
+
+// grokOAuthBotFlagExtra 构造包含风控标记的 extra 映射，用于 OAuth 创建路径。
+func grokOAuthBotFlagExtra(source int) map[string]any {
+	if source != 1 && source != 2 {
+		return nil
+	}
+	return map[string]any{service.GrokBotFlagSourceExtraKey: source}
+}
+
+// grokSSOImportExtra 合并 SSO 导入的 extra 和风控标记。
+func grokSSOImportExtra(req GrokSSOToOAuthRequest, tokenInfo *service.GrokTokenInfo) map[string]any {
+	result := cloneGrokSSOMap(req.Extra)
+	if tokenInfo.BotFlagSource == 1 || tokenInfo.BotFlagSource == 2 {
+		if result == nil {
+			result = make(map[string]any, 1)
+		}
+		result[service.GrokBotFlagSourceExtraKey] = tokenInfo.BotFlagSource
+	}
+	return result
 }
 
 func cloneGrokSSOMap(source map[string]any) map[string]any {

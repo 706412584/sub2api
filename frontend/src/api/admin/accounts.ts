@@ -44,6 +44,7 @@ export async function list(
     group?: string
     search?: string
     privacy_mode?: string
+    risk?: string
     lite?: string
     include_scheduler_score?: string
     sort_by?: string

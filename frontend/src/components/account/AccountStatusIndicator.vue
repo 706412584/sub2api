@@ -151,7 +151,25 @@
       </div>
     </div>
 
-    <!-- Overload Indicator (529) -->
+    <!-- Grok Bot Risk Badge (bot_flag_source/bfs) -->
+    <div v-if="grokBotFlagSource" class="group relative">
+      <span
+        :class="grokBotFlagSource === 2
+          ? 'inline-flex items-center gap-1 rounded bg-rose-100 px-1.5 py-0.5 text-xs font-medium text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+          : 'inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'"
+      >
+        <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 0 1-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 0 1 4.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0 1 12 15a9.065 9.065 0 0 0-6.23.693L5 14.5m14.8.8 1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0 1 12 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" />
+        </svg>
+        {{ t('admin.accounts.botRisk') }}
+      </span>
+      <div
+        class="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-max max-w-[320px] -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-3 py-2 text-center text-xs leading-relaxed text-white opacity-0 transition-opacity group-hover:opacity-100 dark:bg-gray-700"
+      >
+        {{ grokBotFlagSource === 2 ? t('admin.accounts.botRiskSource2') : t('admin.accounts.botRiskSource1') }}
+        <div class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-gray-900 dark:border-t-gray-700"></div>
+      </div>
+    </div>
     <div v-if="isOverloaded" class="group relative">
       <span
         class="inline-flex items-center gap-1 rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400"
@@ -282,6 +300,15 @@ const formatScopeName = (scope: string): string => {
 const isOverloaded = computed(() => {
   if (!props.account.overload_until) return false
   return new Date(props.account.overload_until) > new Date()
+})
+
+// Computed: Grok bot risk source (1 or 2). 0/undefined means normal.
+const grokBotFlagSource = computed<number | null>(() => {
+  if (props.account.platform !== 'grok') return null
+  const extra = props.account.extra as Record<string, unknown> | undefined
+  const raw = extra?.grok_bot_flag_source
+  const value = Number(raw)
+  return value === 1 || value === 2 ? value : null
 })
 
 const grokProbeWarningStatus = computed<number | null>(() => {

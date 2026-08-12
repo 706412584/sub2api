@@ -110,6 +110,10 @@ const openAIEndpointCapabilitiesCredentialKey = "openai_capabilities"
 // absent/null value uses provider observations.
 const GrokMediaEligibleExtraKey = "grok_media_eligible"
 
+// GrokBotFlagSourceExtraKey 是 accounts.extra 中存储 Grok Build 风控标记的键名。
+// 值 1 或 2 表示被风控标记（bot_flag_source/bfs），0 或缺失表示正常。
+const GrokBotFlagSourceExtraKey = "grok_bot_flag_source"
+
 const (
 	OpenAIAuthModePersonalAccessToken = "personalAccessToken"
 	openAIAuthModeCredentialKey       = "auth_mode"
@@ -1458,6 +1462,62 @@ func (a *Account) GetGrokRefreshToken() string {
 		return ""
 	}
 	return a.GetCredential("refresh_token")
+}
+
+// GrokBotFlagSource 返回账号的 Grok Build 风控标记值（0/1/2）。
+// 优先从 accounts.extra 读取已持久化的值；缺失时尝试从 access token 的
+// JWT claims（bot_flag_source / bfs）现场解码并填充内存。
+func (a *Account) GrokBotFlagSource() int {
+	if a == nil {
+		return 0
+	}
+	if a.Extra != nil {
+		switch v := a.Extra[GrokBotFlagSourceExtraKey].(type) {
+		case float64:
+			return normalizeGrokBotFlagSource(int(v))
+		case int:
+			return normalizeGrokBotFlagSource(v)
+		case int64:
+			return normalizeGrokBotFlagSource(int(v))
+		}
+	}
+	// 未持久化时现场解码 access token（不验证签名，仅读 payload 声明）。
+	if token := a.GetGrokAccessToken(); token != "" {
+		return extractGrokBotFlagSource(xai.DecodeJWTClaims(token))
+	}
+	return 0
+}
+
+// IsGrokBotFlagged 报告账号是否被风控标记（bot_flag_source/bfs 为 1 或 2）。
+func (a *Account) IsGrokBotFlagged() bool {
+	return a.GrokBotFlagSource() != 0
+}
+
+// extractGrokBotFlagSource 从 JWT claims 中提取风控标记值。
+// bot_flag_source 优先，其次短别名 bfs；仅 JSON number 1/2 视为标记。
+func extractGrokBotFlagSource(claims map[string]any) int {
+	if source := grokBotFlagClaimValue(claims, "bot_flag_source"); source != 0 {
+		return source
+	}
+	return grokBotFlagClaimValue(claims, "bfs")
+}
+
+func grokBotFlagClaimValue(claims map[string]any, key string) int {
+	if claims == nil {
+		return 0
+	}
+	value, ok := claims[key].(float64)
+	if !ok {
+		return 0
+	}
+	return normalizeGrokBotFlagSource(int(value))
+}
+
+func normalizeGrokBotFlagSource(value int) int {
+	if value == 1 || value == 2 {
+		return value
+	}
+	return 0
 }
 
 func (a *Account) GetOpenAIIDToken() string {

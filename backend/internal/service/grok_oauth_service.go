@@ -113,6 +113,9 @@ type GrokTokenInfo struct {
 	TeamID            string `json:"team_id,omitempty"`
 	SubscriptionTier  string `json:"subscription_tier,omitempty"`
 	EntitlementStatus string `json:"entitlement_status,omitempty"`
+	// BotFlagSource 是从 access token 的 JWT claims（bot_flag_source/bfs）提取的风控标记。
+	// 0 表示正常，1/2 表示被风控。
+	BotFlagSource int `json:"bot_flag_source,omitempty"`
 }
 
 func (s *GrokOAuthService) ExchangeCode(ctx context.Context, input *GrokExchangeCodeInput) (*GrokTokenInfo, error) {
@@ -310,6 +313,7 @@ func (s *GrokOAuthService) tokenInfoFromResponse(tokenResp *xai.TokenResponse, c
 	}
 	applyGrokTokenClaims(info, tokenResp.IDToken)
 	applyGrokTokenClaims(info, tokenResp.AccessToken)
+	info.BotFlagSource = extractGrokBotFlagSource(xai.DecodeJWTClaims(tokenResp.AccessToken))
 	if existing != nil {
 		if info.Email == "" {
 			if email, _ := existing["email"].(string); email != "" {

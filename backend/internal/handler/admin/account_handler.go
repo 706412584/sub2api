@@ -517,6 +517,7 @@ func (h *AccountHandler) List(c *gin.Context) {
 	status := c.Query("status")
 	search := c.Query("search")
 	privacyMode := strings.TrimSpace(c.Query("privacy_mode"))
+	risk := strings.TrimSpace(c.Query("risk"))
 	sortBy := c.DefaultQuery("sort_by", "name")
 	sortOrder := c.DefaultQuery("sort_order", "asc")
 	// 标准化和验证 search 参数
@@ -550,6 +551,26 @@ func (h *AccountHandler) List(c *gin.Context) {
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
+	}
+	// 风控标记筛选（仅 Grok 平台字段）：flagged=被标记(1/2)，normal=未标记。
+	// 数据量通常较小，采用内存过滤以避免改动整个列表查询链路。
+	if risk != "" && len(accounts) > 0 {
+		filtered := accounts[:0]
+		for _, acc := range accounts {
+			flagged := acc.IsGrokBotFlagged()
+			switch risk {
+			case "flagged":
+				if flagged {
+					filtered = append(filtered, acc)
+				}
+			case "normal":
+				if !flagged {
+					filtered = append(filtered, acc)
+				}
+			}
+		}
+		accounts = filtered
+		total = int64(len(filtered))
 	}
 	if h.ollamaCloudUsage != nil && len(accounts) > 0 {
 		accountPointers := make([]*service.Account, len(accounts))

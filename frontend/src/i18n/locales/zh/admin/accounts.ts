@@ -228,6 +228,11 @@ export default {
         batchCompleted: '已完成 {count} 个账号的倍率探测',
         batchPartial: '倍率探测部分完成：成功 {success} 个，失败 {failed} 个'
       },
+      allRisk: '全部风控状态',
+      botRisk: '风控',
+      riskNormal: '正常',
+      botRiskSource1: '机器人风控（bot_flag_source/bfs=1）',
+      botRiskSource2: '机器人风控（bot_flag_source/bfs=2）',
       allPrivacyModes: '全部Privacy状态',
       privacyUnset: '未设置',
       privacyTrainingOff: '已关闭训练数据共享',
