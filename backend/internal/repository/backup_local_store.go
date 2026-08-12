@@ -124,3 +124,14 @@ func (s *LocalBackupStore) HeadBucket(_ context.Context) error {
 	}
 	return nil
 }
+
+// UploadFile 将本地文件内容上传到存储。
+func (s *LocalBackupStore) UploadFile(ctx context.Context, key string, filePath string, _ string) (int64, error) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return 0, fmt.Errorf("open upload file: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	return s.Upload(ctx, key, f, "application/gzip")
+}

@@ -515,6 +515,7 @@ func TestExtractOpenAIUsage_CapturesReasoningTokens(t *testing.T) {
 	tu, ok := extractOpenAIUsageFromJSONBytes(textOnly)
 	require.True(t, ok)
 	require.Zero(t, tu.ReasoningTokens)
+}
 
 func TestExtractOpenAIUsage_ReadsClineDataEnvelope(t *testing.T) {
 	body := []byte(`{"data":{"choices":[{"message":{"content":"OK"}}],"usage":{"prompt_tokens":8,"completion_tokens":27,"total_tokens":35,"prompt_tokens_details":{"cached_tokens":4}}},"success":true}`)

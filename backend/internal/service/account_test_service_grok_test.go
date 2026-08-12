@@ -307,7 +307,7 @@ func TestAccountTestService_Grok502DoesNotSetError(t *testing.T) {
 
 	require.Error(t, err)
 	require.Equal(t, 0, repo.setErrorCalls)
-	require.Equal(t, 0, repo.setTempUnschedulableCalls)
+	require.Equal(t, 1, repo.setTempUnschedulableCalls)
 	require.Contains(t, recorder.Body.String(), "502")
 }
 
@@ -326,7 +326,7 @@ func TestAccountTestService_Grok402TempUnschedulesWithoutSetError(t *testing.T) 
 	repo := &grokAccountTestStateRepo{mockAccountRepoForGemini: baseRepo}
 	upstream := &httpUpstreamRecorder{resp: &http.Response{
 		StatusCode: http.StatusPaymentRequired,
-		Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"credits exhausted"}}`)),
+		Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"payment required"}}`)),
 	}}
 	svc := &AccountTestService{
 		accountRepo: repo, grokTokenProvider: NewGrokTokenProvider(repo, nil), httpUpstream: upstream,

@@ -23,7 +23,6 @@ import (
 const (
 	grokComposerImageBridgeVisionModel     = "grok-build-0.1"
 	grokComposerImageBridgeMaxOutputTokens = 512
-	grokUpstreamUserAgent                  = "sub2api-grok/1.0"
 	// grokCLIVersion remains the compile pin used by unit tests that assert
 	// intermediate headers; live paths resolve via ResolveGrokCLIClientVersion.
 	grokCLIVersion                   = GrokCLIPinnedStableVersion
@@ -43,42 +42,6 @@ const (
 	grokQuotaBlockedUntilExtraKey       = "grok_quota_blocked_until"
 	grokQuotaBlockedReasonExtraKey      = "grok_quota_blocked_reason"
 )
-
-// grokUpstreamFailureClass classifies upstream failures for cooldown/failover policy.
-type grokUpstreamFailureClass string
-
-const (
-	grokFailContentPolicy grokUpstreamFailureClass = "content_policy"
-	grokFailAuth          grokUpstreamFailureClass = "auth"
-	grokFailPayment       grokUpstreamFailureClass = "payment"
-	grokFailForbidden     grokUpstreamFailureClass = "forbidden"
-	grokFailRateLimit     grokUpstreamFailureClass = "rate_limit"
-	grokFailTransient     grokUpstreamFailureClass = "transient"
-	grokFailUnknown       grokUpstreamFailureClass = "unknown"
-)
-
-func classifyGrokUpstreamFailure(statusCode int, responseBody []byte) grokUpstreamFailureClass {
-	if isGrokContentPolicyRejection(statusCode, responseBody) {
-		return grokFailContentPolicy
-	}
-	switch statusCode {
-	case http.StatusUnauthorized:
-		return grokFailAuth
-	case http.StatusPaymentRequired:
-		return grokFailPayment
-	case http.StatusForbidden:
-		return grokFailForbidden
-	case http.StatusTooManyRequests:
-		return grokFailRateLimit
-	case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
-		return grokFailTransient
-	default:
-		if statusCode >= 500 {
-			return grokFailTransient
-		}
-		return grokFailUnknown
-	}
-}
 
 // resolveGrokExhaustionUntil picks recovery time: max(Retry-After, billing period end, fallback), capped at 7d.
 // max(Retry-After, 账单 PeriodEnd/BillingPeriodEnd, fallback)，上限 7 天。
@@ -1927,8 +1890,7 @@ func (s *OpenAIGatewayService) handleGrokAccountUpstreamError(ctx context.Contex
 	if s == nil || account == nil {
 		return
 	}
-	class := classifyGrokUpstreamFailure(statusCode, responseBody)
-	if class == grokFailContentPolicy {
+	if isGrokContentPolicyRejection(statusCode, responseBody) {
 		return
 	}
 	now := time.Now()
@@ -1955,6 +1917,16 @@ func (s *OpenAIGatewayService) handleGrokAccountUpstreamError(ctx context.Contex
 					s.rateLimitGrok(ctx, account, resetAt)
 					return
 				}
+			}
+			// Hard billing exhaustion (402 / quota language without spending-limit
+			// phrasing) recovers on the billing window, not a flat cooldown. Prefer
+			// Retry-After / billing PeriodEnd and persist a durable marker so ops UI
+			// can show why the account left the pool.
+			if decision.Class == GrokFailureBilling && !grokDecisionIsSpendingLimit(decision) {
+				until := resolveGrokExhaustionUntil(account, headers, now)
+				s.tempUnscheduleGrokUntil(ctx, account, until, "grok payment required")
+				s.persistGrokQuotaBlockMarker(ctx, account, until, "payment_required")
+				return
 			}
 			if s.applyGrokUpstreamFailureDecision(ctx, account, decision) {
 				return
@@ -1985,43 +1957,13 @@ func (s *OpenAIGatewayService) handleGrokAccountUpstreamError(ctx context.Contex
 	case http.StatusTooManyRequests:
 		// updateGrokUsageSnapshot installs rate-limit state for non-pool accounts.
 		// Free-usage 429 was already cooled above via body classification.
+		if model := firstGrokRequestedModel(requestedModel); model != "" {
+			s.modelRateLimitGrok(ctx, account, model, headers, now)
+		}
 	default:
 		if statusCode >= 500 {
 			s.tempUnscheduleGrok(ctx, account, 2*time.Minute, "grok upstream temporary error")
 		}
-		s.tempUnscheduleGrokUntil(ctx, account, now.Add(grokAuthCooldownDuration), "grok credentials unauthorized")
-	case grokFailPayment:
-		if account.IsPoolMode() {
-			return
-		}
-		// 402 exhaustion: billing/Retry-After aware cooldown; never SetError; auto re-enter pool.
-		until := resolveGrokExhaustionUntil(account, headers, now)
-		s.tempUnscheduleGrokUntil(ctx, account, until, "grok payment required")
-		s.persistGrokQuotaBlockMarker(ctx, account, until, "payment_required")
-	case grokFailForbidden:
-		if s.applyGrokForbiddenPolicy(ctx, account, responseBody) {
-			return
-		}
-		if account.IsPoolMode() {
-			return
-		}
-		s.tempUnscheduleGrokUntil(ctx, account, now.Add(grokForbiddenCooldownDuration), "grok access or entitlement denied")
-	case grokFailRateLimit:
-		// Account-level rate-limit is installed by updateGrokUsageSnapshot; also isolate by model when known.
-		if model := firstGrokRequestedModel(requestedModel); model != "" {
-			s.modelRateLimitGrok(ctx, account, model, headers, now)
-		}
-	case grokFailTransient:
-		// Transient 5xx (incl. 502 false positives): short cooldown only, never mark error.
-		// Upstream v0.1.165: pool mode relies on same-account retry budget; skip account-level temp unscheduling.
-		if account.IsPoolMode() {
-			return
-		}
-		reason := "grok upstream temporary error"
-		if statusCode == http.StatusBadGateway {
-			reason = "grok upstream temporary error (502)"
-		}
-		s.tempUnscheduleGrokUntil(ctx, account, now.Add(grokTransientCooldownDuration), reason)
 	}
 }
 

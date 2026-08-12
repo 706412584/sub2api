@@ -388,10 +388,35 @@
       </div>
       <div v-else-if="isForbidden" class="space-y-1">
         <span class="inline-block rounded px-1.5 py-0.5 text-[10px] font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">
-          {{ usageInfo?.grok_entitlement_status || t('admin.accounts.forbidden') }}
+          {{ grokEntitlementLabel || t('admin.accounts.forbidden') }}
         </span>
       </div>
       <div v-else-if="usageInfo" class="space-y-1">
+        <div v-if="grokEntitlementLabel" class="mb-0.5">
+          <span class="inline-block rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200">
+            {{ grokEntitlementLabel }}
+          </span>
+        </div>
+        <div v-if="grokLocalUsage" class="mb-0.5 flex items-center">
+          <div class="flex items-center gap-1.5 text-[9px] text-gray-500 dark:text-gray-400">
+            <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
+              {{ formatWindowRequests(grokLocalUsage) }} req
+            </span>
+            <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
+              {{ formatWindowTokens(grokLocalUsage) }}
+            </span>
+            <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800" :title="t('usage.accountBilled')">
+              A ${{ formatWindowCost(grokLocalUsage) }}
+            </span>
+            <span
+              v-if="grokLocalUsage.user_cost != null"
+              class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
+              :title="t('usage.userBilled')"
+            >
+              U ${{ formatWindowUserCost(grokLocalUsage) }}
+            </span>
+          </div>
+        </div>
         <!-- Free: only rolling 24h soft-gate bar. Paid: 7d + 30d + prepaid money. -->
         <template v-if="grokIsFree">
           <UsageProgressBar
@@ -651,6 +676,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
+import type { GrokQuotaProbeResult } from '@/api/admin/grok'
 import type { Account, AccountUsageInfo, GeminiCredentials, WindowStats } from '@/types'
 import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
 import { enqueueUsageRequest } from '@/utils/usageLoadQueue'
@@ -1217,6 +1243,18 @@ const grokIsFree = computed(() => {
   return billing != null
 })
 const grokFreeQuotaUsage = computed(() => usageInfo.value?.grok_local_usage_24h || null)
+// Local usage chips are probe-sourced only: the compact list render must stay
+// free of chips until a manual quota probe fills in the windowed stats.
+const grokLocalUsage = computed(() => {
+  if (grokIsFree.value) return grokFreeQuotaUsage.value
+  return usageInfo.value?.grok_local_usage_7d ||
+    usageInfo.value?.grok_local_usage_monthly ||
+    null
+})
+const grokEntitlementLabel = computed(() => {
+  const status = (usageInfo.value?.grok_entitlement_status || '').trim()
+  return status || null
+})
 const grokFreeTokenBar = computed(() => {
   if (!grokIsFree.value || !grokFreeQuotaUsage.value) return null
   const limit = usageInfo.value?.grok_free_token_limit
@@ -1246,6 +1284,11 @@ const grokRetryAfterLabel = computed(() => {
   const minutes = Math.ceil(seconds / 60)
   return `${minutes}m`
 })
+
+const formatWindowRequests = (stats: WindowStats) => formatCompactNumber(stats.requests, { allowBillions: false })
+const formatWindowTokens = (stats: WindowStats) => formatCompactNumber(stats.tokens)
+const formatWindowCost = (stats: WindowStats) => stats.cost.toFixed(2)
+const formatWindowUserCost = (stats: WindowStats) => (stats.user_cost ?? 0).toFixed(2)
 
 // 账户类型显示标签
 const antigravityTierLabel = computed(() => {
@@ -1624,11 +1667,6 @@ const handleGrokProbed = (result: GrokQuotaProbeResult) => {
   usageInfo.value = merged
   _usageCache.set(props.account.id, { data: merged, ts: Date.now() })
   syncGrokRateLimitBadgeAfterProbe(merged, probeSucceeded)
-
-// The probe persists upstream quota state; refresh this cell so its compact
-// bars and entitlement status reflect the newly observed snapshot.
-const handleGrokProbed = async () => {
-  await loadUsage({ source: 'active', bypassCache: true })
 }
 
 // ===== API Key quota progress bars =====

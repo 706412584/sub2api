@@ -27,9 +27,10 @@ const (
 	SuperGrokHeavyLimitCents = 150_000 // $1,500.00
 )
 
-// CLIUserAgent is the default billing User-Agent for the compile-time pin.
+// DefaultBillingCLIUserAgent is the default billing User-Agent for the compile-time pin.
 // Prefer FormatCLIUserAgent(EffectiveCLIClientVersion()) for live requests.
-var CLIUserAgent = FormatCLIUserAgent(CLIClientVersion)
+// Named distinctly from CLIUserAgent() in cli_identity.go (workspace-style UA function).
+var DefaultBillingCLIUserAgent = FormatCLIUserAgent(CLIClientVersion)
 
 // Optional process-level version resolver (wired from service to avoid import cycles).
 // When unset, EffectiveCLIClientVersion falls back to CLIClientVersion.

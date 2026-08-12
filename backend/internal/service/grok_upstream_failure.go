@@ -449,6 +449,14 @@ func normalizeGrokFailureModelID(model string) string {
 	return strings.TrimSpace(model)
 }
 
+// grokDecisionIsSpendingLimit reports whether a billing decision came from
+// spending-limit / credit-exhaustion phrasing, which recovers on the rate-limit
+// path rather than the billing-window temp-unschedule path.
+func grokDecisionIsSpendingLimit(decision GrokUpstreamFailureDecision) bool {
+	low := strings.ToLower(decision.Reason)
+	return strings.Contains(low, "spending") || strings.Contains(low, "credits")
+}
+
 // applyGrokUpstreamFailureDecision maps a classification onto existing account
 // health helpers. Returns true when the decision fully handled the error path
 // (caller should not apply the status-code switch defaults again).
@@ -477,8 +485,7 @@ func (s *OpenAIGatewayService) applyGrokUpstreamFailureDecision(
 			return true
 		}
 	case GrokFailureBilling:
-		low := strings.ToLower(decision.Reason)
-		if strings.Contains(low, "spending") || strings.Contains(low, "credits") {
+		if grokDecisionIsSpendingLimit(decision) {
 			// Spending-limit/credit exhaustion is a billing-window condition. Keep
 			// the account recoverable and let the normal rate-limit recovery clear it.
 			s.rateLimitGrok(ctx, account, grokSpendingLimitResetAt(account, time.Now()))

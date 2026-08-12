@@ -148,7 +148,7 @@ describe('admin BackupView 分卷备份', () => {
     const wrapper = mountBackupView()
     await flushPromises()
 
-    expect(wrapper.find('tbody tr td:nth-child(5)').text()).toBe('-')
+    expect(wrapper.find('tbody tr td:nth-child(6)').text()).toBe('-')
     expect(wrapper.findAll('button').some(button => button.text() === 'common.delete')).toBe(false)
   })
 })

@@ -84,18 +84,6 @@ const extractErrorMessage = (e: unknown): string => {
   )
 }
 
-const formatWindow = (label: string, window?: GrokQuotaWindow | null): string | null => {
-  if (!window || window.limit == null || window.remaining == null) return null
-  return `${label} ${window.remaining}/${window.limit}`
-}
-
-const retryAfterLabel = computed(() => {
-  const seconds = data.value?.snapshot?.retry_after_seconds
-  if (seconds == null || seconds <= 0) return null
-  if (seconds < 60) return `${seconds}s`
-  return `${Math.ceil(seconds / 60)}m`
-})
-
 const probeWarning = computed(() => {
   const status = data.value?.snapshot?.status_code ?? data.value?.status_code
   return status === 402 || status === 429 || status === 502

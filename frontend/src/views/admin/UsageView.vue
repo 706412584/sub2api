@@ -575,7 +575,7 @@ const exportToExcel = async () => {
     const XLSX = await import('xlsx')
     const headers = [
       t('usage.time'), t('admin.usage.user'), t('usage.apiKeyFilter'),
-      t('admin.usage.account'), t('usage.model'), t('usage.sentUpstreamModel'), t('usage.upstreamResponseModel'), t('usage.upstreamModelMismatch'), t('usage.reasoningEffort'), t('usage.reasoningTokens'), t('admin.usage.group'),
+      t('admin.usage.account'), t('usage.requestedModel'), t('usage.sentUpstreamModel'), t('usage.upstreamResponseModel'), t('usage.upstreamModelMismatch'), t('usage.reasoningEffort'), t('usage.reasoningTokens'), t('admin.usage.group'),
       t('usage.inboundEndpoint'), t('usage.upstreamEndpoint'),
       t('usage.type'),
       t('admin.usage.inputTokens'), t('admin.usage.outputTokens'),

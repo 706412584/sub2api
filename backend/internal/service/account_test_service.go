@@ -239,13 +239,6 @@ func NewAccountTestService(
 }
 
 // SetSettingService injects system settings used for Grok ops proxy defaults.
-func (s *AccountTestService) SetSettingService(settingService *SettingService) {
-	if s == nil {
-		return
-	}
-	s.settingService = settingService
-}
-
 // applyGrokOpsProxyOverrideIfNeeded injects the global Grok ops proxy when no explicit
 // TestProxyOverride is already on ctx and the account is Grok.
 func (s *AccountTestService) applyGrokOpsProxyOverrideIfNeeded(ctx context.Context, account *Account) context.Context {

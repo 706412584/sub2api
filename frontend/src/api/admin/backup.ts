@@ -60,7 +60,6 @@ export interface BackupDownloadInfo {
 }
 
 export type BackupDownloadResponse = BackupDownloadInfo
-}
 
 export interface CreateBackupRequest {
   expire_days?: number

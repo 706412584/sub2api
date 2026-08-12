@@ -164,6 +164,7 @@ func grokTokenRefreshDueAt(account *Account, expiresAt time.Time, refreshWindow 
 		return windowStart
 	}
 	return windowStart.Add(off)
+}
 
 // grokTokenRefreshWindowWithJitter returns refreshWindow minus a stable offset
 // in [0, jitterMax] based on accountID. Result is never below grokTokenRefreshSkewMin

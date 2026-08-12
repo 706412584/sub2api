@@ -2655,7 +2655,7 @@ func TestAccountTestServiceGrokOAuthPaymentRequiredTemporarilyUnschedulesAccount
 	upstream := &httpUpstreamRecorder{resp: &http.Response{
 		StatusCode: http.StatusPaymentRequired,
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
-		Body:       io.NopCloser(strings.NewReader(`{"code":"personal-team-blocked:spending-limit"}`)),
+		Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"billing period exhausted"}}`)),
 	}}
 	svc := &AccountTestService{
 		accountRepo:       repo,
@@ -2672,8 +2672,7 @@ func TestAccountTestServiceGrokOAuthPaymentRequiredTemporarilyUnschedulesAccount
 	require.Error(t, err)
 	require.Equal(t, 1, repo.tempUnschedCalls)
 	require.Equal(t, account.ID, repo.lastTempUnschedID)
-	// Account-test path tags the reason so it is distinguishable from gateway 402 handling.
-	require.Equal(t, "grok payment required (test probe)", repo.lastTempUnschedReason)
+	require.Equal(t, "grok payment required", repo.lastTempUnschedReason)
 	require.WithinDuration(t, before.Add(30*time.Minute), repo.lastTempUnschedUntil, time.Second)
 	require.Contains(t, recorder.Body.String(), `"type":"error"`)
 	require.Contains(t, recorder.Body.String(), "Grok Responses API returned 402")
@@ -3301,7 +3300,7 @@ func TestHandleGrokAccountUpstreamError5xxRespectsPoolMode(t *testing.T) {
 		require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))
 		require.Equal(t, 1, repo.tempUnschedCalls)
 		require.Equal(t, account.ID, repo.lastTempUnschedID)
-		require.Equal(t, "grok upstream temporary error (502)", repo.lastTempUnschedReason)
+		require.Equal(t, "grok upstream temporary error", repo.lastTempUnschedReason)
 		require.WithinDuration(t, before.Add(grokTransientCooldownDuration), repo.lastTempUnschedUntil, time.Second)
 	})
 }

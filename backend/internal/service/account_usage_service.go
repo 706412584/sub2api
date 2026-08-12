@@ -556,6 +556,7 @@ func buildKiroUsageInfo(limits *kiroprotocol.UsageLimitsResponse) *KiroUsageInfo
 		usage.NextResetAt = &value
 	}
 	return usage
+}
 
 // GetUsage 获取账号使用量
 // OAuth账号: 调用Anthropic API获取真实数据（需要profile scope），API响应缓存10分钟，窗口统计缓存1分钟

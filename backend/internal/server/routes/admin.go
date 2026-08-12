@@ -864,9 +864,11 @@ func registerDynamicProxyPoolRoutes(admin *gin.RouterGroup, h *handler.Handlers)
 		pools.DELETE("/:id/proxies", h.Admin.DynamicProxyPool.DisassociateProxies)
 		pools.POST("/:id/preview-nodes", h.Admin.DynamicProxyPool.PreviewSubscriptionNodes)
 		pools.POST("/:id/add-nodes", h.Admin.DynamicProxyPool.AddSubscriptionNodes)
-		pools.POST("/:id/proxies/:proxyId/test", h.Admin.DynamicProxyPool.TestPoolProxy)
+	pools.POST("/:id/proxies/:proxyId/test", h.Admin.DynamicProxyPool.TestPoolProxy)
+		}
+	}
 
-func registerChannelMonitorV2Routes(admin *gin.RouterGroup, h *handler.Handlers, settingService *service.SettingService) {
+	func registerChannelMonitorV2Routes(admin *gin.RouterGroup, h *handler.Handlers, settingService *service.SettingService) {
 	// Config GET/PUT: feature enabled only (operators can prepare V2 before flipping mode).
 	// Read/matrix endpoints: require mode=v2 so V1 deployments do not serve passive data.
 	featureGuard := channelMonitorAdminFeatureGuard(settingService)

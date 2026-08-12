@@ -22,11 +22,11 @@ import (
 
 	"github.com/andybalholm/brotli"
 	"github.com/klauspost/compress/zstd"
-	"golang.org/x/mod/semver"
 	"golang.org/x/net/http2"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/proxyurl"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/proxyutil"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/servertiming"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
