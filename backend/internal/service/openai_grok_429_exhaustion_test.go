@@ -122,5 +122,3 @@ func TestIsSuccessfulGrokRateLimitRecovery_Requires2xx(t *testing.T) {
 	require.True(t, isSuccessfulGrokRateLimitRecovery(account, &xai.QuotaSnapshot{StatusCode: http.StatusOK}))
 	require.False(t, isSuccessfulGrokRateLimitRecovery(account, &xai.QuotaSnapshot{StatusCode: http.StatusTooManyRequests}))
 }
-
-func floatPtr(v float64) *float64 { return &v }

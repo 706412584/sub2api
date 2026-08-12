@@ -12,15 +12,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestClassifyGrokUpstreamFailure(t *testing.T) {
+func TestClassifyGrokUpstreamFailureStatusClasses(t *testing.T) {
 	t.Parallel()
-	require.Equal(t, grokFailAuth, classifyGrokUpstreamFailure(http.StatusUnauthorized, nil))
-	require.Equal(t, grokFailPayment, classifyGrokUpstreamFailure(http.StatusPaymentRequired, nil))
-	require.Equal(t, grokFailRateLimit, classifyGrokUpstreamFailure(http.StatusTooManyRequests, nil))
-	require.Equal(t, grokFailTransient, classifyGrokUpstreamFailure(http.StatusBadGateway, nil))
-	require.Equal(t, grokFailTransient, classifyGrokUpstreamFailure(http.StatusInternalServerError, nil))
-	require.Equal(t, grokFailContentPolicy, classifyGrokUpstreamFailure(http.StatusForbidden, []byte(`{"error":{"code":"new_sensitive","message":"text is sensitive"}}`)))
-	require.Equal(t, grokFailForbidden, classifyGrokUpstreamFailure(http.StatusForbidden, []byte(`{"error":{"code":"account_suspended"}}`)))
+	require.Equal(t, GrokFailureBilling, classifyGrokUpstreamFailure(http.StatusPaymentRequired, nil, "").Class)
+	require.Equal(t, GrokFailureRateLimit, classifyGrokUpstreamFailure(http.StatusTooManyRequests, nil, "").Class)
+	require.Equal(t, GrokFailureServer, classifyGrokUpstreamFailure(http.StatusBadGateway, nil, "").Class)
+	require.Equal(t, GrokFailureServer, classifyGrokUpstreamFailure(http.StatusInternalServerError, nil, "").Class)
+
+	// 401 and entitlement 403 carry no quota language, so the body-first
+	// classifier defers to the status switch in handleGrokAccountUpstreamError.
+	authless := classifyGrokUpstreamFailure(http.StatusUnauthorized, nil, "")
+	require.Equal(t, GrokFailureNone, authless.Class)
+	require.False(t, authless.ShouldCooldown)
+
+	forbidden := classifyGrokUpstreamFailure(http.StatusForbidden, []byte(`{"error":{"code":"account_suspended"}}`), "")
+	require.Equal(t, GrokFailureNone, forbidden.Class)
+	require.False(t, forbidden.ShouldCooldown)
 }
 
 func TestResolveGrokExhaustionUntilUsesBillingPeriodEnd(t *testing.T) {

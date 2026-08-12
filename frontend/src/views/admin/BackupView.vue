@@ -202,6 +202,7 @@
                 <th class="py-2 pr-4">{{ t('admin.backup.columns.fileName') }}</th>
                 <th class="py-2 pr-4">{{ t('admin.backup.columns.storage') }}</th>
                 <th class="py-2 pr-4">{{ t('admin.backup.columns.size') }}</th>
+                <th class="py-2 pr-4">{{ t('admin.backup.columns.parts') }}</th>
                 <th class="py-2 pr-4">{{ t('admin.backup.columns.expiresAt') }}</th>
                 <th class="py-2 pr-4">{{ t('admin.backup.columns.triggeredBy') }}</th>
                 <th class="py-2 pr-4">{{ t('admin.backup.columns.startedAt') }}</th>
@@ -226,6 +227,7 @@
                   {{ record.storage === 'local' ? t('admin.backup.storage.local') : t('admin.backup.storage.s3') }}
                 </td>
                 <td class="py-3 pr-4 text-xs">{{ formatSize(record.size_bytes) }}</td>
+                <td class="py-3 pr-4 text-xs">{{ record.parts?.length || (record.status === 'running' ? '-' : 1) }}</td>
                 <td class="py-3 pr-4 text-xs">
                   {{ record.expires_at ? formatDate(record.expires_at) : t('admin.backup.neverExpire') }}
                 </td>
@@ -253,6 +255,7 @@
                       {{ restoringId === record.id ? t('common.loading') : t('admin.backup.actions.restore') }}
                     </button>
                     <button
+                      v-if="record.status !== 'running'"
                       type="button"
                       class="btn btn-danger btn-xs"
                       @click="removeBackup(record.id)"
@@ -356,6 +359,48 @@
         </div>
       </transition>
     </teleport>
+    <!-- 分卷下载链接 -->
+    <teleport to="body">
+      <transition name="modal">
+        <div
+          v-if="downloadPartsModalOpen"
+          class="fixed inset-0 z-50 flex items-center justify-center p-4"
+          @mousedown.self="closeDownloadParts"
+        >
+          <div class="fixed inset-0 bg-black/50" @click="closeDownloadParts"></div>
+          <div class="relative max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 shadow-2xl dark:bg-dark-800">
+            <button
+              type="button"
+              class="absolute right-4 top-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              :aria-label="t('common.close')"
+              @click="closeDownloadParts"
+            >
+              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <h2 class="mb-1 text-lg font-bold text-gray-900 dark:text-white">{{ t('admin.backup.actions.downloadParts') }}</h2>
+            <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.backup.actions.downloadPartsHint') }}</p>
+            <div class="space-y-2">
+              <div
+                v-for="part in downloadParts"
+                :key="part.index"
+                class="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2 dark:border-dark-600"
+              >
+                <span class="text-sm text-gray-700 dark:text-gray-300">
+                  {{ t('admin.backup.actions.partLabel', { index: part.index }) }}
+                  <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">{{ formatSize(part.size_bytes) }}</span>
+                </span>
+                <a :href="part.url" class="btn btn-secondary btn-xs" rel="noopener">
+                  {{ t('admin.backup.actions.download') }}
+                </a>
+              </div>
+            </div>
+            <div class="mt-4 text-right">
+              <button type="button" class="btn btn-primary btn-sm" @click="closeDownloadParts">{{ t('common.close') }}</button>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </teleport>
     <TotpStepUpDialog :controller="backupStepUp" />
 </template>
 
@@ -368,6 +413,7 @@ import type {
   BackupS3Config,
   BackupScheduleConfig,
   BackupRecord,
+  BackupDownloadPart,
   ImageStorageConfig,
 } from '@/api/admin/backup'
 import { useStepUp, isStepUpBlocked, isStepUpCancelled, stepUpBlockReason } from '@/composables/useStepUp'
@@ -437,6 +483,8 @@ const loadingBackups = ref(false)
 const creatingBackup = ref(false)
 const restoringId = ref('')
 const manualExpireDays = ref(14)
+const downloadParts = ref<BackupDownloadPart[]>([])
+const downloadPartsModalOpen = ref(false)
 
 // Polling
 const pollingTimer = ref<ReturnType<typeof setInterval> | null>(null)
@@ -719,33 +767,53 @@ async function createBackup() {
 
 async function downloadBackup(id: string) {
   try {
-    const info = await backupStepUp.run(() => adminAPI.backup.getDownloadURL(id))
-    if (info.mode === 'presign' && info.url) {
+    const result = await backupStepUp.run(() => adminAPI.backup.getDownloadURL(id))
+    if (result.parts && result.parts.length > 0) {
+      downloadParts.value = result.parts
+      downloadPartsModalOpen.value = true
+      return
+    }
+    if (result.mode === 'presign' && result.url) {
       // 预签名 URL 带 attachment disposition，同页 anchor 导航直接触发下载；
       // 不用 window.open：step-up 弹窗 await 会耗尽瞬态用户激活，新标签页会被浏览器拦截。
       const link = document.createElement('a')
-      link.href = info.url
+      link.href = result.url
       link.rel = 'noopener'
       link.click()
       return
     }
-
-    // 本地备份：经鉴权代理下载为 blob 后触发浏览器保存
-    const blob = await backupStepUp.run(() => adminAPI.backup.downloadBackupFile(id))
-    const record = backups.value.find((r) => r.id === id)
-    const fileName = record?.file_name || `backup-${id}.sql.gz`
-    const objectUrl = window.URL.createObjectURL(blob)
+    if (result.mode === 'proxy' || result.storage === 'local') {
+      // 本地备份：经鉴权代理下载为 blob 后触发浏览器保存
+      const blob = await backupStepUp.run(() => adminAPI.backup.downloadBackupFile(id))
+      const record = backups.value.find((r) => r.id === id)
+      const fileName = record?.file_name || `backup-${id}.sql.gz`
+      const objectUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = fileName
+      link.rel = 'noopener'
+      link.click()
+      window.URL.revokeObjectURL(objectUrl)
+      return
+    }
+    if (!result.url) {
+      throw new Error(t('admin.backup.actions.downloadFailed'))
+    }
+    // 兼容上游仅返回 url 的 S3 预签名下载
     const link = document.createElement('a')
-    link.href = objectUrl
-    link.download = fileName
+    link.href = result.url
     link.rel = 'noopener'
     link.click()
-    window.URL.revokeObjectURL(objectUrl)
   } catch (error) {
     if (isStepUpCancelled(error)) return
     if (reportStepUpBlocked(error)) return
     appStore.showError((error as { message?: string })?.message || t('errors.networkError'))
   }
+}
+
+function closeDownloadParts() {
+  downloadPartsModalOpen.value = false
+  downloadParts.value = []
 }
 
 async function restoreBackup(id: string) {

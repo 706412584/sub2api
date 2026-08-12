@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -43,12 +44,20 @@ func NewProxySubscriptionService(
 	proxyRepo ProxyRepository,
 	engine *MihomoEngine,
 ) *ProxySubscriptionService {
+	// Subscriptions are frequently hosted on bare IPs whose certificates do not
+	// match the IP SAN (or use self-signed certs). Skip upstream certificate
+	// verification so these sources remain fetchable; the response is still
+	// transport-level TLS (encrypted) and limited to subscription fetch only.
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // subscriptions may be bare-IP HTTPS
+	}
 	return &ProxySubscriptionService{
 		repo:      repo,
 		proxyRepo: proxyRepo,
 		engine:    engine,
 		httpClient: &http.Client{
-			Timeout: 60 * time.Second,
+			Timeout:   60 * time.Second,
+			Transport: transport,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				if len(via) >= 3 {
 					return fmt.Errorf("too many redirects")

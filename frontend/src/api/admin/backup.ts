@@ -25,6 +25,7 @@ export interface BackupRecord {
   s3_key: string
   /** s3 | local；旧记录可能为空，前端按 s3 兼容处理 */
   storage?: string
+  parts?: BackupPart[]
   size_bytes: number
   triggered_by: string
   error_message?: string
@@ -37,11 +38,28 @@ export interface BackupRecord {
   restored_at?: string
 }
 
-export interface BackupDownloadInfo {
-  mode: 'presign' | 'proxy'
-  url?: string
-  storage: string
+export interface BackupPart {
+  index: number
+  s3_key: string
+  size_bytes: number
+  sha256?: string
 }
+
+export interface BackupDownloadPart {
+  index: number
+  size_bytes: number
+  url: string
+}
+
+/** 兼容本地 storage 代理下载与上游 S3/分卷下载 */
+export interface BackupDownloadInfo {
+  mode?: 'presign' | 'proxy'
+  url?: string
+  storage?: string
+  parts?: BackupDownloadPart[]
+}
+
+export type BackupDownloadResponse = BackupDownloadInfo
 
 export interface CreateBackupRequest {
   expire_days?: number

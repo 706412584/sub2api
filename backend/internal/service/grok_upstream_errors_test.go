@@ -304,7 +304,7 @@ func TestHandleGrokAccountUpstreamErrorPaymentRequiredTempUnschedules(t *testing
 
 	svc.handleGrokAccountUpstreamError(
 		context.Background(), account, http.StatusPaymentRequired, nil,
-		[]byte(`{"code":"personal-team-blocked:spending-limit","error":"You have run out of credits or need a Grok subscription."}`),
+		[]byte(`{"error":{"message":"billing period exhausted - upgrade to continue"}}`),
 	)
 
 	require.Equal(t, 1, repo.tempUnschedCalls)
