@@ -104,6 +104,7 @@ type BackupRecord struct {
 	BackupType string `json:"backup_type"` // postgres
 	FileName   string `json:"file_name"`
 	S3Key      string `json:"s3_key"`
+	Parts         []BackupPart `json:"parts,omitempty"`
 	// Storage 标识备份落点：s3 或 local。空值兼容旧记录，按 s3 处理。
 	Storage       string `json:"storage,omitempty"`
 	SizeBytes     int64  `json:"size_bytes"`
@@ -124,6 +125,7 @@ type BackupDownloadInfo struct {
 	Mode    string `json:"mode"` // presign | proxy
 	URL     string `json:"url,omitempty"`
 	Storage string `json:"storage"`
+	Parts   []BackupDownloadPart `json:"parts,omitempty"`
 }
 
 // BackupService 数据库备份恢复服务
@@ -1281,4 +1283,20 @@ func (s *BackupService) deleteBackupObject(ctx context.Context, storage, key str
 		return err
 	}
 	return objectStore.Delete(ctx, key)
+}
+
+
+// BackupPart describes one object in a multi-part backup archive.
+type BackupPart struct {
+	Index     int    `json:"index"`
+	S3Key     string `json:"s3_key"`
+	SizeBytes int64  `json:"size_bytes"`
+	SHA256    string `json:"sha256,omitempty"`
+}
+
+// BackupDownloadPart is a presigned part URL for multi-part download.
+type BackupDownloadPart struct {
+	Index     int    `json:"index"`
+	SizeBytes int64  `json:"size_bytes"`
+	URL       string `json:"url"`
 }
