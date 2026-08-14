@@ -81,20 +81,6 @@
         />
       </div>
 
-      <div class="space-y-1.5">
-        <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
-          {{ t('admin.accounts.selectTestModel') }}
-        </label>
-        <Select
-          v-model="selectedModelId"
-          :options="availableModels"
-          :disabled="loadingModels || status === 'connecting'"
-          value-key="id"
-          label-key="display_name"
-          :placeholder="loadingModels ? t('common.loading') + '...' : t('admin.accounts.selectTestModel')"
-        />
-      </div>
-
       <div v-if="isOpenAIAccount" class="space-y-1.5">
         <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
           {{ t('admin.accounts.openai.testMode') }}
