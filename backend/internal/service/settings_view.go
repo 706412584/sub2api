@@ -12,6 +12,10 @@ func firstNonEmpty(values ...string) string {
 }
 
 type SystemSettings struct {
+	// UpdateProxyURL (SettingKeyUpdateProxyURL) configures the proxy used for
+	// GitHub release checks/downloads. Empty means use the startup config
+	// update.proxy_url (or direct connection).
+	UpdateProxyURL string
 	RegistrationEnabled                 bool
 	EmailVerifyEnabled                  bool
 	RegistrationEmailSuffixWhitelist    []string

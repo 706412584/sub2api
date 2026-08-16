@@ -240,6 +240,11 @@ accountUsageService := service.ProvideAccountUsageService(accountRepository, usa
 	gitHubReleaseClient := repository.ProvideGitHubReleaseClient(configConfig)
 	serviceBuildInfo := provideServiceBuildInfo(buildInfo)
 	updateService := service.ProvideUpdateService(updateCache, gitHubReleaseClient, serviceBuildInfo)
+	// DB-backed update proxy (SettingKeyUpdateProxyURL) overrides the startup
+	// config proxy for update downloads without a restart.
+	updateService.SetUpdateProxyProvider(func() (string, error) {
+		return settingRepository.GetValue(context.Background(), service.SettingKeyUpdateProxyURL)
+	})
 	idempotencyRepository := repository.NewIdempotencyRepository(client, db)
 	systemOperationLockService := service.ProvideSystemOperationLockService(idempotencyRepository, configConfig)
 	systemHandler := handler.ProvideSystemHandler(updateService, systemOperationLockService)

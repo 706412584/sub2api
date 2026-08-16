@@ -143,6 +143,10 @@ export default {
         frontendUrl: '前端地址',
         frontendUrlPlaceholder: 'https://example.com',
         frontendUrlHint: '用于生成邮件中的密码重置链接，例如 https://example.com',
+        updateProxyUrl: '更新下载代理',
+        updateProxyUrlPlaceholder: '例如 http://127.0.0.1:7890',
+        updateProxyUrlHint:
+          '更新检查与下载 GitHub 发布包时使用的代理（支持 http/https/socks5/socks5h）。留空表示使用启动配置或直连。修改后立即生效，无需重启。',
         totp: '双因素认证 (2FA)',
         totpHint: '允许用户使用 Google Authenticator 等应用进行二次验证',
         totpKeyNotConfigured:

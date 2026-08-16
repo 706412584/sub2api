@@ -315,6 +315,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		PromoCodeEnabled:                       settings[SettingKeyPromoCodeEnabled] != "false", // 默认启用
 		PasswordResetEnabled:                   emailVerifyEnabled && settings[SettingKeyPasswordResetEnabled] == "true",
 		FrontendURL:                            settings[SettingKeyFrontendURL],
+		UpdateProxyURL:                         settings[SettingKeyUpdateProxyURL],
 		InvitationCodeEnabled:                  settings[SettingKeyInvitationCodeEnabled] == "true",
 		TotpEnabled:                            settings[SettingKeyTotpEnabled] == "true",
 		PasskeyEnabled:                         s.passkeySettingEnabled(settings),

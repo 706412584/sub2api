@@ -41,6 +41,9 @@ type UpdateSettingsRequest struct {
 	LoginAgreementUpdatedAt             string                       `json:"login_agreement_updated_at"`
 	LoginAgreementDocuments             []dto.LoginAgreementDocument `json:"login_agreement_documents"`
 
+	// 更新下载代理（GitHub 访问代理，支持 http/https/socks5/socks5h；空=用启动配置或直连）
+	UpdateProxyURL string `json:"update_proxy_url"`
+
 	// 邮件服务设置
 	SMTPHost     string `json:"smtp_host"`
 	SMTPPort     int    `json:"smtp_port"`

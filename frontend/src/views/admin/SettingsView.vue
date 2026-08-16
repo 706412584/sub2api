@@ -6971,6 +6971,24 @@
                 </div>
               </div>
 
+              <!-- Update download proxy -->
+              <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
+                <label
+                  class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                >
+                  {{ t("admin.settings.site.updateProxyUrl") }}
+                </label>
+                <input
+                  v-model="form.update_proxy_url"
+                  type="text"
+                  class="input"
+                  :placeholder="t('admin.settings.site.updateProxyUrlPlaceholder')"
+                />
+                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.site.updateProxyUrlHint") }}
+                </p>
+              </div>
+
               <!-- API Base URL -->
               <div>
                 <label
@@ -10346,6 +10364,7 @@ const form = reactive<SettingsForm>({
     description: string;
   }>,
   frontend_url: "",
+  update_proxy_url: "",
   smtp_host: "",
   smtp_port: 587,
   smtp_username: "",
@@ -11934,6 +11953,7 @@ async function saveSettings() {
       custom_menu_items: form.custom_menu_items,
       custom_endpoints: form.custom_endpoints,
       frontend_url: form.frontend_url,
+      update_proxy_url: form.update_proxy_url,
       smtp_host: form.smtp_host,
       smtp_port: form.smtp_port,
       smtp_username: form.smtp_username,

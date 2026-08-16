@@ -143,6 +143,10 @@ export default {
         frontendUrl: 'Frontend URL',
         frontendUrlPlaceholder: 'https://example.com',
         frontendUrlHint: 'Used to generate password reset links in emails. Example: https://example.com',
+        updateProxyUrl: 'Update download proxy',
+        updateProxyUrlPlaceholder: 'e.g. http://127.0.0.1:7890',
+        updateProxyUrlHint:
+          'Proxy used to check and download GitHub release assets (http/https/socks5/socks5h supported). Leave empty to use the startup config or a direct connection. Applies immediately, no restart required.',
         totp: 'Two-Factor Authentication (2FA)',
         totpHint: 'Allow users to use authenticator apps like Google Authenticator',
         totpKeyNotConfigured:

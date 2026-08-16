@@ -356,6 +356,9 @@ const (
 	// 管理员 API Key
 	SettingKeyAdminAPIKey = "admin_api_key" // 全局管理员 API Key（用于外部系统集成）
 
+	// 更新下载代理（UpdateService 访问 GitHub 时使用；空表示用启动时配置 update.proxy_url 或直连）
+	SettingKeyUpdateProxyURL = "update_proxy_url"
+
 	// Gemini 配额策略（JSON）
 	SettingKeyGeminiQuotaPolicy = "gemini_quota_policy"
 

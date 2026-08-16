@@ -396,6 +396,7 @@ export interface SystemSettings {
   promo_code_enabled: boolean;
   password_reset_enabled: boolean;
   frontend_url: string;
+  update_proxy_url: string; // 更新下载代理（GitHub 代理；空=用启动配置或直连）
   invitation_code_enabled: boolean;
   totp_enabled: boolean; // TOTP 双因素认证
   totp_encryption_key_configured: boolean; // TOTP 加密密钥是否已配置
@@ -739,6 +740,7 @@ export interface UpdateSettingsRequest {
   promo_code_enabled?: boolean;
   password_reset_enabled?: boolean;
   frontend_url?: string;
+  update_proxy_url?: string; // 更新下载代理
   invitation_code_enabled?: boolean;
   totp_enabled?: boolean; // TOTP 双因素认证
   passkey_enabled?: boolean;
