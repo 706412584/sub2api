@@ -1718,20 +1718,12 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	// 环境变量支持
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	if err := viper.BindEnv("proxy_subscription.mihomo_binary", "PROXY_SUBSCRIPTION_MIHOMO_BINARY"); err != nil {
-		return nil, fmt.Errorf("bind env PROXY_SUBSCRIPTION_MIHOMO_BINARY: %w", err)
-	}
-	if err := viper.BindEnv("proxy_subscription.data_dir", "PROXY_SUBSCRIPTION_DATA_DIR"); err != nil {
-		return nil, fmt.Errorf("bind env PROXY_SUBSCRIPTION_DATA_DIR: %w", err)
-	}
-	if err := viper.BindEnv("proxy_subscription.allow_insecure_subscription", "PROXY_SUBSCRIPTION_ALLOW_INSECURE"); err != nil {
-		return nil, fmt.Errorf("bind env PROXY_SUBSCRIPTION_ALLOW_INSECURE: %w", err)
-	}
-	if err := viper.BindEnv("proxy_subscription.allow_non_local_bind", "PROXY_SUBSCRIPTION_ALLOW_NON_LOCAL_BIND"); err != nil {
-		return nil, fmt.Errorf("bind env PROXY_SUBSCRIPTION_ALLOW_NON_LOCAL_BIND: %w", err)
-	}
 	if err := viper.BindEnv("proxy_subscription.runner_interval_sec", "PROXY_SUBSCRIPTION_RUNNER_INTERVAL_SEC"); err != nil {
 		return nil, fmt.Errorf("bind env PROXY_SUBSCRIPTION_RUNNER_INTERVAL_SEC: %w", err)
+	}
+	if tz, ok := os.LookupEnv("TZ"); ok && strings.TrimSpace(tz) != "" {
+		// AutomaticEnv 会先把 timezone 映射到 TIMEZONE；显式 Set 保证标准 TZ 变量优先。
+		viper.Set("timezone", strings.TrimSpace(tz))
 	}
 	if err := viper.BindEnv("server.enable_server_timing", "ENABLE_SERVER_TIMING"); err != nil {
 		return nil, fmt.Errorf("bind ENABLE_SERVER_TIMING: %w", err)

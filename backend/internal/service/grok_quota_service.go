@@ -202,6 +202,7 @@ func (s *GrokQuotaService) probeUsage(ctx context.Context, accountID int64) (*Gr
 			localTokens = local.Tokens
 		}
 	}
+	stampGrokQuotaSnapshotForPlan(account, snapshot, probeModel)
 	resetAt, limited := grokRateLimitResetAtForAccountWithPolicy(account, snapshot, now, exhaustion, localTokens)
 	if limited {
 		normalizeGrokExhaustedWindowResets(snapshot, resetAt, now)
