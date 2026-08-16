@@ -35,6 +35,8 @@ export default {
     updating: '正在更新...',
     updateComplete: '更新完成',
     updateFailed: '更新失败',
+    updateInProgress: '另一项更新正在执行中，请等待完成后再试',
+    updateInProgressCountdown: '另一项更新正在执行中，约 {seconds} 秒后可重试',
     restartRequired: '请重启服务以应用更新',
     restartNow: '立即重启',
     restarting: '正在重启...',
