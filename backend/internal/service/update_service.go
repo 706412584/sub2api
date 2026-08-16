@@ -85,6 +85,11 @@ type UpdateService struct {
 	githubRepo     string // owner/name, from UPDATE_GITHUB_REPO or defaultUpdateGitHubRepo
 	proxyRepo      ProxyRepository
 	buildClient    GitHubReleaseClientBuilder
+	// updateProxyProvider returns an optional DB-backed proxy URL for update
+	// downloads (SettingKeyUpdateProxyURL). When non-empty and a builder is
+	// available, downloads use a client built for that proxy instead of the
+	// startup-injected githubClient.
+	updateProxyProvider func() (string, error)
 }
 
 // NewUpdateService creates a new UpdateService
@@ -106,6 +111,30 @@ func (s *UpdateService) SetProxyRetry(proxyRepo ProxyRepository, buildClient Git
 	}
 	s.proxyRepo = proxyRepo
 	s.buildClient = buildClient
+}
+
+// SetUpdateProxyProvider wires a DB-backed proxy URL provider
+// (SettingKeyUpdateProxyURL) into the updater. The provider is consulted on
+// every download; a non-empty value overrides the startup config proxy.
+func (s *UpdateService) SetUpdateProxyProvider(provider func() (string, error)) {
+	if s == nil {
+		return
+	}
+	s.updateProxyProvider = provider
+}
+
+// clientForUpdateDownload returns the client to use for a download: a
+// DB-configured proxy client when available, otherwise the default
+// githubClient (which already carries the startup update.proxy_url config).
+func (s *UpdateService) clientForUpdateDownload(ctx context.Context) GitHubReleaseClient {
+	if s.updateProxyProvider != nil && s.buildClient != nil {
+		if proxyURL, err := s.updateProxyProvider(); err == nil && strings.TrimSpace(proxyURL) != "" {
+			if client := s.buildClient(strings.TrimSpace(proxyURL)); client != nil {
+				return client
+			}
+		}
+	}
+	return s.githubClient
 }
 
 // resolveUpdateGitHubRepo returns owner/name for release checks.
@@ -223,9 +252,10 @@ func (s *UpdateService) PerformUpdate(ctx context.Context) error {
 		return fmt.Errorf("missing release info")
 	}
 
-	// Windows amd64: prefer N→latest hdiff patch when base hash + size gate pass.
-	// Any patch failure falls through to the full archive path.
-	if err := s.tryApplyWindowsPatch(ctx, info); err == nil {
+	// hdiff patch (N→latest) when base hash + size gate pass, on any supported
+	// platform that publishes a patch. Any patch failure falls through to the
+	// full archive path.
+	if err := s.tryApplyDeltaPatch(ctx, info); err == nil {
 		return nil
 	}
 
@@ -376,11 +406,15 @@ type windowsPatchMeta struct {
 	PatchAsset   string `json:"patch_asset"`
 }
 
-// tryApplyWindowsPatch attempts an N→latest hdiff update on windows/amd64.
+// tryApplyDeltaPatch attempts an N→latest hdiff patch for the current
+// platform (windows/amd64 or linux/amd64 when the release publishes one).
 // Returns nil on success. Returns errWindowsPatchUnavailable (or any error)
 // when the patch path is not used; callers fall back to full package.
-func (s *UpdateService) tryApplyWindowsPatch(ctx context.Context, info *UpdateInfo) error {
-	if runtime.GOOS != "windows" || runtime.GOARCH != "amd64" {
+func (s *UpdateService) tryApplyDeltaPatch(ctx context.Context, info *UpdateInfo) error {
+	if runtime.GOOS != "windows" && runtime.GOOS != "linux" {
+		return errWindowsPatchUnavailable
+	}
+	if runtime.GOARCH != "amd64" {
 		return errWindowsPatchUnavailable
 	}
 	if info == nil || info.ReleaseInfo == nil || len(info.ReleaseInfo.Assets) == 0 {
@@ -393,7 +427,9 @@ func (s *UpdateService) tryApplyWindowsPatch(ctx context.Context, info *UpdateIn
 		return errWindowsPatchUnavailable
 	}
 
-	metaAsset, patchAsset, hpatchAsset, fullAsset := findWindowsPatchAssets(info.ReleaseInfo.Assets, from, to)
+	// Platform asset naming: sub2api_{from}_to_{to}_{os}_{arch}.{ext}
+	platformToken := runtime.GOOS + "_" + runtime.GOARCH
+	metaAsset, patchAsset, hpatchAsset, fullAsset := findDeltaPatchAssets(info.ReleaseInfo.Assets, from, to, platformToken)
 	if metaAsset == nil || patchAsset == nil || hpatchAsset == nil || fullAsset == nil {
 		return errWindowsPatchUnavailable
 	}
@@ -459,17 +495,26 @@ func (s *UpdateService) tryApplyWindowsPatch(ctx context.Context, info *UpdateIn
 	if err := s.downloadFileWithProxyRetry(ctx, patchAsset.DownloadURL, patchPath); err != nil {
 		return fmt.Errorf("patch download failed: %w", err)
 	}
-	hpatchPath := filepath.Join(tempDir, "hpatchz.exe")
+	hpatchName := "hpatchz"
+	if runtime.GOOS == "windows" {
+		hpatchName = "hpatchz.exe"
+	}
+	hpatchPath := filepath.Join(tempDir, hpatchName)
 	if err := s.downloadFileWithProxyRetry(ctx, hpatchAsset.DownloadURL, hpatchPath); err != nil {
 		return fmt.Errorf("hpatchz download failed: %w", err)
 	}
+	if runtime.GOOS != "windows" {
+		if err := os.Chmod(hpatchPath, 0755); err != nil {
+			return fmt.Errorf("chmod hpatchz failed: %w", err)
+		}
+	}
 
 	// Copy current exe as immutable base input (Windows may lock the running image for some ops).
-	baseCopy := filepath.Join(tempDir, "base.exe")
+	baseCopy := filepath.Join(tempDir, "base")
 	if err := copyFile(exePath, baseCopy); err != nil {
 		return errWindowsPatchUnavailable
 	}
-	outPath := filepath.Join(tempDir, "sub2api.new.exe")
+	outPath := filepath.Join(tempDir, "sub2api.new")
 	if err := runHPatchz(ctx, hpatchPath, baseCopy, patchPath, outPath); err != nil {
 		return fmt.Errorf("hpatch failed: %w", err)
 	}
@@ -485,10 +530,10 @@ func (s *UpdateService) tryApplyWindowsPatch(ctx context.Context, info *UpdateIn
 }
 
 func windowsPatchMetaMatches(meta windowsPatchMeta, from, to string) bool {
-	if !strings.EqualFold(strings.TrimSpace(meta.OS), "windows") {
+	if !strings.EqualFold(strings.TrimSpace(meta.OS), runtime.GOOS) {
 		return false
 	}
-	if !strings.EqualFold(strings.TrimSpace(meta.Arch), "amd64") {
+	if !strings.EqualFold(strings.TrimSpace(meta.Arch), runtime.GOARCH) {
 		return false
 	}
 	if strings.TrimPrefix(strings.TrimSpace(meta.From), "v") != from {
@@ -503,12 +548,15 @@ func windowsPatchMetaMatches(meta windowsPatchMeta, from, to string) bool {
 	return true
 }
 
-// findWindowsPatchAssets locates meta/patch/hpatchz/full zip for from→to on windows_amd64.
-func findWindowsPatchAssets(assets []Asset, from, to string) (meta, patch, hpatch, full *Asset) {
-	wantMeta := fmt.Sprintf("sub2api_%s_to_%s_windows_amd64.patch.json", from, to)
-	wantPatch := fmt.Sprintf("sub2api_%s_to_%s_windows_amd64.hdiff", from, to)
-	wantHPatch := "hpatchz_windows_amd64.exe"
-	archiveToken := "windows_amd64"
+// findDeltaPatchAssets locates meta/patch/hpatchz/full archive for from→to on
+// the given platform token (e.g. "windows_amd64", "linux_amd64").
+func findDeltaPatchAssets(assets []Asset, from, to, platformToken string) (meta, patch, hpatch, full *Asset) {
+	wantMeta := fmt.Sprintf("sub2api_%s_to_%s_%s.patch.json", from, to, platformToken)
+	wantPatch := fmt.Sprintf("sub2api_%s_to_%s_%s.hdiff", from, to, platformToken)
+	wantHPatch := "hpatchz_" + platformToken
+	if strings.HasPrefix(platformToken, "windows_") {
+		wantHPatch += ".exe"
+	}
 
 	for i := range assets {
 		a := &assets[i]
@@ -520,7 +568,7 @@ func findWindowsPatchAssets(assets []Asset, from, to string) (meta, patch, hpatc
 			patch = a
 		case name == wantHPatch || strings.EqualFold(name, wantHPatch):
 			hpatch = a
-		case isPlatformFullArchive(name, archiveToken):
+		case isPlatformFullArchive(name, platformToken):
 			full = a
 		}
 	}
@@ -731,7 +779,7 @@ func (s *UpdateService) fetchLatestRelease(ctx context.Context) (*UpdateInfo, er
 }
 
 func (s *UpdateService) downloadFile(ctx context.Context, downloadURL, dest string) error {
-	return s.githubClient.DownloadFile(ctx, downloadURL, dest, maxDownloadSize)
+	return s.clientForUpdateDownload(ctx).DownloadFile(ctx, downloadURL, dest, maxDownloadSize)
 }
 
 func (s *UpdateService) downloadFileWithProxyRetry(ctx context.Context, downloadURL, dest string) error {
@@ -880,8 +928,8 @@ func validateDownloadURL(rawURL string) error {
 }
 
 func (s *UpdateService) verifyChecksum(ctx context.Context, filePath, checksumURL string) error {
-	// Download checksums file
-	checksumData, err := s.githubClient.FetchChecksumFile(ctx, checksumURL)
+	// Download checksums file (through the same proxy path as the archive)
+	checksumData, err := s.clientForUpdateDownload(ctx).FetchChecksumFile(ctx, checksumURL)
 	if err != nil {
 		return fmt.Errorf("failed to download checksums: %w", err)
 	}

@@ -267,7 +267,7 @@ func TestWindowsPatchMetaMatches(t *testing.T) {
 	require.False(t, windowsPatchMetaMatches(meta, "0.1.165", "0.1.167"))
 }
 
-func TestFindWindowsPatchAssets(t *testing.T) {
+func TestFindDeltaPatchAssets(t *testing.T) {
 	assets := []Asset{
 		{Name: "sub2api_0.1.167_windows_amd64.zip", DownloadURL: "https://github.com/x/y/full.zip", Size: 34_000_000},
 		{Name: "sub2api_0.1.165_to_0.1.167_windows_amd64.hdiff", DownloadURL: "https://github.com/x/y/p.hdiff", Size: 6_000_000},
@@ -275,16 +275,32 @@ func TestFindWindowsPatchAssets(t *testing.T) {
 		{Name: "hpatchz_windows_amd64.exe", DownloadURL: "https://github.com/x/y/hpatchz.exe", Size: 500_000},
 		{Name: "checksums.txt", DownloadURL: "https://github.com/x/y/checksums.txt", Size: 500},
 	}
-	meta, patch, hpatch, full := findWindowsPatchAssets(assets, "0.1.165", "0.1.167")
+	meta, patch, hpatch, full := findDeltaPatchAssets(assets, "0.1.165", "0.1.167", "windows_amd64")
 	require.NotNil(t, meta)
 	require.NotNil(t, patch)
 	require.NotNil(t, hpatch)
 	require.NotNil(t, full)
 	require.Equal(t, "sub2api_0.1.167_windows_amd64.zip", full.Name)
 
-	meta, patch, hpatch, full = findWindowsPatchAssets(assets, "0.1.160", "0.1.167")
+	meta, patch, hpatch, full = findDeltaPatchAssets(assets, "0.1.160", "0.1.167", "windows_amd64")
 	require.Nil(t, meta)
 	require.Nil(t, patch)
 	require.NotNil(t, hpatch)
 	require.NotNil(t, full)
+
+	// Linux platform token: patch assets must be named linux_amd64 (no .exe hpatchz).
+	linuxAssets := []Asset{
+		{Name: "sub2api_0.1.167_linux_amd64.tar.gz", DownloadURL: "https://github.com/x/y/linux-full.tar.gz", Size: 34_000_000},
+		{Name: "sub2api_0.1.165_to_0.1.167_linux_amd64.hdiff", DownloadURL: "https://github.com/x/y/linux-p.hdiff", Size: 3_000_000},
+		{Name: "sub2api_0.1.165_to_0.1.167_linux_amd64.patch.json", DownloadURL: "https://github.com/x/y/linux-p.json", Size: 400},
+		{Name: "hpatchz_linux_amd64", DownloadURL: "https://github.com/x/y/hpatchz-linux", Size: 900_000},
+		{Name: "checksums.txt", DownloadURL: "https://github.com/x/y/checksums.txt", Size: 500},
+	}
+	meta, patch, hpatch, full = findDeltaPatchAssets(linuxAssets, "0.1.165", "0.1.167", "linux_amd64")
+	require.NotNil(t, meta)
+	require.NotNil(t, patch)
+	require.NotNil(t, hpatch)
+	require.NotNil(t, full)
+	require.Equal(t, "sub2api_0.1.167_linux_amd64.tar.gz", full.Name)
+	require.Equal(t, "hpatchz_linux_amd64", hpatch.Name)
 }
