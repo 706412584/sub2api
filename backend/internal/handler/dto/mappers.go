@@ -487,6 +487,7 @@ func ProxyFromService(p *service.Proxy) *Proxy {
 		ExpiresAt:      p.ExpiresAt,
 		FallbackMode:   p.FallbackMode,
 		BackupProxyID:  p.BackupProxyID,
+		EgressProxyID:  p.EgressProxyID,
 		ExpiryWarnDays: p.ExpiryWarnDays,
 	}
 }

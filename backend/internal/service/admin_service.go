@@ -519,6 +519,7 @@ type CreateProxyInput struct {
 	ExpiresAt      *time.Time
 	FallbackMode   string
 	BackupProxyID  *int64
+	EgressProxyID  *int64
 	ExpiryWarnDays int
 }
 
@@ -533,6 +534,7 @@ type UpdateProxyInput struct {
 	ExpiresAt      *time.Time
 	FallbackMode   string
 	BackupProxyID  *int64
+	EgressProxyID  *int64
 	ExpiryWarnDays int
 }
 

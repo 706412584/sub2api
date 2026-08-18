@@ -46,7 +46,7 @@ func (h *ProxyHandler) ExportData(c *gin.Context) {
 		}
 	}
 
-	// 构建 id→name 映射，用于导出备用代理 name
+	// 构建 id→name 映射，用于导出代理关系 name
 	proxyNameByID := make(map[int64]string, len(proxies))
 	for i := range proxies {
 		proxyNameByID[proxies[i].ID] = proxies[i].Name
@@ -62,9 +62,12 @@ func (h *ProxyHandler) ExportData(c *gin.Context) {
 			v := p.ExpiresAt.Unix()
 			expiresAt = &v
 		}
-		var backupProxyName string
+		var backupProxyName, egressProxyName string
 		if p.BackupProxyID != nil {
 			backupProxyName = proxyNameByID[*p.BackupProxyID]
+		}
+		if p.EgressProxyID != nil {
+			egressProxyName = proxyNameByID[*p.EgressProxyID]
 		}
 		dataProxies = append(dataProxies, DataProxy{
 			ProxyKey:        key,
@@ -78,6 +81,7 @@ func (h *ProxyHandler) ExportData(c *gin.Context) {
 			ExpiresAt:       expiresAt,
 			FallbackMode:    p.FallbackMode,
 			BackupProxyName: backupProxyName,
+			EgressProxyName: egressProxyName,
 			ExpiryWarnDays:  p.ExpiryWarnDays,
 		})
 	}
@@ -163,10 +167,15 @@ func (h *ProxyHandler) ImportData(c *gin.Context) {
 				if existingFallbackMode == "" {
 					existingFallbackMode = service.FallbackModeNone
 				}
-				var existingBackupProxyID *int64
+				var existingBackupProxyID, existingEgressProxyID *int64
 				if item.BackupProxyName != "" {
 					if bid, ok := proxyNameToID[item.BackupProxyName]; ok {
 						existingBackupProxyID = &bid
+					}
+				}
+				if item.EgressProxyName != "" {
+					if eid, ok := proxyNameToID[item.EgressProxyName]; ok {
+						existingEgressProxyID = &eid
 					}
 				}
 				updateInput := &service.UpdateProxyInput{
@@ -174,6 +183,7 @@ func (h *ProxyHandler) ImportData(c *gin.Context) {
 					ExpiresAt:      existingExpiresAt,
 					FallbackMode:   existingFallbackMode,
 					BackupProxyID:  existingBackupProxyID,
+					EgressProxyID:  existingEgressProxyID,
 					ExpiryWarnDays: item.ExpiryWarnDays,
 					// 保留已存在代理的网络配置字段
 					Name:     existing.Name,
@@ -203,9 +213,9 @@ func (h *ProxyHandler) ImportData(c *gin.Context) {
 			expiresAt = &t
 		}
 
-		// 解析 backup_proxy_name → backup_proxy_id
+		// 解析代理关系名称 → ID
 		fallbackMode := item.FallbackMode
-		var backupProxyID *int64
+		var backupProxyID, egressProxyID *int64
 		if item.BackupProxyName != "" {
 			if bid, ok := proxyNameToID[item.BackupProxyName]; ok {
 				backupProxyID = &bid
@@ -220,6 +230,11 @@ func (h *ProxyHandler) ImportData(c *gin.Context) {
 				})
 			}
 		}
+		if item.EgressProxyName != "" {
+			if eid, ok := proxyNameToID[item.EgressProxyName]; ok {
+				egressProxyID = &eid
+			}
+		}
 
 		created, err := h.adminService.CreateProxy(ctx, &service.CreateProxyInput{
 			Name:           defaultProxyName(item.Name),
@@ -231,6 +246,7 @@ func (h *ProxyHandler) ImportData(c *gin.Context) {
 			ExpiresAt:      expiresAt,
 			FallbackMode:   fallbackMode,
 			BackupProxyID:  backupProxyID,
+			EgressProxyID:  egressProxyID,
 			ExpiryWarnDays: item.ExpiryWarnDays,
 		})
 		if err != nil {
@@ -257,6 +273,7 @@ func (h *ProxyHandler) ImportData(c *gin.Context) {
 				ExpiresAt:      expiresAt,
 				FallbackMode:   fallbackMode,
 				BackupProxyID:  backupProxyID,
+				EgressProxyID:  egressProxyID,
 				ExpiryWarnDays: item.ExpiryWarnDays,
 				Name:           created.Name,
 				Protocol:       created.Protocol,

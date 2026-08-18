@@ -26,10 +26,10 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/proxyurl"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/proxyutil"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/servertiming"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
 )
@@ -160,6 +160,32 @@ type httpUpstreamService struct {
 	clients map[string]*upstreamClientEntry // 客户端缓存池，key 由隔离策略决定
 	// OpenAI 走 HTTP/HTTPS 代理时的 H2->H1 回退状态（key=标准化 proxyKey）
 	openAIHTTP2Fallbacks sync.Map
+	// egressResolver maps a target proxy URL to its configured egress (upstream)
+	// proxy URL, enabling proxy chaining (sub2api → egress → target proxy → target).
+	// nil means no chaining configured; requests behave as before.
+	egressResolver EgressProxyResolver
+}
+
+// SetEgressProxyResolver wires an optional egress (proxy chaining) resolver.
+// When set and a target proxy has an egress configured, requests to that
+// target proxy are tunneled through the egress proxy first.
+func (s *httpUpstreamService) SetEgressProxyResolver(resolver EgressProxyResolver) {
+	if s == nil {
+		return
+	}
+	s.egressResolver = resolver
+}
+
+// resolveEgressURL returns the egress proxy URL for the given normalized
+// target proxy URL, or "" when none is configured or the resolver is unset.
+func (s *httpUpstreamService) resolveEgressURL(proxyKey string) string {
+	if s == nil || s.egressResolver == nil {
+		return ""
+	}
+	if proxyKey == "" || proxyKey == directProxyKey {
+		return ""
+	}
+	return s.egressResolver.ResolveEgress(context.Background(), proxyKey)
 }
 
 // NewHTTPUpstream 创建通用 HTTP 上游服务
@@ -175,6 +201,18 @@ func NewHTTPUpstream(cfg *config.Config) service.HTTPUpstream {
 		cfg:     cfg,
 		clients: make(map[string]*upstreamClientEntry),
 	}
+}
+
+// NewHTTPUpstreamWithEgress builds an HTTPUpstream and wires the egress (proxy
+// chaining) resolver. Used by wire so the resolver is injected without changing
+// the HTTPUpstream interface (which keeps test stubs untouched).
+func NewHTTPUpstreamWithEgress(cfg *config.Config, resolver EgressProxyResolver) service.HTTPUpstream {
+	svc := &httpUpstreamService{
+		cfg:     cfg,
+		clients: make(map[string]*upstreamClientEntry),
+	}
+	svc.SetEgressProxyResolver(resolver)
+	return svc
 }
 
 // Do 执行 HTTP 请求
@@ -488,10 +526,16 @@ func (s *httpUpstreamService) getClientEntryWithTLS(proxyURL string, accountID i
 	if err != nil {
 		return nil, err
 	}
+	// 解析 egress：TLS 指纹 + 链式代理组合暂不支持，配置了 egress 时回退到普通 Transport
+	egressURL := s.resolveEgressURL(proxyKey)
 	settings := s.resolvePoolSettings(isolation, accountConcurrency)
 	settings = s.applyProfilePoolSettings(settings, upstreamProfile)
-	// TLS 指纹客户端使用独立的缓存键，加 "tls:" 前缀
-	cacheKey := "tls:" + buildCacheKey(isolation, proxyKey, accountID, upstreamProtocolModeDefault)
+	// TLS 指纹客户端使用独立的缓存键，加 "tls:" 前缀；egress 折叠进 key
+	egressSuffix := ""
+	if egressURL != "" {
+		egressSuffix = "|egress:" + egressURL
+	}
+	cacheKey := "tls:" + buildCacheKey(isolation, proxyKey+egressSuffix, accountID, upstreamProtocolModeDefault)
 	poolKey := buildPoolKey(settings, upstreamProtocolModeDefault) + ":tls"
 
 	now := time.Now()
@@ -541,9 +585,19 @@ func (s *httpUpstreamService) getClientEntryWithTLS(proxyURL string, accountID i
 		}
 	}
 
-	// 创建带 TLS 指纹的 Transport
-	slog.Debug("tls_fingerprint_creating_new_client", "account_id", accountID, "cache_key", cacheKey, "proxy", proxyKey)
-	transport, err := buildUpstreamTransportWithTLSFingerprint(settings, parsedProxy, profile)
+	// 创建带 TLS 指纹的 Transport；配置了 egress 时退回普通链式 Transport（指纹+链式暂不支持）
+	slog.Debug("tls_fingerprint_creating_new_client", "account_id", accountID, "cache_key", cacheKey, "proxy", proxyKey, "egress", egressURL != "")
+	var transport *http.Transport
+	var err2 error
+	if egressURL != "" {
+		transport, err2 = buildUpstreamTransport(settings, parsedProxy, upstreamProtocolModeDefault, egressURL)
+	} else {
+		transport, err2 = buildUpstreamTransportWithTLSFingerprint(settings, parsedProxy, profile)
+	}
+	if err2 != nil {
+		s.mu.Unlock()
+		return nil, fmt.Errorf("build TLS fingerprint transport: %w", err2)
+	}
 	if err != nil {
 		s.mu.Unlock()
 		return nil, fmt.Errorf("build TLS fingerprint transport: %w", err)
@@ -556,7 +610,7 @@ func (s *httpUpstreamService) getClientEntryWithTLS(proxyURL string, accountID i
 
 	entry := &upstreamClientEntry{
 		client:   client,
-		proxyKey: proxyKey,
+		proxyKey: proxyKey + egressSuffix,
 		poolKey:  poolKey,
 	}
 	atomic.StoreInt64(&entry.lastUsed, nowUnix)
@@ -646,6 +700,14 @@ func (s *httpUpstreamService) getClientEntry(proxyURL string, accountID int64, a
 	if err != nil {
 		return nil, err
 	}
+	// 解析 egress（上级代理）：如果该代理配置了 egress，请求先经 egress 再到目标代理。
+	// egress key 折叠进 proxyKey，使链式代理获得独立的客户端缓存条目。
+	egressURL := s.resolveEgressURL(proxyKey)
+	egressKey := ""
+	if egressURL != "" {
+		egressKey = "|egress:" + egressURL
+		proxyKey = proxyKey + egressKey
+	}
 	// 根据请求 profile（例如 OpenAI）选择协议模式
 	protocolMode := s.resolveProtocolMode(profile, proxyKey, parsedProxy)
 	settings := s.resolvePoolSettings(isolation, accountConcurrency)
@@ -696,7 +758,7 @@ func (s *httpUpstreamService) getClientEntry(proxyURL string, accountID int64, a
 	}
 
 	// 缓存未命中或需要重建，创建新客户端
-	transport, err := buildUpstreamTransport(settings, parsedProxy, protocolMode)
+	transport, err := buildUpstreamTransport(settings, parsedProxy, protocolMode, egressURL)
 	if err != nil {
 		s.mu.Unlock()
 		return nil, fmt.Errorf("build transport: %w", err)
@@ -1287,9 +1349,25 @@ func newUpstreamDialer() *net.Dialer {
 //   - MaxConnsPerHost: 每主机最大连接数（达到后新请求等待）
 //   - IdleConnTimeout: 空闲连接超时（超时后关闭）
 //   - ResponseHeaderTimeout: 等待响应头超时（不影响流式传输）
-func buildUpstreamTransport(settings poolSettings, proxyURL *url.URL, protocolMode string) (*http.Transport, error) {
+func buildUpstreamTransport(settings poolSettings, proxyURL *url.URL, protocolMode string, egressProxyURL string) (*http.Transport, error) {
+	dialer := newUpstreamDialer()
+	// When an egress (chaining) proxy is configured, route the underlying TCP
+	// connection to the target proxy through the egress proxy first. The target
+	// proxy is then applied on top via ConfigureTransportProxy so the full chain
+	// is: sub2api → egress → target proxy → destination.
+	var dialContext func(ctx context.Context, network, addr string) (net.Conn, error)
+	if strings.TrimSpace(egressProxyURL) != "" {
+		egressDialer, err := newEgressDialer(egressProxyURL, dialer)
+		if err != nil {
+			return nil, fmt.Errorf("build egress dialer: %w", err)
+		}
+		dialContext = egressDialer.DialContext
+	} else {
+		dialContext = dialer.DialContext
+	}
+
 	transport := &http.Transport{
-		DialContext:           newUpstreamDialer().DialContext,
+		DialContext:           dialContext,
 		TLSHandshakeTimeout:   defaultUpstreamTLSHandshakeTimeout,
 		MaxIdleConns:          settings.maxIdleConns,
 		MaxIdleConnsPerHost:   settings.maxIdleConnsPerHost,
@@ -1313,8 +1391,15 @@ func buildUpstreamTransport(settings poolSettings, proxyURL *url.URL, protocolMo
 		transport.ForceAttemptHTTP2 = false
 		transport.TLSNextProto = make(map[string]func(string, *tls.Conn) http.RoundTripper)
 	}
-	if err := proxyutil.ConfigureTransportProxy(transport, proxyURL); err != nil {
-		return nil, err
+	var proxyErr error
+	if egressProxyURL != "" && proxyURL != nil && (strings.EqualFold(proxyURL.Scheme, "socks5") || strings.EqualFold(proxyURL.Scheme, "socks5h")) {
+		targetAddr := net.JoinHostPort(proxyURL.Hostname(), proxyURL.Port())
+		proxyErr = proxyutil.ConfigureTransportProxyWithDialContextToProxy(transport, proxyURL, targetAddr, dialContext)
+	} else {
+		proxyErr = proxyutil.ConfigureTransportProxy(transport, proxyURL)
+	}
+	if proxyErr != nil {
+		return nil, proxyErr
 	}
 	return transport, nil
 }
@@ -1379,7 +1464,7 @@ func buildUpstreamTransportWithTLSFingerprint(settings poolSettings, proxyURL *u
 		case "https":
 			// The fingerprint dialer emits a plaintext CONNECT preface and cannot
 			// establish TLS to an HTTPS proxy. Keep proxy routing via net/http.
-			return buildUpstreamTransport(settings, proxyURL, upstreamProtocolModeDefault)
+			return buildUpstreamTransport(settings, proxyURL, upstreamProtocolModeDefault, "")
 		case "http":
 			// HTTP/HTTPS 代理：使用 HTTPProxyDialer（CONNECT 隧道）
 			slog.Debug("tls_fingerprint_transport_http_connect", "proxy", proxyURL.Host)

@@ -259,6 +259,9 @@ export default {
       fallbackProxy: '指定备用代理',
       fallbackDirect: '回退直连',
       backupProxy: '备用代理',
+      egressProxy: '代理转发 / 上级代理',
+      egressProxyHint: '请求先通过上级代理，再连接当前目标代理。',
+      noEgressProxy: '不使用上级代理',
       boundGroups: '绑定分组',
       boundGroupsHint: '账号加入这些分组且未指定代理时，将自动绑定本代理。',
       tabs: {

@@ -38,6 +38,7 @@ type CreateProxyRequest struct {
 	ExpiresAt      *int64 `json:"expires_at"`
 	FallbackMode   string `json:"fallback_mode" binding:"omitempty,oneof=none proxy direct"`
 	BackupProxyID  *int64 `json:"backup_proxy_id"`
+	EgressProxyID  *int64 `json:"egress_proxy_id"`
 	ExpiryWarnDays int    `json:"expiry_warn_days" binding:"omitempty,min=0"`
 }
 
@@ -53,6 +54,7 @@ type UpdateProxyRequest struct {
 	ExpiresAt      *int64 `json:"expires_at"`
 	FallbackMode   string `json:"fallback_mode" binding:"omitempty,oneof=none proxy direct"`
 	BackupProxyID  *int64 `json:"backup_proxy_id"`
+	EgressProxyID  *int64 `json:"egress_proxy_id"`
 	ExpiryWarnDays int    `json:"expiry_warn_days" binding:"omitempty,min=0"`
 }
 
@@ -160,6 +162,7 @@ func (h *ProxyHandler) Create(c *gin.Context) {
 			ExpiresAt:      expiresAt,
 			FallbackMode:   strings.TrimSpace(req.FallbackMode),
 			BackupProxyID:  req.BackupProxyID,
+			EgressProxyID:  req.EgressProxyID,
 			ExpiryWarnDays: req.ExpiryWarnDays,
 		})
 		if err != nil {
@@ -200,6 +203,7 @@ func (h *ProxyHandler) Update(c *gin.Context) {
 		ExpiresAt:      expiresAt,
 		FallbackMode:   strings.TrimSpace(req.FallbackMode),
 		BackupProxyID:  req.BackupProxyID,
+		EgressProxyID:  req.EgressProxyID,
 		ExpiryWarnDays: req.ExpiryWarnDays,
 	})
 	if err != nil {

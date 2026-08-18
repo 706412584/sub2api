@@ -263,6 +263,9 @@ export default {
       boundGroups: 'Bound Groups',
       boundGroupsHint: 'Accounts joining these groups without an explicit proxy will use this proxy.',
       backupProxy: 'Backup proxy',
+      egressProxy: 'Proxy forwarding / upstream proxy',
+      egressProxyHint: 'Requests pass through the upstream proxy before connecting to this target proxy.',
+      noEgressProxy: 'No upstream proxy',
       tabs: {
         proxies: 'Proxies',
         subscriptions: 'Subscriptions',

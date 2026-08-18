@@ -173,6 +173,20 @@ func (_c *ProxyCreate) SetNillableBackupProxyID(v *int64) *ProxyCreate {
 	return _c
 }
 
+// SetEgressProxyID sets the "egress_proxy_id" field.
+func (_c *ProxyCreate) SetEgressProxyID(v int64) *ProxyCreate {
+	_c.mutation.SetEgressProxyID(v)
+	return _c
+}
+
+// SetNillableEgressProxyID sets the "egress_proxy_id" field if the given value is not nil.
+func (_c *ProxyCreate) SetNillableEgressProxyID(v *int64) *ProxyCreate {
+	if v != nil {
+		_c.SetEgressProxyID(*v)
+	}
+	return _c
+}
+
 // SetExpiryWarnDays sets the "expiry_warn_days" field.
 func (_c *ProxyCreate) SetExpiryWarnDays(v int) *ProxyCreate {
 	_c.mutation.SetExpiryWarnDays(v)
@@ -411,6 +425,10 @@ func (_c *ProxyCreate) createSpec() (*Proxy, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.FallbackMode(); ok {
 		_spec.SetField(proxy.FieldFallbackMode, field.TypeString, value)
 		_node.FallbackMode = value
+	}
+	if value, ok := _c.mutation.EgressProxyID(); ok {
+		_spec.SetField(proxy.FieldEgressProxyID, field.TypeInt64, value)
+		_node.EgressProxyID = &value
 	}
 	if value, ok := _c.mutation.ExpiryWarnDays(); ok {
 		_spec.SetField(proxy.FieldExpiryWarnDays, field.TypeInt, value)
@@ -678,6 +696,30 @@ func (u *ProxyUpsert) UpdateBackupProxyID() *ProxyUpsert {
 // ClearBackupProxyID clears the value of the "backup_proxy_id" field.
 func (u *ProxyUpsert) ClearBackupProxyID() *ProxyUpsert {
 	u.SetNull(proxy.FieldBackupProxyID)
+	return u
+}
+
+// SetEgressProxyID sets the "egress_proxy_id" field.
+func (u *ProxyUpsert) SetEgressProxyID(v int64) *ProxyUpsert {
+	u.Set(proxy.FieldEgressProxyID, v)
+	return u
+}
+
+// UpdateEgressProxyID sets the "egress_proxy_id" field to the value that was provided on create.
+func (u *ProxyUpsert) UpdateEgressProxyID() *ProxyUpsert {
+	u.SetExcluded(proxy.FieldEgressProxyID)
+	return u
+}
+
+// AddEgressProxyID adds v to the "egress_proxy_id" field.
+func (u *ProxyUpsert) AddEgressProxyID(v int64) *ProxyUpsert {
+	u.Add(proxy.FieldEgressProxyID, v)
+	return u
+}
+
+// ClearEgressProxyID clears the value of the "egress_proxy_id" field.
+func (u *ProxyUpsert) ClearEgressProxyID() *ProxyUpsert {
+	u.SetNull(proxy.FieldEgressProxyID)
 	return u
 }
 
@@ -951,6 +993,34 @@ func (u *ProxyUpsertOne) UpdateBackupProxyID() *ProxyUpsertOne {
 func (u *ProxyUpsertOne) ClearBackupProxyID() *ProxyUpsertOne {
 	return u.Update(func(s *ProxyUpsert) {
 		s.ClearBackupProxyID()
+	})
+}
+
+// SetEgressProxyID sets the "egress_proxy_id" field.
+func (u *ProxyUpsertOne) SetEgressProxyID(v int64) *ProxyUpsertOne {
+	return u.Update(func(s *ProxyUpsert) {
+		s.SetEgressProxyID(v)
+	})
+}
+
+// AddEgressProxyID adds v to the "egress_proxy_id" field.
+func (u *ProxyUpsertOne) AddEgressProxyID(v int64) *ProxyUpsertOne {
+	return u.Update(func(s *ProxyUpsert) {
+		s.AddEgressProxyID(v)
+	})
+}
+
+// UpdateEgressProxyID sets the "egress_proxy_id" field to the value that was provided on create.
+func (u *ProxyUpsertOne) UpdateEgressProxyID() *ProxyUpsertOne {
+	return u.Update(func(s *ProxyUpsert) {
+		s.UpdateEgressProxyID()
+	})
+}
+
+// ClearEgressProxyID clears the value of the "egress_proxy_id" field.
+func (u *ProxyUpsertOne) ClearEgressProxyID() *ProxyUpsertOne {
+	return u.Update(func(s *ProxyUpsert) {
+		s.ClearEgressProxyID()
 	})
 }
 
@@ -1393,6 +1463,34 @@ func (u *ProxyUpsertBulk) UpdateBackupProxyID() *ProxyUpsertBulk {
 func (u *ProxyUpsertBulk) ClearBackupProxyID() *ProxyUpsertBulk {
 	return u.Update(func(s *ProxyUpsert) {
 		s.ClearBackupProxyID()
+	})
+}
+
+// SetEgressProxyID sets the "egress_proxy_id" field.
+func (u *ProxyUpsertBulk) SetEgressProxyID(v int64) *ProxyUpsertBulk {
+	return u.Update(func(s *ProxyUpsert) {
+		s.SetEgressProxyID(v)
+	})
+}
+
+// AddEgressProxyID adds v to the "egress_proxy_id" field.
+func (u *ProxyUpsertBulk) AddEgressProxyID(v int64) *ProxyUpsertBulk {
+	return u.Update(func(s *ProxyUpsert) {
+		s.AddEgressProxyID(v)
+	})
+}
+
+// UpdateEgressProxyID sets the "egress_proxy_id" field to the value that was provided on create.
+func (u *ProxyUpsertBulk) UpdateEgressProxyID() *ProxyUpsertBulk {
+	return u.Update(func(s *ProxyUpsert) {
+		s.UpdateEgressProxyID()
+	})
+}
+
+// ClearEgressProxyID clears the value of the "egress_proxy_id" field.
+func (u *ProxyUpsertBulk) ClearEgressProxyID() *ProxyUpsertBulk {
+	return u.Update(func(s *ProxyUpsert) {
+		s.ClearEgressProxyID()
 	})
 }
 

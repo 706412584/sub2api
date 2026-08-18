@@ -41,6 +41,8 @@ const (
 	FieldFallbackMode = "fallback_mode"
 	// FieldBackupProxyID holds the string denoting the backup_proxy_id field in the database.
 	FieldBackupProxyID = "backup_proxy_id"
+	// FieldEgressProxyID holds the string denoting the egress_proxy_id field in the database.
+	FieldEgressProxyID = "egress_proxy_id"
 	// FieldExpiryWarnDays holds the string denoting the expiry_warn_days field in the database.
 	FieldExpiryWarnDays = "expiry_warn_days"
 	// EdgeAccounts holds the string denoting the accounts edge name in mutations.
@@ -78,6 +80,7 @@ var Columns = []string{
 	FieldExpiresAt,
 	FieldFallbackMode,
 	FieldBackupProxyID,
+	FieldEgressProxyID,
 	FieldExpiryWarnDays,
 }
 
@@ -198,6 +201,11 @@ func ByFallbackMode(opts ...sql.OrderTermOption) OrderOption {
 // ByBackupProxyID orders the results by the backup_proxy_id field.
 func ByBackupProxyID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldBackupProxyID, opts...).ToFunc()
+}
+
+// ByEgressProxyID orders the results by the egress_proxy_id field.
+func ByEgressProxyID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldEgressProxyID, opts...).ToFunc()
 }
 
 // ByExpiryWarnDays orders the results by the expiry_warn_days field.
