@@ -64,6 +64,9 @@ func RegisterAdminRoutes(
 		// Grok OAuth
 		registerGrokOAuthRoutes(admin, h)
 
+		// 国产供应商（kimi/zhipu/deepseek）额度与余额
+		registerCNProviderRoutes(admin, h)
+
 		// 代理管理
 		registerProxyRoutes(admin, h, stepUpAuth)
 
@@ -508,6 +511,17 @@ func registerGrokOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	}
 }
 
+// registerCNProviderRoutes 注册国产供应商（kimi/zhipu/deepseek）的额度与余额查询端点。
+func registerCNProviderRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	cn := admin.Group("/cn-providers")
+	{
+		// Coding Plan 滚动窗口用量（kimi/zhipu coding 账号）。
+		cn.GET("/accounts/:id/quota", h.Admin.CNProvider.QueryQuota)
+		// payg 账号余额（kimi/deepseek；zhipu 无余额端点）。
+		cn.GET("/accounts/:id/balance", h.Admin.CNProvider.QueryBalance)
+	}
+}
+
 func registerProxyRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAuth middleware.StepUpAuthMiddleware) {
 	proxies := admin.Group("/proxies")
 	{
@@ -864,11 +878,11 @@ func registerDynamicProxyPoolRoutes(admin *gin.RouterGroup, h *handler.Handlers)
 		pools.DELETE("/:id/proxies", h.Admin.DynamicProxyPool.DisassociateProxies)
 		pools.POST("/:id/preview-nodes", h.Admin.DynamicProxyPool.PreviewSubscriptionNodes)
 		pools.POST("/:id/add-nodes", h.Admin.DynamicProxyPool.AddSubscriptionNodes)
-	pools.POST("/:id/proxies/:proxyId/test", h.Admin.DynamicProxyPool.TestPoolProxy)
-		}
+		pools.POST("/:id/proxies/:proxyId/test", h.Admin.DynamicProxyPool.TestPoolProxy)
 	}
+}
 
-	func registerChannelMonitorV2Routes(admin *gin.RouterGroup, h *handler.Handlers, settingService *service.SettingService) {
+func registerChannelMonitorV2Routes(admin *gin.RouterGroup, h *handler.Handlers, settingService *service.SettingService) {
 	// Config GET/PUT: feature enabled only (operators can prepare V2 before flipping mode).
 	// Read/matrix endpoints: require mode=v2 so V1 deployments do not serve passive data.
 	featureGuard := channelMonitorAdminFeatureGuard(settingService)
