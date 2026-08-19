@@ -96,20 +96,20 @@ func buildWindowsRestartScript(pid int, exe, workDir string) string {
 	stderrLog := filepath.Join(logDir, "sub2api.stderr.log")
 
 	var body strings.Builder
-	body.WriteString("$ErrorActionPreference = 'Continue'\n")
-	body.WriteString(fmt.Sprintf("$targetPid = %d\n", pid))
-	body.WriteString(fmt.Sprintf("$exe = %s\n", psQuote(exe)))
-	body.WriteString(fmt.Sprintf("$workDir = %s\n", psQuote(workDir)))
-	body.WriteString(fmt.Sprintf("$nativeControl = %s\n", psQuote(nativeControl)))
-	body.WriteString(fmt.Sprintf("$runtimeEnv = %s\n", psQuote(runtimeEnv)))
-	body.WriteString(fmt.Sprintf("$logDir = %s\n", psQuote(logDir)))
-	body.WriteString(fmt.Sprintf("$restartLog = %s\n", psQuote(restartLog)))
-	body.WriteString(fmt.Sprintf("$pidFile = %s\n", psQuote(pidFile)))
-	body.WriteString(fmt.Sprintf("$stdoutLog = %s\n", psQuote(stdoutLog)))
-	body.WriteString(fmt.Sprintf("$stderrLog = %s\n", psQuote(stderrLog)))
-	body.WriteString(fmt.Sprintf("$tempLog = Join-Path $env:TEMP ('sub2api-restart-' + %d + '.log')\n", pid))
+	_, _ = body.WriteString("$ErrorActionPreference = 'Continue'\n")
+	_, _ = body.WriteString(fmt.Sprintf("$targetPid = %d\n", pid))
+	_, _ = body.WriteString(fmt.Sprintf("$exe = %s\n", psQuote(exe)))
+	_, _ = body.WriteString(fmt.Sprintf("$workDir = %s\n", psQuote(workDir)))
+	_, _ = body.WriteString(fmt.Sprintf("$nativeControl = %s\n", psQuote(nativeControl)))
+	_, _ = body.WriteString(fmt.Sprintf("$runtimeEnv = %s\n", psQuote(runtimeEnv)))
+	_, _ = body.WriteString(fmt.Sprintf("$logDir = %s\n", psQuote(logDir)))
+	_, _ = body.WriteString(fmt.Sprintf("$restartLog = %s\n", psQuote(restartLog)))
+	_, _ = body.WriteString(fmt.Sprintf("$pidFile = %s\n", psQuote(pidFile)))
+	_, _ = body.WriteString(fmt.Sprintf("$stdoutLog = %s\n", psQuote(stdoutLog)))
+	_, _ = body.WriteString(fmt.Sprintf("$stderrLog = %s\n", psQuote(stderrLog)))
+	_, _ = body.WriteString(fmt.Sprintf("$tempLog = Join-Path $env:TEMP ('sub2api-restart-' + %d + '.log')\n", pid))
 
-	body.WriteString(`
+	_, _ = body.WriteString(`
 function Write-RestartLog([string]$Message) {
   $line = ('[{0}] {1}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $Message)
   try {

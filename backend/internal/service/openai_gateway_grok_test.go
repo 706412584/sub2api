@@ -3871,7 +3871,7 @@ func TestOpenAIWSHTTPBridgeGrokSanitizesResponseFailed(t *testing.T) {
 	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
 		context.Background(), nil, account, "token",
 		[]byte(`{"type":"response.create","model":"grok-4.3","input":"hi"}`),
-		64, "grok-4.3", "", "", "", "cache-id", 1,
+		64, "grok-4.3", "", "", "", "cache-id", 2,
 		func(message []byte) error {
 			events = append(events, append([]byte(nil), message...))
 			return nil

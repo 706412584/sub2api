@@ -255,13 +255,13 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
 			Kind:               kind,
 			Message:            upstreamMsg,
 		})
-	errCtx := withGrokTeamRateLimitModel(ctx, upstreamModel)
-	s.handleGrokAccountUpstreamError(errCtx, account, resp.StatusCode, resp.Header, respBody, originalModel)
-	// 429 / free-usage: stamp team+model cool so sibling accounts skip this model.
-	if resp.StatusCode == http.StatusTooManyRequests ||
-		classifyGrokUpstreamFailure(resp.StatusCode, respBody, upstreamModel).Class == GrokFailureFreeUsage {
-		markGrokTeamModelRateLimit(account, upstreamModel, resolveGrokTeamRateLimitUntil(time.Now().Add(grokTeamRateLimitDefaultTTL), time.Now()))
-	}
+		errCtx := withGrokTeamRateLimitModel(ctx, upstreamModel)
+		s.handleGrokAccountUpstreamError(errCtx, account, resp.StatusCode, resp.Header, respBody, originalModel)
+		// 429 / free-usage: stamp team+model cool so sibling accounts skip this model.
+		if resp.StatusCode == http.StatusTooManyRequests ||
+			classifyGrokUpstreamFailure(resp.StatusCode, respBody, upstreamModel).Class == GrokFailureFreeUsage {
+			markGrokTeamModelRateLimit(account, upstreamModel, resolveGrokTeamRateLimitUntil(time.Now().Add(grokTeamRateLimitDefaultTTL), time.Now()))
+		}
 		if s.shouldFailoverGrokUpstreamError(resp.StatusCode, respBody) {
 			return nil, &UpstreamFailoverError{
 				StatusCode:             resp.StatusCode,

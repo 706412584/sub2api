@@ -37,6 +37,12 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 ) (*OpenAIForwardResult, error) {
 	beginUpstreamResponseModelObservation(c)
 
+	// CN providers configured with the native Anthropic protocol can serve the
+	// Messages endpoint without an unnecessary protocol conversion round-trip.
+	if account.IsAnthropicProtocol() {
+		return s.forwardAnthropicViaNativeAnthropicEndpoint(ctx, c, account, body, defaultMappedModel)
+	}
+
 	// Grok groups can opt into Chat Completions for native /v1/messages.
 	// Default remains responses (native); only explicit chat_completions converts.
 	// Callers that omit the option keep the legacy Responses path.

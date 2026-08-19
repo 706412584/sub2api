@@ -229,7 +229,7 @@ func (s *httpUpstreamService) ProbeEgress(ctx context.Context, proxyURL string, 
 	if err != nil {
 		return "", latencyMs, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return "", latencyMs, fmt.Errorf("egress probe HTTP %d", resp.StatusCode)
 	}

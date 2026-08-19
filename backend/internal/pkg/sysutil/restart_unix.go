@@ -104,8 +104,12 @@ func renderLinuxRestartScript(pid int, exe, workDir string) (string, error) {
 	exeBackup := exe + ".backup"
 
 	var b strings.Builder
-	b.WriteString("#!/bin/sh\n")
-	b.WriteString("# sub2api linux restart helper (generated)\n")
+	if _, err := b.WriteString("#!/bin/sh\n"); err != nil {
+		return "", err
+	}
+	if _, err := b.WriteString("# sub2api linux restart helper (generated)\n"); err != nil {
+		return "", err
+	}
 	fmt.Fprintf(&b, "TARGET_PID=%d\n", pid)
 	fmt.Fprintf(&b, "EXE=%s\n", shQuote(exe))
 	fmt.Fprintf(&b, "WORK_DIR=%s\n", shQuote(workDir))
@@ -116,7 +120,7 @@ func renderLinuxRestartScript(pid int, exe, workDir string) (string, error) {
 	fmt.Fprintf(&b, "STDERR_LOG=%s\n", shQuote(stderrLog))
 	fmt.Fprintf(&b, "PID_FILE=%s\n", shQuote(pidFile))
 	fmt.Fprintf(&b, "EXE_BACKUP=%s\n", shQuote(exeBackup))
-	b.WriteString(`
+	if _, err := b.WriteString(`
 log_msg() {
   msg="[$(date '+%Y-%m-%d %H:%M:%S')] $1"
   if [ -n "$LOG_DIR" ]; then mkdir -p "$LOG_DIR" 2>/dev/null; fi
@@ -197,7 +201,9 @@ done
 
 log_msg "restart and rollback both failed"
 exit 1
-`)
+`); err != nil {
+		return "", err
+	}
 
 	return b.String(), nil
 }

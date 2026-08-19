@@ -105,7 +105,7 @@ func (d *egressDialer) connectThroughProxy(ctx context.Context, conn net.Conn, a
 	connectLine += "\r\n"
 
 	setDeadline(ctx, conn, 30*time.Second)
-	defer conn.SetDeadline(time.Time{})
+	defer func() { _ = conn.SetDeadline(time.Time{}) }()
 
 	if _, err := conn.Write([]byte(connectLine)); err != nil {
 		return fmt.Errorf("write CONNECT to egress: %w", err)
@@ -135,7 +135,7 @@ func (d *egressDialer) connectThroughProxy(ctx context.Context, conn net.Conn, a
 // proxy connection.
 func (d *egressDialer) socks5Tunnel(ctx context.Context, conn net.Conn, addr string) error {
 	setDeadline(ctx, conn, 30*time.Second)
-	defer conn.SetDeadline(time.Time{})
+	defer func() { _ = conn.SetDeadline(time.Time{}) }()
 
 	greeting := []byte{0x05, 0x01, 0x00}
 	if d.egressProxyURL.User != nil {
