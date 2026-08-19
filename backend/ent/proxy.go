@@ -43,6 +43,8 @@ type Proxy struct {
 	FallbackMode string `json:"fallback_mode,omitempty"`
 	// Backup proxy id when fallback_mode=proxy (self-reference).
 	BackupProxyID *int64 `json:"backup_proxy_id,omitempty"`
+	// Egress proxy id for proxy chaining: requests go through this proxy first, then to the target proxy.
+	EgressProxyID *int64 `json:"egress_proxy_id,omitempty"`
 	// Days before expiry to flag as expiring-soon (per proxy).
 	ExpiryWarnDays int `json:"expiry_warn_days,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
@@ -87,7 +89,7 @@ func (*Proxy) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case proxy.FieldID, proxy.FieldPort, proxy.FieldBackupProxyID, proxy.FieldExpiryWarnDays:
+		case proxy.FieldID, proxy.FieldPort, proxy.FieldBackupProxyID, proxy.FieldEgressProxyID, proxy.FieldExpiryWarnDays:
 			values[i] = new(sql.NullInt64)
 		case proxy.FieldName, proxy.FieldProtocol, proxy.FieldHost, proxy.FieldUsername, proxy.FieldPassword, proxy.FieldStatus, proxy.FieldFallbackMode:
 			values[i] = new(sql.NullString)
@@ -197,6 +199,13 @@ func (_m *Proxy) assignValues(columns []string, values []any) error {
 				_m.BackupProxyID = new(int64)
 				*_m.BackupProxyID = value.Int64
 			}
+		case proxy.FieldEgressProxyID:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field egress_proxy_id", values[i])
+			} else if value.Valid {
+				_m.EgressProxyID = new(int64)
+				*_m.EgressProxyID = value.Int64
+			}
 		case proxy.FieldExpiryWarnDays:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for field expiry_warn_days", values[i])
@@ -295,6 +304,11 @@ func (_m *Proxy) String() string {
 	builder.WriteString(", ")
 	if v := _m.BackupProxyID; v != nil {
 		builder.WriteString("backup_proxy_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.EgressProxyID; v != nil {
+		builder.WriteString("egress_proxy_id=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteString(", ")

@@ -293,49 +293,19 @@ func (s *AccountTestService) resolveTestProxyName(ctx context.Context, account *
 	return ""
 }
 
-// probeTestEgressIP fetches the public IP through the same proxy hop the account
-// test will use. Empty proxyURL means direct egress. Failures are non-fatal.
-func probeTestEgressIP(proxyURL string) (ip string, latencyMs int64, err error) {
-	const probeURL = "http://api64.ipify.org?format=json"
-	transport := &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
+type egressProbeHTTPUpstream interface {
+	ProbeEgress(ctx context.Context, proxyURL string, accountID int64, accountConcurrency int) (string, int64, error)
+}
+
+// probeTestEgressIP uses the same resolved transport as account requests when
+// the production upstream supports it. Test doubles that only implement Do do
+// not consume their account response during the informational probe.
+func (s *AccountTestService) probeTestEgressIP(ctx context.Context, proxyURL string, accountID int64, accountConcurrency int) (string, int64, error) {
+	prober, ok := s.httpUpstream.(egressProbeHTTPUpstream)
+	if !ok {
+		return "", 0, fmt.Errorf("egress probe unavailable")
 	}
-	if strings.TrimSpace(proxyURL) != "" {
-		parsed, parseErr := url.Parse(proxyURL)
-		if parseErr != nil {
-			return "", 0, parseErr
-		}
-		transport.Proxy = http.ProxyURL(parsed)
-	}
-	client := &http.Client{
-		Transport: transport,
-		Timeout:   5 * time.Second,
-	}
-	start := time.Now()
-	resp, doErr := client.Get(probeURL)
-	latencyMs = time.Since(start).Milliseconds()
-	if doErr != nil {
-		return "", latencyMs, doErr
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", latencyMs, fmt.Errorf("egress probe HTTP %d", resp.StatusCode)
-	}
-	body, readErr := io.ReadAll(io.LimitReader(resp.Body, 512))
-	if readErr != nil {
-		return "", latencyMs, readErr
-	}
-	var parsed struct {
-		IP string `json:"ip"`
-	}
-	if jsonErr := json.Unmarshal(body, &parsed); jsonErr != nil {
-		return "", latencyMs, jsonErr
-	}
-	ip = strings.TrimSpace(parsed.IP)
-	if ip == "" {
-		return "", latencyMs, fmt.Errorf("empty egress ip")
-	}
-	return ip, latencyMs, nil
+	return prober.ProbeEgress(ctx, proxyURL, accountID, accountConcurrency)
 }
 
 func withTestProxyOverride(ctx context.Context, override *TestProxyOverride) context.Context {
@@ -444,7 +414,7 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 	// Send proxy info event (always) so the UI can show which proxy is being used + egress IP
 	proxyName := s.resolveTestProxyName(ctx, account)
 	proxyURL := s.resolveTestProxyURL(ctx, account)
-	egressIP, egressLatency, egressErr := probeTestEgressIP(proxyURL)
+	egressIP, egressLatency, egressErr := s.probeTestEgressIP(ctx, proxyURL, account.ID, account.Concurrency)
 	var egressErrStr string
 	if egressErr != nil {
 		egressErrStr = egressErr.Error()
@@ -474,6 +444,10 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 	}
 
 	// Route to platform-specific test method
+	if account.IsCNProvider() && account.GetAPIProtocol() == APIProtocolChatCompletions {
+		return s.testCNProviderChatCompletionsConnection(c, account, modelID, prompt)
+	}
+
 	if account.IsOpenAI() {
 		return s.testOpenAIAccountConnection(c, account, modelID, prompt, normalizeAccountTestMode(mode))
 	}
@@ -556,6 +530,27 @@ func (s *AccountTestService) testKiroAccountConnection(c *gin.Context, account *
 	}
 	s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
 	return nil
+}
+
+func (s *AccountTestService) testCNProviderChatCompletionsConnection(c *gin.Context, account *Account, modelID string, prompt string) error {
+	testModelID := strings.TrimSpace(modelID)
+	if testModelID == "" {
+		testModelID = openai.DefaultTestModel
+	}
+	testModelID = account.GetMappedModel(testModelID)
+
+	authToken := strings.TrimSpace(account.GetOpenAIProtocolAPIKey())
+	if authToken == "" {
+		return s.sendErrorAndEnd(c, "No API key available")
+	}
+
+	baseURL := account.GetOpenAIBaseURL()
+	normalizedBaseURL, err := s.validateUpstreamBaseURL(baseURL)
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid base URL: %s", err.Error()))
+	}
+
+	return s.testOpenAIChatCompletionsConnection(c, account, testModelID, prompt, normalizedBaseURL, authToken)
 }
 
 // testClaudeAccountConnection tests an Anthropic Claude account's connection
@@ -976,11 +971,12 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 		req.Host = "chatgpt.com"
 		req.Header.Set("accept", "text/event-stream")
 		req.Header.Set("OpenAI-Beta", "responses=experimental")
-		req.Header.Set("Originator", openai.CodexDefaultOriginator)
+		canonical := resolveCodexOutboundIdentity("")
+		req.Header.Set("Originator", canonical.originator)
 		if customUA := strings.TrimSpace(credentialAccount.GetOpenAIUserAgent()); customUA != "" {
 			req.Header.Set("User-Agent", customUA)
 		} else {
-			req.Header.Set("User-Agent", codexCLIUserAgent)
+			req.Header.Set("User-Agent", canonical.userAgent)
 		}
 		setOpenAIChatGPTAccountHeaders(req.Header, credentialAccount)
 		// 与真实转发一致：账号级自定义 UA 同样作为管理员显式配置传入，否则测试用的身份
@@ -2305,6 +2301,9 @@ func (s *AccountTestService) testOpenAICompactConnection(c *gin.Context, account
 		req.Header.Set("Authorization", "Bearer "+authToken)
 	}
 	applyOpenAICodexProbeHeaders(req.Header)
+	if isOAuth {
+		enforceCodexIdentityHeadersWithUA(req.Header, credentialAccount.GetOpenAIUserAgent())
+	}
 	probeSessionID := compactProbeSessionID(account.ID)
 	req.Header.Set("Session_ID", probeSessionID)
 	req.Header.Set("Conversation_ID", probeSessionID)
@@ -3222,11 +3221,12 @@ func (s *AccountTestService) testOpenAIImageOAuth(c *gin.Context, ctx context.Co
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/event-stream")
 	req.Header.Set("OpenAI-Beta", "responses=experimental")
-	req.Header.Set("originator", openai.CodexDefaultOriginator)
+	canonical := resolveCodexOutboundIdentity("")
+	req.Header.Set("originator", canonical.originator)
 	if customUA := strings.TrimSpace(credentialAccount.GetOpenAIUserAgent()); customUA != "" {
 		req.Header.Set("User-Agent", customUA)
 	} else {
-		req.Header.Set("User-Agent", codexCLIUserAgent)
+		req.Header.Set("User-Agent", canonical.userAgent)
 	}
 	setOpenAIChatGPTAccountHeaders(req.Header, credentialAccount)
 	// 与真实转发一致：账号级自定义 UA 同样作为管理员显式配置传入，否则测试用的身份

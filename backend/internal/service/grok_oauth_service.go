@@ -16,7 +16,7 @@ import (
 const grokDefaultAccessTokenTTL = 6 * time.Hour
 
 type GrokOAuthService struct {
-sessionStore   *xai.SessionStore
+	sessionStore   *xai.SessionStore
 	proxyRepo      ProxyRepository
 	oauthClient    GrokOAuthClient
 	settingService *SettingService

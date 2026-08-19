@@ -226,6 +226,33 @@ func (_u *ProxyUpdate) ClearBackupProxyID() *ProxyUpdate {
 	return _u
 }
 
+// SetEgressProxyID sets the "egress_proxy_id" field.
+func (_u *ProxyUpdate) SetEgressProxyID(v int64) *ProxyUpdate {
+	_u.mutation.ResetEgressProxyID()
+	_u.mutation.SetEgressProxyID(v)
+	return _u
+}
+
+// SetNillableEgressProxyID sets the "egress_proxy_id" field if the given value is not nil.
+func (_u *ProxyUpdate) SetNillableEgressProxyID(v *int64) *ProxyUpdate {
+	if v != nil {
+		_u.SetEgressProxyID(*v)
+	}
+	return _u
+}
+
+// AddEgressProxyID adds value to the "egress_proxy_id" field.
+func (_u *ProxyUpdate) AddEgressProxyID(v int64) *ProxyUpdate {
+	_u.mutation.AddEgressProxyID(v)
+	return _u
+}
+
+// ClearEgressProxyID clears the value of the "egress_proxy_id" field.
+func (_u *ProxyUpdate) ClearEgressProxyID() *ProxyUpdate {
+	_u.mutation.ClearEgressProxyID()
+	return _u
+}
+
 // SetExpiryWarnDays sets the "expiry_warn_days" field.
 func (_u *ProxyUpdate) SetExpiryWarnDays(v int) *ProxyUpdate {
 	_u.mutation.ResetExpiryWarnDays()
@@ -440,6 +467,15 @@ func (_u *ProxyUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.FallbackMode(); ok {
 		_spec.SetField(proxy.FieldFallbackMode, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.EgressProxyID(); ok {
+		_spec.SetField(proxy.FieldEgressProxyID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedEgressProxyID(); ok {
+		_spec.AddField(proxy.FieldEgressProxyID, field.TypeInt64, value)
+	}
+	if _u.mutation.EgressProxyIDCleared() {
+		_spec.ClearField(proxy.FieldEgressProxyID, field.TypeInt64)
 	}
 	if value, ok := _u.mutation.ExpiryWarnDays(); ok {
 		_spec.SetField(proxy.FieldExpiryWarnDays, field.TypeInt, value)
@@ -738,6 +774,33 @@ func (_u *ProxyUpdateOne) ClearBackupProxyID() *ProxyUpdateOne {
 	return _u
 }
 
+// SetEgressProxyID sets the "egress_proxy_id" field.
+func (_u *ProxyUpdateOne) SetEgressProxyID(v int64) *ProxyUpdateOne {
+	_u.mutation.ResetEgressProxyID()
+	_u.mutation.SetEgressProxyID(v)
+	return _u
+}
+
+// SetNillableEgressProxyID sets the "egress_proxy_id" field if the given value is not nil.
+func (_u *ProxyUpdateOne) SetNillableEgressProxyID(v *int64) *ProxyUpdateOne {
+	if v != nil {
+		_u.SetEgressProxyID(*v)
+	}
+	return _u
+}
+
+// AddEgressProxyID adds value to the "egress_proxy_id" field.
+func (_u *ProxyUpdateOne) AddEgressProxyID(v int64) *ProxyUpdateOne {
+	_u.mutation.AddEgressProxyID(v)
+	return _u
+}
+
+// ClearEgressProxyID clears the value of the "egress_proxy_id" field.
+func (_u *ProxyUpdateOne) ClearEgressProxyID() *ProxyUpdateOne {
+	_u.mutation.ClearEgressProxyID()
+	return _u
+}
+
 // SetExpiryWarnDays sets the "expiry_warn_days" field.
 func (_u *ProxyUpdateOne) SetExpiryWarnDays(v int) *ProxyUpdateOne {
 	_u.mutation.ResetExpiryWarnDays()
@@ -982,6 +1045,15 @@ func (_u *ProxyUpdateOne) sqlSave(ctx context.Context) (_node *Proxy, err error)
 	}
 	if value, ok := _u.mutation.FallbackMode(); ok {
 		_spec.SetField(proxy.FieldFallbackMode, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.EgressProxyID(); ok {
+		_spec.SetField(proxy.FieldEgressProxyID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedEgressProxyID(); ok {
+		_spec.AddField(proxy.FieldEgressProxyID, field.TypeInt64, value)
+	}
+	if _u.mutation.EgressProxyIDCleared() {
+		_spec.ClearField(proxy.FieldEgressProxyID, field.TypeInt64)
 	}
 	if value, ok := _u.mutation.ExpiryWarnDays(); ok {
 		_spec.SetField(proxy.FieldExpiryWarnDays, field.TypeInt, value)

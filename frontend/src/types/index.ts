@@ -268,6 +268,8 @@ export interface PublicSettings {
   channel_monitor_default_interval_seconds: number
   /** When true, user monitor hides RPM/TPM so scale cannot be reverse-estimated. */
   channel_monitor_hide_throughput?: boolean
+  /** When true, user monitor shows account quota/balance snapshots (default off). */
+  channel_monitor_show_quota?: boolean
   available_channels_enabled: boolean
   model_plaza_enabled: boolean
   model_plaza_require_auth: boolean
@@ -525,7 +527,7 @@ export interface PaginationConfig {
 
 // ==================== API Key & Group Types ====================
 
-export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kiro' | 'composite'
+export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kiro' | 'kimi' | 'zhipu' | 'deepseek' | 'composite'
 
 export type VideoModelPrices = Record<string, Record<string, number>>
 
@@ -926,7 +928,7 @@ export interface UpdateGroupRequest {
 
 // ==================== Account & Proxy Types ====================
 
-export type AccountPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kiro'
+export type AccountPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kiro' | 'kimi' | 'zhipu' | 'deepseek'
 export type AccountType = 'oauth' | 'setup-token' | 'apikey' | 'upstream' | 'bedrock' | 'service_account' | 'builder-id'
 export type OAuthAddMethod = 'oauth' | 'setup-token'
 export type ProxyProtocol = 'http' | 'https' | 'socks5' | 'socks5h'
@@ -964,8 +966,9 @@ export interface Proxy {
   quality_checked?: number
   expires_at: string | null
   fallback_mode: 'none' | 'proxy' | 'direct'
-  backup_proxy_id?: number | null
-  expiry_warn_days: number
+	backup_proxy_id?: number | null
+	egress_proxy_id?: number | null
+	expiry_warn_days: number
   created_at: string
   updated_at: string
 }
@@ -1588,6 +1591,7 @@ export interface CreateProxyRequest {
   expires_at?: number | null   // unix 秒；null/0 = 永不过期
   fallback_mode?: 'none' | 'proxy' | 'direct'
   backup_proxy_id?: number | null
+  egress_proxy_id?: number | null
   expiry_warn_days?: number
 }
 
@@ -1602,6 +1606,7 @@ export interface UpdateProxyRequest {
   expires_at?: number | null   // unix 秒；null/0 = 永不过期
   fallback_mode?: 'none' | 'proxy' | 'direct'
   backup_proxy_id?: number | null
+  egress_proxy_id?: number | null
   expiry_warn_days?: number
 }
 

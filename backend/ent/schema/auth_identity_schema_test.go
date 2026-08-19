@@ -125,6 +125,11 @@ func requireSchemaField(t *testing.T, schema *load.Schema, name string) *load.Fi
 }
 
 func requireStringFieldValidator(t *testing.T, fields []ent.Field, name string) func(string) error {
+	validators := requireStringFieldValidators(t, fields, name)
+	return validators[0]
+}
+
+func requireStringFieldValidators(t *testing.T, fields []ent.Field, name string) []func(string) error {
 	t.Helper()
 
 	for _, entField := range fields {
@@ -133,13 +138,37 @@ func requireStringFieldValidator(t *testing.T, fields []ent.Field, name string) 
 			continue
 		}
 		require.NotEmpty(t, descriptor.Validators, "field %s should include a validator", name)
-		validator, ok := descriptor.Validators[0].(func(string) error)
-		require.True(t, ok, "field %s validator should be func(string) error", name)
-		return validator
+		validators := make([]func(string) error, 0, len(descriptor.Validators))
+		for _, rawValidator := range descriptor.Validators {
+			validator, ok := rawValidator.(func(string) error)
+			require.True(t, ok, "field %s validator should be func(string) error", name)
+			validators = append(validators, validator)
+		}
+		return validators
 	}
 
 	require.Failf(t, "missing field validator", "schema should include field %s", name)
 	return nil
+}
+
+func TestUserPlatformQuotaPlatformValidatorIncludesAllQuotaPlatforms(t *testing.T) {
+	validators := requireStringFieldValidators(t, UserPlatformQuota{}.Fields(), "platform")
+	for _, platform := range []string{
+		"anthropic", "openai", "gemini", "antigravity", "kiro", "grok",
+		"kimi", "zhipu", "deepseek",
+	} {
+		for _, validator := range validators {
+			require.NoError(t, validator(platform), platform)
+		}
+	}
+	var rejected bool
+	for _, validator := range validators {
+		if validator("unsupported") != nil {
+			rejected = true
+			break
+		}
+	}
+	require.True(t, rejected)
 }
 
 func requireHasUniqueIndex(t *testing.T, schema *load.Schema, fields ...string) {

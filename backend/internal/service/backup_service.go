@@ -120,12 +120,12 @@ type BackupScheduleConfig struct {
 
 // BackupRecord 备份记录
 type BackupRecord struct {
-	ID         string `json:"id"`
-	Status     string `json:"status"`      // pending, running, completed, failed
-	BackupType string `json:"backup_type"` // postgres
-	FileName   string `json:"file_name"`
-	S3Key      string `json:"s3_key"`
-	Parts         []BackupPart `json:"parts,omitempty"`
+	ID         string       `json:"id"`
+	Status     string       `json:"status"`      // pending, running, completed, failed
+	BackupType string       `json:"backup_type"` // postgres
+	FileName   string       `json:"file_name"`
+	S3Key      string       `json:"s3_key"`
+	Parts      []BackupPart `json:"parts,omitempty"`
 	// Storage 标识备份落点：s3 或 local。空值兼容旧记录，按 s3 处理。
 	Storage       string `json:"storage,omitempty"`
 	SizeBytes     int64  `json:"size_bytes"`
@@ -1610,5 +1610,3 @@ func deleteBackupObjectKeys(ctx context.Context, objectStore BackupObjectStore, 
 	}
 	return errors.Join(errs...)
 }
-
-

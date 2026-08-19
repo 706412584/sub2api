@@ -502,11 +502,12 @@ type UserGroupRPMStatus struct {
 
 // BulkUpdateAccountsResult is the aggregated response for bulk updates.
 type BulkUpdateAccountsResult struct {
-	Success    int                       `json:"success"`
-	Failed     int                       `json:"failed"`
-	SuccessIDs []int64                   `json:"success_ids"`
-	FailedIDs  []int64                   `json:"failed_ids"`
-	Results    []BulkUpdateAccountResult `json:"results"`
+	Success                   int                       `json:"success"`
+	Failed                    int                       `json:"failed"`
+	SuccessIDs                []int64                   `json:"success_ids"`
+	FailedIDs                 []int64                   `json:"failed_ids"`
+	Results                   []BulkUpdateAccountResult `json:"results"`
+	LongContextInheritedCount int                       `json:"long_context_inherited_count,omitempty"`
 }
 
 type CreateProxyInput struct {
@@ -519,6 +520,7 @@ type CreateProxyInput struct {
 	ExpiresAt      *time.Time
 	FallbackMode   string
 	BackupProxyID  *int64
+	EgressProxyID  *int64
 	ExpiryWarnDays int
 }
 
@@ -533,6 +535,7 @@ type UpdateProxyInput struct {
 	ExpiresAt      *time.Time
 	FallbackMode   string
 	BackupProxyID  *int64
+	EgressProxyID  *int64
 	ExpiryWarnDays int
 }
 

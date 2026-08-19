@@ -573,6 +573,13 @@
           <label class="input-label">{{ t('admin.proxies.backupProxy') }}</label>
           <Select v-model="createForm.backup_proxy_id" :options="backupProxyOptions()" />
         </div>
+        <div>
+          <label class="input-label">{{ t('admin.proxies.egressProxy') }}</label>
+          <Select v-model="createForm.egress_proxy_id" :options="egressProxyOptions()" />
+          <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
+            {{ t('admin.proxies.egressProxyHint') }}
+          </p>
+        </div>
 
       </form>
 
@@ -805,6 +812,13 @@
         <div v-if="editForm.fallback_mode === 'proxy'">
           <label class="input-label">{{ t('admin.proxies.backupProxy') }}</label>
           <Select v-model="editForm.backup_proxy_id" :options="backupProxyOptions(editingProxy?.id)" />
+        </div>
+        <div>
+          <label class="input-label">{{ t('admin.proxies.egressProxy') }}</label>
+          <Select v-model="editForm.egress_proxy_id" :options="egressProxyOptions(editingProxy?.id)" />
+          <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
+            {{ t('admin.proxies.egressProxyHint') }}
+          </p>
         </div>
         <div>
           <GroupSelector v-model="editBoundGroupIds" :groups="allGroups" searchable />
@@ -1283,6 +1297,7 @@ const createForm = reactive({
   expires_at: '' as string,
   fallback_mode: 'none' as 'none' | 'proxy' | 'direct',
   backup_proxy_id: null as number | null,
+  egress_proxy_id: null as number | null,
   expiry_warn_days: 7 as number,
 })
 
@@ -1297,6 +1312,7 @@ const editForm = reactive({
   expires_at: '' as string,
   fallback_mode: 'none' as 'none' | 'proxy' | 'direct',
   backup_proxy_id: null as number | null,
+  egress_proxy_id: null as number | null,
   expiry_warn_days: 7 as number,
 })
 const editBoundGroupIds = ref<number[]>([])
@@ -1310,6 +1326,12 @@ const backupProxyOptions = (excludeId?: number) =>
   allProxiesForBackup.value
     .filter(p => p.id !== excludeId)
     .map(p => ({ label: `${p.name} (${p.host}:${p.port})`, value: p.id }))
+const egressProxyOptions = (excludeId?: number) => [
+  { label: t('admin.proxies.noEgressProxy'), value: null },
+  ...allProxiesForBackup.value
+    .filter(p => p.id !== excludeId && p.status === 'active')
+    .map(p => ({ label: `${p.name} (${p.protocol}://${p.host}:${p.port})`, value: p.id }))
+]
 
 let abortController: AbortController | null = null
 
@@ -1414,6 +1436,7 @@ const closeCreateModal = () => {
   createForm.expires_at = ''
   createForm.fallback_mode = 'none'
   createForm.backup_proxy_id = null
+  createForm.egress_proxy_id = null
   createForm.expiry_warn_days = 7
   createPasswordVisible.value = false
   batchInput.value = ''
@@ -1543,6 +1566,7 @@ const handleCreateProxy = async () => {
       expires_at: createForm.expires_at ? Math.floor(new Date(createForm.expires_at).getTime() / 1000) : null,
       fallback_mode: createForm.fallback_mode,
       backup_proxy_id: createForm.fallback_mode === 'proxy' ? createForm.backup_proxy_id : null,
+      egress_proxy_id: createForm.egress_proxy_id,
       expiry_warn_days: createForm.expiry_warn_days,
     })
     appStore.showSuccess(t('admin.proxies.proxyCreated'))
@@ -1568,6 +1592,7 @@ const handleEdit = async (proxy: Proxy) => {
   editForm.expires_at = proxy.expires_at ? proxy.expires_at.slice(0, 10) : ''
   editForm.fallback_mode = proxy.fallback_mode || 'none'
   editForm.backup_proxy_id = proxy.backup_proxy_id ?? null
+  editForm.egress_proxy_id = proxy.egress_proxy_id ?? null
   editForm.expiry_warn_days = proxy.expiry_warn_days ?? 7
   editPasswordVisible.value = false
   editPasswordDirty.value = false
@@ -1622,6 +1647,7 @@ const handleUpdateProxy = async () => {
       expires_at: editForm.expires_at ? Math.floor(new Date(editForm.expires_at).getTime() / 1000) : null,
       fallback_mode: editForm.fallback_mode,
       backup_proxy_id: editForm.fallback_mode === 'proxy' ? editForm.backup_proxy_id : null,
+      egress_proxy_id: editForm.egress_proxy_id,
       expiry_warn_days: editForm.expiry_warn_days,
     }
 

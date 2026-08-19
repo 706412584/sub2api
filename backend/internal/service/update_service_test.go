@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -257,13 +258,13 @@ func TestIsPlatformFullArchive(t *testing.T) {
 
 func TestWindowsPatchMetaMatches(t *testing.T) {
 	meta := windowsPatchMeta{
-		From: "0.1.165", To: "0.1.167", OS: "windows", Arch: "amd64",
+		From: "0.1.165", To: "0.1.167", OS: runtime.GOOS, Arch: runtime.GOARCH,
 		BaseSHA256: "aaa", ResultSHA256: "bbb",
 	}
 	require.True(t, windowsPatchMetaMatches(meta, "0.1.165", "0.1.167"))
 	require.False(t, windowsPatchMetaMatches(meta, "0.1.166", "0.1.167"))
 	require.False(t, windowsPatchMetaMatches(meta, "0.1.165", "0.1.168"))
-	meta.OS = "linux"
+	meta.OS = "not-" + runtime.GOOS
 	require.False(t, windowsPatchMetaMatches(meta, "0.1.165", "0.1.167"))
 }
 

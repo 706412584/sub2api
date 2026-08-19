@@ -19,7 +19,7 @@ import (
 func TestBuildUpstreamTransportSetsDialTimeout(t *testing.T) {
 	settings := defaultPoolSettings(nil)
 
-	transport, err := buildUpstreamTransport(settings, nil, upstreamProtocolModeDefault)
+	transport, err := buildUpstreamTransport(settings, nil, upstreamProtocolModeDefault, "")
 	require.NoError(t, err)
 	require.NotNil(t, transport.DialContext, "DialContext 缺失会退化为无超时的零值 dialer")
 	require.Equal(t, defaultUpstreamTLSHandshakeTimeout, transport.TLSHandshakeTimeout)
@@ -39,7 +39,7 @@ func TestBuildUpstreamTransportKeepsDialTimeoutWithHTTPProxy(t *testing.T) {
 	proxyURL, err := url.Parse("http://127.0.0.1:1080")
 	require.NoError(t, err)
 
-	transport, err := buildUpstreamTransport(defaultPoolSettings(nil), proxyURL, upstreamProtocolModeDefault)
+	transport, err := buildUpstreamTransport(defaultPoolSettings(nil), proxyURL, upstreamProtocolModeDefault, "")
 	require.NoError(t, err)
 	require.NotNil(t, transport.Proxy)
 	require.NotNil(t, transport.DialContext)
@@ -50,7 +50,7 @@ func TestBuildUpstreamTransportKeepsDialContextWithSOCKS5Proxy(t *testing.T) {
 	proxyURL, err := url.Parse("socks5h://127.0.0.1:1080")
 	require.NoError(t, err)
 
-	transport, err := buildUpstreamTransport(defaultPoolSettings(nil), proxyURL, upstreamProtocolModeDefault)
+	transport, err := buildUpstreamTransport(defaultPoolSettings(nil), proxyURL, upstreamProtocolModeDefault, "")
 	require.NoError(t, err)
 	require.NotNil(t, transport.DialContext)
 }
