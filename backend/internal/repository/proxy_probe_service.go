@@ -6,16 +6,19 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/httpclient"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/proxyurl"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/proxyutil"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 )
 
-func NewProxyExitInfoProber(cfg *config.Config) service.ProxyExitInfoProber {
+func NewProxyExitInfoProberWithEgress(cfg *config.Config, resolver EgressProxyResolver) service.ProxyExitInfoProber {
 	insecure := false
 	allowPrivate := false
 	validateResolvedIP := true
@@ -36,7 +39,14 @@ func NewProxyExitInfoProber(cfg *config.Config) service.ProxyExitInfoProber {
 		allowPrivateHosts:  allowPrivate,
 		validateResolvedIP: validateResolvedIP,
 		maxResponseBytes:   maxResponseBytes,
+		egressResolver:     resolver,
 	}
+}
+
+// NewProxyExitInfoProber keeps the no-egress constructor for tests and other
+// callers that do not wire the proxy repository.
+func NewProxyExitInfoProber(cfg *config.Config) service.ProxyExitInfoProber {
+	return NewProxyExitInfoProberWithEgress(cfg, nil)
 }
 
 const (
@@ -59,16 +69,17 @@ type proxyProbeService struct {
 	allowPrivateHosts  bool
 	validateResolvedIP bool
 	maxResponseBytes   int64
+	egressResolver     EgressProxyResolver
 }
 
 func (s *proxyProbeService) ProbeProxy(ctx context.Context, proxyURL string) (*service.ProxyExitInfo, int64, error) {
-	client, err := httpclient.GetClient(httpclient.Options{
-		ProxyURL:           proxyURL,
-		Timeout:            defaultProxyProbeTimeout,
-		InsecureSkipVerify: s.insecureSkipVerify,
-		ValidateResolvedIP: s.validateResolvedIP,
-		AllowPrivateHosts:  s.allowPrivateHosts,
-	})
+	egressURL := ""
+	if s != nil && s.egressResolver != nil {
+		if normalized, _, err := proxyurl.Parse(proxyURL); err == nil {
+			egressURL = s.egressResolver.ResolveEgress(ctx, normalized)
+		}
+	}
+	client, err := newProxyProbeClient(proxyURL, egressURL, s.insecureSkipVerify, s.validateResolvedIP, s.allowPrivateHosts)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to create proxy client: %w", err)
 	}
@@ -83,6 +94,39 @@ func (s *proxyProbeService) ProbeProxy(ctx context.Context, proxyURL string) (*s
 	}
 
 	return nil, 0, fmt.Errorf("all probe URLs failed, last error: %w", lastErr)
+}
+
+func newProxyProbeClient(proxyURL, egressURL string, insecureSkipVerify, validateResolvedIP, allowPrivateHosts bool) (*http.Client, error) {
+	if strings.TrimSpace(egressURL) == "" {
+		return httpclient.GetClient(httpclient.Options{
+			ProxyURL:           proxyURL,
+			Timeout:            defaultProxyProbeTimeout,
+			InsecureSkipVerify: insecureSkipVerify,
+			ValidateResolvedIP: validateResolvedIP,
+			AllowPrivateHosts:  allowPrivateHosts,
+		})
+	}
+	_, target, err := proxyurl.Parse(proxyURL)
+	if err != nil || target == nil {
+		return nil, fmt.Errorf("parse target proxy: %w", err)
+	}
+	_, egress, err := proxyurl.Parse(egressURL)
+	if err != nil || egress == nil {
+		return nil, fmt.Errorf("parse egress proxy: %w", err)
+	}
+	transport := &http.Transport{
+		DialContext:         (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
+		TLSHandshakeTimeout: 10 * time.Second,
+	}
+	base, err := newEgressDialer(egress.String(), &net.Dialer{Timeout: 10 * time.Second})
+	if err != nil {
+		return nil, err
+	}
+	transport.DialContext = base.DialContext
+	if err := proxyutil.ConfigureTransportProxyWithDialContextToProxy(transport, target, net.JoinHostPort(target.Hostname(), target.Port()), base.DialContext); err != nil {
+		return nil, err
+	}
+	return &http.Client{Transport: transport, Timeout: defaultProxyProbeTimeout}, nil
 }
 
 func (s *proxyProbeService) probeWithURL(ctx context.Context, client *http.Client, url string, parser string) (*service.ProxyExitInfo, int64, error) {

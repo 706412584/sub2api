@@ -215,6 +215,40 @@ func NewHTTPUpstreamWithEgress(cfg *config.Config, resolver EgressProxyResolver)
 	return svc
 }
 
+// ProbeEgress checks the public IP through the same client/egress resolution
+// path used by account requests.
+func (s *httpUpstreamService) ProbeEgress(ctx context.Context, proxyURL string, accountID int64, accountConcurrency int) (string, int64, error) {
+	const probeURL = "http://api64.ipify.org?format=json"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, probeURL, nil)
+	if err != nil {
+		return "", 0, err
+	}
+	start := time.Now()
+	resp, err := s.Do(req, proxyURL, accountID, accountConcurrency)
+	latencyMs := time.Since(start).Milliseconds()
+	if err != nil {
+		return "", latencyMs, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", latencyMs, fmt.Errorf("egress probe HTTP %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 512))
+	if err != nil {
+		return "", latencyMs, err
+	}
+	var payload struct {
+		IP string `json:"ip"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return "", latencyMs, err
+	}
+	if strings.TrimSpace(payload.IP) == "" {
+		return "", latencyMs, fmt.Errorf("empty egress ip")
+	}
+	return strings.TrimSpace(payload.IP), latencyMs, nil
+}
+
 // Do 执行 HTTP 请求
 // 根据隔离策略获取或创建客户端，并跟踪请求生命周期
 //

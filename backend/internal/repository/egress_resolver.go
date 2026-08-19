@@ -93,8 +93,15 @@ func (r *cachedEgressResolver) resolveFromRepo(ctx context.Context, targetKey st
 	byID := make(map[int64]service.Proxy, len(proxies))
 	byURL := make(map[string]service.Proxy, len(proxies))
 	for i := range proxies {
-		byID[proxies[i].ID] = proxies[i]
-		byURL[proxies[i].URL()] = proxies[i]
+		p := proxies[i]
+		byID[p.ID] = p
+		key := p.URL()
+		current, exists := byURL[key]
+		// Prefer a configured egress over another duplicate active record with
+		// the same endpoint, which is common for dynamic-pool snapshots.
+		if !exists || (current.EgressProxyID == nil && p.EgressProxyID != nil) {
+			byURL[key] = p
+		}
 	}
 
 	current, ok := byURL[targetKey]
