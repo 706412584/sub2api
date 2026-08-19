@@ -46,8 +46,20 @@ func ProvidePricingService(cfg *config.Config, remoteClient PricingRemoteClient)
 // ProvideUpdateService creates UpdateService with BuildInfo.
 // Call SetProxyRetry after construction to enable one managed-proxy retry on
 // network errors during download/checksum.
-func ProvideUpdateService(cache UpdateCache, githubClient GitHubReleaseClient, buildInfo BuildInfo) *UpdateService {
-	return NewUpdateService(cache, githubClient, buildInfo.Version, buildInfo.BuildType)
+func ProvideUpdateService(
+	cache UpdateCache,
+	githubClient GitHubReleaseClient,
+	buildInfo BuildInfo,
+	settingRepository SettingRepository,
+) *UpdateService {
+	svc := NewUpdateService(cache, githubClient, buildInfo.Version, buildInfo.BuildType)
+	if settingRepository != nil {
+		// DB-backed update proxy overrides the startup config without a restart.
+		svc.SetUpdateProxyProvider(func() (string, error) {
+			return settingRepository.GetValue(context.Background(), SettingKeyUpdateProxyURL)
+		})
+	}
+	return svc
 }
 
 // ProvideEmailQueueService creates EmailQueueService with default worker count
@@ -313,15 +325,15 @@ func ProvideCNProviderBalanceService(
 // ProvideCNProviderBalanceCheckService 构造并启动周期余额/额度检测任务。
 // payg 账号探余额（低余额停调）；coding plan 账号探 5h/weekly 滚动窗口
 // （落 extra 快照供调度阈值评估自动停调）。
-// 间隔取自 gateway.cn_providers.balance_check_interval_minutes；<=0 或关闭时不启动。
+// 间隔取自 gateway.cn_providers.balance_check_interval_minutes（缺省值由 config 默认值提供）；<=0 或关闭时不启动。
 func ProvideCNProviderBalanceCheckService(
 	accountRepo AccountRepository,
 	balanceService *CNProviderBalanceService,
 	quotaService *CNProviderQuotaService,
 	cfg *config.Config,
 ) *CNProviderBalanceCheckService {
-	minutes := 10
-	if cfg != nil && cfg.Gateway.CNProviders.BalanceCheckIntervalMinutes > 0 {
+	minutes := 0
+	if cfg != nil {
 		minutes = cfg.Gateway.CNProviders.BalanceCheckIntervalMinutes
 	}
 	svc := NewCNProviderBalanceCheckService(accountRepo, balanceService, quotaService, cfg, time.Duration(minutes)*time.Minute)

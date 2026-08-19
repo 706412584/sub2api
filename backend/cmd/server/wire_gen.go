@@ -243,12 +243,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	updateCache := repository.NewUpdateCache(redisClient)
 	gitHubReleaseClient := repository.ProvideGitHubReleaseClient(configConfig)
 	serviceBuildInfo := provideServiceBuildInfo(buildInfo)
-	updateService := service.ProvideUpdateService(updateCache, gitHubReleaseClient, serviceBuildInfo)
-	// DB-backed update proxy (SettingKeyUpdateProxyURL) overrides the startup
-	// config proxy for update downloads without a restart.
-	updateService.SetUpdateProxyProvider(func() (string, error) {
-		return settingRepository.GetValue(context.Background(), service.SettingKeyUpdateProxyURL)
-	})
+	updateService := service.ProvideUpdateService(updateCache, gitHubReleaseClient, serviceBuildInfo, settingRepository)
 	idempotencyRepository := repository.NewIdempotencyRepository(client, db)
 	systemOperationLockService := service.ProvideSystemOperationLockService(idempotencyRepository, configConfig)
 	systemHandler := handler.ProvideSystemHandler(updateService, systemOperationLockService)
@@ -356,7 +351,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	scheduledTestRunnerService := service.ProvideScheduledTestRunnerService(scheduledTestPlanRepository, scheduledTestService, accountTestService, rateLimitService, configConfig)
 	accountPoolProbeRunner := service.ProvideAccountPoolProbeRunner(accountRepository, settingService, accountUsageService, grokQuotaService, configConfig)
 	paymentOrderExpiryService := service.ProvidePaymentOrderExpiryService(paymentService, leaderLockCache, db)
-	channelMonitorQuotaFetcher := service.NewChannelMonitorQuotaFetcher(accountUsageService, cnProviderQuotaService, cnProviderBalanceService, accountRepository)
+	channelMonitorQuotaFetcher := service.NewChannelMonitorQuotaFetcher(accountUsageService, cnProviderQuotaService, cnProviderBalanceService, accountRepository, configConfig)
 	channelMonitorRunner := service.ProvideChannelMonitorRunner(channelMonitorService, settingService, channelMonitorQuotaFetcher)
 	proxySubscriptionRunner := service.ProvideProxySubscriptionRunner(proxySubscriptionService, configConfig, leaderLockCache, db)
 	dynamicProxyPoolRunner := service.ProvideDynamicProxyPoolRunner(dynamicProxyPoolService, leaderLockCache, db)

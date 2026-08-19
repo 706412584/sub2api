@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
@@ -30,6 +31,19 @@ type fakeCNCheckRepo struct {
 
 func (r *fakeCNCheckRepo) ListByPlatform(ctx context.Context, platform string) ([]Account, error) {
 	return r.byPlatform[platform], nil
+}
+
+func TestCNProviderBalanceCheckIntervalConfiguration(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Gateway.CNProviders.BalanceCheckIntervalMinutes = 0
+	svc := ProvideCNProviderBalanceCheckService(nil, nil, nil, cfg)
+	require.Zero(t, svc.interval)
+	svc.Stop()
+
+	cfg.Gateway.CNProviders.BalanceCheckIntervalMinutes = 7
+	svc = ProvideCNProviderBalanceCheckService(nil, nil, nil, cfg)
+	require.Equal(t, 7*time.Minute, svc.interval)
+	svc.Stop()
 }
 
 func TestCNProviderBalanceCheckRunOnceProbesCodingPlanQuota(t *testing.T) {
