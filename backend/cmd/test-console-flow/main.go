@@ -44,7 +44,7 @@ func main() {
 		log.Fatalf("parse proxy: %v", err)
 	}
 	client := &http.Client{
-		Transport: &http.Transport{Proxy: http.ProxyURL(parsed), TLSClientConfig: &tls.Config{}},
+		Transport: &http.Transport{Proxy: http.ProxyURL(parsed), TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12}},
 		Timeout:   60 * time.Second,
 	}
 
@@ -79,7 +79,7 @@ func main() {
 		log.Fatalf("dpop token request: %v", err)
 	}
 	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	log.Printf("status=%d body=%s", resp.StatusCode, truncate(string(respBody), 300))
 	if resp.StatusCode != 200 {
 		log.Fatal("DPoP token exchange FAILED")
@@ -89,7 +89,9 @@ func main() {
 		AccessToken string `json:"access_token"`
 		ExpiresIn   int64  `json:"expires_in"`
 	}
-	json.Unmarshal(respBody, &tok)
+	if err := json.Unmarshal(respBody, &tok); err != nil {
+		log.Fatalf("parse token response: %v", err)
+	}
 	log.Printf("✓ DPoP access_token obtained (expires_in=%ds)", tok.ExpiresIn)
 
 	// Step 3: real inference via /v1/responses
@@ -117,7 +119,7 @@ func main() {
 		log.Fatalf("responses request: %v", err)
 	}
 	resp2Body, _ := io.ReadAll(io.LimitReader(resp2.Body, 16384))
-	resp2.Body.Close()
+	_ = resp2.Body.Close()
 	log.Printf("status=%d", resp2.StatusCode)
 	log.Printf("body=%s", truncate(string(resp2Body), 1500))
 
@@ -146,7 +148,7 @@ func consoleGet(ctx context.Context, c *http.Client, u string, setup func(*http.
 		log.Printf("GET %s error: %v", u, err)
 		return nil
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 	log.Printf("GET %s status=%d", u, resp.StatusCode)
 	return b
@@ -155,8 +157,8 @@ func consoleGet(ctx context.Context, c *http.Client, u string, setup func(*http.
 func jwkJSON(key *ecdsa.PrivateKey) string {
 	x := make([]byte, 32)
 	y := make([]byte, 32)
-	copy(x[32-len(key.PublicKey.X.Bytes()):], key.PublicKey.X.Bytes())
-	copy(y[32-len(key.PublicKey.Y.Bytes()):], key.PublicKey.Y.Bytes())
+	copy(x[32-len(key.X.Bytes()):], key.X.Bytes())
+	copy(y[32-len(key.Y.Bytes()):], key.Y.Bytes())
 	jwk := map[string]string{
 		"kty": "EC", "crv": "P-256",
 		"x": base64.RawURLEncoding.EncodeToString(x),
@@ -179,8 +181,8 @@ func signDPoP(key *ecdsa.PrivateKey, method, uri string, ath *string) (string, e
 	}
 	x := make([]byte, 32)
 	y := make([]byte, 32)
-	copy(x[32-len(key.PublicKey.X.Bytes()):], key.PublicKey.X.Bytes())
-	copy(y[32-len(key.PublicKey.Y.Bytes()):], key.PublicKey.Y.Bytes())
+	copy(x[32-len(key.X.Bytes()):], key.X.Bytes())
+	copy(y[32-len(key.Y.Bytes()):], key.Y.Bytes())
 	token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
 	token.Header["typ"] = "dpop+jwt"
 	token.Header["jwk"] = map[string]string{
@@ -198,7 +200,7 @@ func sha256B64(s string) string {
 
 func randomID() string {
 	b := make([]byte, 16)
-	rand.Read(b)
+	_, _ = rand.Read(b)
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 

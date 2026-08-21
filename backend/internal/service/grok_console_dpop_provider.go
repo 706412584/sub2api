@@ -48,7 +48,7 @@ func NewGrokConsoleDPoPProvider(
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: false},
+				TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
 			},
 		},
 		sessions: make(map[string]*ConsoleDPoPSession),
@@ -77,13 +77,17 @@ func (p *GrokConsoleDPoPProvider) GetOrCreateSession(
 	}
 	p.mu.Unlock()
 
-	result, err, _ := p.loads.Do(cacheKey, func() (interface{}, error) {
+	result, err, _ := p.loads.Do(cacheKey, func() (any, error) {
 		return p.createSession(ctx, accountID, proxyID, cacheKey)
 	})
 	if err != nil {
 		return nil, err
 	}
-	return result.(*ConsoleDPoPSession), nil
+	session, ok := result.(*ConsoleDPoPSession)
+	if !ok {
+		return nil, fmt.Errorf("unexpected session type %T", result)
+	}
+	return session, nil
 }
 
 // createSession 执行 DPoP 换票流程
@@ -126,7 +130,7 @@ func (p *GrokConsoleDPoPProvider) createSession(
 	}
 
 	// 5. 请求 DPoP token
-	body := map[string]interface{}{"jwk": publicJWK}
+	body := map[string]any{"jwk": publicJWK}
 	bodyJSON, _ := json.Marshal(body)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", dpopTokenURL, strings.NewReader(string(bodyJSON)))

@@ -14,7 +14,7 @@ func TestGrokSessionCredentialRepo_Save(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create sqlmock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewGrokSessionCredentialRepository(db)
 
@@ -61,7 +61,7 @@ func TestGrokSessionCredentialRepo_GetByAccountID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create sqlmock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewGrokSessionCredentialRepository(db)
 
@@ -109,7 +109,7 @@ func TestGrokSessionCredentialRepo_Delete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create sqlmock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewGrokSessionCredentialRepository(db)
 

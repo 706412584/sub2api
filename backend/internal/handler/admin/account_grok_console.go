@@ -12,18 +12,18 @@ import (
 // 会话材料（SSO、cf_clearance、UA）只进专用加密表，绝不回显。
 
 type grokConsoleSessionRequest struct {
-	SSOToken        string `json:"sso_token" binding:"required"`
-	SSORWToken      string `json:"sso_rw_token,omitempty"`
+	SSOToken         string `json:"sso_token" binding:"required"`
+	SSORWToken       string `json:"sso_rw_token,omitempty"`
 	BrowserUserAgent string `json:"browser_user_agent" binding:"required"`
-	ProxyID         *int64 `json:"proxy_id" binding:"required"`
+	ProxyID          *int64 `json:"proxy_id" binding:"required"`
 }
 
 type grokWebSessionRequest struct {
-	SSOToken        string `json:"sso_token" binding:"required"`
-	SSORWToken      string `json:"sso_rw_token,omitempty"`
-	CFClearance     string `json:"cf_clearance" binding:"required"`
+	SSOToken         string `json:"sso_token" binding:"required"`
+	SSORWToken       string `json:"sso_rw_token,omitempty"`
+	CFClearance      string `json:"cf_clearance" binding:"required"`
 	BrowserUserAgent string `json:"browser_user_agent" binding:"required"`
-	ProxyID         *int64 `json:"proxy_id" binding:"required"`
+	ProxyID          *int64 `json:"proxy_id" binding:"required"`
 }
 
 func grokSessionAccountID(c *gin.Context) (int64, bool) {

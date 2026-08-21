@@ -50,10 +50,10 @@ func (kp *DPoPKeyPair) GenerateDPoPProof(method, uri string, accessToken *string
 	copy(yBytes[32-len(yRaw):], yRaw)
 
 	// JWT Header
-	header := map[string]interface{}{
+	header := map[string]any{
 		"typ": "dpop+jwt",
 		"alg": "ES256",
-		"jwk": map[string]interface{}{
+		"jwk": map[string]any{
 			"kty": "EC",
 			"crv": "P-256",
 			"x":   base64.RawURLEncoding.EncodeToString(xBytes),
@@ -62,7 +62,7 @@ func (kp *DPoPKeyPair) GenerateDPoPProof(method, uri string, accessToken *string
 	}
 
 	// JWT Claims
-	claims := map[string]interface{}{
+	claims := map[string]any{
 		"htm": method,
 		"htu": uri,
 		"iat": now,
@@ -153,7 +153,7 @@ func generateJTI() string {
 // ParseDPoPBoundAccessToken 从 access token 中提取 cnf.jkt（如果存在）
 func ParseDPoPBoundAccessToken(accessToken string) (string, bool) {
 	claims := DecodeJWTClaims(accessToken)
-	if cnf, ok := claims["cnf"].(map[string]interface{}); ok {
+	if cnf, ok := claims["cnf"].(map[string]any); ok {
 		if jkt, ok := cnf["jkt"].(string); ok {
 			return jkt, true
 		}

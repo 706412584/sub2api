@@ -63,11 +63,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to query accounts: %v", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	type accountRow struct {
 		ID    int64
-		Extra map[string]interface{}
+		Extra map[string]any
 	}
 
 	var accounts []accountRow
@@ -79,7 +79,7 @@ func main() {
 			continue
 		}
 
-		var extra map[string]interface{}
+		var extra map[string]any
 		if err := json.Unmarshal(extraJSON, &extra); err != nil {
 			log.Printf("Failed to unmarshal extra for account %d: %v", id, err)
 			continue
@@ -139,7 +139,7 @@ func main() {
 			) VALUES ($1, 'build_fallback', $2, 'active', NOW(), NOW())
 		`, acc.ID, encryptedSSO)
 		if err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			log.Printf("Failed to insert session for account %d: %v", acc.ID, err)
 			continue
 		}
@@ -148,14 +148,14 @@ func main() {
 		delete(acc.Extra, "sso")
 		newExtraJSON, err := json.Marshal(acc.Extra)
 		if err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			log.Printf("Failed to marshal new extra for account %d: %v", acc.ID, err)
 			continue
 		}
 
 		_, err = tx.Exec(`UPDATE accounts SET extra = $1, updated_at = NOW() WHERE id = $2`, newExtraJSON, acc.ID)
 		if err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			log.Printf("Failed to update extra for account %d: %v", acc.ID, err)
 			continue
 		}
