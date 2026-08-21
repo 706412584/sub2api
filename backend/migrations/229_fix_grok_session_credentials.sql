@@ -1,5 +1,7 @@
--- +migrate Up
-CREATE TABLE grok_session_credentials (
+-- Grok Web/Console 会话凭据专用加密存储表。
+-- 敏感会话材料（SSO、cf_clearance、UA）AES-256-GCM 加密后存此表，
+-- 绝不进入 accounts.credentials / extra JSONB。
+CREATE TABLE IF NOT EXISTS grok_session_credentials (
     account_id BIGINT PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
     source VARCHAR(20) NOT NULL CHECK (source IN ('build_fallback', 'console', 'web')),
     encrypted_sso TEXT,
@@ -19,8 +21,5 @@ CREATE TABLE grok_session_credentials (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_grok_session_credentials_status ON grok_session_credentials(status);
-CREATE INDEX idx_grok_session_credentials_bound_proxy ON grok_session_credentials(bound_proxy_id);
-
--- +migrate Down
-DROP TABLE IF EXISTS grok_session_credentials;
+CREATE INDEX IF NOT EXISTS idx_grok_session_credentials_status ON grok_session_credentials(status);
+CREATE INDEX IF NOT EXISTS idx_grok_session_credentials_bound_proxy ON grok_session_credentials(bound_proxy_id);

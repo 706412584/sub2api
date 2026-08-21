@@ -52,10 +52,12 @@ func ProvideAdminHandlers(
 	upstreamBillingProbe *service.UpstreamBillingProbeService,
 	gatewayService *service.GatewayService,
 	ollamaCloudUsage *service.OllamaCloudUsageService,
+	grokSession service.GrokSessionCredentialService,
 ) *AdminHandlers {
 	accountHandler.SetUpstreamBillingProbeService(upstreamBillingProbe)
 	accountHandler.SetAvailableModelsCacheInvalidator(gatewayService)
 	accountHandler.SetOllamaCloudUsageService(ollamaCloudUsage)
+	accountHandler.SetGrokSessionCredentialService(grokSession)
 	return &AdminHandlers{
 		Dashboard:              dashboardHandler,
 		User:                   userHandler,

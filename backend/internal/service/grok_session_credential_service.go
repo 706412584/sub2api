@@ -36,6 +36,9 @@ type GrokSessionCredential struct {
 	UpdatedAt             time.Time
 }
 
+// ErrGrokSessionUnavailable 会话服务未注入时的错误
+var ErrGrokSessionUnavailable = fmt.Errorf("grok session credential service is not available")
+
 // GrokSessionCredentialService Grok 会话凭据服务接口
 type GrokSessionCredentialService interface {
 	SaveConsoleSession(ctx context.Context, accountID int64, sso, ssoRW, ua string, proxyID *int64) error
