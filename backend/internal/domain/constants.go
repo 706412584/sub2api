@@ -55,6 +55,8 @@ const (
 	AccountTypeUpstream       = "upstream"        // 上游透传类型账号（通过 Base URL + API Key 连接上游）
 	AccountTypeBedrock        = "bedrock"         // AWS Bedrock 类型账号（通过 SigV4 签名或 API Key 连接 Bedrock，由 credentials.auth_mode 区分）
 	AccountTypeServiceAccount = "service_account" // Google Service Account 类型账号（用于 Vertex AI）
+	AccountTypeGrokConsole    = "grok_console"    // Grok Console 类型账号（DPoP 会话）
+	AccountTypeGrokWeb        = "grok_web"        // Grok Web 类型账号（浏览器会话）
 )
 
 // Redeem type constants

@@ -106,6 +106,7 @@ var ProviderSet = wire.NewSet(
 	NewAffiliateRepository,
 	NewUserPlatformQuotaRepository,     // T14: user × platform quota
 	NewUserPlatformQuotaServiceAdapter, // T14: adapter → service.UserPlatformQuotaRepository
+	NewGrokSessionCredentialRepository, // P0: Grok 会话凭据加密存储
 
 	// Cache implementations
 	NewGatewayCache,

@@ -889,6 +889,10 @@ func (r *accountRepository) Delete(ctx context.Context, id int64) error {
 	if _, err := txClient.ExecContext(ctx, "DELETE FROM scheduled_test_plans WHERE account_id = $1", id); err != nil {
 		return err
 	}
+	// 显式删除 Grok 会话凭据（软删除不触发 FK CASCADE）
+	if _, err := txClient.ExecContext(ctx, "DELETE FROM grok_session_credentials WHERE account_id = $1", id); err != nil {
+		return err
+	}
 	if _, err := txClient.Account.Delete().Where(dbaccount.IDEQ(id)).Exec(ctx); err != nil {
 		return err
 	}
