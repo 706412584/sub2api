@@ -371,6 +371,28 @@ func ProvideAntigravityTokenProvider(
 	return p
 }
 
+// ProvideGrokSessionCredentialService creates GrokSessionCredentialService with encryption.
+func ProvideGrokSessionCredentialService(
+	repo GrokSessionCredentialRepository,
+	encryptor SecretEncryptor,
+) GrokSessionCredentialService {
+	return NewGrokSessionCredentialService(repo, encryptor)
+}
+
+// ProvideGrokConsoleDPoPProvider creates GrokConsoleDPoPProvider with session service.
+func ProvideGrokConsoleDPoPProvider(
+	sessionService GrokSessionCredentialService,
+) *GrokConsoleDPoPProvider {
+	return NewGrokConsoleDPoPProvider(sessionService)
+}
+
+// ProvideConsoleModelCatalog creates ConsoleModelCatalog with DPoP provider.
+func ProvideConsoleModelCatalog(
+	dpopProvider *GrokConsoleDPoPProvider,
+) *ConsoleModelCatalog {
+	return NewConsoleModelCatalog(dpopProvider)
+}
+
 // ProvideGrokTokenProvider creates GrokTokenProvider with OAuthRefreshAPI injection.
 func ProvideGrokTokenProvider(
 	accountRepo AccountRepository,
@@ -884,6 +906,9 @@ var ProviderSet = wire.NewSet(
 	ProvideOpenAIOAuthService,
 	ProvideGrokOAuthService,
 	wire.Bind(new(GrokOAuthTokenService), new(*GrokOAuthService)),
+	ProvideGrokSessionCredentialService, // P0: Grok 会话凭据服务
+	ProvideGrokConsoleDPoPProvider,      // P2: Console DPoP Provider
+	ProvideConsoleModelCatalog,          // P2: Console 模型目录
 	ProvideKiroBuilderIDDeviceFlowService,
 	NewGeminiOAuthService,
 	NewGeminiQuotaService,

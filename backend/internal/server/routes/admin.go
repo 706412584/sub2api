@@ -385,6 +385,13 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAu
 		accounts.DELETE("/:id/ollama-cloud-usage/session", h.Admin.Account.DeleteOllamaCloudUsageSession)
 		accounts.PUT("/:id/ollama-cloud-usage/auto-refresh", h.Admin.Account.SetOllamaCloudUsageAutoRefresh)
 		accounts.POST("/:id/ollama-cloud-usage/refresh", h.Admin.Account.RefreshOllamaCloudUsage)
+		// Grok Console / Web 会话凭据（专用加密表，不回显敏感字段）
+		accounts.POST("/:id/grok-console-session", h.Admin.Account.SaveGrokConsoleSession)
+		accounts.GET("/:id/grok-console-session", h.Admin.Account.GetGrokConsoleSession)
+		accounts.DELETE("/:id/grok-console-session", h.Admin.Account.DeleteGrokConsoleSession)
+		accounts.POST("/:id/grok-web-session", h.Admin.Account.SaveGrokWebSession)
+		accounts.GET("/:id/grok-web-session", h.Admin.Account.GetGrokWebSession)
+		accounts.DELETE("/:id/grok-web-session", h.Admin.Account.DeleteGrokWebSession)
 		accounts.DELETE("/:id", h.Admin.Account.Delete)
 		accounts.POST("/:id/test", h.Admin.Account.Test)
 		accounts.POST("/:id/recover-state", h.Admin.Account.RecoverState)

@@ -433,6 +433,7 @@ type OpenAIGatewayService struct {
 	deferredService       *DeferredService
 	openAITokenProvider   *OpenAITokenProvider
 	grokTokenProvider     *GrokTokenProvider
+	consoleDPoPProvider   *GrokConsoleDPoPProvider
 	toolCorrector         *CodexToolCorrector
 	openaiWSResolver      OpenAIWSProtocolResolver
 	resolver              *ModelPricingResolver
@@ -521,6 +522,7 @@ func NewOpenAIGatewayService(
 	deferredService *DeferredService,
 	openAITokenProvider *OpenAITokenProvider,
 	grokTokenProvider *GrokTokenProvider,
+	consoleDPoPProvider *GrokConsoleDPoPProvider,
 	resolver *ModelPricingResolver,
 	channelService *ChannelService,
 	balanceNotifyService *BalanceNotifyService,
@@ -557,6 +559,7 @@ func NewOpenAIGatewayService(
 		deferredService:       deferredService,
 		openAITokenProvider:   openAITokenProvider,
 		grokTokenProvider:     grokTokenProvider,
+		consoleDPoPProvider:   consoleDPoPProvider,
 		toolCorrector:         NewCodexToolCorrector(),
 		openaiWSResolver:      NewOpenAIWSProtocolResolver(cfg),
 		resolver:              resolver,
@@ -1243,6 +1246,18 @@ func (s *OpenAIGatewayService) GetAccessToken(ctx context.Context, account *Acco
 			return "", "", errors.New("api_key not found in credentials")
 		}
 		return apiKey, "apikey", nil
+	case AccountTypeGrokConsole:
+		if account.Platform != PlatformGrok {
+			return "", "", fmt.Errorf("account type %s is only valid for grok platform", account.Type)
+		}
+		if s.consoleDPoPProvider == nil {
+			return "", "", errors.New("grok console DPoP provider is not configured")
+		}
+		session, err := s.consoleDPoPProvider.GetOrCreateSession(ctx, account.ID, account.ProxyID)
+		if err != nil {
+			return "", "", err
+		}
+		return session.AccessToken, "console_dpop", nil
 	default:
 		return "", "", fmt.Errorf("unsupported account type: %s", account.Type)
 	}

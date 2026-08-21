@@ -134,7 +134,7 @@ func TestOpenAIGatewayHandlerImages_ServerErrorFailsOverAndReturnsClearErrorWhen
 		upstream,
 		nil,
 		nil,
-		nil,
+		nil, nil,
 		nil,
 		nil,
 		nil,

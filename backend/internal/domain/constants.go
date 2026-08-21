@@ -45,6 +45,7 @@ const (
 	APIProtocolChatCompletions = "chat_completions" // OpenAI Chat Completions（默认）
 	APIProtocolAnthropic       = "anthropic"        // 原生 Anthropic /v1/messages（适配 Claude Code）
 	APIProtocolResponses       = "responses"        // OpenAI Responses（仅 deepseek，适配 Codex）
+	APIProtocolAdaptive        = "adaptive"         // 按入站协议优先选择供应商原生端点
 )
 
 // Account type constants
@@ -55,6 +56,8 @@ const (
 	AccountTypeUpstream       = "upstream"        // 上游透传类型账号（通过 Base URL + API Key 连接上游）
 	AccountTypeBedrock        = "bedrock"         // AWS Bedrock 类型账号（通过 SigV4 签名或 API Key 连接 Bedrock，由 credentials.auth_mode 区分）
 	AccountTypeServiceAccount = "service_account" // Google Service Account 类型账号（用于 Vertex AI）
+	AccountTypeGrokConsole    = "grok_console"    // Grok Console 类型账号（DPoP 会话）
+	AccountTypeGrokWeb        = "grok_web"        // Grok Web 类型账号（浏览器会话）
 )
 
 // Redeem type constants
