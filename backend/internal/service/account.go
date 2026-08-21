@@ -719,6 +719,16 @@ func (a *Account) GetModelMapping() map[string]string {
 }
 
 func (a *Account) resolveModelMapping(rawMapping map[string]any) map[string]string {
+	// Grok Console / Web 会话账号使用各自来源的模型目录，
+	// 不能套用 Build OAuth 的模型映射（entitlement 不同）。
+	if a.Platform == domain.PlatformGrok {
+		switch a.Type {
+		case AccountTypeGrokWeb:
+			return GrokWebDefaultModelMapping()
+		case AccountTypeGrokConsole:
+			return GrokConsoleDefaultModelMapping()
+		}
+	}
 	if a.Credentials == nil {
 		// Antigravity 平台使用默认映射
 		if a.Platform == domain.PlatformAntigravity {

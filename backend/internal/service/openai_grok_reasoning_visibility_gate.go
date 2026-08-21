@@ -100,6 +100,11 @@ func (s *OpenAIGatewayService) rejectGrokAccountByReasoning(ctx context.Context,
 	if s == nil || account == nil || !account.IsGrok() || account.ID <= 0 {
 		return false, ""
 	}
+	// Console / Web 会话账号不走 Build Responses 的 reasoning 可见性语义，
+	// probe（Build OAuth 路径）对它们必然失败，直接放行。
+	if account.Type == AccountTypeGrokConsole || account.Type == AccountTypeGrokWeb {
+		return false, ""
+	}
 	cfg := s.resolveGrokReasoningVisibilityConfig(ctx, groupID)
 	if NormalizeGrokReasoningVisibilityMode(cfg.Mode) != GrokReasoningVisibilityModeEnforce {
 		return false, ""

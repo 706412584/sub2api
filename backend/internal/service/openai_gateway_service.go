@@ -434,6 +434,7 @@ type OpenAIGatewayService struct {
 	openAITokenProvider   *OpenAITokenProvider
 	grokTokenProvider     *GrokTokenProvider
 	consoleDPoPProvider   *GrokConsoleDPoPProvider
+	sessionCredentialService GrokSessionCredentialService
 	toolCorrector         *CodexToolCorrector
 	openaiWSResolver      OpenAIWSProtocolResolver
 	resolver              *ModelPricingResolver
@@ -523,6 +524,7 @@ func NewOpenAIGatewayService(
 	openAITokenProvider *OpenAITokenProvider,
 	grokTokenProvider *GrokTokenProvider,
 	consoleDPoPProvider *GrokConsoleDPoPProvider,
+	sessionCredentialService GrokSessionCredentialService,
 	resolver *ModelPricingResolver,
 	channelService *ChannelService,
 	balanceNotifyService *BalanceNotifyService,
@@ -560,6 +562,7 @@ func NewOpenAIGatewayService(
 		openAITokenProvider:   openAITokenProvider,
 		grokTokenProvider:     grokTokenProvider,
 		consoleDPoPProvider:   consoleDPoPProvider,
+		sessionCredentialService: sessionCredentialService,
 		toolCorrector:         NewCodexToolCorrector(),
 		openaiWSResolver:      NewOpenAIWSProtocolResolver(cfg),
 		resolver:              resolver,

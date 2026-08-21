@@ -120,6 +120,9 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
 	reqStream bool,
 	startTime time.Time,
 ) (*OpenAIForwardResult, error) {
+	if account.Type == AccountTypeGrokWeb {
+		return s.forwardGrokWebResponses(ctx, c, account, body, originalModel, reqStream, startTime)
+	}
 	if account.Type != AccountTypeOAuth && account.Type != AccountTypeAPIKey && account.Type != AccountTypeGrokConsole {
 		return nil, fmt.Errorf("grok account type %s is not supported by Responses forwarding", account.Type)
 	}
