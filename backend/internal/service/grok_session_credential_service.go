@@ -51,28 +51,28 @@ type GrokSessionCredentialService interface {
 
 // DecryptedSessionMaterial 解密后的会话材料
 type DecryptedSessionMaterial struct {
-	SSO           string
-	SSORw         string
-	CFClearance   string
-	BrowserUA     string
-	BoundProxyID  *int64
-	Status        string
-	WebTier       string
-	Source        string
+	SSO          string
+	SSORw        string
+	CFClearance  string
+	BrowserUA    string
+	BoundProxyID *int64
+	Status       string
+	WebTier      string
+	Source       string
 }
 
 // SessionStatusDTO 会话状态 DTO（仅非敏感字段）
 type SessionStatusDTO struct {
-	Configured         bool       `json:"configured"`
-	Status             string     `json:"status,omitempty"`
-	BoundProxyID       *int64     `json:"bound_proxy_id,omitempty"`
-	UpdatedAt          *time.Time `json:"updated_at,omitempty"`
-	WebTier            string     `json:"web_tier,omitempty"`
-	LastErrorCode      string     `json:"last_error_code,omitempty"`
-	LastErrorAt        *time.Time `json:"last_error_at,omitempty"`
-	HasSSO             bool       `json:"has_sso"`
-	HasCFClearance     bool       `json:"has_cf_clearance"`
-	HasBrowserUA       bool       `json:"has_browser_ua"`
+	Configured     bool       `json:"configured"`
+	Status         string     `json:"status,omitempty"`
+	BoundProxyID   *int64     `json:"bound_proxy_id,omitempty"`
+	UpdatedAt      *time.Time `json:"updated_at,omitempty"`
+	WebTier        string     `json:"web_tier,omitempty"`
+	LastErrorCode  string     `json:"last_error_code,omitempty"`
+	LastErrorAt    *time.Time `json:"last_error_at,omitempty"`
+	HasSSO         bool       `json:"has_sso"`
+	HasCFClearance bool       `json:"has_cf_clearance"`
+	HasBrowserUA   bool       `json:"has_browser_ua"`
 }
 
 type grokSessionCredentialService struct {

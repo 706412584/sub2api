@@ -23,10 +23,10 @@ type ConsoleModelCatalog struct {
 
 // ConsoleModel 表示 Console API 返回的模型
 type ConsoleModel struct {
-	ID          string   `json:"id"`
-	Object      string   `json:"object"`
-	Created     int64    `json:"created"`
-	OwnedBy     string   `json:"owned_by"`
+	ID           string   `json:"id"`
+	Object       string   `json:"object"`
+	Created      int64    `json:"created"`
+	OwnedBy      string   `json:"owned_by"`
 	Capabilities []string `json:"capabilities,omitempty"`
 }
 
@@ -97,7 +97,7 @@ func (c *ConsoleModelCatalog) FetchModels(ctx context.Context, accountID int64) 
 	if err != nil {
 		return nil, fmt.Errorf("send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))

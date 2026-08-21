@@ -113,8 +113,8 @@ func (p *GrokConsoleDPoPProvider) createSession(
 	}
 
 	// 3. 构造 JWK（P-256 坐标需补齐 32 字节）
-	xBytes := pad32(privateKey.PublicKey.X.Bytes())
-	yBytes := pad32(privateKey.PublicKey.Y.Bytes())
+	xBytes := pad32(privateKey.X.Bytes())
+	yBytes := pad32(privateKey.Y.Bytes())
 	publicJWK := map[string]string{
 		"kty": "EC",
 		"crv": "P-256",
@@ -148,7 +148,7 @@ func (p *GrokConsoleDPoPProvider) createSession(
 	if err != nil {
 		return nil, fmt.Errorf("DPoP token request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
