@@ -36,6 +36,15 @@ func grokWebModelMode(model string) string {
 	return "grok-3"
 }
 
+// GrokWebCatalogModels 返回 Web 目录的模型 ID 列表（供管理端模型列表使用）。
+func GrokWebCatalogModels() []string {
+	ids := make([]string, 0, len(grokWebModels))
+	for id := range grokWebModels {
+		ids = append(ids, id)
+	}
+	return ids
+}
+
 // GrokWebDefaultModelMapping 返回 Web 账号的默认模型白名单（identity 映射）。
 func GrokWebDefaultModelMapping() map[string]string {
 	mapping := make(map[string]string, len(grokWebModels)+2)

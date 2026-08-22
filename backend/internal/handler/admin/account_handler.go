@@ -3072,6 +3072,21 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 			hasExplicitMapping = len(rawMapping) > 0
 		}
 		if !hasExplicitMapping {
+			// Console / Web 会话账号使用各自来源的模型目录，与 Build OAuth 不同。
+			switch account.Type {
+			case service.AccountTypeGrokWeb:
+				webIDs := service.GrokWebCatalogModels()
+				sort.Strings(webIDs)
+				models := make([]xai.Model, 0, len(webIDs))
+				for _, id := range webIDs {
+					models = append(models, xai.Model{ID: id, Object: "model", OwnedBy: "xai", DisplayName: id})
+				}
+				response.Success(c, models)
+				return
+			case service.AccountTypeGrokConsole:
+				response.Success(c, defaultModels)
+				return
+			}
 			response.Success(c, defaultModels)
 			return
 		}

@@ -99,6 +99,7 @@ const (
 	defaultGeminiImageTestPrompt = "Generate a cute orange cat astronaut sticker on a clean pastel background."
 	defaultOpenAIImageTestPrompt = "Generate a cute orange cat astronaut sticker on a clean pastel background."
 	defaultGrokImageTestPrompt   = "Generate a cute orange cat astronaut sticker on a clean pastel background."
+	defaultGrokTextTestPrompt    = "Reply with exactly one word: pong"
 	defaultGrokVideoTestPrompt   = "A red ball bouncing once on a white floor, short simple motion."
 	defaultGrokSearchTestQuery   = "xAI Grok"
 	defaultGrokTTSTestText       = "Hello from Sub2API account connectivity test."
@@ -207,6 +208,24 @@ type AccountTestService struct {
 	// grokWSDialer is optional; realtime account tests use the default OpenAI-style
 	// WS dialer when nil (supports proxy + coder/websocket handshake).
 	grokWSDialer openAIWSClientDialer
+	// grokConsoleDPoP / grokWebGateway 支撑 Console/Web 会话账号的手动测试；
+	// 由 wire 注入（与网关共享同一 provider 实例）。
+	grokConsoleDPoP *GrokConsoleDPoPProvider
+	grokWebGateway  *OpenAIGatewayService
+}
+
+// SetGrokConsoleDPoPProvider 注入 Console DPoP provider（手动测试用）。
+func (s *AccountTestService) SetGrokConsoleDPoPProvider(p *GrokConsoleDPoPProvider) {
+	if s != nil {
+		s.grokConsoleDPoP = p
+	}
+}
+
+// SetGrokWebGateway 注入 OpenAI 网关（复用其 Web mgw 转发实现）。
+func (s *AccountTestService) SetGrokWebGateway(g *OpenAIGatewayService) {
+	if s != nil {
+		s.grokWebGateway = g
+	}
 }
 
 func (s *AccountTestService) SetSettingService(settingService *SettingService) {
@@ -1060,6 +1079,11 @@ func (s *AccountTestService) testGrokAccountConnection(c *gin.Context, account *
 		return s.sendErrorAndEnd(c, "HTTP upstream not configured")
 	}
 
+	// Web 会话账号走 mgw WebSocket 链路，与 Build/Console 的 HTTP Responses 不同。
+	if account.Type == AccountTypeGrokWeb {
+		return s.testGrokWebAccount(c, ctx, account, modelID, prompt, mode, opts)
+	}
+
 	authToken, err := s.grokTestAccessToken(ctx, account)
 	if err != nil {
 		return s.sendErrorAndEnd(c, err.Error())
@@ -1087,6 +1111,13 @@ func (s *AccountTestService) testGrokAccountConnection(c *gin.Context, account *
 		}
 		if mapped := strings.TrimSpace(account.GetMappedModel(testModelID)); mapped != "" {
 			testModelID = mapped
+		}
+		if account.Type == AccountTypeGrokConsole {
+			testPrompt := strings.TrimSpace(prompt)
+			if testPrompt == "" {
+				testPrompt = grokQuotaProbeInput
+			}
+			return s.testGrokConsoleResponsesConnection(c, ctx, account, testPrompt, testModelID)
 		}
 		return s.testGrokResponsesConnection(c, ctx, account, authToken, testModelID)
 	}
@@ -1165,6 +1196,15 @@ func (s *AccountTestService) grokTestAccessToken(ctx context.Context, account *A
 			return "", fmt.Errorf("grok api key is missing")
 		}
 		return authToken, nil
+	case AccountTypeGrokConsole:
+		if s.grokConsoleDPoP == nil {
+			return "", fmt.Errorf("grok console DPoP provider not configured")
+		}
+		session, err := s.grokConsoleDPoP.GetOrCreateSession(ctx, account.ID, account.ProxyID)
+		if err != nil {
+			return "", fmt.Errorf("failed to get console DPoP token: %s", err.Error())
+		}
+		return session.AccessToken, nil
 	default:
 		return "", fmt.Errorf("unsupported grok account type: %s", account.Type)
 	}
@@ -1175,6 +1215,114 @@ func (s *AccountTestService) grokTestProxyURL(account *Account) string {
 		return account.Proxy.URL()
 	}
 	return ""
+}
+
+// testGrokConsoleResponsesConnection 通过 Console DPoP 链路验证会话账号：
+// SSO Cookie + DPoP Authorization + 每请求 proof + 浏览器头，直连 console.x.ai。
+func (s *AccountTestService) testGrokConsoleResponsesConnection(
+	c *gin.Context,
+	ctx context.Context,
+	account *Account,
+	prompt, testModelID string,
+) error {
+	if s.grokConsoleDPoP == nil {
+		return s.sendErrorAndEnd(c, "grok console DPoP provider not configured")
+	}
+
+	// 与 Build Responses 测试一致：请求思考摘要流，前端可展示推理过程。
+	// 附带 web_search/x_search server tools：Console 免费链路仅在混合工具
+	// 请求下返回 reasoning summary 流（与 Build Free 的 cache route 行为一致）。
+	payload := map[string]any{
+		"model":  testModelID,
+		"input":  prompt,
+		"stream": true,
+		"reasoning": map[string]any{
+			"effort":  "low",
+			"summary": "auto",
+		},
+		"tools": []map[string]any{
+			{"type": "web_search"},
+			{"type": "x_search"},
+		},
+	}
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return s.sendErrorAndEnd(c, "Failed to create Console test payload")
+	}
+
+	req, err := s.grokConsoleDPoP.BuildConsoleResponsesRequest(ctx, account.ID, account.ProxyID, payloadBytes)
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Build Console request failed: %s", err.Error()))
+	}
+
+	s.prepareGrokTestSSE(c)
+	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
+
+	resp, err := s.httpUpstream.Do(req, s.grokTestProxyURL(account), account.ID, account.Concurrency)
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Console Responses API request failed: %s", err.Error()))
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Console Responses API returned %d: %s", resp.StatusCode, string(body)))
+	}
+
+	return s.processOpenAIStream(c, resp.Body)
+}
+
+// testGrokWebAccount 通过 mgw WebSocket 验证 Web 会话账号。
+// 文本模式走完整问答链路；其他模式当前不支持（Web 无 TTS/STT/Realtime，
+// 图像/视频的 mgw 适配尚未接入测试路径）。
+func (s *AccountTestService) testGrokWebAccount(
+	c *gin.Context,
+	ctx context.Context,
+	account *Account,
+	modelID, prompt, mode string,
+	opts AccountTestOptions,
+) error {
+	mode = normalizeGrokAccountTestMode(mode)
+	switch mode {
+	case AccountTestModeGrokText, "":
+	case AccountTestModeGrokSearch:
+	default:
+		return s.sendErrorAndEnd(c, fmt.Sprintf("grok web accounts do not support %s tests (chat/search only)", mode))
+	}
+
+	gateway := s.grokWebGateway
+	if gateway == nil || gateway.sessionCredentialService == nil {
+		return s.sendErrorAndEnd(c, "grok web gateway not configured")
+	}
+	if gateway.sessionCredentialService == nil {
+		return s.sendErrorAndEnd(c, "grok web session service not configured")
+	}
+
+	testModelID := strings.TrimSpace(modelID)
+	if testModelID == "" {
+		testModelID = "grok-3"
+	}
+	if mapped := strings.TrimSpace(account.GetMappedModel(testModelID)); mapped != "" {
+		testModelID = mapped
+	}
+	testPrompt := strings.TrimSpace(prompt)
+	if testPrompt == "" {
+		testPrompt = defaultGrokTextTestPrompt
+	}
+
+	s.prepareGrokTestSSE(c)
+	started := time.Now()
+	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
+
+	text, err := gateway.ForwardGrokWebChat(ctx, account, testModelID, testPrompt)
+	latencyMs := time.Since(started).Milliseconds()
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Grok Web mgw request failed: %s", err.Error()))
+	}
+
+	s.sendEvent(c, TestEvent{Type: "chunk", Text: text})
+	s.sendEvent(c, TestEvent{Type: "test_complete", Success: true, LatencyMs: latencyMs})
+	return nil
 }
 
 func (s *AccountTestService) prepareGrokTestSSE(c *gin.Context) {

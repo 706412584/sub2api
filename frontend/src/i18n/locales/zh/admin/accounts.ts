@@ -569,6 +569,7 @@ export default {
         grokRequests: '请求',
         grokTokens: 'Token',
         grokFreeQuota24hHint: '按 sub2api 近 24 小时本地 Token 用量估算（上限 {limit}）',
+        consoleQuotaHint: 'Console {kind} 配额：上限 {limit}/天（来自 console.x.ai 实时配额）',
         grokWeeklyUsage: '周额度已用 {percent}%',
         grokUsed: '已用 $',
         grokBalance: '余额 $',

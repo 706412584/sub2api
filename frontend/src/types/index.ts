@@ -1476,6 +1476,10 @@ export interface AccountUsageInfo {
   grok_local_usage_7d?: WindowStats | null
   grok_local_usage_monthly?: WindowStats | null
   grok_billing?: GrokBillingSummary | null
+  console_usage?: {
+    quotas: Array<{ kind: string; limit: number; used: number; remaining: number }>
+    fetched_at: string
+  } | null
   kiro?: KiroUsageInfo | null
   subscription_tier?: string
   subscription_tier_raw?: string

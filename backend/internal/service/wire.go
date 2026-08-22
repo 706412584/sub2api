@@ -222,6 +222,7 @@ func ProvideAccountUsageService(
 	identityCache IdentityCache,
 	tlsFPProfileService *TLSFingerprintProfileService,
 	openAIGatewayService *OpenAIGatewayService,
+	consoleDPoPProvider *GrokConsoleDPoPProvider,
 ) *AccountUsageService {
 	service := NewAccountUsageService(
 		accountRepo,
@@ -238,6 +239,7 @@ func ProvideAccountUsageService(
 		tlsFPProfileService,
 	)
 	service.agentIdentityWS = openAIGatewayService
+	service.SetConsoleDPoPProvider(consoleDPoPProvider)
 	return service
 }
 
@@ -272,6 +274,7 @@ func ProvideAccountTestService(
 	tlsFPProfileService *TLSFingerprintProfileService,
 	openAIGatewayService *OpenAIGatewayService,
 	settingService *SettingService,
+	consoleDPoPProvider *GrokConsoleDPoPProvider,
 ) *AccountTestService {
 	service := NewAccountTestService(
 		accountRepo,
@@ -285,6 +288,8 @@ func ProvideAccountTestService(
 	)
 	service.agentIdentityWS = openAIGatewayService
 	service.SetSettingService(settingService)
+	service.SetGrokConsoleDPoPProvider(consoleDPoPProvider)
+	service.SetGrokWebGateway(openAIGatewayService)
 	return service
 }
 
@@ -379,11 +384,21 @@ func ProvideGrokSessionCredentialService(
 	return NewGrokSessionCredentialService(repo, encryptor)
 }
 
-// ProvideGrokConsoleDPoPProvider creates GrokConsoleDPoPProvider with session service.
+// ProvideGrokConsoleDPoPProvider creates GrokConsoleDPoPProvider with session service and HTTP upstream.
 func ProvideGrokConsoleDPoPProvider(
 	sessionService GrokSessionCredentialService,
+	httpUpstream HTTPUpstream,
+	proxyRepo ProxyRepository,
 ) *GrokConsoleDPoPProvider {
-	return NewGrokConsoleDPoPProvider(sessionService)
+	p := NewGrokConsoleDPoPProvider(sessionService, httpUpstream)
+	p.SetProxyURLResolver(func(proxyID int64) string {
+		proxy, err := proxyRepo.GetByID(context.Background(), proxyID)
+		if err == nil && proxy != nil {
+			return proxy.URL()
+		}
+		return ""
+	})
+	return p
 }
 
 // ProvideConsoleModelCatalog creates ConsoleModelCatalog with DPoP provider.

@@ -488,6 +488,9 @@ func (s *OpenAIGatewayService) forwardGrokWebResponses(
 		ResponseID:  responseID,
 		Model:       originalModel,
 		UpstreamModel: originalModel,
+		// mgw 上游不回传 model 字段；显式记录请求模型避免用量审计误判不一致。
+		UpstreamResponseModel:         originalModel,
+		UpstreamResponseModelConflict: false,
 		Stream:      reqStream,
 		Duration:    time.Since(startTime),
 		Usage: OpenAIUsage{

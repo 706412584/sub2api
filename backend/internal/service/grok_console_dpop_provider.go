@@ -32,19 +32,23 @@ type ConsoleDPoPSession struct {
 
 // GrokConsoleDPoPProvider 管理 Console 的 DPoP 会话（P-256 私钥仅内存，不落库）
 type GrokConsoleDPoPProvider struct {
-	sessionService GrokSessionCredentialService
-	httpClient     *http.Client
-	mu             sync.Mutex
-	sessions       map[string]*ConsoleDPoPSession
-	loads          singleflight.Group
+	sessionService  GrokSessionCredentialService
+	httpUpstream    HTTPUpstream
+	httpClient      *http.Client
+	proxyURLResolver func(int64) string
+	mu              sync.Mutex
+	sessions        map[string]*ConsoleDPoPSession
+	loads           singleflight.Group
 }
 
 // NewGrokConsoleDPoPProvider 创建 Console DPoP Provider
 func NewGrokConsoleDPoPProvider(
 	sessionService GrokSessionCredentialService,
+	httpUpstream HTTPUpstream,
 ) *GrokConsoleDPoPProvider {
 	return &GrokConsoleDPoPProvider{
 		sessionService: sessionService,
+		httpUpstream:   httpUpstream,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 			Transport: &http.Transport{
@@ -129,7 +133,7 @@ func (p *GrokConsoleDPoPProvider) createSession(
 		return nil, fmt.Errorf("build DPoP proof: %w", err)
 	}
 
-	// 5. 请求 DPoP token
+	// 5. 请求 DPoP token（通过 httpUpstream 支持代理出口）
 	body := map[string]any{"jwk": publicJWK}
 	bodyJSON, _ := json.Marshal(body)
 
@@ -144,7 +148,8 @@ func (p *GrokConsoleDPoPProvider) createSession(
 	req.Header.Set("Origin", "https://console.x.ai")
 	req.Header.Set("Referer", "https://console.x.ai/")
 
-	resp, err := p.httpClient.Do(req)
+	proxyURL := p.resolveProxyURL(proxyID)
+	resp, err := p.httpUpstream.Do(req, proxyURL, accountID, 1)
 	if err != nil {
 		return nil, fmt.Errorf("DPoP token request: %w", err)
 	}
@@ -302,3 +307,105 @@ func sha256Of(input string) string {
 
 // Ensure interfaces are implemented
 var _ = url.Values{}
+
+// SetProxyURLResolver 设置代理 URL 解析函数，由调用方（网关/测试服务）注入。
+// 签名：func(proxyID int64) (string, error)
+func (p *GrokConsoleDPoPProvider) SetProxyURLResolver(resolver func(int64) string) {
+	p.proxyURLResolver = resolver
+}
+
+// resolveProxyURL 解析代理 URL；无代理或无解析器时返回空字符串（直连）。
+func (p *GrokConsoleDPoPProvider) resolveProxyURL(proxyID *int64) string {
+	if proxyID == nil || p.proxyURLResolver == nil {
+		return ""
+	}
+	return p.proxyURLResolver(*proxyID)
+}
+
+// ConsoleUsageQuota 是 /v1/usage 返回的单类配额。
+type ConsoleUsageQuota struct {
+	Kind      string `json:"kind"`
+	Limit     int64  `json:"limit"`
+	Used      int64  `json:"used"`
+	Remaining int64  `json:"remaining"`
+}
+
+// ConsoleUsageSnapshot 是 Console 账号的真实配额快照。
+type ConsoleUsageSnapshot struct {
+	Quotas    []ConsoleUsageQuota `json:"quotas"`
+	FetchedAt time.Time           `json:"fetched_at"`
+}
+
+// GetConsoleUsageQuota 按类别返回配额（chat/image/video）；缺失时返回 nil。
+func (s *ConsoleUsageSnapshot) GetConsoleUsageQuota(kind string) *ConsoleUsageQuota {
+	if s == nil {
+		return nil
+	}
+	for i := range s.Quotas {
+		if strings.EqualFold(s.Quotas[i].Kind, kind) {
+			return &s.Quotas[i]
+		}
+	}
+	return nil
+}
+
+// FetchConsoleUsage 通过 SSO cookie 直连 console.x.ai/v1/usage 获取真实配额。
+// 该端点只读、不消耗推理配额；401/403 表示会话失效。
+func (p *GrokConsoleDPoPProvider) FetchConsoleUsage(
+	ctx context.Context,
+	accountID int64,
+	proxyID *int64,
+) (*ConsoleUsageSnapshot, error) {
+	material, err := p.sessionService.GetSessionMaterial(ctx, accountID, proxyID)
+	if err != nil {
+		return nil, fmt.Errorf("get session material: %w", err)
+	}
+
+	usageURL := "https://console.x.ai/v1/usage"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, usageURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Cookie", "sso="+material.SSO+"; sso-rw="+material.SSORw)
+	req.Header.Set("User-Agent", material.BrowserUA)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Origin", "https://console.x.ai")
+	req.Header.Set("Referer", "https://console.x.ai/")
+
+	proxyURL := p.resolveProxyURL(proxyID)
+	resp, err := p.httpUpstream.Do(req, proxyURL, accountID, 1)
+	if err != nil {
+		return nil, fmt.Errorf("console usage request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+	if err != nil {
+		return nil, fmt.Errorf("read console usage: %w", err)
+	}
+	switch resp.StatusCode {
+	case http.StatusUnauthorized, http.StatusForbidden:
+		_ = p.sessionService.MarkReauthRequired(ctx, accountID, "console_usage_unauthorized")
+		return nil, fmt.Errorf("console usage unauthorized (%d)", resp.StatusCode)
+	case http.StatusOK:
+		// fallthrough to decode
+	default:
+		return nil, fmt.Errorf("console usage returned %d: %s", resp.StatusCode, truncateConsoleBody(body))
+	}
+
+	var parsed struct {
+		Quotas []ConsoleUsageQuota `json:"quotas"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return nil, fmt.Errorf("decode console usage: %w", err)
+	}
+	return &ConsoleUsageSnapshot{Quotas: parsed.Quotas, FetchedAt: time.Now().UTC()}, nil
+}
+
+func truncateConsoleBody(b []byte) string {
+	s := strings.TrimSpace(string(b))
+	if len(s) > 200 {
+		return s[:200] + "..."
+	}
+	return s
+}

@@ -1676,6 +1676,7 @@ export default {
         grokRequests: 'Req',
         grokTokens: 'Tok',
         grokFreeQuota24hHint: 'Estimated from local token usage over the rolling 24-hour window ({limit} limit)',
+        consoleQuotaHint: 'Console {kind} quota: {limit}/day (live from console.x.ai)',
         grokWeeklyUsage: 'Weekly {percent}%',
         grokUsed: 'Used $',
         grokBalance: 'Bal $',

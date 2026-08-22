@@ -513,6 +513,11 @@ func grokChatResponsesRuntimeEligible(upstreamModel, cacheIdentity string) bool 
 // request into xAI Responses format and reuses the established Responses-to-
 // Chat response translators. It intentionally does not run the Codex OAuth
 // transform because Grok CLI is a separate upstream protocol.
+// isConsoleBridgeRequest 报告该 bridge 请求是否由 Console 会话账号发起。
+func isConsoleBridgeRequest(account *Account) bool {
+	return account != nil && account.Platform == PlatformGrok && account.Type == AccountTypeGrokConsole
+}
+
 func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 	ctx context.Context,
 	c *gin.Context,
@@ -556,6 +561,12 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 	responsesReq.Include = nil
 	responsesReq.Store = nil
 
+	// Console 上游（console.x.ai）对 tool_choice 校验严格：
+	// 无 tools 时携带 tool_choice 会直接 400，这里先剥掉孤儿 tool_choice。
+	if isConsoleBridgeRequest(account) && len(responsesReq.Tools) == 0 && len(responsesReq.ToolChoice) > 0 {
+		responsesReq.ToolChoice = nil
+	}
+
 	responsesBody, err := json.Marshal(responsesReq)
 	if err != nil {
 		return nil, fmt.Errorf("marshal grok responses bridge request: %w", err)
@@ -571,13 +582,20 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 	if err != nil {
 		return nil, fmt.Errorf("patch grok responses bridge request: %w", err)
 	}
-	responsesBody, err = applyGrokResponsesCacheIdentity(responsesBody, intentBody, cacheIdentity, true)
+	// injectFreeTierTools 仅适用于 Build Free OAuth；Console 上游不认这些
+	// server tools，会把 tool_choice=none 判为"有 tool_choice 无 tools"。
+	consoleBridge := isConsoleBridgeRequest(account)
+	responsesBody, err = applyGrokResponsesCacheIdentity(responsesBody, intentBody, cacheIdentity, !consoleBridge)
 	if err != nil {
 		return nil, fmt.Errorf("apply grok responses bridge cache identity: %w", err)
 	}
-	responsesBody, err = applyGrokFreeRequestToolCacheRoute(c, responsesBody, intentBody, account, cacheIdentity)
-	if err != nil {
-		return nil, fmt.Errorf("apply grok responses bridge function-tool cache route: %w", err)
+	// Build Free 专用 cache route 会附加 web_search/x_search + tool_choice=none，
+	// Console 上游不认这些 server tools，会把孤儿 tool_choice 判为 400。跳过。
+	if !isConsoleBridgeRequest(account) {
+		responsesBody, err = applyGrokFreeRequestToolCacheRoute(c, responsesBody, intentBody, account, cacheIdentity)
+		if err != nil {
+			return nil, fmt.Errorf("apply grok responses bridge function-tool cache route: %w", err)
+		}
 	}
 
 	updatedBody, policyErr := s.applyOpenAIFastPolicyToBody(ctx, account, upstreamModel, responsesBody)
@@ -591,12 +609,19 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 	}
 	responsesBody = updatedBody
 
-	token, _, err := s.getRequestCredential(ctx, c, account)
+	token, credKind, err := s.getRequestCredential(ctx, c, account)
 	if err != nil {
 		return nil, fmt.Errorf("get grok access token: %w", err)
 	}
 	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
-	upstreamReq, err := buildGrokResponsesRequest(upstreamCtx, c, account, responsesBody, token, cacheIdentity, s.cfg, s.settingService)
+	var upstreamReq *http.Request
+	// Console 账号：DPoP proof/SSO Cookie 每请求生成，走专用构建器；
+	// 通用 Bearer 构建器缺这些头会被上游 401。
+	if credKind == "console_dpop" && s.consoleDPoPProvider != nil {
+		upstreamReq, err = s.consoleDPoPProvider.BuildConsoleResponsesRequest(upstreamCtx, account.ID, account.ProxyID, responsesBody)
+	} else {
+		upstreamReq, err = buildGrokResponsesRequest(upstreamCtx, c, account, responsesBody, token, cacheIdentity, s.cfg, s.settingService)
+	}
 	releaseUpstreamCtx()
 	if err != nil {
 		return nil, fmt.Errorf("build grok responses bridge request: %w", err)

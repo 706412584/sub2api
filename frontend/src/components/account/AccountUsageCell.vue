@@ -369,6 +369,29 @@
       <div v-else class="text-xs text-gray-400">-</div>
     </template>
 
+    <!-- Grok Console session accounts: real quotas from console.x.ai/v1/usage -->
+    <template v-else-if="account.platform === 'grok' && account.type === 'grok_console'">
+      <div v-if="loading" class="space-y-1.5">
+        <div class="flex items-center gap-1">
+          <div class="h-3 w-[32px] animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
+          <div class="h-1.5 w-8 animate-pulse rounded-full bg-gray-200 dark:bg-gray-700"></div>
+        </div>
+      </div>
+      <div v-else-if="error" class="text-xs text-red-500">{{ error }}</div>
+      <div v-else-if="consoleQuotaBars.length > 0" class="space-y-1">
+        <UsageProgressBar
+          v-for="bar in consoleQuotaBars"
+          :key="bar.kind"
+          :label="bar.kind"
+          :title="t('admin.accounts.usageWindow.consoleQuotaHint', { kind: bar.kind, limit: formatCompactNumber(bar.limit) })"
+          :utilization="bar.utilization"
+          :show-now-when-idle="true"
+          color="emerald"
+        />
+      </div>
+      <div v-else class="text-xs text-gray-400">-</div>
+    </template>
+
     <!-- Grok OAuth accounts: passive xAI quota headers + local Sub2API usage -->
     <template v-else-if="account.platform === 'grok' && account.type === 'oauth'">
       <div v-if="loading" class="space-y-1.5">
@@ -789,6 +812,7 @@ const showUsageWindows = computed(() => {
   ) {
     return true
   }
+  if (props.account.platform === 'grok' && props.account.type === 'grok_console') return true
   return props.account.type === 'oauth' || props.account.type === 'setup-token'
 })
 
@@ -803,6 +827,8 @@ const shouldFetchUsage = computed(() => {
     return props.account.type === 'oauth'
   }
   if (props.account.platform === 'grok') {
+    // Console 会话账号：真实配额来自 /v1/usage；Web 会话账号暂无上游配额端点。
+    if (props.account.type === 'grok_console') return true
     return props.account.type === 'oauth'
   }
   if (props.account.platform === 'openai') {
@@ -1278,6 +1304,27 @@ const grokPlanLabelIsFree = (value: string) => value.includes('free') || value.i
 const grokPlanLabelIsPaid = (value: string) => {
   return value !== '' && !grokPlanLabelIsFree(value) && !value.includes('unknown')
 }
+// Console 会话账号的真实配额条（chat/image/video），来自 /v1/usage。
+const consoleQuotaBars = computed(() => {
+  if (props.account.platform !== 'grok' || props.account.type !== 'grok_console') return []
+  const snapshot = usageInfo.value?.console_usage
+  if (!snapshot?.quotas?.length) return []
+  const priority = ['chat', 'image', 'video']
+  return snapshot.quotas
+    .slice()
+    .sort((a, b) => {
+      const ia = priority.indexOf(a.kind), ib = priority.indexOf(b.kind)
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib)
+    })
+    .filter((q) => q.limit > 0)
+    .map((q) => ({
+      kind: q.kind,
+      limit: q.limit,
+      // UsageProgressBar 期望 0-100+ 的百分比
+      utilization: q.limit > 0 ? (q.used / q.limit) * 100 : 0,
+    }))
+})
+
 const grokIsFree = computed(() => {
   if (props.account.platform !== 'grok' || props.account.type !== 'oauth') return false
   const billing = grokBilling.value

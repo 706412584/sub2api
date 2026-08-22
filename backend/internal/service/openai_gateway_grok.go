@@ -185,10 +185,13 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
 		}
 	}
 
-	token, _, err := s.getRequestCredential(ctx, c, account)
+	token, credKind, err := s.getRequestCredential(ctx, c, account)
 	if err != nil {
 		return nil, err
 	}
+	// Console 账号：DPoP proof 与 SSO Cookie 绑定每次请求，需专用构建器；
+	// 通用 Bearer 构建器缺 DPoP/Cookie 头会被上游 401。
+	isConsoleRequest := credKind == "console_dpop" && s.consoleDPoPProvider != nil
 
 	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
 	defer releaseUpstreamCtx()
@@ -201,9 +204,19 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
 	upstreamStart := time.Now()
 	var resp *http.Response
 	for attempt := 0; ; attempt++ {
-		upstreamReq, buildErr := buildGrokResponsesRequest(upstreamCtx, c, account, patchedBody, token, cacheIdentity, s.cfg, s.settingService)
-		if buildErr != nil {
-			return nil, buildErr
+		var upstreamReq *http.Request
+		var buildErr error
+		if isConsoleRequest {
+			upstreamReq, buildErr = s.consoleDPoPProvider.BuildConsoleResponsesRequest(upstreamCtx, account.ID, account.ProxyID, patchedBody)
+			if buildErr != nil {
+				return nil, buildErr
+			}
+			applyGrokCacheHeaders(upstreamReq.Header, cacheIdentity)
+		} else {
+			upstreamReq, buildErr = buildGrokResponsesRequest(upstreamCtx, c, account, patchedBody, token, cacheIdentity, s.cfg, s.settingService)
+			if buildErr != nil {
+				return nil, buildErr
+			}
 		}
 
 		resp, err = s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
@@ -334,6 +347,10 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
 		ResponseHeaders: resp.Header.Clone(),
 		Duration:        time.Since(startTime),
 		FirstTokenMs:    firstTokenMs,
+		// 共享流/JSON 处理器已观察上游响应模型；不透传会导致用量审计
+		// 把"未上报"误判为模型不一致。
+		UpstreamResponseModel:         observedUpstreamResponseModel(c),
+		UpstreamResponseModelConflict: observedUpstreamResponseModelConflict(c),
 	}
 	// Propagate search/image counters from the shared Responses handler — without
 	// this, stream/JSON counting runs but search_price_per_1k / image bills never apply.

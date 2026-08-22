@@ -75,8 +75,11 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	}
 
 	if account.Platform == PlatformGrok {
-		if account.IsGrokOAuth() {
-			if eligible, reason := grokChatResponsesBridgeEligibility(body); eligible {
+		// Console 会话账号没有原生 Chat Completions 链路（DPoP 认证仅覆盖
+		// console.x.ai/v1/responses），必须走 Responses 桥。
+		isConsole := account.Type == AccountTypeGrokConsole
+		if account.IsGrokOAuth() || isConsole {
+			if eligible, reason := grokChatResponsesBridgeEligibility(body); eligible || isConsole {
 				return s.forwardGrokChatCompletionsViaResponses(ctx, c, account, body, promptCacheKey, defaultMappedModel)
 			} else {
 				logger.L().Debug("grok chat_completions: using raw fallback",

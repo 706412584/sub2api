@@ -227,6 +227,9 @@ type UsageInfo struct {
 	ThirtyDay   *UsageProgress      `json:"thirty_day,omitempty"`
 	GrokBilling *xai.BillingSummary `json:"grok_billing,omitempty"`
 
+	// Grok Console 会话账号的真实配额（console.x.ai/v1/usage）
+	ConsoleUsage *ConsoleUsageSnapshot `json:"console_usage,omitempty"`
+
 	Kiro *KiroUsageInfo `json:"kiro,omitempty"`
 
 	// Antigravity 账号级信息
@@ -311,6 +314,7 @@ type AccountUsageService struct {
 	antigravityQuotaFetcher *AntigravityQuotaFetcher
 	grokQuotaFetcher        *GrokQuotaFetcher
 	grokQuotaService        *GrokQuotaService
+	consoleDPoPProvider     *GrokConsoleDPoPProvider
 	openAIQuotaService      *OpenAIQuotaService
 	kiroGatewayService      *KiroGatewayService
 	cache                   *UsageCache
@@ -353,6 +357,70 @@ func NewAccountUsageService(
 
 func supportsAnthropicPassiveUsage(account *Account) bool {
 	return account != nil && account.IsAnthropicOAuthOrSetupToken()
+}
+
+// SetConsoleDPoPProvider 注入 Console DPoP provider（Console 用量探测用）。
+func (s *AccountUsageService) SetConsoleDPoPProvider(p *GrokConsoleDPoPProvider) {
+	if s != nil {
+		s.consoleDPoPProvider = p
+	}
+}
+
+// getGrokConsoleUsage 获取 Console 会话账号的真实配额（/v1/usage），
+// 并附带本地 24h 用量统计。探测失败降级为仅本地用量，不阻塞列表渲染。
+func (s *AccountUsageService) getGrokConsoleUsage(ctx context.Context, account *Account, force bool) (*UsageInfo, error) {
+	now := time.Now()
+	usage := &UsageInfo{UpdatedAt: &now}
+
+	probe := s.consoleDPoPProvider != nil && !s.shouldSkipConsoleUsageProbe(account.ID, now)
+	if force && s.consoleDPoPProvider != nil {
+		consoleUsageProbeCache.Delete(account.ID)
+		probe = true
+	}
+	if probe {
+		if snapshot, err := s.consoleDPoPProvider.FetchConsoleUsage(ctx, account.ID, account.ProxyID); err == nil && snapshot != nil {
+			usage.ConsoleUsage = snapshot
+		} else if err != nil {
+			usage.Error = err.Error()
+		}
+	} else if s.consoleDPoPProvider == nil {
+		usage.GrokQuotaSnapshotState = "unknown_until_first_response"
+	}
+
+	// 本地统计与 Build 保持同构，便于前端复用展示。
+	if s.usageLogRepo != nil {
+		if stats, err := s.usageLogRepo.GetAccountTodayStats(ctx, account.ID); err == nil && stats != nil {
+			usage.GrokLocalUsage = windowStatsFromAccountStats(stats)
+		}
+		resetAt := time.Now().UTC().Truncate(24 * time.Hour).Add(24 * time.Hour)
+		usage.GrokLocalUsage24h = grokLocalUsage24hFrom(ctx, s.usageLogRepo, account.ID, time.Now().UTC(), resetAt)
+	}
+	return usage, nil
+}
+
+// consoleUsageProbeCache 简单进程内节流：每账号 60s 内不重复探测 /v1/usage。
+var consoleUsageProbeCache sync.Map // accountID -> time.Time
+
+const consoleUsageProbeInterval = time.Minute
+
+func (s *AccountUsageService) shouldSkipConsoleUsageProbe(accountID int64, now time.Time) bool {
+	v, ok := consoleUsageProbeCache.Load(accountID)
+	if !ok {
+		consoleUsageProbeCache.Store(accountID, now)
+		return false
+	}
+	last, _ := v.(time.Time)
+	if now.Sub(last) < consoleUsageProbeInterval {
+		return true
+	}
+	consoleUsageProbeCache.Store(accountID, now)
+	return false
+}
+
+func (s *AccountUsageService) shouldForceConsoleProbe(_ context.Context, accountID int64) bool {
+	// force 场景（手动刷新）绕过节流：直接重置时间戳并放行。
+	consoleUsageProbeCache.Delete(accountID)
+	return true
 }
 
 func batchUsageErrorMessage(err error) string {
@@ -1167,6 +1235,10 @@ func (s *AccountUsageService) getGrokUsage(ctx context.Context, account *Account
 	if s.grokQuotaFetcher == nil {
 		now := time.Now()
 		return &UsageInfo{UpdatedAt: &now}, nil
+	}
+	// Console 会话账号：真实配额来自 console.x.ai/v1/usage，不走 Build header/billing 探测。
+	if account != nil && account.Type == AccountTypeGrokConsole {
+		return s.getGrokConsoleUsage(ctx, account, force)
 	}
 	var billingProbeResult *GrokQuotaProbeResult
 	if account != nil && account.IsGrokOAuth() && s.grokQuotaService != nil && (force || grokBillingSnapshotNeedsRefresh(account, time.Now())) && s.shouldProbeGrokBilling(account.ID, time.Now(), force) {
