@@ -929,7 +929,29 @@ export interface UpdateGroupRequest {
 // ==================== Account & Proxy Types ====================
 
 export type AccountPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kiro' | 'kimi' | 'zhipu' | 'deepseek'
-export type AccountType = 'oauth' | 'setup-token' | 'apikey' | 'upstream' | 'bedrock' | 'service_account' | 'builder-id'
+export type AccountType = 'oauth' | 'setup-token' | 'apikey' | 'upstream' | 'bedrock' | 'service_account' | 'builder-id' | 'grok_console' | 'grok_web'
+
+// Grok Console / Web 会话导入与状态
+export interface GrokSessionInput {
+  sso_token: string
+  sso_rw_token?: string
+  cf_clearance?: string
+  browser_user_agent: string
+  proxy_id: number
+}
+
+export interface GrokSessionStatus {
+  configured: boolean
+  status?: string
+  bound_proxy_id?: number | null
+  updated_at?: string
+  web_tier?: string
+  last_error_code?: string
+  last_error_at?: string
+  has_sso?: boolean
+  has_cf_clearance?: boolean
+  has_browser_ua?: boolean
+}
 export type OAuthAddMethod = 'oauth' | 'setup-token'
 export type ProxyProtocol = 'http' | 'https' | 'socks5' | 'socks5h'
 

@@ -539,7 +539,137 @@
               <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.types.responsesApi') }}</span>
             </div>
           </button>
+
+          <button
+            type="button"
+            data-testid="grok-account-type-console"
+            @click="accountCategory = 'grok_console'"
+            :class="[
+              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+              accountCategory === 'grok_console'
+                ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20'
+                : 'border-gray-200 hover:border-sky-300 dark:border-dark-600 dark:hover:border-sky-700'
+            ]"
+          >
+            <div
+              :class="[
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                accountCategory === 'grok_console'
+                  ? 'bg-sky-500 text-white'
+                  : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
+              ]"
+            >
+              <Icon name="terminal" size="sm" />
+            </div>
+            <div>
+              <span class="block text-sm font-medium text-gray-900 dark:text-white">Console</span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.types.grokConsole') }}</span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            data-testid="grok-account-type-web"
+            @click="accountCategory = 'grok_web'"
+            :class="[
+              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+              accountCategory === 'grok_web'
+                ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
+                : 'border-gray-200 hover:border-emerald-300 dark:border-dark-600 dark:hover:border-emerald-700'
+            ]"
+          >
+            <div
+              :class="[
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                accountCategory === 'grok_web'
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
+              ]"
+            >
+              <Icon name="globe" size="sm" />
+            </div>
+            <div>
+              <span class="block text-sm font-medium text-gray-900 dark:text-white">Web</span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.types.grokWeb') }}</span>
+            </div>
+          </button>
         </div>
+      </div>
+
+      <!-- Grok Console Session Import -->
+      <div v-if="form.platform === 'grok' && accountCategory === 'grok_console'" class="space-y-3">
+        <div>
+          <label class="input-label">{{ t('admin.accounts.grokSession.ssoToken') }} *</label>
+          <textarea
+            v-model="grokSessionForm.sso_token"
+            rows="3"
+            class="input-field font-mono text-xs"
+            :placeholder="t('admin.accounts.grokSession.ssoPlaceholder')"
+            autocomplete="off"
+          />
+        </div>
+        <div>
+          <label class="input-label">{{ t('admin.accounts.grokSession.userAgent') }} *</label>
+          <input
+            v-model="grokSessionForm.browser_user_agent"
+            type="text"
+            class="input-field font-mono text-xs"
+            :placeholder="t('admin.accounts.grokSession.userAgentPlaceholder')"
+            autocomplete="off"
+          />
+        </div>
+        <div>
+          <label class="input-label">{{ t('admin.accounts.proxy') }} *</label>
+          <select v-model="grokSessionForm.proxy_id" class="input-field" data-testid="grok-session-proxy">
+            <option :value="null" disabled>{{ t('admin.accounts.grokSession.selectProxy') }}</option>
+            <option v-for="proxy in proxies" :key="proxy.id" :value="proxy.id">{{ proxy.name }}</option>
+          </select>
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.grokSession.proxyHint') }}</p>
+        </div>
+        <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.grokSession.consoleHint') }}</p>
+      </div>
+
+      <!-- Grok Web Session Import -->
+      <div v-if="form.platform === 'grok' && accountCategory === 'grok_web'" class="space-y-3">
+        <div>
+          <label class="input-label">{{ t('admin.accounts.grokSession.ssoToken') }} *</label>
+          <textarea
+            v-model="grokSessionForm.sso_token"
+            rows="3"
+            class="input-field font-mono text-xs"
+            :placeholder="t('admin.accounts.grokSession.ssoPlaceholder')"
+            autocomplete="off"
+          />
+        </div>
+        <div>
+          <label class="input-label">{{ t('admin.accounts.grokSession.cfClearance') }} *</label>
+          <textarea
+            v-model="grokSessionForm.cf_clearance"
+            rows="3"
+            class="input-field font-mono text-xs"
+            :placeholder="t('admin.accounts.grokSession.cfPlaceholder')"
+            autocomplete="off"
+          />
+        </div>
+        <div>
+          <label class="input-label">{{ t('admin.accounts.grokSession.userAgent') }} *</label>
+          <input
+            v-model="grokSessionForm.browser_user_agent"
+            type="text"
+            class="input-field font-mono text-xs"
+            :placeholder="t('admin.accounts.grokSession.userAgentPlaceholder')"
+            autocomplete="off"
+          />
+        </div>
+        <div>
+          <label class="input-label">{{ t('admin.accounts.proxy') }} *</label>
+          <select v-model="grokSessionForm.proxy_id" class="input-field" data-testid="grok-session-proxy">
+            <option :value="null" disabled>{{ t('admin.accounts.grokSession.selectProxy') }}</option>
+            <option v-for="proxy in proxies" :key="proxy.id" :value="proxy.id">{{ proxy.name }}</option>
+          </select>
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.grokSession.proxyHint') }}</p>
+        </div>
+        <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.grokSession.webHint') }}</p>
       </div>
 
       <!-- Account Mode Selection (Kimi / Zhipu / DeepSeek) -->
@@ -3872,6 +4002,7 @@ import {
   fetchAntigravityDefaultMappings,
   isValidWildcardPattern
 } from '@/composables/useModelWhitelist'
+import { extractApiErrorMessage } from '@/utils/apiError'
 import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
 import { createKiroAPIKeyAccount } from '@/api/admin/accounts'
@@ -4055,6 +4186,22 @@ const geminiOAuth = useGeminiOAuth() // For Gemini OAuth
 const antigravityOAuth = useAntigravityOAuth() // For Antigravity OAuth
 const grokOAuth = useGrokOAuth() // For Grok OAuth
 
+// Grok Console / Web 会话导入表单。
+// 敏感材料只随请求发送一次，提交成功后立即清空，绝不回显。
+const grokSessionForm = reactive({
+  sso_token: '',
+  cf_clearance: '',
+  browser_user_agent: '',
+  proxy_id: null as number | null,
+})
+
+function resetGrokSessionForm() {
+  grokSessionForm.sso_token = ''
+  grokSessionForm.cf_clearance = ''
+  grokSessionForm.browser_user_agent = ''
+  grokSessionForm.proxy_id = null
+}
+
 const handleOpenKiroBrowserLogin = () => {
   emit('openKiroBrowserLogin', {
     name: form.name.trim() || undefined,
@@ -4123,7 +4270,7 @@ interface TempUnschedRuleForm {
 // State
 const step = ref(1)
 const submitting = ref(false)
-const accountCategory = ref<'oauth-based' | 'apikey' | 'bedrock' | 'service_account'>('oauth-based') // UI selection for account category
+const accountCategory = ref<'oauth-based' | 'apikey' | 'bedrock' | 'service_account' | 'grok_console' | 'grok_web'>('oauth-based') // UI selection for account category
 const addMethod = ref<AddMethod>('oauth') // For oauth-based: 'oauth' or 'setup-token'
 const apiKeyBaseUrl = ref('https://api.anthropic.com')
 const apiKeyValue = ref('')
@@ -4735,6 +4882,11 @@ watch(
     // Bedrock 类型
     if (form.platform === 'anthropic' && category === 'bedrock') {
       form.type = 'bedrock' as AccountType
+      return
+    }
+    // Grok Console / Web 会话账号：独立类型，凭据走专用会话导入 API
+    if (form.platform === 'grok' && (category === 'grok_console' || category === 'grok_web')) {
+      form.type = category
       return
     }
     // Kiro: OAuth uses builder-id entry; API Key uses apikey
@@ -5575,6 +5727,81 @@ const handleCreateKiroAPIKeyAccount = async () => {
   }
 }
 
+// 创建 Grok Console / Web 会话账号：
+// 1. 通用账号接口创建账号（credentials 仅占位，不含会话材料）
+// 2. 调用专用 session API 导入 SSO / cf_clearance / UA（服务端加密存储）
+// 提交后立即清空表单，敏感材料不回显。
+const handleCreateGrokSessionAccount = async () => {
+  const isConsole = accountCategory.value === 'grok_console'
+  if (!grokSessionForm.sso_token.trim()) {
+    appStore.showError(t('admin.accounts.grokSession.ssoRequired'))
+    return
+  }
+  if (!isConsole && !grokSessionForm.cf_clearance.trim()) {
+    appStore.showError(t('admin.accounts.grokSession.cfRequired'))
+    return
+  }
+  if (!grokSessionForm.browser_user_agent.trim()) {
+    appStore.showError(t('admin.accounts.grokSession.uaRequired'))
+    return
+  }
+  if (grokSessionForm.proxy_id == null) {
+    appStore.showError(t('admin.accounts.grokSession.proxyRequired'))
+    return
+  }
+
+  submitting.value = true
+  let createdAccountId: number | null = null
+  try {
+    const payload = {
+      name: form.name.trim() || `Grok ${isConsole ? 'Console' : 'Web'} Session`,
+      platform: 'grok' as const,
+      type: accountCategory.value as AccountType,
+      credentials: { placeholder: true },
+      proxy_id: grokSessionForm.proxy_id,
+      group_ids: [...form.group_ids],
+      concurrency: form.concurrency,
+      priority: form.priority,
+    }
+    const created = await adminAPI.accounts.create(payload)
+    createdAccountId = (created as { data?: { id?: number } })?.data?.id ?? null
+    if (!createdAccountId) {
+      throw new Error('missing account id')
+    }
+
+    const sessionPayload = {
+      sso_token: grokSessionForm.sso_token.trim(),
+      browser_user_agent: grokSessionForm.browser_user_agent.trim(),
+      proxy_id: grokSessionForm.proxy_id,
+      ...(isConsole
+        ? {}
+        : { cf_clearance: grokSessionForm.cf_clearance.trim() }),
+    }
+    if (isConsole) {
+      await adminAPI.grok.saveConsoleSession(createdAccountId, sessionPayload)
+    } else {
+      await adminAPI.grok.saveWebSession(createdAccountId, sessionPayload)
+    }
+
+    appStore.showSuccess(t('admin.accounts.grokSession.created'))
+    resetGrokSessionForm()
+    handleClose()
+    emit('created')
+  } catch (error) {
+    // 会话导入失败时清理已创建的空壳账号，避免残留不可用账号
+    if (createdAccountId != null) {
+      try {
+        await adminAPI.accounts.delete(createdAccountId)
+      } catch {
+        /* 清理失败不阻塞错误提示 */
+      }
+    }
+    appStore.showError(extractApiErrorMessage(error, t('admin.accounts.grokSession.createFailed')))
+  } finally {
+    submitting.value = false
+  }
+}
+
 const handleSubmit = async () => {
   if (form.platform === 'kiro') {
     if (accountCategory.value === 'apikey') {
@@ -5582,6 +5809,12 @@ const handleSubmit = async () => {
       return
     }
     handleOpenKiroBrowserLogin()
+    return
+  }
+
+  // Grok Console / Web 会话账号：先建账号，再导入会话材料（专用 API，不进 credentials）
+  if (form.platform === 'grok' && (accountCategory.value === 'grok_console' || accountCategory.value === 'grok_web')) {
+    await handleCreateGrokSessionAccount()
     return
   }
 
