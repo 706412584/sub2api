@@ -331,10 +331,12 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	}
 
 	// 5. Get access token
-	token, _, err := s.getRequestCredential(ctx, c, account)
+	token, credKind, err := s.getRequestCredential(ctx, c, account)
 	if err != nil {
 		return nil, fmt.Errorf("get access token: %w", err)
 	}
+	// Console 会话账号：DPoP proof + SSO Cookie 每请求绑定，需专用构建器。
+	isConsoleRequest := credKind == "console_dpop" && s.consoleDPoPProvider != nil
 
 	// 6. Build upstream request
 	if account.Type == AccountTypeOAuth && account.Platform != PlatformGrok {
@@ -345,7 +347,12 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	}
 	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
 	var upstreamReq *http.Request
-	if account.Platform == PlatformGrok {
+	if isConsoleRequest {
+		upstreamReq, err = s.consoleDPoPProvider.BuildConsoleResponsesRequest(upstreamCtx, account.ID, account.ProxyID, responsesBody)
+		if err == nil {
+			applyGrokCacheHeaders(upstreamReq.Header, grokCacheIdentity)
+		}
+	} else if account.Platform == PlatformGrok {
 		upstreamReq, err = buildGrokResponsesRequest(upstreamCtx, c, account, responsesBody, token, grokCacheIdentity, s.cfg, s.settingService)
 	} else {
 		upstreamReq, err = s.buildUpstreamRequest(upstreamCtx, c, account, responsesBody, token, isStream, promptCacheKey, false)
@@ -398,7 +405,14 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 				break
 			}
 			upstreamCtxRetry, releaseRetry := detachUpstreamContext(ctx)
-			upstreamReq, err = buildGrokResponsesRequest(upstreamCtxRetry, c, account, responsesBody, token, grokCacheIdentity, s.cfg, s.settingService)
+			if isConsoleRequest {
+				upstreamReq, err = s.consoleDPoPProvider.BuildConsoleResponsesRequest(upstreamCtxRetry, account.ID, account.ProxyID, responsesBody)
+				if err == nil {
+					applyGrokCacheHeaders(upstreamReq.Header, grokCacheIdentity)
+				}
+			} else {
+				upstreamReq, err = buildGrokResponsesRequest(upstreamCtxRetry, c, account, responsesBody, token, grokCacheIdentity, s.cfg, s.settingService)
+			}
 			releaseRetry()
 			if err != nil {
 				return nil, fmt.Errorf("build grok retry request: %w", err)

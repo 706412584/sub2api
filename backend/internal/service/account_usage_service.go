@@ -368,22 +368,32 @@ func (s *AccountUsageService) SetConsoleDPoPProvider(p *GrokConsoleDPoPProvider)
 
 // getGrokConsoleUsage 获取 Console 会话账号的真实配额（/v1/usage），
 // 并附带本地 24h 用量统计。探测失败降级为仅本地用量，不阻塞列表渲染。
+// 快照带 TTL 缓存：TTL 内直接返回上次探测结果，避免 1077 账号列表渲染时
+// 对 console.x.ai 发起探测风暴，也保证节流期内配额可见（而非空白）。
 func (s *AccountUsageService) getGrokConsoleUsage(ctx context.Context, account *Account, force bool) (*UsageInfo, error) {
 	now := time.Now()
 	usage := &UsageInfo{UpdatedAt: &now}
 
-	probe := s.consoleDPoPProvider != nil && !s.shouldSkipConsoleUsageProbe(account.ID, now)
-	if force && s.consoleDPoPProvider != nil {
-		consoleUsageProbeCache.Delete(account.ID)
-		probe = true
-	}
-	if probe {
-		if snapshot, err := s.consoleDPoPProvider.FetchConsoleUsage(ctx, account.ID, account.ProxyID); err == nil && snapshot != nil {
-			usage.ConsoleUsage = snapshot
-		} else if err != nil {
-			usage.Error = err.Error()
+	if s.consoleDPoPProvider != nil {
+		cached, fresh := loadConsoleUsageCache(account.ID, now)
+		if !force && fresh && cached != nil {
+			usage.ConsoleUsage = cached
+		} else {
+			snapshot, err := s.consoleDPoPProvider.FetchConsoleUsage(ctx, account.ID, account.ProxyID)
+			if err == nil && snapshot != nil {
+				usage.ConsoleUsage = snapshot
+				storeConsoleUsageCache(account.ID, snapshot, now)
+			} else if cached != nil {
+				// 探测失败但有旧快照：返回旧值，避免列表突然空白
+				usage.ConsoleUsage = cached
+				if err != nil {
+					usage.Error = err.Error()
+				}
+			} else if err != nil {
+				usage.Error = err.Error()
+			}
 		}
-	} else if s.consoleDPoPProvider == nil {
+	} else {
 		usage.GrokQuotaSnapshotState = "unknown_until_first_response"
 	}
 
@@ -398,29 +408,31 @@ func (s *AccountUsageService) getGrokConsoleUsage(ctx context.Context, account *
 	return usage, nil
 }
 
-// consoleUsageProbeCache 简单进程内节流：每账号 60s 内不重复探测 /v1/usage。
-var consoleUsageProbeCache sync.Map // accountID -> time.Time
-
-const consoleUsageProbeInterval = time.Minute
-
-func (s *AccountUsageService) shouldSkipConsoleUsageProbe(accountID int64, now time.Time) bool {
-	v, ok := consoleUsageProbeCache.Load(accountID)
-	if !ok {
-		consoleUsageProbeCache.Store(accountID, now)
-		return false
-	}
-	last, _ := v.(time.Time)
-	if now.Sub(last) < consoleUsageProbeInterval {
-		return true
-	}
-	consoleUsageProbeCache.Store(accountID, now)
-	return false
+// consoleUsageCacheEntry 缓存一次 /v1/usage 探测结果。
+type consoleUsageCacheEntry struct {
+	snapshot *ConsoleUsageSnapshot
+	at       time.Time
 }
 
-func (s *AccountUsageService) shouldForceConsoleProbe(_ context.Context, accountID int64) bool {
-	// force 场景（手动刷新）绕过节流：直接重置时间戳并放行。
-	consoleUsageProbeCache.Delete(accountID)
-	return true
+// consoleUsageCache 每账号缓存最近一次配额快照。
+var consoleUsageCache sync.Map // accountID -> consoleUsageCacheEntry
+
+const consoleUsageCacheTTL = 2 * time.Minute
+
+func loadConsoleUsageCache(accountID int64, now time.Time) (*ConsoleUsageSnapshot, bool) {
+	v, ok := consoleUsageCache.Load(accountID)
+	if !ok {
+		return nil, false
+	}
+	entry, ok := v.(consoleUsageCacheEntry)
+	if !ok {
+		return nil, false
+	}
+	return entry.snapshot, now.Sub(entry.at) < consoleUsageCacheTTL
+}
+
+func storeConsoleUsageCache(accountID int64, snapshot *ConsoleUsageSnapshot, now time.Time) {
+	consoleUsageCache.Store(accountID, consoleUsageCacheEntry{snapshot: snapshot, at: now})
 }
 
 func batchUsageErrorMessage(err error) string {
