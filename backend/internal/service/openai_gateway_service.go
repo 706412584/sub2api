@@ -418,36 +418,36 @@ var ErrGrokReasoningFiltered = errors.New("all Grok accounts filtered by reasoni
 
 // OpenAIGatewayService handles OpenAI API gateway operations
 type OpenAIGatewayService struct {
-	accountRepo           AccountRepository
-	usageLogRepo          UsageLogRepository
-	usageBillingRepo      UsageBillingRepository
-	userRepo              UserRepository
-	userSubRepo           UserSubscriptionRepository
-	cache                 GatewayCache
-	cfg                   *config.Config
-	codexDetector         CodexClientRestrictionDetector
-	schedulerSnapshot     *SchedulerSnapshotService
-	concurrencyService    *ConcurrencyService
-	billingService        *BillingService
-	rateLimitService      *RateLimitService
-	billingCacheService   *BillingCacheService
-	userGroupRateResolver *userGroupRateResolver
-	httpUpstream          HTTPUpstream
-	pluginManager         *PluginManager
-	deferredService       *DeferredService
-	openAITokenProvider   *OpenAITokenProvider
-	grokTokenProvider     *GrokTokenProvider
-	consoleDPoPProvider   *GrokConsoleDPoPProvider
+	accountRepo              AccountRepository
+	usageLogRepo             UsageLogRepository
+	usageBillingRepo         UsageBillingRepository
+	userRepo                 UserRepository
+	userSubRepo              UserSubscriptionRepository
+	cache                    GatewayCache
+	cfg                      *config.Config
+	codexDetector            CodexClientRestrictionDetector
+	schedulerSnapshot        *SchedulerSnapshotService
+	concurrencyService       *ConcurrencyService
+	billingService           *BillingService
+	rateLimitService         *RateLimitService
+	billingCacheService      *BillingCacheService
+	userGroupRateResolver    *userGroupRateResolver
+	httpUpstream             HTTPUpstream
+	pluginManager            *PluginManager
+	deferredService          *DeferredService
+	openAITokenProvider      *OpenAITokenProvider
+	grokTokenProvider        *GrokTokenProvider
+	consoleDPoPProvider      *GrokConsoleDPoPProvider
 	sessionCredentialService GrokSessionCredentialService
-	toolCorrector         *CodexToolCorrector
-	openaiWSResolver      OpenAIWSProtocolResolver
-	resolver              *ModelPricingResolver
-	channelService        *ChannelService
-	balanceNotifyService  *BalanceNotifyService
-	settingService        *SettingService
-	userPlatformQuotaRepo UserPlatformQuotaRepository
-	liveAttestation       liveattestation.Provider
-	liveAttestationCipher SecretEncryptor
+	toolCorrector            *CodexToolCorrector
+	openaiWSResolver         OpenAIWSProtocolResolver
+	resolver                 *ModelPricingResolver
+	channelService           *ChannelService
+	balanceNotifyService     *BalanceNotifyService
+	settingService           *SettingService
+	userPlatformQuotaRepo    UserPlatformQuotaRepository
+	liveAttestation          liveattestation.Provider
+	liveAttestationCipher    SecretEncryptor
 	// Optional Grok reasoning quality marks (account_id keyed) for soft LB deprioritization.
 	grokReasoningQualityMarks GrokReasoningQualityMarkStore
 	// Optional Grok reasoning probe service for real-time probing in enforce mode.
@@ -563,24 +563,24 @@ func NewOpenAIGatewayService(
 			nil,
 			"service.openai_gateway",
 		),
-		httpUpstream:          httpUpstream,
-		deferredService:       deferredService,
-		openAITokenProvider:   openAITokenProvider,
-		grokTokenProvider:     grokTokenProvider,
-		consoleDPoPProvider:   consoleDPoPProvider,
+		httpUpstream:             httpUpstream,
+		deferredService:          deferredService,
+		openAITokenProvider:      openAITokenProvider,
+		grokTokenProvider:        grokTokenProvider,
+		consoleDPoPProvider:      consoleDPoPProvider,
 		sessionCredentialService: sessionCredentialService,
-		toolCorrector:         NewCodexToolCorrector(),
-		openaiWSResolver:      NewOpenAIWSProtocolResolver(cfg),
-		resolver:              resolver,
-		channelService:        channelService,
-		balanceNotifyService:  balanceNotifyService,
-		settingService:        settingService,
-		userPlatformQuotaRepo: userPlatformQuotaRepo,
-		liveAttestation:       liveattestation.NewProvider(),
-		liveAttestationCipher: newLiveAttestationCipher(cfg),
-		responseHeaderFilter:  compileResponseHeaderFilter(cfg),
-		codexSnapshotThrottle: newAccountWriteThrottle(openAICodexSnapshotPersistMinInterval),
-		openaiModelTransient:  newOpenAIAccountModelTransientState(openAIModelTransientDefaultMax),
+		toolCorrector:            NewCodexToolCorrector(),
+		openaiWSResolver:         NewOpenAIWSProtocolResolver(cfg),
+		resolver:                 resolver,
+		channelService:           channelService,
+		balanceNotifyService:     balanceNotifyService,
+		settingService:           settingService,
+		userPlatformQuotaRepo:    userPlatformQuotaRepo,
+		liveAttestation:          liveattestation.NewProvider(),
+		liveAttestationCipher:    newLiveAttestationCipher(cfg),
+		responseHeaderFilter:     compileResponseHeaderFilter(cfg),
+		codexSnapshotThrottle:    newAccountWriteThrottle(openAICodexSnapshotPersistMinInterval),
+		openaiModelTransient:     newOpenAIAccountModelTransientState(openAIModelTransientDefaultMax),
 	}
 	if rateLimitService != nil {
 		rateLimitService.SetAccountRuntimeBlocker(svc)

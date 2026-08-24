@@ -120,14 +120,14 @@ func resolvePostgresCLI(name string) (string, error) {
 	envKey := strings.ToUpper(name) // PG_DUMP / PSQL — PSQL 非常规，用下面分支
 	switch strings.ToLower(name) {
 	case "pg_dump":
-		if v := strings.TrimSpace(os.Getenv("PG_DUMP")); v != "" { //nolint:gosec // G703: 管理员显式配置的本地 pg_dump 路径
-			if st, err := os.Stat(v); err == nil && !st.IsDir() {
+		if v := strings.TrimSpace(os.Getenv("PG_DUMP")); v != "" {
+			if st, err := os.Stat(v); err == nil && !st.IsDir() { //nolint:gosec // G703: 管理员显式配置的本地 pg_dump 路径
 				return v, nil
 			}
 		}
 	case "psql":
-		if v := strings.TrimSpace(os.Getenv("PSQL")); v != "" { //nolint:gosec // G703: 管理员显式配置的本地 psql 路径
-			if st, err := os.Stat(v); err == nil && !st.IsDir() {
+		if v := strings.TrimSpace(os.Getenv("PSQL")); v != "" {
+			if st, err := os.Stat(v); err == nil && !st.IsDir() { //nolint:gosec // G703: 管理员显式配置的本地 psql 路径
 				return v, nil
 			}
 		}
