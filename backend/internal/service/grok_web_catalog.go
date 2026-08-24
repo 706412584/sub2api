@@ -13,17 +13,17 @@ const (
 )
 
 type grokWebModelSpec struct {
-	Mode          string      // 上游 mgw session.model
-	MinimumTier   grokWebTier // 需要的最低订阅档
+	Mode             string      // 上游 mgw session.model
+	MinimumTier      grokWebTier // 需要的最低订阅档
 	WebSearchCapable bool
 	XSearchCapable   bool
 }
 
 var grokWebModels = map[string]grokWebModelSpec{
-	"grok-3":     {Mode: "grok-3", MinimumTier: grokWebTierBasic, WebSearchCapable: true, XSearchCapable: true},
-	"grok-3-mini": {Mode: "grok-3-mini", MinimumTier: grokWebTierBasic},
-	"grok-chat-fast":  {Mode: "grok-chat-fast", MinimumTier: grokWebTierBasic, WebSearchCapable: true, XSearchCapable: true},
-	"grok-chat-auto":  {Mode: "grok-chat-auto", MinimumTier: grokWebTierSuper, WebSearchCapable: true, XSearchCapable: true},
+	"grok-3":           {Mode: "grok-3", MinimumTier: grokWebTierBasic, WebSearchCapable: true, XSearchCapable: true},
+	"grok-3-mini":      {Mode: "grok-3-mini", MinimumTier: grokWebTierBasic},
+	"grok-chat-fast":   {Mode: "grok-chat-fast", MinimumTier: grokWebTierBasic, WebSearchCapable: true, XSearchCapable: true},
+	"grok-chat-auto":   {Mode: "grok-chat-auto", MinimumTier: grokWebTierSuper, WebSearchCapable: true, XSearchCapable: true},
 	"grok-chat-expert": {Mode: "grok-chat-expert", MinimumTier: grokWebTierSuper, WebSearchCapable: true, XSearchCapable: true},
 	"grok-chat-heavy":  {Mode: "grok-chat-heavy", MinimumTier: grokWebTierHeavy, WebSearchCapable: true, XSearchCapable: true},
 }

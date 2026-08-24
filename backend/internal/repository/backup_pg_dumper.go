@@ -120,13 +120,13 @@ func resolvePostgresCLI(name string) (string, error) {
 	envKey := strings.ToUpper(name) // PG_DUMP / PSQL — PSQL 非常规，用下面分支
 	switch strings.ToLower(name) {
 	case "pg_dump":
-		if v := strings.TrimSpace(os.Getenv("PG_DUMP")); v != "" {
+		if v := strings.TrimSpace(os.Getenv("PG_DUMP")); v != "" { //nolint:gosec // G703: 管理员显式配置的本地 pg_dump 路径
 			if st, err := os.Stat(v); err == nil && !st.IsDir() {
 				return v, nil
 			}
 		}
 	case "psql":
-		if v := strings.TrimSpace(os.Getenv("PSQL")); v != "" {
+		if v := strings.TrimSpace(os.Getenv("PSQL")); v != "" { //nolint:gosec // G703: 管理员显式配置的本地 psql 路径
 			if st, err := os.Stat(v); err == nil && !st.IsDir() {
 				return v, nil
 			}
@@ -165,7 +165,7 @@ func resolvePostgresCLI(name string) (string, error) {
 		if c == "" {
 			continue
 		}
-		if st, err := os.Stat(c); err == nil && !st.IsDir() {
+		if st, err := os.Stat(c); err == nil && !st.IsDir() { //nolint:gosec // G703: 候选路径来自管理员配置的 PG_BIN_DIR 与可执行文件同目录，非用户输入
 			return c, nil
 		}
 	}

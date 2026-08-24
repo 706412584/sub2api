@@ -1166,7 +1166,7 @@ func (e *poolEntryServer) serveHTTPProxy(w http.ResponseWriter, r *http.Request)
 	}
 	client := &http.Client{Transport: transport, Timeout: 30 * time.Second}
 
-	outReq, err := http.NewRequest(r.Method, r.URL.String(), r.Body)
+	outReq, err := http.NewRequest(r.Method, r.URL.String(), r.Body) //nolint:gosec // G704: SSRF 检查已在代理 URL 校验层完成，此处为受控出口探测
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -1177,7 +1177,7 @@ func (e *poolEntryServer) serveHTTPProxy(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	resp, err := client.Do(outReq)
+	resp, err := client.Do(outReq) //nolint:gosec // G704: 同上，目标 URL 为管理员配置的代理出口
 	if err != nil {
 		http.Error(w, "proxy request failed: "+err.Error(), http.StatusBadGateway)
 		return
@@ -1464,7 +1464,7 @@ func sanitizeExtractURL(raw string) string {
 			_, _ = b.WriteString("%09")
 		default:
 			if c < 0x20 || c == 0x7f {
-				_, _ = b.WriteString(fmt.Sprintf("%%%02X", c))
+				_, _ = fmt.Fprintf(&b, "%%%02X", c)
 				continue
 			}
 			_ = b.WriteByte(c)

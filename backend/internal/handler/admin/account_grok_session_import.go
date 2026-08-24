@@ -35,15 +35,15 @@ import (
 // 不静默落到直连——会话材料与出口绑定是安全边界。
 
 type grokSessionImportRequest struct {
-	Data         any      `json:"data"`
-	Name         string   `json:"name"`
-	Notes        string   `json:"notes"`
-	GroupIDs     []int64  `json:"group_ids"`
-	ProxyID      *int64   `json:"proxy_id"`
-	Provider     string   `json:"provider"`
-	Accounts     []any    `json:"accounts"`
-	Concurrency  *int     `json:"concurrency"`
-	Priority     *int     `json:"priority"`
+	Data           any      `json:"data"`
+	Name           string   `json:"name"`
+	Notes          string   `json:"notes"`
+	GroupIDs       []int64  `json:"group_ids"`
+	ProxyID        *int64   `json:"proxy_id"`
+	Provider       string   `json:"provider"`
+	Accounts       []any    `json:"accounts"`
+	Concurrency    *int     `json:"concurrency"`
+	Priority       *int     `json:"priority"`
 	RateMultiplier *float64 `json:"rate_multiplier"`
 }
 
@@ -212,7 +212,11 @@ func (h *AccountHandler) importOneGrokSession(
 
 	name := strings.TrimSpace(entry.Name)
 	if name == "" {
-		name = fmt.Sprintf("Grok %s %s", strings.Title(entry.Source), xai.NormalizeSSOToken(entry.SSOToken)[:min(8, len(xai.NormalizeSSOToken(entry.SSOToken)))])
+		sourceTitle := entry.Source
+		if sourceTitle != "" {
+			sourceTitle = strings.ToUpper(sourceTitle[:1]) + sourceTitle[1:]
+		}
+		name = fmt.Sprintf("Grok %s %s", sourceTitle, xai.NormalizeSSOToken(entry.SSOToken)[:min(8, len(xai.NormalizeSSOToken(entry.SSOToken)))])
 	}
 	accountName := name
 

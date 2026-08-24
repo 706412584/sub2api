@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -33,7 +34,10 @@ func TestPluginPackageInstallerInstallUnsignedDevelopmentPackage(t *testing.T) {
 	assert.FileExists(t, installation.ArtifactPath)
 	info, statErr := os.Stat(installation.BinaryPath)
 	require.NoError(t, statErr)
-	assert.NotZero(t, info.Mode()&0o100)
+	if runtime.GOOS != "windows" {
+		// Windows 文件系统不存储 POSIX 执行位，os.Stat 恒不返回 0o100。
+		assert.NotZero(t, info.Mode()&0o100)
+	}
 	assert.Contains(t, installation.InstallPath, filepath.Join("installed", "com.example.openai-transport"))
 }
 

@@ -60,14 +60,16 @@ func main() {
 		log.Fatalf("dpop token: %v", err)
 	}
 	respBody, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != 200 {
 		log.Fatalf("dpop token status %d: %s", resp.StatusCode, respBody)
 	}
 	var tok struct {
 		AccessToken string `json:"access_token"`
 	}
-	json.Unmarshal(respBody, &tok)
+	if err := json.Unmarshal(respBody, &tok); err != nil {
+		log.Fatalf("parse dpop token: %v", err)
+	}
 
 	responsesURL := "https://console.x.ai/v1/responses"
 	payload := map[string]any{
@@ -101,7 +103,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("responses: %v", err)
 	}
-	defer resp2.Body.Close()
+	defer func() { _ = resp2.Body.Close() }()
 	log.Printf("[%s] status=%d", variant, resp2.StatusCode)
 	if resp2.StatusCode != 200 {
 		b, _ := io.ReadAll(resp2.Body)
@@ -147,10 +149,10 @@ func browserHeaders(r *http.Request) {
 }
 
 func jwkJSON(key *ecdsa.PrivateKey) string {
-	x := make([]byte, 32)
-	y := make([]byte, 32)
-	copy(x[32-len(key.PublicKey.X.Bytes()):], key.PublicKey.X.Bytes())
-	copy(y[32-len(key.PublicKey.Y.Bytes()):], key.PublicKey.Y.Bytes())
+	x, y, err := ecPointXY(&key.PublicKey)
+	if err != nil {
+		x, y = make([]byte, 32), make([]byte, 32)
+	}
 	jwk := map[string]string{"kty": "EC", "crv": "P-256",
 		"x": base64.RawURLEncoding.EncodeToString(x),
 		"y": base64.RawURLEncoding.EncodeToString(y)}
@@ -158,15 +160,31 @@ func jwkJSON(key *ecdsa.PrivateKey) string {
 	return string(b)
 }
 
+// ecPointXY 通过未压缩点编码提取固定 32 字节 X/Y，避免读取弃用的 X/Y 字段。
+func ecPointXY(pub *ecdsa.PublicKey) ([]byte, []byte, error) {
+	raw, err := pub.Bytes()
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(raw) != 65 || raw[0] != 0x04 {
+		return nil, nil, fmt.Errorf("unexpected uncompressed point encoding: %d bytes", len(raw))
+	}
+	x := make([]byte, 32)
+	y := make([]byte, 32)
+	copy(x, raw[1:33])
+	copy(y, raw[33:65])
+	return x, y, nil
+}
+
 func signDPoP(key *ecdsa.PrivateKey, method, uri string, ath *string) (string, error) {
 	claims := jwt.MapClaims{"jti": uuid(), "htm": method, "htu": uri, "iat": time.Now().Unix()}
 	if ath != nil {
 		claims["ath"] = *ath
 	}
-	x := make([]byte, 32)
-	y := make([]byte, 32)
-	copy(x[32-len(key.PublicKey.X.Bytes()):], key.PublicKey.X.Bytes())
-	copy(y[32-len(key.PublicKey.Y.Bytes()):], key.PublicKey.Y.Bytes())
+	x, y, coordErr := ecPointXY(&key.PublicKey)
+	if coordErr != nil {
+		return "", coordErr
+	}
 	t := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
 	t.Header["typ"] = "dpop+jwt"
 	t.Header["jwk"] = map[string]string{"kty": "EC", "crv": "P-256",
@@ -182,7 +200,9 @@ func sha256B64(s string) string {
 
 func uuid() string {
 	b := make([]byte, 16)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		log.Fatalf("rand read: %v", err)
+	}
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
 

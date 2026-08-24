@@ -32,13 +32,13 @@ type ConsoleDPoPSession struct {
 
 // GrokConsoleDPoPProvider 管理 Console 的 DPoP 会话（P-256 私钥仅内存，不落库）
 type GrokConsoleDPoPProvider struct {
-	sessionService  GrokSessionCredentialService
-	httpUpstream    HTTPUpstream
-	httpClient      *http.Client
+	sessionService   GrokSessionCredentialService
+	httpUpstream     HTTPUpstream
+	httpClient       *http.Client
 	proxyURLResolver func(int64) string
-	mu              sync.Mutex
-	sessions        map[string]*ConsoleDPoPSession
-	loads           singleflight.Group
+	mu               sync.Mutex
+	sessions         map[string]*ConsoleDPoPSession
+	loads            singleflight.Group
 }
 
 // NewGrokConsoleDPoPProvider 创建 Console DPoP Provider
@@ -149,7 +149,7 @@ func (p *GrokConsoleDPoPProvider) createSession(
 	req.Header.Set("Referer", "https://console.x.ai/")
 
 	proxyURL := p.resolveProxyURL(proxyID)
-	resp, err := p.httpUpstream.Do(req, proxyURL, accountID, 1)
+	resp, err := p.doUpstreamRequest(req, proxyURL, accountID)
 	if err != nil {
 		return nil, fmt.Errorf("DPoP token request: %w", err)
 	}
@@ -322,6 +322,15 @@ func (p *GrokConsoleDPoPProvider) resolveProxyURL(proxyID *int64) string {
 	return p.proxyURLResolver(*proxyID)
 }
 
+// doUpstreamRequest 优先走注入的 HTTPUpstream（支持代理出口/指纹），
+// 未注入时回退到内置 httpClient，避免 nil 指针 panic。
+func (p *GrokConsoleDPoPProvider) doUpstreamRequest(req *http.Request, proxyURL string, accountID int64) (*http.Response, error) {
+	if p.httpUpstream != nil {
+		return p.httpUpstream.Do(req, proxyURL, accountID, 1)
+	}
+	return p.httpClient.Do(req)
+}
+
 // ConsoleUsageQuota 是 /v1/usage 返回的单类配额。
 type ConsoleUsageQuota struct {
 	Kind      string `json:"kind"`
@@ -373,7 +382,7 @@ func (p *GrokConsoleDPoPProvider) FetchConsoleUsage(
 	req.Header.Set("Referer", "https://console.x.ai/")
 
 	proxyURL := p.resolveProxyURL(proxyID)
-	resp, err := p.httpUpstream.Do(req, proxyURL, accountID, 1)
+	resp, err := p.doUpstreamRequest(req, proxyURL, accountID)
 	if err != nil {
 		return nil, fmt.Errorf("console usage request: %w", err)
 	}

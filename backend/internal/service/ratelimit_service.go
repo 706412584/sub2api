@@ -1178,7 +1178,9 @@ func (s *RateLimitService) handle429(ctx context.Context, account *Account, head
 				slog.Info("account_rate_limited", "account_id", account.ID, "platform", account.Platform, "reset_at", resetTime, "reset_in", time.Until(resetTime).Truncate(time.Second))
 				return
 			}
-			if s.applyOpenAIGrok429ExhaustionFallback(ctx, account, "openai_body_no_reset_time") {
+			// 流式语义 429（外层 HTTP 2xx，headers 被调用方置 nil）不得触发
+			// exhaustion 兜底：快照描述的是正常账号状态，60m 兜底会错误继承。
+			if headers != nil && s.applyOpenAIGrok429ExhaustionFallback(ctx, account, "openai_body_no_reset_time") {
 				return
 			}
 		case PlatformGemini, PlatformAntigravity:
@@ -1240,8 +1242,9 @@ func (s *RateLimitService) handle429(ctx context.Context, account *Account, head
 	slog.Info("account_rate_limited", "account_id", account.ID, "reset_at", resetAt)
 }
 
-func (s *RateLimitService) apply429FallbackRateLimit(ctx context.Context, account *Account, reason string) {
-	if account != nil && (account.Platform == PlatformOpenAI || account.Platform == PlatformGrok) {
+func (s *RateLimitService) apply429FallbackRateLimit(ctx context.Context, account *Account, reason string, headers ...http.Header) {
+	if account != nil && len(headers) > 0 && headers[0] != nil &&
+		(account.Platform == PlatformOpenAI || account.Platform == PlatformGrok) {
 		if s.applyOpenAIGrok429ExhaustionFallback(ctx, account, reason) {
 			return
 		}
