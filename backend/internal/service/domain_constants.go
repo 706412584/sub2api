@@ -566,6 +566,11 @@ const (
 	// Grok reasoning visibility scheduling policy.
 	SettingKeyGrokReasoningVisibility = "grok_reasoning_visibility_settings"
 
+	// SettingKeyGrokToolPrompt stores JSON config for the gateway-level Grok
+	// tool-usage system prompt injection (forces real tool_use instead of
+	// text-only "task created" claims).
+	SettingKeyGrokToolPrompt = "grok_tool_prompt_settings"
+
 	// =========================
 	// Request Rectifier (请求整流器)
 	// =========================

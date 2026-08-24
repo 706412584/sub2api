@@ -7032,6 +7032,17 @@
                   class="input"
                   :placeholder="t('admin.settings.site.updateProxyUrlPlaceholder')"
                 />
+                <!-- 从 IP 管理里的代理列表选择，自动填充上方 URL（不改变存储形态） -->
+                <div class="mt-2">
+                  <label class="mb-1 block text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.site.updateProxyPickFromList") }}
+                  </label>
+                  <ProxySelector
+                    :model-value="updateProxySelectedId"
+                    :proxies="updateProxyOptions"
+                    @update:model-value="applyUpdateProxyFromList"
+                  />
+                </div>
                 <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
                   {{ t("admin.settings.site.updateProxyUrlHint") }}
                 </p>
@@ -10834,6 +10845,28 @@ const authSourceDefaultsMeta = computed(() => [
 // Proxies for web search emulation ProxySelector
 const webSearchProxies = ref<Proxy[]>([]);
 
+// 更新下载代理：从 IP 管理代理列表选择后自动填入 form.update_proxy_url（存储仍是 URL）
+const updateProxyOptions = ref<Proxy[]>([]);
+const buildProxyURL = (p: Proxy): string => {
+  const auth = p.username ? `${encodeURIComponent(p.username)}${p.password ? ':' + encodeURIComponent(p.password) : ''}@` : "";
+  return `${p.protocol}://${auth}${p.host}:${p.port}`;
+};
+// 反查：当前 URL 命中列表中的哪个代理（用于回显选中项）
+const updateProxySelectedId = computed<number | null>(() => {
+  const url = (form.update_proxy_url || "").trim();
+  if (!url) return null;
+  const hit = updateProxyOptions.value.find((p) => buildProxyURL(p) === url || `${p.protocol}://${p.host}:${p.port}` === url);
+  return hit ? hit.id : null;
+});
+const applyUpdateProxyFromList = (id: number | null) => {
+  if (id === null) {
+    form.update_proxy_url = "";
+    return;
+  }
+  const p = updateProxyOptions.value.find((x) => x.id === id);
+  if (p) form.update_proxy_url = buildProxyURL(p);
+};
+
 // Web Search Emulation config (loaded/saved separately)
 const DEFAULT_WEB_SEARCH_QUOTA_LIMIT = 1000;
 
@@ -11573,6 +11606,14 @@ const codexSyncedVersionLabel = computed(() => {
     version: synced,
   });
 });
+
+async function loadUpdateProxyOptions() {
+  try {
+    updateProxyOptions.value = await adminAPI.proxies.getAll();
+  } catch {
+    updateProxyOptions.value = [];
+  }
+}
 
 async function loadSettings() {
   loading.value = true;
@@ -13618,6 +13659,7 @@ async function handleDeleteProvider() {
 
 onMounted(() => {
   loadSettings();
+  loadUpdateProxyOptions();
   loadSubscriptionGroups();
   loadAdminApiKey();
   loadUpstreamBillingProbeSettings();

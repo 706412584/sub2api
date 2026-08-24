@@ -146,10 +146,6 @@ export default {
         frontendUrl: 'Frontend URL',
         frontendUrlPlaceholder: 'https://example.com',
         frontendUrlHint: 'Used to generate password reset links in emails. Example: https://example.com',
-        updateProxyUrl: 'Update download proxy',
-        updateProxyUrlPlaceholder: 'e.g. http://127.0.0.1:7890',
-        updateProxyUrlHint:
-          'Proxy used to check and download GitHub release assets (http/https/socks5/socks5h supported). Leave empty to use the startup config or a direct connection. Applies immediately, no restart required.',
         totp: 'Two-Factor Authentication (2FA)',
         totpHint: 'Allow users to use authenticator apps like Google Authenticator',
         totpKeyNotConfigured:
@@ -604,6 +600,11 @@ export default {
         apiBaseUrlPlaceholder: 'https://api.example.com',
         apiBaseUrlHint:
           'Used for "Use Key", "Import to CC Switch", and callback URL suggestions. Leave empty to use current site URL.',
+        updateProxyUrl: 'Update download proxy',
+        updateProxyUrlPlaceholder: 'e.g. http://127.0.0.1:7890',
+        updateProxyPickFromList: 'Or pick from the IP-management proxy list (auto-fills the URL above)',
+        updateProxyUrlHint:
+          'Proxy used when checking for updates and downloading GitHub release packages (http/https/socks5/socks5h). Leave empty to use the startup config or connect directly. Takes effect immediately, no restart required.',
         tablePreferencesTitle: 'Global Table Preferences',
         tablePreferencesDescription: 'Configure default pagination behavior for shared table components',
         tableDefaultPageSize: 'Default Rows Per Page',

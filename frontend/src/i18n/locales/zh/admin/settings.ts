@@ -146,10 +146,6 @@ export default {
         frontendUrl: '前端地址',
         frontendUrlPlaceholder: 'https://example.com',
         frontendUrlHint: '用于生成邮件中的密码重置链接，例如 https://example.com',
-        updateProxyUrl: '更新下载代理',
-        updateProxyUrlPlaceholder: '例如 http://127.0.0.1:7890',
-        updateProxyUrlHint:
-          '更新检查与下载 GitHub 发布包时使用的代理（支持 http/https/socks5/socks5h）。留空表示使用启动配置或直连。修改后立即生效，无需重启。',
         totp: '双因素认证 (2FA)',
         totpHint: '允许用户使用 Google Authenticator 等应用进行二次验证',
         totpKeyNotConfigured:
@@ -596,6 +592,11 @@ export default {
         apiBaseUrl: 'API 端点地址',
         apiBaseUrlHint: '用于"使用密钥"、"导入到 CC Switch"和回调地址建议，留空则使用当前站点地址',
         apiBaseUrlPlaceholder: 'https://api.example.com',
+        updateProxyUrl: '更新下载代理',
+        updateProxyUrlPlaceholder: '例如 http://127.0.0.1:7890',
+        updateProxyPickFromList: '或从 IP 管理的代理列表选择（自动填入上方地址）',
+        updateProxyUrlHint:
+          '更新检查与下载 GitHub 发布包时使用的代理（支持 http/https/socks5/socks5h）。留空表示使用启动配置或直连。修改后立即生效，无需重启。',
         tablePreferencesTitle: '通用表格设置',
         tablePreferencesDescription: '设置后台与用户侧表格组件的默认分页行为',
         tableDefaultPageSize: '默认每页条数',
