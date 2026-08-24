@@ -527,14 +527,14 @@ func (s *AccountTestService) fetchKiroUpstreamModels(ctx context.Context, accoun
 			lastErr = err
 			continue
 		}
-		body, readErr := io.ReadAll(io.LimitReader(response.Body, upstreamModelsBodyLimit+1))
+		body, readErr := io.ReadAll(io.LimitReader(response.Body, resolveModelsListReadLimit(s.cfg)+1))
 		_ = response.Body.Close()
 		if readErr != nil {
 			lastErr = readErr
 			continue
 		}
-		if int64(len(body)) > upstreamModelsBodyLimit {
-			lastErr = fmt.Errorf("response exceeds %d bytes", upstreamModelsBodyLimit)
+		if int64(len(body)) > resolveModelsListReadLimit(s.cfg) {
+			lastErr = fmt.Errorf("response exceeds %d bytes", resolveModelsListReadLimit(s.cfg))
 			continue
 		}
 		if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
