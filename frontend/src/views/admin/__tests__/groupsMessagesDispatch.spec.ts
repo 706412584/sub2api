@@ -6,9 +6,16 @@ import {
   messagesDispatchFormStateToConfig,
   normalizeGrokMessagesProtocolForPlatform,
   resetMessagesDispatchFormState,
+  supportsMessagesDispatchPlatform,
 } from "../groupsMessagesDispatch";
 
 describe("groupsMessagesDispatch", () => {
+  it("supports OpenAI and composite groups", () => {
+    expect(supportsMessagesDispatchPlatform("openai")).toBe(true);
+    expect(supportsMessagesDispatchPlatform("composite")).toBe(true);
+    expect(supportsMessagesDispatchPlatform("anthropic")).toBe(false);
+  });
+
   it("returns the expected default form state", () => {
     expect(createDefaultMessagesDispatchFormState()).toEqual({
       allow_messages_dispatch: false,

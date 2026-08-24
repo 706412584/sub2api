@@ -52,6 +52,12 @@ export default {
           priceDescription: 'Pricing notes (Markdown)',
           priceDescriptionHint: 'Rendered at the top of the plaza page. Use it for billing rules, exchange rates, promotions, etc.',
         },
+        pluginManagement: {
+          title: 'Plugin Management',
+          description: 'Controls whether the plugin management entry appears in the admin sidebar. This switch does not control plugin runtime state.',
+          enabled: 'Show Plugin Management',
+          enabledHint: 'Turning this off only hides the sidebar entry; loaded or running plugins are not stopped.',
+        },
         riskControl: {
           title: 'Risk Control',
           description: 'Enable the content moderation menu and gateway audit entry point. Disabled by default.',
@@ -146,10 +152,6 @@ export default {
         frontendUrl: 'Frontend URL',
         frontendUrlPlaceholder: 'https://example.com',
         frontendUrlHint: 'Used to generate password reset links in emails. Example: https://example.com',
-        updateProxyUrl: 'Update download proxy',
-        updateProxyUrlPlaceholder: 'e.g. http://127.0.0.1:7890',
-        updateProxyUrlHint:
-          'Proxy used to check and download GitHub release assets (http/https/socks5/socks5h supported). Leave empty to use the startup config or a direct connection. Applies immediately, no restart required.',
         totp: 'Two-Factor Authentication (2FA)',
         totpHint: 'Allow users to use authenticator apps like Google Authenticator',
         totpKeyNotConfigured:
@@ -604,6 +606,11 @@ export default {
         apiBaseUrlPlaceholder: 'https://api.example.com',
         apiBaseUrlHint:
           'Used for "Use Key", "Import to CC Switch", and callback URL suggestions. Leave empty to use current site URL.',
+        updateProxyUrl: 'Update download proxy',
+        updateProxyUrlPlaceholder: 'e.g. http://127.0.0.1:7890',
+        updateProxyPickFromList: 'Or pick from the IP-management proxy list (auto-fills the URL above)',
+        updateProxyUrlHint:
+          'Proxy used when checking for updates and downloading GitHub release packages (http/https/socks5/socks5h). Leave empty to use the startup config or connect directly. Takes effect immediately, no restart required.',
         tablePreferencesTitle: 'Global Table Preferences',
         tablePreferencesDescription: 'Configure default pagination behavior for shared table components',
         tableDefaultPageSize: 'Default Rows Per Page',

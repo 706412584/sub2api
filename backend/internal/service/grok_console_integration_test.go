@@ -61,7 +61,7 @@ func TestConsoleDPoPProvider(t *testing.T) {
 	}
 	encryptor := &mockEncryptor{}
 	sessionService := NewGrokSessionCredentialService(repo, encryptor)
-	provider := NewGrokConsoleDPoPProvider(sessionService)
+	provider := NewGrokConsoleDPoPProvider(sessionService, nil)
 
 	ctx := context.Background()
 	proxyID := int64(1)

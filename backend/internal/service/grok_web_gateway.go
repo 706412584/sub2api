@@ -23,12 +23,12 @@ import (
 //	  <- response.chunk / response.output_text.delta ... / response.done
 
 const (
-	grokWebGatewayOrigin     = "https://grok.com"
-	grokWebGatewayWSURL      = "wss://grok.com/ws/mgw/"
-	grokWebSessionURL        = "https://grok.com/api/auth/session"
-	grokWebHandshakeTimeout  = 20 * time.Second
-	grokWebHeartbeatPeriod   = 25 * time.Second
-	grokWebResponseTimeout   = 5 * time.Minute
+	grokWebGatewayOrigin    = "https://grok.com"
+	grokWebGatewayWSURL     = "wss://grok.com/ws/mgw/"
+	grokWebSessionURL       = "https://grok.com/api/auth/session"
+	grokWebHandshakeTimeout = 20 * time.Second
+	grokWebHeartbeatPeriod  = 25 * time.Second
+	grokWebResponseTimeout  = 5 * time.Minute
 )
 
 // grokWebIdentity 是一次请求所需的全部 Web 会话材料（解密后）。
@@ -96,12 +96,12 @@ func (s *OpenAIGatewayService) fetchGrokWebUserID(
 type grokWebEnvelope struct {
 	SessionID string `json:"session_id,omitempty"`
 	Event     struct {
-		Type           string           `json:"type"`
-		Delta          string           `json:"delta,omitempty"`
-		Text           string           `json:"text,omitempty"`
-		Response       json.RawMessage  `json:"response,omitempty"`
-		Output         json.RawMessage  `json:"output,omitempty"`
-		Chunk          *grokWebChunk    `json:"chunk,omitempty"`
+		Type     string          `json:"type"`
+		Delta    string          `json:"delta,omitempty"`
+		Text     string          `json:"text,omitempty"`
+		Response json.RawMessage `json:"response,omitempty"`
+		Output   json.RawMessage `json:"output,omitempty"`
+		Chunk    *grokWebChunk   `json:"chunk,omitempty"`
 	} `json:"event"`
 }
 
@@ -275,7 +275,7 @@ func (s *OpenAIGatewayService) ForwardGrokWebChat(
 			item := map[string]any{
 				"session_id": sessionID,
 				"event": map[string]any{
-					"type": "conversation.item.create",
+					"type":     "conversation.item.create",
 					"event_id": fmt.Sprintf("evt_msg_%d", now),
 					"item": map[string]any{
 						"type": "message", "role": "user",
@@ -392,38 +392,38 @@ func (s *OpenAIGatewayService) forwardGrokWebResponses(
 	outputText := text
 
 	payload := map[string]any{
-		"id":                 responseID,
-		"object":             "response",
-		"created_at":         now,
-		"status":             "completed",
-		"model":              originalModel,
-		"instructions":       nil,
-		"parallel_tool_calls": true,
-		"tool_choice":        "auto",
-		"tools":              []any{},
-		"temperature":        nil,
-		"top_p":              nil,
-		"max_output_tokens":  gjson.GetBytes(body, "max_output_tokens").Int(),
+		"id":                   responseID,
+		"object":               "response",
+		"created_at":           now,
+		"status":               "completed",
+		"model":                originalModel,
+		"instructions":         nil,
+		"parallel_tool_calls":  true,
+		"tool_choice":          "auto",
+		"tools":                []any{},
+		"temperature":          nil,
+		"top_p":                nil,
+		"max_output_tokens":    gjson.GetBytes(body, "max_output_tokens").Int(),
 		"previous_response_id": gjson.GetBytes(body, "previous_response_id").String(),
-		"reasoning":          map[string]any{"effort": nil, "summary": nil},
-		"text":               map[string]any{"format": map[string]any{"type": "text"}},
-		"store":              false,
-		"background":         false,
-		"metadata":           map[string]any{},
-		"error":              nil,
-		"incomplete_details": nil,
+		"reasoning":            map[string]any{"effort": nil, "summary": nil},
+		"text":                 map[string]any{"format": map[string]any{"type": "text"}},
+		"store":                false,
+		"background":           false,
+		"metadata":             map[string]any{},
+		"error":                nil,
+		"incomplete_details":   nil,
 		"usage": map[string]any{
-			"input_tokens":              estimateWebPromptTokens(prompt),
-			"output_tokens":             estimateWebOutputTokens(outputText),
-			"total_tokens":              estimateWebPromptTokens(prompt) + estimateWebOutputTokens(outputText),
-			"input_tokens_details":      map[string]any{"cached_tokens": 0},
-			"output_tokens_details":     map[string]any{"reasoning_tokens": 0},
+			"input_tokens":          estimateWebPromptTokens(prompt),
+			"output_tokens":         estimateWebOutputTokens(outputText),
+			"total_tokens":          estimateWebPromptTokens(prompt) + estimateWebOutputTokens(outputText),
+			"input_tokens_details":  map[string]any{"cached_tokens": 0},
+			"output_tokens_details": map[string]any{"reasoning_tokens": 0},
 		},
 		"output": []any{
 			map[string]any{
-				"id":    "msg_" + responseID,
-				"type":  "message",
-				"role":  "assistant",
+				"id":     "msg_" + responseID,
+				"type":   "message",
+				"role":   "assistant",
 				"status": "completed",
 				"content": []any{
 					map[string]any{"type": "output_text", "text": outputText, "annotations": []any{}},
@@ -447,8 +447,8 @@ func (s *OpenAIGatewayService) forwardGrokWebResponses(
 		c.Writer.WriteHeaderNow()
 
 		baseEvent := map[string]any{
-			"type":        "response.created",
-			"response_id": responseID,
+			"type":            "response.created",
+			"response_id":     responseID,
 			"sequence_number": 0,
 		}
 		_ = baseEvent
@@ -457,18 +457,18 @@ func (s *OpenAIGatewayService) forwardGrokWebResponses(
 			return nil, err
 		}
 		deltaPayload := map[string]any{
-			"type":        "response.output_text.delta",
-			"item_id":     "msg_" + responseID,
-			"output_index": 0,
+			"type":          "response.output_text.delta",
+			"item_id":       "msg_" + responseID,
+			"output_index":  0,
 			"content_index": 0,
-			"delta":       outputText,
+			"delta":         outputText,
 		}
 		if err := writeSSE(deltaPayload); err != nil {
 			return nil, err
 		}
 		donePayload := map[string]any{
-			"type":           "response.completed",
-			"response":       payload,
+			"type":            "response.completed",
+			"response":        payload,
 			"sequence_number": 3,
 		}
 		if err := writeSSE(donePayload); err != nil {
@@ -484,15 +484,15 @@ func (s *OpenAIGatewayService) forwardGrokWebResponses(
 	inTokens := estimateWebPromptTokens(prompt)
 	outTokens := estimateWebOutputTokens(outputText)
 	return &OpenAIForwardResult{
-		RequestID:   responseID,
-		ResponseID:  responseID,
-		Model:       originalModel,
+		RequestID:     responseID,
+		ResponseID:    responseID,
+		Model:         originalModel,
 		UpstreamModel: originalModel,
 		// mgw 上游不回传 model 字段；显式记录请求模型避免用量审计误判不一致。
 		UpstreamResponseModel:         originalModel,
 		UpstreamResponseModelConflict: false,
-		Stream:      reqStream,
-		Duration:    time.Since(startTime),
+		Stream:                        reqStream,
+		Duration:                      time.Since(startTime),
 		Usage: OpenAIUsage{
 			InputTokens:  inTokens,
 			OutputTokens: outTokens,

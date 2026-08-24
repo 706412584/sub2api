@@ -756,7 +756,7 @@ func TestResolveOpenAIMessagesDispatchMappedModel(t *testing.T) {
 				Platform: service.PlatformGrok,
 			},
 		}
-		require.Equal(t, "grok-4.5", resolveOpenAIMessagesDispatchMappedModel(nil, apiKey, "claude-sonnet-4-5"))
+		require.Equal(t, "grok-4.6", resolveOpenAIMessagesDispatchMappedModel(nil, apiKey, "claude-sonnet-4-5"))
 		require.Empty(t, resolveOpenAIMessagesDispatchMappedModel(nil, apiKey, "grok"))
 	})
 
@@ -939,7 +939,7 @@ func TestOpenAIResponses_RejectsMessageIDAsPreviousResponseID(t *testing.T) {
 	require.Contains(t, w.Body.String(), "previous_response_id must be a response.id")
 }
 
-func TestOpenAIResponses_RejectsHTTPContinuationPreviousResponseID(t *testing.T) {
+func TestOpenAIResponses_AcceptsHTTPContinuationPreviousResponseIDBeforeRouting(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	w := httptest.NewRecorder()
@@ -961,11 +961,59 @@ func TestOpenAIResponses_RejectsHTTPContinuationPreviousResponseID(t *testing.T)
 	})
 
 	h := newOpenAIHandlerForPreviousResponseIDValidation(t, nil)
+	require.NoError(t, h.gatewayService.BindOpenAIHTTPResponseOwner(context.Background(), groupID, "resp_123456", 1, 101))
+	h.Responses(c)
+
+	require.NotEqual(t, http.StatusBadRequest, w.Code)
+	require.NotContains(t, w.Body.String(), "Responses WebSocket v2")
+}
+
+func TestOpenAIResponses_RejectsHTTPContinuationOwnedByAnotherUser(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", strings.NewReader(
+		`{"model":"gpt-5.1","stream":false,"previous_response_id":"resp_other_tenant","input":"hello"}`,
+	))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	groupID := int64(2)
+	c.Set(string(middleware.ContextKeyAPIKey), &service.APIKey{
+		ID:      202,
+		UserID:  2,
+		GroupID: &groupID,
+		User:    &service.User{ID: 2},
+	})
+	c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 2, Concurrency: 1})
+
+	h := newOpenAIHandlerForPreviousResponseIDValidation(t, nil)
+	require.NoError(t, h.gatewayService.BindOpenAIHTTPResponseOwner(context.Background(), groupID, "resp_other_tenant", 1, 101))
 	h.Responses(c)
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
-	require.Contains(t, w.Body.String(), "Responses WebSocket v2")
-	require.Contains(t, w.Body.String(), "previous_response_id")
+	require.Contains(t, w.Body.String(), "previous_response_id is not available for this user")
+}
+
+func TestOpenAIResponses_RejectsUnownedHTTPContinuation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", strings.NewReader(
+		`{"model":"gpt-5.1","stream":false,"previous_response_id":"resp_unknown","input":"hello"}`,
+	))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	groupID := int64(2)
+	c.Set(string(middleware.ContextKeyAPIKey), &service.APIKey{ID: 101, UserID: 1, GroupID: &groupID, User: &service.User{ID: 1}})
+	c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 1, Concurrency: 1})
+
+	h := newOpenAIHandlerForPreviousResponseIDValidation(t, nil)
+	h.Responses(c)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Contains(t, w.Body.String(), "previous_response_id is not available for this user")
 }
 
 func TestOpenAIResponses_FunctionCallOutputHTTPGuidanceDoesNotSuggestPreviousResponseReuse(t *testing.T) {
@@ -1496,8 +1544,8 @@ func TestOpenAIResponsesWebSocket_PassthroughTracksModelPerTurn(t *testing.T) {
 	})
 
 	require.Len(t, got.upstreamPayloads, 2)
-	require.Equal(t, "gpt-5.6-sol", gjson.GetBytes(got.upstreamPayloads[0], "model").String())
-	require.Equal(t, "gpt-5.6-terra", gjson.GetBytes(got.upstreamPayloads[1], "model").String())
+	require.Equal(t, "sol-channel", gjson.GetBytes(got.upstreamPayloads[0], "model").String())
+	require.Equal(t, "terra-channel", gjson.GetBytes(got.upstreamPayloads[1], "model").String())
 	require.Len(t, got.clientEvents, 2)
 	require.Equal(t, "sol", gjson.GetBytes(got.clientEvents[0], "response.model").String())
 	require.Equal(t, "terra", gjson.GetBytes(got.clientEvents[1], "response.model").String())
@@ -1506,16 +1554,16 @@ func TestOpenAIResponsesWebSocket_PassthroughTracksModelPerTurn(t *testing.T) {
 	require.Equal(t, "sol", got.logs[0].Model)
 	require.Equal(t, "sol", got.logs[0].RequestedModel)
 	require.NotNil(t, got.logs[0].UpstreamModel)
-	require.Equal(t, "gpt-5.6-sol", *got.logs[0].UpstreamModel)
+	require.Equal(t, "sol-channel", *got.logs[0].UpstreamModel)
 	require.NotNil(t, got.logs[0].ModelMappingChain)
-	require.Equal(t, "sol→sol-channel→gpt-5.6-sol", *got.logs[0].ModelMappingChain)
+	require.Equal(t, "sol→sol-channel", *got.logs[0].ModelMappingChain)
 
 	require.Equal(t, "terra", got.logs[1].Model)
 	require.Equal(t, "terra", got.logs[1].RequestedModel)
 	require.NotNil(t, got.logs[1].UpstreamModel)
-	require.Equal(t, "gpt-5.6-terra", *got.logs[1].UpstreamModel)
+	require.Equal(t, "terra-channel", *got.logs[1].UpstreamModel)
 	require.NotNil(t, got.logs[1].ModelMappingChain)
-	require.Equal(t, "terra→terra-channel→gpt-5.6-terra", *got.logs[1].ModelMappingChain)
+	require.Equal(t, "terra→terra-channel", *got.logs[1].ModelMappingChain)
 	require.InDelta(t, got.logs[1].TotalCost*2.5, got.logs[0].TotalCost, 1e-12,
 		"each turn must be billed with its own channel-mapped model")
 }
@@ -1675,6 +1723,29 @@ func TestOpenAIWSTurnBillingModelPreservesImagePricingModel(t *testing.T) {
 			require.Equal(t, tt.wantBillingModel, openAIWSTurnBillingModel(result, tt.mapping, tt.requestedModel, tt.upstreamModel))
 		})
 	}
+}
+
+func TestOpenAIAccountScheduleModelUsesActualOrSharedResolver(t *testing.T) {
+	account := &service.Account{
+		Platform: service.PlatformOpenAI,
+		Type:     service.AccountTypeOAuth,
+		Credentials: map[string]any{
+			"model_mapping":         map[string]any{"public": "billing"},
+			"compact_model_mapping": map[string]any{"public": "compact-actual"},
+		},
+	}
+
+	reported := &service.OpenAIForwardResult{UpstreamModel: "observed-actual"}
+	require.Equal(t, "observed-actual", openAIAccountScheduleModel(nil, account, "public", true, reported))
+	require.Equal(t, "compact-actual", openAIAccountScheduleModel(nil, account, "public", true, nil))
+	require.Equal(t, "billing", openAIAccountScheduleModel(nil, account, "public", false, nil))
+
+	c, _ := gin.CreateTestContext(nil)
+	service.SetOpsUpstreamModel(c, "attempt-actual")
+	require.Equal(t, "attempt-actual", openAIAccountScheduleModel(c, account, "public", true, nil))
+
+	setOpsSelectedAccount(c, account.ID, account.Platform)
+	require.Equal(t, "attempt-actual", openAIAccountScheduleModel(c, account, "public", true, nil))
 }
 
 func TestShouldReportOpenAIWSProxyAccountFailure(t *testing.T) {
@@ -2132,27 +2203,15 @@ func TestOpenAIResponses_APIKeyPassthroughPool5xxRetriesThenExhaustsMaxSwitches(
 	t.Cleanup(billingCacheSvc.Stop)
 	gatewaySvc := service.NewOpenAIGatewayService(
 		accountRepo,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
+		nil, nil, nil, nil, nil, nil,
 		cfg,
-		nil,
-		nil,
+		nil, nil,
 		service.NewBillingService(cfg, nil),
 		nil,
 		billingCacheSvc,
 		upstream,
 		&service.DeferredService{},
-		nil,
-		nil, nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 	h := NewOpenAIGatewayHandler(
 		gatewaySvc,
@@ -2233,27 +2292,15 @@ func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHe
 			t.Cleanup(billingCacheSvc.Stop)
 			gatewaySvc := service.NewOpenAIGatewayService(
 				accountRepo,
-				nil,
-				nil,
-				nil,
-				nil,
-				nil,
-				nil,
+				nil, nil, nil, nil, nil, nil,
 				cfg,
-				nil,
-				nil,
+				nil, nil,
 				service.NewBillingService(cfg, nil),
 				rateLimitSvc,
 				billingCacheSvc,
 				upstream,
 				&service.DeferredService{},
-				nil,
-				nil, nil,
-				nil,
-				nil,
-				nil,
-				nil,
-				nil,
+				nil, nil, nil, nil, nil, nil, nil, nil, nil,
 			)
 			h := NewOpenAIGatewayHandler(
 				gatewaySvc,
@@ -2315,27 +2362,15 @@ func TestOpenAIResponses_APIKeyPassthroughSSERateLimitUsesConfiguredPoolRetry(t 
 	t.Cleanup(billingCacheSvc.Stop)
 	gatewaySvc := service.NewOpenAIGatewayService(
 		accountRepo,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
+		nil, nil, nil, nil, nil, nil,
 		cfg,
-		nil,
-		nil,
+		nil, nil,
 		service.NewBillingService(cfg, nil),
 		nil,
 		billingCacheSvc,
 		upstream,
 		&service.DeferredService{},
-		nil,
-		nil, nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 	h := NewOpenAIGatewayHandler(
 		gatewaySvc,
@@ -2475,27 +2510,15 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
 	gatewaySvc := service.NewOpenAIGatewayService(
 		accountRepo,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
+		nil, nil, nil, nil, nil, nil,
 		cfg,
-		nil,
-		nil,
+		nil, nil,
 		service.NewBillingService(cfg, nil),
 		rateLimitSvc,
 		billingCacheSvc,
 		nil,
 		&service.DeferredService{},
-		nil,
-		nil, nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 
 	cache := &concurrencyCacheMock{
@@ -2684,7 +2707,7 @@ func TestOpenAIResponsesWebSocket_FirstOutputTimeoutWithoutDownstreamReusesClien
 	gatewaySvc := service.NewOpenAIGatewayService(
 		accountRepo, nil, nil, nil, nil, nil, nil, cfg, nil, nil,
 		service.NewBillingService(cfg, nil), rateLimitSvc, billingCacheSvc,
-		nil, &service.DeferredService{}, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, &service.DeferredService{}, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 	cache := &concurrencyCacheMock{
 		acquireUserSlotFn: func(context.Context, int64, int, string) (bool, error) { return true, nil },
@@ -2888,27 +2911,17 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 	gatewaySvc := service.NewOpenAIGatewayService(
 		accountRepo,
 		usageRepo,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
+		nil, nil, nil, nil, nil,
 		cfg,
-		nil,
-		nil,
+		nil, nil,
 		service.NewBillingService(cfg, nil),
 		nil,
 		billingCacheSvc,
 		nil,
 		&service.DeferredService{},
-		nil,
-		nil,
-		nil,
-		nil,
+		nil, nil, nil, nil, nil,
 		channelSvc,
-		nil,
-		nil,
-		nil, // userPlatformQuotaRepo
+		nil, nil, nil,
 	)
 
 	cache := &concurrencyCacheMock{

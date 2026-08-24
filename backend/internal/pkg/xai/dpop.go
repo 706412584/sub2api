@@ -41,13 +41,10 @@ func GenerateDPoPKeyPair() (*DPoPKeyPair, error) {
 func (kp *DPoPKeyPair) GenerateDPoPProof(method, uri string, accessToken *string) (string, error) {
 	now := time.Now().Unix()
 
-	// 将公钥坐标编码为固定 32 字节（P-256）
-	xBytes := make([]byte, 32)
-	yBytes := make([]byte, 32)
-	xRaw := kp.publicKey.X.Bytes()
-	yRaw := kp.publicKey.Y.Bytes()
-	copy(xBytes[32-len(xRaw):], xRaw)
-	copy(yBytes[32-len(yRaw):], yRaw)
+	xBytes, yBytes, err := ecPointXYBytes(kp.publicKey)
+	if err != nil {
+		return "", fmt.Errorf("encode jwk coordinates: %w", err)
+	}
 
 	// JWT Header
 	header := map[string]any{
@@ -120,13 +117,10 @@ func (kp *DPoPKeyPair) GetThumbprint() string {
 
 // computeJWKThumbprint 计算 RFC 7638 JWK thumbprint
 func computeJWKThumbprint(pubKey ecdsa.PublicKey) (string, error) {
-	// 将公钥坐标编码为固定 32 字节（P-256）
-	xBytes := make([]byte, 32)
-	yBytes := make([]byte, 32)
-	xRaw := pubKey.X.Bytes()
-	yRaw := pubKey.Y.Bytes()
-	copy(xBytes[32-len(xRaw):], xRaw)
-	copy(yBytes[32-len(yRaw):], yRaw)
+	xBytes, yBytes, err := ecPointXYBytes(&pubKey)
+	if err != nil {
+		return "", fmt.Errorf("encode jwk coordinates: %w", err)
+	}
 
 	jwk := map[string]string{
 		"crv": "P-256",
@@ -159,4 +153,21 @@ func ParseDPoPBoundAccessToken(accessToken string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// ecPointXYBytes 返回 P-256 公钥的固定 32 字节 X/Y 坐标。
+// 通过未压缩点编码（PublicKey.Bytes）提取，避免直接读取弃用的 X/Y 字段。
+func ecPointXYBytes(pub *ecdsa.PublicKey) ([]byte, []byte, error) {
+	raw, err := pub.Bytes()
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(raw) != 65 || raw[0] != 0x04 {
+		return nil, nil, fmt.Errorf("unexpected uncompressed point encoding: %d bytes", len(raw))
+	}
+	x := make([]byte, 32)
+	y := make([]byte, 32)
+	copy(x, raw[1:33])
+	copy(y, raw[33:65])
+	return x, y, nil
 }

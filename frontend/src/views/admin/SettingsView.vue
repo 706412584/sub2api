@@ -7032,6 +7032,17 @@
                   class="input"
                   :placeholder="t('admin.settings.site.updateProxyUrlPlaceholder')"
                 />
+                <!-- 从 IP 管理里的代理列表选择，自动填充上方 URL（不改变存储形态） -->
+                <div class="mt-2">
+                  <label class="mb-1 block text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.site.updateProxyPickFromList") }}
+                  </label>
+                  <ProxySelector
+                    :model-value="updateProxySelectedId"
+                    :proxies="updateProxyOptions"
+                    @update:model-value="applyUpdateProxyFromList"
+                  />
+                </div>
                 <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
                   {{ t("admin.settings.site.updateProxyUrlHint") }}
                 </p>
@@ -7934,6 +7945,30 @@
                 rows="6"
                 class="input font-mono text-sm"
               ></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.settings.features.pluginManagement.title') }}
+            </h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {{ t('admin.settings.features.pluginManagement.description') }}
+            </p>
+          </div>
+          <div class="space-y-5 p-6">
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.features.pluginManagement.enabled') }}
+                </label>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.features.pluginManagement.enabledHint') }}
+                </p>
+              </div>
+              <Toggle v-model="form.plugin_management_enabled" />
             </div>
           </div>
         </div>
@@ -10618,6 +10653,8 @@ const form = reactive<SettingsForm>({
   model_plaza_enabled: false,
   model_plaza_require_auth: false,
   model_plaza_description: '',
+  // Plugin management menu visibility; plugin runtime is unaffected.
+  plugin_management_enabled: false,
   // Affiliate (邀请返利) feature switch
   affiliate_enabled: false,
   // Allow user view error requests
@@ -10833,6 +10870,28 @@ const authSourceDefaultsMeta = computed(() => [
 
 // Proxies for web search emulation ProxySelector
 const webSearchProxies = ref<Proxy[]>([]);
+
+// 更新下载代理：从 IP 管理代理列表选择后自动填入 form.update_proxy_url（存储仍是 URL）
+const updateProxyOptions = ref<Proxy[]>([]);
+const buildProxyURL = (p: Proxy): string => {
+  const auth = p.username ? `${encodeURIComponent(p.username)}${p.password ? ':' + encodeURIComponent(p.password) : ''}@` : "";
+  return `${p.protocol}://${auth}${p.host}:${p.port}`;
+};
+// 反查：当前 URL 命中列表中的哪个代理（用于回显选中项）
+const updateProxySelectedId = computed<number | null>(() => {
+  const url = (form.update_proxy_url || "").trim();
+  if (!url) return null;
+  const hit = updateProxyOptions.value.find((p) => buildProxyURL(p) === url || `${p.protocol}://${p.host}:${p.port}` === url);
+  return hit ? hit.id : null;
+});
+const applyUpdateProxyFromList = (id: number | null) => {
+  if (id === null) {
+    form.update_proxy_url = "";
+    return;
+  }
+  const p = updateProxyOptions.value.find((x) => x.id === id);
+  if (p) form.update_proxy_url = buildProxyURL(p);
+};
 
 // Web Search Emulation config (loaded/saved separately)
 const DEFAULT_WEB_SEARCH_QUOTA_LIMIT = 1000;
@@ -11574,6 +11633,14 @@ const codexSyncedVersionLabel = computed(() => {
   });
 });
 
+async function loadUpdateProxyOptions() {
+  try {
+    updateProxyOptions.value = await adminAPI.proxies.getAll();
+  } catch {
+    updateProxyOptions.value = [];
+  }
+}
+
 async function loadSettings() {
   loading.value = true;
   loadFailed.value = false;
@@ -12275,6 +12342,7 @@ async function saveSettings() {
       model_plaza_enabled: form.model_plaza_enabled,
       model_plaza_require_auth: form.model_plaza_require_auth,
       model_plaza_description: form.model_plaza_description,
+      plugin_management_enabled: form.plugin_management_enabled,
       // Affiliate (邀请返利) feature switch
       affiliate_enabled: form.affiliate_enabled,
       allow_user_view_error_requests: form.allow_user_view_error_requests,
@@ -13618,6 +13686,7 @@ async function handleDeleteProvider() {
 
 onMounted(() => {
   loadSettings();
+  loadUpdateProxyOptions();
   loadSubscriptionGroups();
   loadAdminApiKey();
   loadUpstreamBillingProbeSettings();
