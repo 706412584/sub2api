@@ -2205,3 +2205,149 @@ func (s *OpenAIGatewayService) tempUnscheduleGrokUntil(ctx context.Context, acco
 		_ = s.accountRepo.SetTempUnschedulable(stateCtx, account.ID, until, reason)
 	}
 }
+
+func isGrokCompactionReplayDecodeError(statusCode int, body []byte) bool {
+	if (statusCode != http.StatusBadRequest && statusCode != http.StatusUnprocessableEntity) || len(body) == 0 {
+		return false
+	}
+	for _, candidate := range grokStructuredErrorMessageCandidates(body) {
+		message := strings.ToLower(candidate)
+		decodeSignal := strings.Contains(message, "decode") ||
+			strings.Contains(message, "deserialize") ||
+			strings.Contains(message, "decoder")
+		replaySignal := strings.Contains(message, "compaction") ||
+			strings.Contains(message, "summary") ||
+			strings.Contains(message, "encrypted_content") ||
+			strings.Contains(message, "response history")
+		if decodeSignal && replaySignal {
+			return true
+		}
+	}
+	return false
+}
+
+func sanitizeGrokCompactionReplayBody(body []byte) ([]byte, bool, error) {
+	converted, err := convertOpenAICompactInputsForGrok(body)
+	if err != nil {
+		return nil, false, fmt.Errorf("convert Grok compaction replay: %w", err)
+	}
+	var requestBody map[string]any
+	decoder := json.NewDecoder(bytes.NewReader(converted))
+	decoder.UseNumber()
+	if err := decoder.Decode(&requestBody); err != nil {
+		return nil, false, err
+	}
+	changed := !bytes.Equal(converted, body)
+	if trimOpenAIEncryptedReasoningItems(requestBody) {
+		changed = true
+	}
+	if dropEmptyGrokReplayReasoning(requestBody) {
+		changed = true
+	}
+	if previousID, _ := requestBody["previous_response_id"].(string); strings.TrimSpace(previousID) != "" && !HasFunctionCallOutput(requestBody) {
+		delete(requestBody, "previous_response_id")
+		if _, exists := requestBody["store"]; !exists {
+			requestBody["store"] = false
+		}
+		changed = true
+	}
+	if !changed {
+		return body, false, nil
+	}
+	retryBody, err := marshalOpenAIUpstreamJSON(requestBody)
+	if err != nil {
+		return nil, false, err
+	}
+	return retryBody, true, nil
+}
+
+func dropEmptyGrokReplayReasoning(requestBody map[string]any) bool {
+	items, ok := requestBody["input"].([]any)
+	if !ok {
+		return false
+	}
+	filtered := items[:0]
+	changed := false
+	for _, rawItem := range items {
+		item, ok := rawItem.(map[string]any)
+		if !ok || strings.TrimSpace(grokStringValue(item["type"])) != "reasoning" {
+			filtered = append(filtered, rawItem)
+			continue
+		}
+		summary, _ := item["summary"].([]any)
+		content, hasContent := item["content"]
+		_, hasEncrypted := item["encrypted_content"]
+		if hasEncrypted || len(summary) > 0 || (hasContent && content != nil) {
+			filtered = append(filtered, rawItem)
+			continue
+		}
+		changed = true
+	}
+	if changed {
+		requestBody["input"] = filtered
+	}
+	return changed
+}
+
+func stripExplicitNullsFromGrokInput(value any) (any, bool) {
+	switch node := value.(type) {
+	case []any:
+		changed := false
+		for i, item := range node {
+			itemMap, ok := item.(map[string]any)
+			if !ok {
+				next, childChanged := stripExplicitNullsFromGrokInput(item)
+				if childChanged {
+					node[i] = next
+					changed = true
+				}
+				continue
+			}
+			if isOpenAICompactionType(stringValue(itemMap["type"])) {
+				continue
+			}
+			next, childChanged := stripExplicitNullsFromJSONObject(itemMap)
+			if childChanged {
+				node[i] = next
+				changed = true
+			}
+		}
+		return node, changed
+	case map[string]any:
+		if isOpenAICompactionType(stringValue(node["type"])) {
+			return node, false
+		}
+		return stripExplicitNullsFromJSONObject(node)
+	default:
+		return value, false
+	}
+}
+
+func stripExplicitNullsFromJSONObject(node map[string]any) (map[string]any, bool) {
+	if node == nil {
+		return node, false
+	}
+	changed := false
+	for key, child := range node {
+		if child == nil {
+			delete(node, key)
+			changed = true
+			continue
+		}
+		switch typed := child.(type) {
+		case map[string]any:
+			next, childChanged := stripExplicitNullsFromJSONObject(typed)
+			if childChanged {
+				node[key] = next
+				changed = true
+			}
+		case []any:
+			next, childChanged := stripExplicitNullsFromGrokInput(typed)
+			if childChanged {
+				node[key] = next
+				changed = true
+			}
+		}
+	}
+	return node, changed
+}

@@ -77,7 +77,7 @@ func TestBuildUpstreamTransport_OpenAIH2_NegotiatesHTTP2(t *testing.T) {
 	srv.StartTLS()
 	defer srv.Close()
 
-	tr, err := buildUpstreamTransport(http2KeepAliveTestPoolSettings(), nil, upstreamProtocolModeOpenAIH2)
+	tr, err := buildUpstreamTransport(http2KeepAliveTestPoolSettings(), nil, upstreamProtocolModeOpenAIH2, "")
 	require.NoError(t, err)
 	defer tr.CloseIdleConnections()
 	require.NotNil(t, tr.TLSClientConfig)
