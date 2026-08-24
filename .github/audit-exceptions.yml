@@ -50,4 +50,3 @@ exceptions:
     mitigation: "Not used with attacker-controlled size; upgrade when fixed 3.x release is available"
     expires_on: "2026-12-31"
     owner: "security@your-domain"
-
