@@ -96,12 +96,12 @@ func newGrokCLIIdentitySettingService(t *testing.T) *SettingService {
 
 func TestIsSupportedGrokCLIVersion(t *testing.T) {
 	require.True(t, IsSupportedGrokCLIVersion(GrokCLIPinnedStableVersion))
-	require.True(t, IsSupportedGrokCLIVersion("0.2.119"))
-	require.True(t, IsSupportedGrokCLIVersion("0.2.119-alpha.1"))
+	require.True(t, IsSupportedGrokCLIVersion("0.2.121"))
+	require.True(t, IsSupportedGrokCLIVersion("0.2.121-alpha.1"))
 	require.False(t, IsSupportedGrokCLIVersion(""))
-	require.False(t, IsSupportedGrokCLIVersion("0.2.117"))
+	require.False(t, IsSupportedGrokCLIVersion("0.2.119"))
 	require.False(t, IsSupportedGrokCLIVersion(GrokCLIPinnedStableVersion+"-beta.1"))
-	require.False(t, IsSupportedGrokCLIVersion("0.2.119+build.1"))
+	require.False(t, IsSupportedGrokCLIVersion("0.2.121+build.1"))
 }
 
 func TestResolveGrokCLIClientVersion_Precedence(t *testing.T) {
@@ -113,14 +113,14 @@ func TestResolveGrokCLIClientVersion_Precedence(t *testing.T) {
 	require.Equal(t, GrokCLIPinnedStableVersion, v)
 	require.Equal(t, "default", source)
 
-	t.Setenv(GrokCLIVersionEnvKey, "0.2.119")
+	t.Setenv(GrokCLIVersionEnvKey, "0.2.121")
 	v, source = ResolveGrokCLIClientVersionSource()
-	require.Equal(t, "0.2.119", v)
+	require.Equal(t, "0.2.121", v)
 	require.Equal(t, "env", source)
 
-	PublishGrokCLIIdentitySettingsVersion("0.2.120")
+	PublishGrokCLIIdentitySettingsVersion("0.2.122")
 	v, source = ResolveGrokCLIClientVersionSource()
-	require.Equal(t, "0.2.120", v)
+	require.Equal(t, "0.2.122", v)
 	require.Equal(t, "settings", source)
 }
 
@@ -131,17 +131,17 @@ func TestSetAndGetGrokCLIIdentitySettings_RoundTrip(t *testing.T) {
 
 	svc := newGrokCLIIdentitySettingService(t)
 	require.NoError(t, svc.SetGrokCLIIdentitySettings(context.Background(), &GrokCLIIdentitySettings{
-		Version: "0.2.120",
+		Version: "0.2.122",
 	}))
-	require.Equal(t, "0.2.120", CurrentGrokCLIIdentitySettingsVersion())
+	require.Equal(t, "0.2.122", CurrentGrokCLIIdentitySettingsVersion())
 
 	got, err := svc.GetGrokCLIIdentitySettings(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, "0.2.120", got.Version)
+	require.Equal(t, "0.2.122", got.Version)
 
 	status, err := svc.GetGrokCLIIdentityStatus(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, "0.2.120", status.EffectiveVersion)
+	require.Equal(t, "0.2.122", status.EffectiveVersion)
 	require.Equal(t, "settings", status.Source)
 	require.Equal(t, GrokCLIPinnedStableVersion, status.PinnedDefault)
 
@@ -154,7 +154,7 @@ func TestSetAndGetGrokCLIIdentitySettings_RoundTrip(t *testing.T) {
 
 func TestSetGrokCLIIdentitySettings_RejectsUnsupported(t *testing.T) {
 	svc := newGrokCLIIdentitySettingService(t)
-	err := svc.SetGrokCLIIdentitySettings(context.Background(), &GrokCLIIdentitySettings{Version: "0.2.117"})
+	err := svc.SetGrokCLIIdentitySettings(context.Background(), &GrokCLIIdentitySettings{Version: "0.2.119"})
 	require.Error(t, err)
 }
 

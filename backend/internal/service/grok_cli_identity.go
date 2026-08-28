@@ -26,7 +26,7 @@ const (
 	// GrokCLIPinnedStableVersion is the compile-time minimum/default identity
 	// reported to cli-chat-proxy. Keep in sync with repository.grokCLIStableVersion
 	// consumers via ResolveGrokCLIClientVersion.
-	GrokCLIPinnedStableVersion = "0.2.118"
+	GrokCLIPinnedStableVersion = "0.2.120"
 
 	// GrokCLIVersionEnvKey allows process-level override without settings DB.
 	GrokCLIVersionEnvKey = "XAI_GROK_CLI_VERSION"
