@@ -1552,3 +1552,74 @@ func mergePlatformQuotaDefaults(dst, src *DefaultPlatformQuotaSetting) {
 		dst.MonthlyLimitUSD = src.MonthlyLimitUSD
 	}
 }
+
+// =========================
+// Grok 工具强制系统提示注入（grok_tool_prompt_settings）
+// =========================
+
+// GrokToolPromptSettings 网关级 Grok 工具使用系统提示注入配置。
+type GrokToolPromptSettings struct {
+	Enabled bool   `json:"enabled"`
+	Prompt  string `json:"prompt"`
+}
+
+// DefaultGrokToolPromptSettings 默认配置：开启注入 + 已验证有效的工具强制提示。
+func DefaultGrokToolPromptSettings() *GrokToolPromptSettings {
+	return &GrokToolPromptSettings{
+		Enabled: true,
+		Prompt:  DefaultGrokToolPromptText,
+	}
+}
+
+// DefaultGrokToolPromptText 默认工具强制提示文本（经真实 grok-4.5 对比测试验证，
+// 注入后多轮场景下 TaskCreate 调用次数从 1 次提升到 6 次）。
+const DefaultGrokToolPromptText = "你在一个具备工具执行能力的 Agent 环境中。\n" +
+	"硬性规则：需要创建任务时必须真正调用 TaskCreate（发出 tool_use），" +
+	"严禁只用文字描述任务或声称\"已创建\"而不实际调用工具。规划任务=逐个调用工具。"
+
+// GetGrokToolPromptSettings 读取网关级 Grok 工具提示注入配置。
+func (s *SettingService) GetGrokToolPromptSettings(ctx context.Context) (*GrokToolPromptSettings, error) {
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyGrokToolPrompt)
+	if err != nil {
+		if errors.Is(err, ErrSettingNotFound) {
+			return DefaultGrokToolPromptSettings(), nil
+		}
+		return nil, fmt.Errorf("get grok tool prompt settings: %w", err)
+	}
+	if value == "" {
+		return DefaultGrokToolPromptSettings(), nil
+	}
+	var raw GrokToolPromptSettings
+	if err := json.Unmarshal([]byte(value), &raw); err != nil {
+		return DefaultGrokToolPromptSettings(), nil
+	}
+	return &raw, nil
+}
+
+// SetGrokToolPromptSettings 设置网关级 Grok 工具提示注入配置。
+func (s *SettingService) SetGrokToolPromptSettings(ctx context.Context, settings *GrokToolPromptSettings) error {
+	if settings == nil {
+		return fmt.Errorf("settings cannot be nil")
+	}
+	if len(settings.Prompt) > 4096 {
+		return fmt.Errorf("prompt exceeds 4096 characters")
+	}
+	data, err := json.Marshal(settings)
+	if err != nil {
+		return fmt.Errorf("marshal grok tool prompt settings: %w", err)
+	}
+	return s.settingRepo.Set(ctx, SettingKeyGrokToolPrompt, string(data))
+}
+
+// GrokToolPromptInjection 解析一次请求是否注入工具提示，以及注入文本。
+func (s *SettingService) GrokToolPromptInjection(ctx context.Context) (enabled bool, prompt string) {
+	settings, err := s.GetGrokToolPromptSettings(ctx)
+	if err != nil || settings == nil || !settings.Enabled {
+		return false, ""
+	}
+	prompt = strings.TrimSpace(settings.Prompt)
+	if prompt == "" {
+		return false, ""
+	}
+	return true, prompt
+}

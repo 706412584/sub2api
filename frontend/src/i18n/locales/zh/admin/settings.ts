@@ -1048,6 +1048,17 @@ export default {
         saved: 'Grok 思考明文检查设置保存成功',
         saveFailed: '保存 Grok 思考明文检查设置失败'
       },
+      grokToolPrompt: {
+        title: 'Grok 工具提示注入',
+        description: '在 Grok Responses 请求的 instructions 前置注入工具使用硬性规则，提升 grok-4.5 等模型的真实工具调用率（避免"口头声称已创建任务"而不发 tool_use）',
+        enabled: '启用注入',
+        enabledHint: '关闭后按原始 instructions 转发，不附加任何内容',
+        prompt: '注入提示文本',
+        promptHint: '前置注入到 instructions 开头（与原内容以空行分隔）；留空且开启时使用默认文本；上限 4096 字符',
+        restoreDefault: '恢复默认文本',
+        saved: 'Grok 工具提示注入设置保存成功',
+        saveFailed: '保存 Grok 工具提示注入设置失败'
+      },
       grokCliIdentity: {
         title: 'Grok CLI 身份版本',
         description: '上报给 cli-chat-proxy 的 x-grok-client-version / User-Agent。热生效，无需重启。优先级：设置覆盖 > 环境变量 XAI_GROK_CLI_VERSION > 编译默认',

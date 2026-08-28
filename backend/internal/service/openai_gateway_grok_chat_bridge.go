@@ -571,6 +571,13 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 	if err != nil {
 		return nil, fmt.Errorf("marshal grok responses bridge request: %w", err)
 	}
+	// 工具强制系统提示注入：与 forwardGrokResponses 保持一致，在推导 cache
+	// intent 之前注入，使桥路径与原生 Responses 路径行为一致。
+	if s.settingService != nil {
+		if enabled, prompt := s.settingService.GrokToolPromptInjection(ctx); enabled && prompt != "" {
+			responsesBody = prependGrokInstructions(responsesBody, prompt)
+		}
+	}
 	// Preserve the converted Responses intent before Grok capability
 	// sanitization. Cache routing must see the actual client function tools,
 	// not the nested Chat Completions declarations and not a tool-free copy.

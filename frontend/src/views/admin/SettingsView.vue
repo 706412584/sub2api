@@ -973,6 +973,92 @@
             </div>
           </div>
 
+          <!-- Grok Tool Prompt Settings -->
+          <div class="card">
+            <div
+              class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+            >
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ t("admin.settings.grokToolPrompt.title") }}
+              </h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.grokToolPrompt.description") }}
+              </p>
+            </div>
+            <div class="space-y-5 p-6">
+              <div
+                v-if="grokToolPromptLoading"
+                class="flex items-center gap-2 text-gray-500"
+              >
+                <div
+                  class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"
+                ></div>
+                {{ t("common.loading") }}
+              </div>
+
+              <template v-else>
+                <div class="flex items-start">
+                  <label class="flex cursor-pointer items-center gap-3">
+                    <input
+                      type="checkbox"
+                      class="checkbox"
+                      v-model="grokToolPromptForm.enabled"
+                    />
+                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {{ t("admin.settings.grokToolPrompt.enabled") }}
+                    </span>
+                  </label>
+                </div>
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.grokToolPrompt.enabledHint") }}
+                </p>
+
+                <div>
+                  <label
+                    class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    {{ t("admin.settings.grokToolPrompt.prompt") }}
+                  </label>
+                  <textarea
+                    class="input w-full font-mono text-sm"
+                    rows="6"
+                    maxlength="4096"
+                    v-model="grokToolPromptForm.prompt"
+                  ></textarea>
+                  <div class="mt-1.5 flex items-center justify-between">
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.grokToolPrompt.promptHint") }}
+                    </p>
+                    <button
+                      type="button"
+                      class="btn btn-secondary btn-xs"
+                      @click="restoreGrokToolPromptDefault"
+                    >
+                      {{ t("admin.settings.grokToolPrompt.restoreDefault") }}
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700"
+                >
+                  <button
+                    type="button"
+                    @click="saveGrokToolPromptSettings"
+                    :disabled="grokToolPromptSaving"
+                    class="btn btn-primary btn-sm"
+                  >
+                    {{
+                      grokToolPromptSaving
+                        ? t("common.saving")
+                        : t("common.save")
+                    }}
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
+
           <!-- Grok CLI Identity Settings -->
           <div class="card">
             <div
@@ -9793,6 +9879,14 @@ const grokReasoningVisibilityForm = reactive({
   probe_account_fallback: false,
 });
 
+// Grok Tool Prompt 状态
+const grokToolPromptLoading = ref(true);
+const grokToolPromptSaving = ref(false);
+const grokToolPromptForm = reactive({
+  enabled: true,
+  prompt: "",
+});
+
 // Grok CLI Identity 状态
 const grokCliIdentityLoading = ref(true);
 const grokCliIdentitySaving = ref(false);
@@ -12963,6 +13057,53 @@ async function saveGrokReasoningVisibilitySettings() {
   }
 }
 
+// Grok Tool Prompt 方法
+async function loadGrokToolPromptSettings() {
+  grokToolPromptLoading.value = true;
+  try {
+    const settings = await adminAPI.settings.getGrokToolPromptSettings();
+    Object.assign(grokToolPromptForm, {
+      enabled: settings.enabled ?? true,
+      prompt: settings.prompt ?? "",
+    });
+  } catch (_error: unknown) {
+    // Silent fail - defaults apply
+  } finally {
+    grokToolPromptLoading.value = false;
+  }
+}
+
+async function saveGrokToolPromptSettings() {
+  grokToolPromptSaving.value = true;
+  try {
+    const updated = await adminAPI.settings.updateGrokToolPromptSettings({
+      enabled: grokToolPromptForm.enabled,
+      prompt: grokToolPromptForm.prompt,
+    });
+    Object.assign(grokToolPromptForm, {
+      enabled: updated.enabled ?? true,
+      prompt: updated.prompt ?? "",
+    });
+    appStore.showSuccess(t("admin.settings.grokToolPrompt.saved"));
+  } catch (error: unknown) {
+    appStore.showError(
+      extractApiErrorMessage(
+        error,
+        t("admin.settings.grokToolPrompt.saveFailed"),
+      ),
+    );
+  } finally {
+    grokToolPromptSaving.value = false;
+  }
+}
+
+function restoreGrokToolPromptDefault() {
+  grokToolPromptForm.prompt =
+    "你在一个具备工具执行能力的 Agent 环境中。\n" +
+    "硬性规则：需要创建任务时必须真正调用 TaskCreate（发出 tool_use），" +
+    "严禁只用文字描述任务或声称\"已创建\"而不实际调用工具。规划任务=逐个调用工具。";
+}
+
 // Grok CLI Identity 方法
 async function loadGrokCliIdentitySettings() {
   grokCliIdentityLoading.value = true;
@@ -13698,6 +13839,7 @@ onMounted(() => {
   loadAccountPoolProbeSettings();
   loadGrokOpsProxySettings();
   loadGrokReasoningVisibilitySettings();
+  loadGrokToolPromptSettings();
   loadGrokCliIdentitySettings();
   loadStreamTimeoutSettings();
   loadRectifierSettings();

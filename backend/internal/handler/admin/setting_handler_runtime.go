@@ -704,6 +704,52 @@ func (h *SettingHandler) UpdateGrokReasoningVisibilitySettings(c *gin.Context) {
 	})
 }
 
+// GetGrokToolPromptSettings 获取网关级 Grok 工具提示注入配置
+// GET /api/v1/admin/settings/grok-tool-prompt
+func (h *SettingHandler) GetGrokToolPromptSettings(c *gin.Context) {
+	settings, err := h.settingService.GetGrokToolPromptSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, service.GrokToolPromptSettings{
+		Enabled: settings.Enabled,
+		Prompt:  settings.Prompt,
+	})
+}
+
+// UpdateGrokToolPromptSettingsRequest 更新 Grok 工具提示注入配置请求
+type UpdateGrokToolPromptSettingsRequest struct {
+	Enabled bool   `json:"enabled"`
+	Prompt  string `json:"prompt"`
+}
+
+// UpdateGrokToolPromptSettings 更新网关级 Grok 工具提示注入配置
+// PUT /api/v1/admin/settings/grok-tool-prompt
+func (h *SettingHandler) UpdateGrokToolPromptSettings(c *gin.Context) {
+	var req UpdateGrokToolPromptSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := h.settingService.SetGrokToolPromptSettings(c.Request.Context(), &service.GrokToolPromptSettings{
+		Enabled: req.Enabled,
+		Prompt:  req.Prompt,
+	}); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	updated, err := h.settingService.GetGrokToolPromptSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, service.GrokToolPromptSettings{
+		Enabled: updated.Enabled,
+		Prompt:  updated.Prompt,
+	})
+}
+
 // UpdateStreamTimeoutSettingsRequest 更新流超时配置请求
 type UpdateStreamTimeoutSettingsRequest struct {
 	Enabled                bool   `json:"enabled"`

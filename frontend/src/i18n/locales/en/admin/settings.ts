@@ -1052,6 +1052,17 @@ export default {
         saved: 'Grok reasoning visibility settings saved',
         saveFailed: 'Failed to save Grok reasoning visibility settings'
       },
+      grokToolPrompt: {
+        title: 'Grok Tool Prompt Injection',
+        description: 'Prepend tool-usage hard rules to the instructions of Grok Responses requests. Improves real tool-call rate for grok-4.5 (prevents "claims task created" without emitting tool_use).',
+        enabled: 'Enable injection',
+        enabledHint: 'When disabled, requests are forwarded with original instructions unchanged',
+        prompt: 'Injection prompt text',
+        promptHint: 'Prepended to instructions (separated by a blank line from original); falls back to the default text when enabled but empty; max 4096 chars',
+        restoreDefault: 'Restore default text',
+        saved: 'Grok tool prompt settings saved',
+        saveFailed: 'Failed to save Grok tool prompt settings'
+      },
       grokCliIdentity: {
         title: 'Grok CLI Identity Version',
         description: 'x-grok-client-version / User-Agent reported to cli-chat-proxy. Hot-applies without restart. Precedence: settings override > env XAI_GROK_CLI_VERSION > compile default',

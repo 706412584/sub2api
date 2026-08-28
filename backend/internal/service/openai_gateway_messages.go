@@ -311,6 +311,13 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	responsesBody = updatedBody
 	grokCacheIdentity := ""
 	if account.Platform == PlatformGrok {
+		// 工具强制系统提示注入：与 forwardGrokResponses 保持一致，在解析
+		// cache identity 之前注入，使注入文本参与缓存键计算。
+		if s.settingService != nil {
+			if enabled, prompt := s.settingService.GrokToolPromptInjection(ctx); enabled && prompt != "" {
+				responsesBody = prependGrokInstructions(responsesBody, prompt)
+			}
+		}
 		grokIntentBody := responsesBody
 		grokCacheIdentity = resolveGrokCacheIdentity(c, grokIntentBody, promptCacheKey, upstreamModel)
 		patchedBody, patchErr := patchGrokResponsesBody(grokIntentBody, upstreamModel)

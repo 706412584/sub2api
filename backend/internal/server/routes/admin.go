@@ -633,6 +633,9 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		// Grok 思考明文调度配置
 		adminSettings.GET("/grok-reasoning-visibility", h.Admin.Setting.GetGrokReasoningVisibilitySettings)
 		adminSettings.PUT("/grok-reasoning-visibility", h.Admin.Setting.UpdateGrokReasoningVisibilitySettings)
+		// Grok 工具提示注入配置
+		adminSettings.GET("/grok-tool-prompt", h.Admin.Setting.GetGrokToolPromptSettings)
+		adminSettings.PUT("/grok-tool-prompt", h.Admin.Setting.UpdateGrokToolPromptSettings)
 		// 请求整流器配置
 		adminSettings.GET("/rectifier", h.Admin.Setting.GetRectifierSettings)
 		adminSettings.PUT("/rectifier", h.Admin.Setting.UpdateRectifierSettings)

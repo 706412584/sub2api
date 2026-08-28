@@ -1417,6 +1417,30 @@ export async function updateGrokReasoningVisibilitySettings(
   return data;
 }
 
+// ==================== Grok Tool Prompt Settings ====================
+
+export interface GrokToolPromptSettings {
+  enabled: boolean;
+  prompt: string;
+}
+
+export async function getGrokToolPromptSettings(): Promise<GrokToolPromptSettings> {
+  const { data } = await apiClient.get<GrokToolPromptSettings>(
+    "/admin/settings/grok-tool-prompt",
+  );
+  return data;
+}
+
+export async function updateGrokToolPromptSettings(
+  settings: GrokToolPromptSettings,
+): Promise<GrokToolPromptSettings> {
+  const { data } = await apiClient.put<GrokToolPromptSettings>(
+    "/admin/settings/grok-tool-prompt",
+    settings,
+  );
+  return data;
+}
+
 // ==================== Grok CLI Identity Settings ====================
 
 export interface GrokCLIIdentityStatus {
@@ -1735,6 +1759,8 @@ export const settingsAPI = {
   updateGrokOpsProxySettings,
   getGrokReasoningVisibilitySettings,
   updateGrokReasoningVisibilitySettings,
+  getGrokToolPromptSettings,
+  updateGrokToolPromptSettings,
   getGrokCLIIdentitySettings,
   updateGrokCLIIdentitySettings,
   checkGrokCLIIdentityLatest,

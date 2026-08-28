@@ -147,6 +147,14 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
 		return nil, err
 	}
 	setGrokResponsesClientToolMapping(c, clientToolMapping)
+	// 工具强制系统提示注入：grok-4.5 多轮场景下会"口头声称已创建任务"而不发
+	// tool_use；在 instructions 前置注入工具使用硬性规则可显著提升真实调用率
+	// （默认对 grok_console 生效，可通过设置关闭/自定义）。
+	if s.settingService != nil {
+		if enabled, prompt := s.settingService.GrokToolPromptInjection(ctx); enabled && prompt != "" {
+			patchedBody = prependGrokInstructions(patchedBody, prompt)
+		}
+	}
 	// OpenAI /responses/compact is not a native xAI endpoint. Convert it into a
 	// normal Grok Responses turn that asks for a structured summary, then map the
 	// reply back to an OpenAI compaction item on the way out.
@@ -2437,4 +2445,25 @@ func stripExplicitNullsFromJSONObject(node map[string]any) (map[string]any, bool
 		}
 	}
 	return node, changed
+}
+
+// prependGrokInstructions 把工具使用硬性规则前置注入到 Responses 的 instructions 字段。
+// instructions 为字符串：原值为空则直接用注入文本，非空则换行拼接（注入文本在前）。
+// 使用 sjson 原位修改避免整包 marshal/unmarshal。
+func prependGrokInstructions(body []byte, injection string) []byte {
+	if len(body) == 0 || strings.TrimSpace(injection) == "" {
+		return body
+	}
+	cur := strings.TrimSpace(gjson.GetBytes(body, "instructions").String())
+	var merged string
+	if cur == "" {
+		merged = strings.TrimSpace(injection)
+	} else {
+		merged = strings.TrimSpace(injection) + "\n\n" + cur
+	}
+	out, err := sjson.SetBytes(body, "instructions", merged)
+	if err != nil {
+		return body
+	}
+	return out
 }
