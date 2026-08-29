@@ -18,7 +18,7 @@ const (
 	CLIClientVersionHeader = "x-grok-client-version"
 	// CLIClientVersion is the compile-time fallback when no process resolver is wired.
 	// Keep in sync with service.GrokCLIPinnedStableVersion / https://x.ai/cli/stable.
-	CLIClientVersion = "0.2.118"
+	CLIClientVersion = "0.2.120"
 
 	BillingWeeklyPath  = "/billing?format=credits"
 	BillingMonthlyPath = "/billing"
