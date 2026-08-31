@@ -150,12 +150,27 @@ func (s *OpenAIGatewayService) rejectGrokAccountByReasoning(ctx context.Context,
 	return true, string(result.Status)
 }
 
+// grokReasoningVerdictKnown reports whether the rejection status is a durable
+// "definitely no visible reasoning" verdict (probe stream completed and
+// classified), as opposed to transport/probe errors where visibility is unknown.
+func grokReasoningVerdictKnown(status GrokReasoningProbeStatus) bool {
+	return status == GrokReasoningProbeStatusEncryptedOnly ||
+		status == GrokReasoningProbeStatusNoReasoning
+}
+
 // applyGrokReasoningVisibilityQuarantine applies the configured quarantine after
 // an enforce rejection. Semantics of QuarantineSec:
 //
 //	-2 → SetSchedulable(false) (pause scheduling permanently until manual resume)
 //	 0 → no-op (exclude this selection only)
 //	 N → SetTempUnschedulable for N seconds
+//
+// Smart split by rejection cause: the -2 permanent pause only applies when the
+// probe reached a durable "no visible reasoning" verdict (encrypted_only /
+// no_reasoning). Transport/probe errors (network, proxy, upstream 4xx/5xx) mean
+// visibility is UNKNOWN — those accounts are never permanently paused; they get
+// at most a short temp-unschedulable cooldown (QuarantineSec when configured as
+// N seconds, else the 120s default) so transient faults self-heal.
 //
 // Soft mode may still honor decision.QuarantineUntil when set by the mark path.
 func (s *OpenAIGatewayService) applyGrokReasoningVisibilityQuarantine(
@@ -178,8 +193,17 @@ func (s *OpenAIGatewayService) applyGrokReasoningVisibilityQuarantine(
 	bgCtx := context.WithoutCancel(ctx)
 
 	if NormalizeGrokReasoningVisibilityMode(effectiveMode) == GrokReasoningVisibilityModeEnforce {
+		// Unknown-visibility failures (error / no_proxy / probe_failed): never
+		// permanently pause. Degrade -2 and 0 to a short temp-unschedulable
+		// cooldown; keep configured N-second cooldowns as-is.
+		effectiveSec := cfg.QuarantineSec
+		if !grokReasoningVerdictKnown(decision.Status) {
+			if effectiveSec == GrokReasoningQuarantinePauseSchedulable || effectiveSec <= 0 {
+				effectiveSec = GrokReasoningVisibilityQuarantineDefaultSec
+			}
+		}
 		switch {
-		case cfg.QuarantineSec == GrokReasoningQuarantinePauseSchedulable:
+		case effectiveSec == GrokReasoningQuarantinePauseSchedulable:
 			if err := s.accountRepo.SetSchedulable(bgCtx, accountID, false); err != nil {
 				slog.Warn("grok_reasoning_visibility_pause_failed", "account_id", accountID, "error", err)
 			} else {
@@ -187,11 +211,11 @@ func (s *OpenAIGatewayService) applyGrokReasoningVisibilityQuarantine(
 					"account_id", accountID, "status", decision.Status, "reason", reason)
 			}
 			return
-		case cfg.QuarantineSec <= 0:
+		case effectiveSec <= 0:
 			// 0 = exclude this round only; do not write temp-unschedulable.
 			return
 		default:
-			until := time.Now().Add(time.Duration(cfg.QuarantineSec) * time.Second)
+			until := time.Now().Add(time.Duration(effectiveSec) * time.Second)
 			if err := s.accountRepo.SetTempUnschedulable(bgCtx, accountID, until, reason); err != nil {
 				slog.Warn("grok_reasoning_visibility_quarantine_failed", "account_id", accountID, "error", err)
 			}

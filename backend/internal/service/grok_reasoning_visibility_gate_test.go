@@ -399,3 +399,100 @@ func TestApplyGrokReasoningVisibilityQuarantine(t *testing.T) {
 		require.Empty(t, repo.pausedIDs)
 	})
 }
+
+// TestApplyGrokReasoningVisibilityQuarantineSplit 验证按拒绝原因智能分流：
+//   - encrypted_only / no_reasoning（探测结论确定）→ 按配置执行（-2 永久暂停 / N 秒）
+//   - error / no_proxy / probe_failed（可见性未知：网络/代理/上游错误）
+//     → 降级为短冷却，-2 与 0 都不生效，永不永久暂停
+func TestApplyGrokReasoningVisibilityQuarantineSplit(t *testing.T) {
+	ctx := context.Background()
+	groupID := int64(7)
+
+	newEnforceSvc := func(quarantineSec int) (*OpenAIGatewayService, *quarantineAccountRepoStub, context.Context) {
+		repo := &quarantineAccountRepoStub{}
+		settingSvc := NewSettingService(&settingRepoStub{
+			values: map[string]string{
+				SettingKeyGrokReasoningVisibility: `{"mode":"enforce","quarantine_sec":120}`,
+			},
+		}, &config.Config{})
+		svc := &OpenAIGatewayService{settingService: settingSvc, accountRepo: repo}
+		gctx := context.WithValue(ctx, ctxkey.Group, &Group{
+			ID:                          groupID,
+			Platform:                    PlatformGrok,
+			GrokReasoningVisibilityMode: "enforce",
+			GrokReasoningQuarantineSec:  quarantineSec,
+		})
+		return svc, repo, gctx
+	}
+
+	t.Run("error status with -2 degrades to default cooldown, never pauses", func(t *testing.T) {
+		svc, repo, gctx := newEnforceSvc(GrokReasoningQuarantinePauseSchedulable)
+		decision := GrokReasoningVisibilityDecision{Excluded: true, Status: GrokReasoningProbeStatusError}
+		before := time.Now()
+		svc.applyGrokReasoningVisibilityQuarantine(gctx, 42, decision, GrokReasoningVisibilityModeEnforce, &groupID)
+		require.Empty(t, repo.pausedIDs, "transport error must never permanently pause")
+		require.Len(t, repo.tempCalls, 1)
+		require.Equal(t, int64(42), repo.tempCalls[0].id)
+		require.True(t, repo.tempCalls[0].until.After(before.Add(110*time.Second)))
+		require.True(t, repo.tempCalls[0].until.Before(before.Add(130*time.Second)), "degraded to 120s default cooldown")
+	})
+
+	t.Run("error status with 0 degrades to default cooldown", func(t *testing.T) {
+		svc, repo, gctx := newEnforceSvc(0)
+		decision := GrokReasoningVisibilityDecision{Excluded: true, Status: GrokReasoningProbeStatusError}
+		svc.applyGrokReasoningVisibilityQuarantine(gctx, 42, decision, GrokReasoningVisibilityModeEnforce, &groupID)
+		require.Empty(t, repo.pausedIDs)
+		require.Len(t, repo.tempCalls, 1, "0 must not skip cooldown for unknown-visibility errors")
+	})
+
+	t.Run("no_proxy status with -2 degrades to cooldown", func(t *testing.T) {
+		svc, repo, gctx := newEnforceSvc(GrokReasoningQuarantinePauseSchedulable)
+		decision := GrokReasoningVisibilityDecision{Excluded: true, Status: GrokReasoningProbeStatus("no_proxy")}
+		svc.applyGrokReasoningVisibilityQuarantine(gctx, 42, decision, GrokReasoningVisibilityModeEnforce, &groupID)
+		require.Empty(t, repo.pausedIDs)
+		require.Len(t, repo.tempCalls, 1)
+	})
+
+	t.Run("probe_failed status with -2 degrades to cooldown", func(t *testing.T) {
+		svc, repo, gctx := newEnforceSvc(GrokReasoningQuarantinePauseSchedulable)
+		decision := GrokReasoningVisibilityDecision{Excluded: true, Status: GrokReasoningProbeStatus("probe_failed")}
+		svc.applyGrokReasoningVisibilityQuarantine(gctx, 42, decision, GrokReasoningVisibilityModeEnforce, &groupID)
+		require.Empty(t, repo.pausedIDs)
+		require.Len(t, repo.tempCalls, 1)
+	})
+
+	t.Run("error status with configured N keeps N seconds", func(t *testing.T) {
+		svc, repo, gctx := newEnforceSvc(300)
+		decision := GrokReasoningVisibilityDecision{Excluded: true, Status: GrokReasoningProbeStatusError}
+		before := time.Now()
+		svc.applyGrokReasoningVisibilityQuarantine(gctx, 42, decision, GrokReasoningVisibilityModeEnforce, &groupID)
+		require.Empty(t, repo.pausedIDs)
+		require.Len(t, repo.tempCalls, 1)
+		require.True(t, repo.tempCalls[0].until.After(before.Add(290*time.Second)))
+		require.True(t, repo.tempCalls[0].until.Before(before.Add(310*time.Second)), "configured N-second cooldown kept for errors")
+	})
+
+	t.Run("encrypted_only verdict with -2 still pauses", func(t *testing.T) {
+		svc, repo, gctx := newEnforceSvc(GrokReasoningQuarantinePauseSchedulable)
+		decision := GrokReasoningVisibilityDecision{Excluded: true, Status: GrokReasoningProbeStatusEncryptedOnly}
+		svc.applyGrokReasoningVisibilityQuarantine(gctx, 42, decision, GrokReasoningVisibilityModeEnforce, &groupID)
+		require.Equal(t, []int64{42}, repo.pausedIDs, "durable verdict keeps -2 permanent pause")
+		require.Empty(t, repo.tempCalls)
+	})
+
+	t.Run("no_reasoning verdict with -2 still pauses", func(t *testing.T) {
+		svc, repo, gctx := newEnforceSvc(GrokReasoningQuarantinePauseSchedulable)
+		decision := GrokReasoningVisibilityDecision{Excluded: true, Status: GrokReasoningProbeStatusNoReasoning}
+		svc.applyGrokReasoningVisibilityQuarantine(gctx, 42, decision, GrokReasoningVisibilityModeEnforce, &groupID)
+		require.Equal(t, []int64{42}, repo.pausedIDs)
+		require.Empty(t, repo.tempCalls)
+	})
+
+	t.Run("encrypted_only verdict with 0 still excludes round only", func(t *testing.T) {
+		svc, repo, gctx := newEnforceSvc(0)
+		decision := GrokReasoningVisibilityDecision{Excluded: true, Status: GrokReasoningProbeStatusEncryptedOnly}
+		svc.applyGrokReasoningVisibilityQuarantine(gctx, 42, decision, GrokReasoningVisibilityModeEnforce, &groupID)
+		require.Empty(t, repo.pausedIDs)
+		require.Empty(t, repo.tempCalls, "durable verdict keeps 0 = exclude-this-round semantics")
+	})
+}
