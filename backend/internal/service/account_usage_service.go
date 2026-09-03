@@ -162,6 +162,23 @@ type AntigravityModelQuota struct {
 	ResetTime   string `json:"reset_time"`  // 重置时间 ISO8601
 }
 
+// AntigravityQuotaBucket retrieveUserQuotaSummary 中的单个配额桶（weekly / 5h 窗口）
+type AntigravityQuotaBucket struct {
+	BucketID    string `json:"bucket_id"`            // 如 "gemini-weekly" / "gemini-5h" / "3p-weekly" / "3p-5h"
+	Window      string `json:"window"`               // "weekly" / "5h"
+	Utilization int    `json:"utilization"`          // 使用率 0-100（由 remainingFraction 换算）
+	ResetTime   string `json:"reset_time,omitempty"` // 重置时间 ISO8601
+	DisplayName string `json:"display_name,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+// AntigravityQuotaGroup retrieveUserQuotaSummary 中的模型组（如 Gemini Models / Claude and GPT models）
+type AntigravityQuotaGroup struct {
+	DisplayName string                    `json:"display_name,omitempty"`
+	Description string                    `json:"description,omitempty"`
+	Buckets     []*AntigravityQuotaBucket `json:"buckets"`
+}
+
 // AntigravityModelDetail Antigravity 单个模型的详细能力信息
 type AntigravityModelDetail struct {
 	DisplayName        string          `json:"display_name,omitempty"`
@@ -238,6 +255,9 @@ type UsageInfo struct {
 
 	// Antigravity 模型详细能力信息（与 antigravity_quota 同 key）
 	AntigravityQuotaDetails map[string]*AntigravityModelDetail `json:"antigravity_quota_details,omitempty"`
+
+	// Antigravity 分桶配额摘要（retrieveUserQuotaSummary，weekly + 5h 双窗口）
+	AntigravityQuotaGroups []*AntigravityQuotaGroup `json:"antigravity_quota_groups,omitempty"`
 
 	// Antigravity AI Credits 余额
 	AICredits []AICredit `json:"ai_credits,omitempty"`

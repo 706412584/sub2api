@@ -568,6 +568,8 @@ export default {
         gemini3Flash: 'G3F',
         gemini3Image: 'G31FI',
         claude: 'Claude',
+        quotaWindowWeekly: '周',
+        quotaWindow5h: '5h',
         grokRequests: '请求',
         grokTokens: 'Token',
         grokFreeQuota24hHint: '按 sub2api 近 24 小时本地 Token 用量估算（上限 {limit}）',

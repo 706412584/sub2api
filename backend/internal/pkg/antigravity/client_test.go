@@ -1857,3 +1857,190 @@ func TestExtractProjectIDFromOnboardResponse(t *testing.T) {
 		})
 	}
 }
+
+// ---------------------------------------------------------------------------
+// RetrieveUserQuotaSummary
+// ---------------------------------------------------------------------------
+
+func TestClient_RetrieveUserQuotaSummary_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("请求方法不匹配: got %s, want POST", r.Method)
+		}
+		if !strings.HasSuffix(r.URL.Path, "/v1internal:retrieveUserQuotaSummary") {
+			t.Errorf("URL 路径不匹配: got %s", r.URL.Path)
+		}
+		if auth := r.Header.Get("Authorization"); auth != "Bearer test-token" {
+			t.Errorf("Authorization 不匹配: got %s", auth)
+		}
+		if ct := r.Header.Get("Content-Type"); ct != "application/json" {
+			t.Errorf("Content-Type 不匹配: got %s", ct)
+		}
+		if ua := r.Header.Get("User-Agent"); ua != GetUserAgent() {
+			t.Errorf("User-Agent 不匹配: got %s", ua)
+		}
+
+		var reqBody FetchAvailableModelsRequest
+		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+			t.Fatalf("解析请求体失败: %v", err)
+		}
+		if reqBody.Project != "project-abc" {
+			t.Errorf("Project 不匹配: got %s, want project-abc", reqBody.Project)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"groups": [
+				{
+					"displayName": "Gemini Models",
+					"description": "Gemini model family quota",
+					"buckets": [
+						{"bucketId": "gemini-weekly", "window": "weekly", "remainingFraction": 0.7, "resetTime": "2026-01-05T00:00:00Z", "displayName": "Weekly"},
+						{"bucketId": "gemini-5h", "window": "5h", "remainingFraction": 0.4, "resetTime": "2026-01-01T05:00:00Z"}
+					]
+				},
+				{
+					"displayName": "Claude and GPT models",
+					"buckets": [
+						{"bucketId": "3p-weekly", "window": "weekly", "remainingFraction": 1.0},
+						{"bucketId": "3p-5h", "window": "5h", "remainingFraction": 0.0, "resetTime": "2026-01-01T03:00:00Z"}
+					]
+				}
+			]
+		}`))
+	}))
+	defer server.Close()
+
+	withMockBaseURLs(t, []string{server.URL})
+
+	client := mustNewClient(t, "")
+	resp, err := client.RetrieveUserQuotaSummary(context.Background(), "test-token", "project-abc", defaultFetchAvailableModelsBodyLimit)
+	if err != nil {
+		t.Fatalf("RetrieveUserQuotaSummary 失败: %v", err)
+	}
+	if len(resp.Groups) != 2 {
+		t.Fatalf("Groups 数量不匹配: got %d, want 2", len(resp.Groups))
+	}
+
+	g0 := resp.Groups[0]
+	if g0.DisplayName != "Gemini Models" {
+		t.Errorf("Group[0] DisplayName 不匹配: got %s", g0.DisplayName)
+	}
+	if len(g0.Buckets) != 2 {
+		t.Fatalf("Group[0] Buckets 数量不匹配: got %d, want 2", len(g0.Buckets))
+	}
+	if g0.Buckets[0].BucketID != "gemini-weekly" || g0.Buckets[0].Window != "weekly" {
+		t.Errorf("Group[0] Buckets[0] 不匹配: %+v", g0.Buckets[0])
+	}
+	if g0.Buckets[0].RemainingFraction != 0.7 {
+		t.Errorf("RemainingFraction 不匹配: got %f, want 0.7", g0.Buckets[0].RemainingFraction)
+	}
+
+	g1 := resp.Groups[1]
+	if g1.DisplayName != "Claude and GPT models" {
+		t.Errorf("Group[1] DisplayName 不匹配: got %s", g1.DisplayName)
+	}
+	if g1.Buckets[1].RemainingFraction != 0.0 {
+		t.Errorf("Group[1] Buckets[1] RemainingFraction 不匹配: got %f, want 0", g1.Buckets[1].RemainingFraction)
+	}
+}
+
+func TestClient_RetrieveUserQuotaSummary_RejectsNonPositiveBodyLimit(t *testing.T) {
+	client := mustNewClient(t, "")
+	_, err := client.RetrieveUserQuotaSummary(context.Background(), "token", "proj", 0)
+	if err == nil || !strings.Contains(err.Error(), "body limit must be positive") {
+		t.Fatalf("非正读取上限应返回调用错误: %v", err)
+	}
+}
+
+func TestClient_RetrieveUserQuotaSummary_HTTPError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":"internal"}`))
+	}))
+	defer server.Close()
+
+	withMockBaseURLs(t, []string{server.URL})
+
+	client := mustNewClient(t, "")
+	_, err := client.RetrieveUserQuotaSummary(context.Background(), "token", "proj", defaultFetchAvailableModelsBodyLimit)
+	if err == nil {
+		t.Fatal("HTTP 500 应返回错误")
+	}
+	if !strings.Contains(err.Error(), "retrieveUserQuotaSummary 失败 (HTTP 500)") {
+		t.Fatalf("错误信息应包含状态码: %v", err)
+	}
+}
+
+func TestClient_RetrieveUserQuotaSummary_InvalidJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`<<<not json>>>`))
+	}))
+	defer server.Close()
+
+	withMockBaseURLs(t, []string{server.URL})
+
+	client := mustNewClient(t, "")
+	_, err := client.RetrieveUserQuotaSummary(context.Background(), "token", "proj", defaultFetchAvailableModelsBodyLimit)
+	if err == nil {
+		t.Fatal("无效 JSON 响应应返回错误")
+	}
+	if !strings.Contains(err.Error(), "响应解析失败") {
+		t.Errorf("错误信息应包含 '响应解析失败': got %s", err.Error())
+	}
+}
+
+func TestClient_RetrieveUserQuotaSummary_URLFallback(t *testing.T) {
+	callCount := 0
+	server1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte(`{"error":"rate_limited"}`))
+	}))
+	defer server1.Close()
+
+	server2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"groups": [{"displayName": "Gemini Models", "buckets": [{"bucketId": "gemini-weekly", "window": "weekly", "remainingFraction": 0.9}]}]}`))
+	}))
+	defer server2.Close()
+
+	withMockBaseURLs(t, []string{server1.URL, server2.URL})
+
+	client := mustNewClient(t, "")
+	resp, err := client.RetrieveUserQuotaSummary(context.Background(), "token", "proj", defaultFetchAvailableModelsBodyLimit)
+	if err != nil {
+		t.Fatalf("RetrieveUserQuotaSummary 应在 fallback 后成功: %v", err)
+	}
+	if len(resp.Groups) != 1 {
+		t.Fatalf("应返回 fallback server 的 groups: got %d", len(resp.Groups))
+	}
+	if callCount != 2 {
+		t.Errorf("应该调用了 2 个 server，实际调用 %d 次", callCount)
+	}
+}
+
+func TestClient_RetrieveUserQuotaSummary_EmptyGroups(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"groups": []}`))
+	}))
+	defer server.Close()
+
+	withMockBaseURLs(t, []string{server.URL})
+
+	client := mustNewClient(t, "")
+	resp, err := client.RetrieveUserQuotaSummary(context.Background(), "token", "proj", defaultFetchAvailableModelsBodyLimit)
+	if err != nil {
+		t.Fatalf("空 groups 不应报错: %v", err)
+	}
+	if len(resp.Groups) != 0 {
+		t.Errorf("Groups 应为空: got %d", len(resp.Groups))
+	}
+}

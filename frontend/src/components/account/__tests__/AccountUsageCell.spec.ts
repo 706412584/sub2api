@@ -197,6 +197,76 @@ describe('AccountUsageCell', () => {
     expect(wrapper.text()).toContain('25')
   })
 
+  it('Antigravity 分桶配额会按组渲染 weekly 与 5h 桶', async () => {
+    getUsage.mockResolvedValue({
+      antigravity_quota: {
+        'gemini-3-pro-high': { utilization: 30, reset_time: '2026-03-01T09:00:00Z' }
+      },
+      antigravity_quota_groups: [
+        {
+          display_name: 'Gemini Models',
+          description: 'Gemini family',
+          buckets: [
+            {
+              bucket_id: 'gemini-weekly',
+              window: 'weekly',
+              utilization: 25,
+              reset_time: '2026-03-05T00:00:00Z',
+              display_name: 'Weekly quota'
+            },
+            {
+              bucket_id: 'gemini-5h',
+              window: '5h',
+              utilization: 80,
+              reset_time: '2026-03-01T05:00:00Z'
+            }
+          ]
+        },
+        {
+          display_name: 'Claude and GPT models',
+          buckets: [
+            {
+              bucket_id: '3p-5h',
+              window: '5h',
+              utilization: 60
+            }
+          ]
+        }
+      ]
+    })
+
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 1003,
+          platform: 'antigravity',
+          type: 'oauth',
+          extra: {}
+        })
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: {
+            props: ['label', 'utilization', 'resetsAt', 'color'],
+            template: '<div class="usage-bar">{{ label }}|{{ utilization }}|{{ resetsAt }}</div>'
+          },
+          AccountQuotaInfo: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    const text = wrapper.text()
+    // 显示名优先的桶
+    expect(text).toContain('Weekly quota|25|2026-03-05T00:00:00Z')
+    // 无显示名：bucket_id 去组前缀 + 窗口后缀（i18n 未注册时 t() 返回原始 key）
+    expect(text).toContain(`5h admin.accounts.usageWindow.quotaWindow5h|80|2026-03-01T05:00:00Z`)
+    expect(text).toContain(`5h admin.accounts.usageWindow.quotaWindow5h|60|`)
+    // 既有 per-model 条仍渲染
+    expect(text).toContain('admin.accounts.usageWindow.gemini3Pro|30|2026-03-01T09:00:00Z')
+  })
+
 
   it('OpenAI OAuth 快照已过期时首屏会重新请求 usage', async () => {
     getUsage.mockResolvedValue({

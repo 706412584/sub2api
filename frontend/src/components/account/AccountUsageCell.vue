@@ -359,6 +359,16 @@
           color="amber"
         />
 
+        <!-- 分桶配额（retrieveUserQuotaSummary，weekly + 5h 双窗口） -->
+        <UsageProgressBar
+          v-for="(bucket, idx) in antigravityQuotaGroupBuckets"
+          :key="bucket.key"
+          :label="antigravityQuotaBucketLabel(bucket)"
+          :utilization="bucket.utilization"
+          :resets-at="bucket.resetTime"
+          :color="antigravityQuotaBucketColor(idx)"
+        />
+
         <div v-if="aiCreditsDisplay" class="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
           💳 {{ t('admin.accounts.aiCreditsBalance') }}: {{ aiCreditsDisplay }}
         </div>
@@ -970,6 +980,61 @@ const aiCreditsDisplay = computed(() => {
   if (total <= 0) return null
   return total.toFixed(0)
 })
+
+// 分桶配额（retrieveUserQuotaSummary）：把 groups/buckets 摊平成渲染行
+interface AntigravityQuotaBucketRow {
+  key: string
+  groupId: string
+  bucketId: string
+  window: string
+  utilization: number
+  resetTime: string | null
+  displayName: string
+  description: string
+}
+
+const antigravityQuotaGroupBuckets = computed<AntigravityQuotaBucketRow[]>(() => {
+  const groups = usageInfo.value?.antigravity_quota_groups
+  if (!groups || groups.length === 0) return []
+  const rows: AntigravityQuotaBucketRow[] = []
+  for (const group of groups) {
+    if (!group.buckets) continue
+    for (const bucket of group.buckets) {
+      rows.push({
+        key: `${group.display_name ?? 'group'}:${bucket.bucket_id}`,
+        groupId: group.display_name ?? '',
+        bucketId: bucket.bucket_id,
+        window: bucket.window,
+        utilization: bucket.utilization,
+        resetTime: bucket.reset_time ?? null,
+        displayName: bucket.display_name ?? '',
+        description: bucket.description ?? group.description ?? ''
+      })
+    }
+  }
+  return rows
+})
+
+// 桶标签：显示名 > bucket_id（去组前缀）+ 窗口标识
+const antigravityQuotaBucketLabel = (bucket: AntigravityQuotaBucketRow): string => {
+  if (bucket.displayName) return bucket.displayName
+  const short = bucket.bucketId.includes('-')
+    ? bucket.bucketId.split('-').slice(1).join('-') || bucket.bucketId
+    : bucket.bucketId
+  const windowLabel =
+    bucket.window === 'weekly'
+      ? t('admin.accounts.usageWindow.quotaWindowWeekly')
+      : bucket.window === '5h'
+        ? t('admin.accounts.usageWindow.quotaWindow5h')
+        : bucket.window
+  return `${short} ${windowLabel}`
+}
+
+// 桶颜色按组轮换（复用 UsageProgressBar 四色枚举）
+const antigravityQuotaBucketColor = (idx: number): 'indigo' | 'emerald' | 'purple' | 'amber' => {
+  const palette: Array<'indigo' | 'emerald' | 'purple' | 'amber'> = ['indigo', 'emerald', 'purple', 'amber']
+  return palette[idx % palette.length]
+}
 
 // Antigravity 账户类型（从 load_code_assist 响应中提取）
 const antigravityTier = computed(() => {

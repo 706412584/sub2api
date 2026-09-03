@@ -1406,6 +1406,22 @@ export interface AntigravityModelQuota {
   reset_time: string  // 重置时间 ISO8601
 }
 
+// Antigravity 分桶配额（retrieveUserQuotaSummary，weekly + 5h 双窗口）
+export interface AntigravityQuotaBucket {
+  bucket_id: string // 如 "gemini-weekly" / "gemini-5h" / "3p-weekly" / "3p-5h"
+  window: string    // "weekly" / "5h"
+  utilization: number // 使用率 0-100
+  reset_time?: string
+  display_name?: string
+  description?: string
+}
+
+export interface AntigravityQuotaGroup {
+  display_name?: string
+  description?: string
+  buckets: AntigravityQuotaBucket[]
+}
+
 export interface GrokQuotaWindow {
   limit?: number | null
   remaining?: number | null
@@ -1474,6 +1490,7 @@ export interface AccountUsageInfo {
   gemini_pro_minute?: UsageProgress | null
   gemini_flash_minute?: UsageProgress | null
   antigravity_quota?: Record<string, AntigravityModelQuota> | null
+  antigravity_quota_groups?: AntigravityQuotaGroup[] | null
   grok_request_quota?: GrokQuotaWindow | null
   grok_token_quota?: GrokQuotaWindow | null
   grok_retry_after_seconds?: number | null
