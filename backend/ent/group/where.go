@@ -295,21 +295,6 @@ func AllowLive(v bool) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldAllowLive, v))
 }
 
-// RequireOauthOnly applies equality check predicate on the "require_oauth_only" field. It's identical to RequireOauthOnlyEQ.
-func RequireOauthOnly(v bool) predicate.Group {
-	return predicate.Group(sql.FieldEQ(FieldRequireOauthOnly, v))
-}
-
-// RequirePrivacySet applies equality check predicate on the "require_privacy_set" field. It's identical to RequirePrivacySetEQ.
-func RequirePrivacySet(v bool) predicate.Group {
-	return predicate.Group(sql.FieldEQ(FieldRequirePrivacySet, v))
-}
-
-// DefaultMappedModel applies equality check predicate on the "default_mapped_model" field. It's identical to DefaultMappedModelEQ.
-func DefaultMappedModel(v string) predicate.Group {
-	return predicate.Group(sql.FieldEQ(FieldDefaultMappedModel, v))
-}
-
 // GrokMessagesProtocol applies equality check predicate on the "grok_messages_protocol" field. It's identical to GrokMessagesProtocolEQ.
 func GrokMessagesProtocol(v string) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldGrokMessagesProtocol, v))
@@ -330,6 +315,31 @@ func GrokReasoningQuarantineSec(v int) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldGrokReasoningQuarantineSec, v))
 }
 
+// ForceOpenaiFast applies equality check predicate on the "force_openai_fast" field. It's identical to ForceOpenaiFastEQ.
+func ForceOpenaiFast(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldForceOpenaiFast, v))
+}
+
+// FreeOpenaiFast applies equality check predicate on the "free_openai_fast" field. It's identical to FreeOpenaiFastEQ.
+func FreeOpenaiFast(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldFreeOpenaiFast, v))
+}
+
+// RequireOauthOnly applies equality check predicate on the "require_oauth_only" field. It's identical to RequireOauthOnlyEQ.
+func RequireOauthOnly(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldRequireOauthOnly, v))
+}
+
+// RequirePrivacySet applies equality check predicate on the "require_privacy_set" field. It's identical to RequirePrivacySetEQ.
+func RequirePrivacySet(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldRequirePrivacySet, v))
+}
+
+// DefaultMappedModel applies equality check predicate on the "default_mapped_model" field. It's identical to DefaultMappedModelEQ.
+func DefaultMappedModel(v string) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldDefaultMappedModel, v))
+}
+
 // RpmLimit applies equality check predicate on the "rpm_limit" field. It's identical to RpmLimitEQ.
 func RpmLimit(v int) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldRpmLimit, v))
@@ -338,6 +348,11 @@ func RpmLimit(v int) predicate.Group {
 // MaxReasoningEffort applies equality check predicate on the "max_reasoning_effort" field. It's identical to MaxReasoningEffortEQ.
 func MaxReasoningEffort(v string) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldMaxReasoningEffort, v))
+}
+
+// MaxReasoningEffortOverLimit applies equality check predicate on the "max_reasoning_effort_over_limit" field. It's identical to MaxReasoningEffortOverLimitEQ.
+func MaxReasoningEffortOverLimit(v string) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldMaxReasoningEffortOverLimit, v))
 }
 
 // ProfitControlEnabled applies equality check predicate on the "profit_control_enabled" field. It's identical to ProfitControlEnabledEQ.
@@ -2345,91 +2360,6 @@ func AllowLiveNEQ(v bool) predicate.Group {
 	return predicate.Group(sql.FieldNEQ(FieldAllowLive, v))
 }
 
-// RequireOauthOnlyEQ applies the EQ predicate on the "require_oauth_only" field.
-func RequireOauthOnlyEQ(v bool) predicate.Group {
-	return predicate.Group(sql.FieldEQ(FieldRequireOauthOnly, v))
-}
-
-// RequireOauthOnlyNEQ applies the NEQ predicate on the "require_oauth_only" field.
-func RequireOauthOnlyNEQ(v bool) predicate.Group {
-	return predicate.Group(sql.FieldNEQ(FieldRequireOauthOnly, v))
-}
-
-// RequirePrivacySetEQ applies the EQ predicate on the "require_privacy_set" field.
-func RequirePrivacySetEQ(v bool) predicate.Group {
-	return predicate.Group(sql.FieldEQ(FieldRequirePrivacySet, v))
-}
-
-// RequirePrivacySetNEQ applies the NEQ predicate on the "require_privacy_set" field.
-func RequirePrivacySetNEQ(v bool) predicate.Group {
-	return predicate.Group(sql.FieldNEQ(FieldRequirePrivacySet, v))
-}
-
-// DefaultMappedModelEQ applies the EQ predicate on the "default_mapped_model" field.
-func DefaultMappedModelEQ(v string) predicate.Group {
-	return predicate.Group(sql.FieldEQ(FieldDefaultMappedModel, v))
-}
-
-// DefaultMappedModelNEQ applies the NEQ predicate on the "default_mapped_model" field.
-func DefaultMappedModelNEQ(v string) predicate.Group {
-	return predicate.Group(sql.FieldNEQ(FieldDefaultMappedModel, v))
-}
-
-// DefaultMappedModelIn applies the In predicate on the "default_mapped_model" field.
-func DefaultMappedModelIn(vs ...string) predicate.Group {
-	return predicate.Group(sql.FieldIn(FieldDefaultMappedModel, vs...))
-}
-
-// DefaultMappedModelNotIn applies the NotIn predicate on the "default_mapped_model" field.
-func DefaultMappedModelNotIn(vs ...string) predicate.Group {
-	return predicate.Group(sql.FieldNotIn(FieldDefaultMappedModel, vs...))
-}
-
-// DefaultMappedModelGT applies the GT predicate on the "default_mapped_model" field.
-func DefaultMappedModelGT(v string) predicate.Group {
-	return predicate.Group(sql.FieldGT(FieldDefaultMappedModel, v))
-}
-
-// DefaultMappedModelGTE applies the GTE predicate on the "default_mapped_model" field.
-func DefaultMappedModelGTE(v string) predicate.Group {
-	return predicate.Group(sql.FieldGTE(FieldDefaultMappedModel, v))
-}
-
-// DefaultMappedModelLT applies the LT predicate on the "default_mapped_model" field.
-func DefaultMappedModelLT(v string) predicate.Group {
-	return predicate.Group(sql.FieldLT(FieldDefaultMappedModel, v))
-}
-
-// DefaultMappedModelLTE applies the LTE predicate on the "default_mapped_model" field.
-func DefaultMappedModelLTE(v string) predicate.Group {
-	return predicate.Group(sql.FieldLTE(FieldDefaultMappedModel, v))
-}
-
-// DefaultMappedModelContains applies the Contains predicate on the "default_mapped_model" field.
-func DefaultMappedModelContains(v string) predicate.Group {
-	return predicate.Group(sql.FieldContains(FieldDefaultMappedModel, v))
-}
-
-// DefaultMappedModelHasPrefix applies the HasPrefix predicate on the "default_mapped_model" field.
-func DefaultMappedModelHasPrefix(v string) predicate.Group {
-	return predicate.Group(sql.FieldHasPrefix(FieldDefaultMappedModel, v))
-}
-
-// DefaultMappedModelHasSuffix applies the HasSuffix predicate on the "default_mapped_model" field.
-func DefaultMappedModelHasSuffix(v string) predicate.Group {
-	return predicate.Group(sql.FieldHasSuffix(FieldDefaultMappedModel, v))
-}
-
-// DefaultMappedModelEqualFold applies the EqualFold predicate on the "default_mapped_model" field.
-func DefaultMappedModelEqualFold(v string) predicate.Group {
-	return predicate.Group(sql.FieldEqualFold(FieldDefaultMappedModel, v))
-}
-
-// DefaultMappedModelContainsFold applies the ContainsFold predicate on the "default_mapped_model" field.
-func DefaultMappedModelContainsFold(v string) predicate.Group {
-	return predicate.Group(sql.FieldContainsFold(FieldDefaultMappedModel, v))
-}
-
 // GrokMessagesProtocolEQ applies the EQ predicate on the "grok_messages_protocol" field.
 func GrokMessagesProtocolEQ(v string) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldGrokMessagesProtocol, v))
@@ -2640,6 +2570,111 @@ func GrokReasoningQuarantineSecLTE(v int) predicate.Group {
 	return predicate.Group(sql.FieldLTE(FieldGrokReasoningQuarantineSec, v))
 }
 
+// ForceOpenaiFastEQ applies the EQ predicate on the "force_openai_fast" field.
+func ForceOpenaiFastEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldForceOpenaiFast, v))
+}
+
+// ForceOpenaiFastNEQ applies the NEQ predicate on the "force_openai_fast" field.
+func ForceOpenaiFastNEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldForceOpenaiFast, v))
+}
+
+// FreeOpenaiFastEQ applies the EQ predicate on the "free_openai_fast" field.
+func FreeOpenaiFastEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldFreeOpenaiFast, v))
+}
+
+// FreeOpenaiFastNEQ applies the NEQ predicate on the "free_openai_fast" field.
+func FreeOpenaiFastNEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldFreeOpenaiFast, v))
+}
+
+// RequireOauthOnlyEQ applies the EQ predicate on the "require_oauth_only" field.
+func RequireOauthOnlyEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldRequireOauthOnly, v))
+}
+
+// RequireOauthOnlyNEQ applies the NEQ predicate on the "require_oauth_only" field.
+func RequireOauthOnlyNEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldRequireOauthOnly, v))
+}
+
+// RequirePrivacySetEQ applies the EQ predicate on the "require_privacy_set" field.
+func RequirePrivacySetEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldRequirePrivacySet, v))
+}
+
+// RequirePrivacySetNEQ applies the NEQ predicate on the "require_privacy_set" field.
+func RequirePrivacySetNEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldRequirePrivacySet, v))
+}
+
+// DefaultMappedModelEQ applies the EQ predicate on the "default_mapped_model" field.
+func DefaultMappedModelEQ(v string) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldDefaultMappedModel, v))
+}
+
+// DefaultMappedModelNEQ applies the NEQ predicate on the "default_mapped_model" field.
+func DefaultMappedModelNEQ(v string) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldDefaultMappedModel, v))
+}
+
+// DefaultMappedModelIn applies the In predicate on the "default_mapped_model" field.
+func DefaultMappedModelIn(vs ...string) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldDefaultMappedModel, vs...))
+}
+
+// DefaultMappedModelNotIn applies the NotIn predicate on the "default_mapped_model" field.
+func DefaultMappedModelNotIn(vs ...string) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldDefaultMappedModel, vs...))
+}
+
+// DefaultMappedModelGT applies the GT predicate on the "default_mapped_model" field.
+func DefaultMappedModelGT(v string) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldDefaultMappedModel, v))
+}
+
+// DefaultMappedModelGTE applies the GTE predicate on the "default_mapped_model" field.
+func DefaultMappedModelGTE(v string) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldDefaultMappedModel, v))
+}
+
+// DefaultMappedModelLT applies the LT predicate on the "default_mapped_model" field.
+func DefaultMappedModelLT(v string) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldDefaultMappedModel, v))
+}
+
+// DefaultMappedModelLTE applies the LTE predicate on the "default_mapped_model" field.
+func DefaultMappedModelLTE(v string) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldDefaultMappedModel, v))
+}
+
+// DefaultMappedModelContains applies the Contains predicate on the "default_mapped_model" field.
+func DefaultMappedModelContains(v string) predicate.Group {
+	return predicate.Group(sql.FieldContains(FieldDefaultMappedModel, v))
+}
+
+// DefaultMappedModelHasPrefix applies the HasPrefix predicate on the "default_mapped_model" field.
+func DefaultMappedModelHasPrefix(v string) predicate.Group {
+	return predicate.Group(sql.FieldHasPrefix(FieldDefaultMappedModel, v))
+}
+
+// DefaultMappedModelHasSuffix applies the HasSuffix predicate on the "default_mapped_model" field.
+func DefaultMappedModelHasSuffix(v string) predicate.Group {
+	return predicate.Group(sql.FieldHasSuffix(FieldDefaultMappedModel, v))
+}
+
+// DefaultMappedModelEqualFold applies the EqualFold predicate on the "default_mapped_model" field.
+func DefaultMappedModelEqualFold(v string) predicate.Group {
+	return predicate.Group(sql.FieldEqualFold(FieldDefaultMappedModel, v))
+}
+
+// DefaultMappedModelContainsFold applies the ContainsFold predicate on the "default_mapped_model" field.
+func DefaultMappedModelContainsFold(v string) predicate.Group {
+	return predicate.Group(sql.FieldContainsFold(FieldDefaultMappedModel, v))
+}
+
 // RpmLimitEQ applies the EQ predicate on the "rpm_limit" field.
 func RpmLimitEQ(v int) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldRpmLimit, v))
@@ -2743,6 +2778,71 @@ func MaxReasoningEffortEqualFold(v string) predicate.Group {
 // MaxReasoningEffortContainsFold applies the ContainsFold predicate on the "max_reasoning_effort" field.
 func MaxReasoningEffortContainsFold(v string) predicate.Group {
 	return predicate.Group(sql.FieldContainsFold(FieldMaxReasoningEffort, v))
+}
+
+// MaxReasoningEffortOverLimitEQ applies the EQ predicate on the "max_reasoning_effort_over_limit" field.
+func MaxReasoningEffortOverLimitEQ(v string) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldMaxReasoningEffortOverLimit, v))
+}
+
+// MaxReasoningEffortOverLimitNEQ applies the NEQ predicate on the "max_reasoning_effort_over_limit" field.
+func MaxReasoningEffortOverLimitNEQ(v string) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldMaxReasoningEffortOverLimit, v))
+}
+
+// MaxReasoningEffortOverLimitIn applies the In predicate on the "max_reasoning_effort_over_limit" field.
+func MaxReasoningEffortOverLimitIn(vs ...string) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldMaxReasoningEffortOverLimit, vs...))
+}
+
+// MaxReasoningEffortOverLimitNotIn applies the NotIn predicate on the "max_reasoning_effort_over_limit" field.
+func MaxReasoningEffortOverLimitNotIn(vs ...string) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldMaxReasoningEffortOverLimit, vs...))
+}
+
+// MaxReasoningEffortOverLimitGT applies the GT predicate on the "max_reasoning_effort_over_limit" field.
+func MaxReasoningEffortOverLimitGT(v string) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldMaxReasoningEffortOverLimit, v))
+}
+
+// MaxReasoningEffortOverLimitGTE applies the GTE predicate on the "max_reasoning_effort_over_limit" field.
+func MaxReasoningEffortOverLimitGTE(v string) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldMaxReasoningEffortOverLimit, v))
+}
+
+// MaxReasoningEffortOverLimitLT applies the LT predicate on the "max_reasoning_effort_over_limit" field.
+func MaxReasoningEffortOverLimitLT(v string) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldMaxReasoningEffortOverLimit, v))
+}
+
+// MaxReasoningEffortOverLimitLTE applies the LTE predicate on the "max_reasoning_effort_over_limit" field.
+func MaxReasoningEffortOverLimitLTE(v string) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldMaxReasoningEffortOverLimit, v))
+}
+
+// MaxReasoningEffortOverLimitContains applies the Contains predicate on the "max_reasoning_effort_over_limit" field.
+func MaxReasoningEffortOverLimitContains(v string) predicate.Group {
+	return predicate.Group(sql.FieldContains(FieldMaxReasoningEffortOverLimit, v))
+}
+
+// MaxReasoningEffortOverLimitHasPrefix applies the HasPrefix predicate on the "max_reasoning_effort_over_limit" field.
+func MaxReasoningEffortOverLimitHasPrefix(v string) predicate.Group {
+	return predicate.Group(sql.FieldHasPrefix(FieldMaxReasoningEffortOverLimit, v))
+}
+
+// MaxReasoningEffortOverLimitHasSuffix applies the HasSuffix predicate on the "max_reasoning_effort_over_limit" field.
+func MaxReasoningEffortOverLimitHasSuffix(v string) predicate.Group {
+	return predicate.Group(sql.FieldHasSuffix(FieldMaxReasoningEffortOverLimit, v))
+}
+
+// MaxReasoningEffortOverLimitEqualFold applies the EqualFold predicate on the "max_reasoning_effort_over_limit" field.
+func MaxReasoningEffortOverLimitEqualFold(v string) predicate.Group {
+	return predicate.Group(sql.FieldEqualFold(FieldMaxReasoningEffortOverLimit, v))
+}
+
+// MaxReasoningEffortOverLimitContainsFold applies the ContainsFold predicate on the "max_reasoning_effort_over_limit" field.
+func MaxReasoningEffortOverLimitContainsFold(v string) predicate.Group {
+	return predicate.Group(sql.FieldContainsFold(FieldMaxReasoningEffortOverLimit, v))
 }
 
 // ProfitControlEnabledEQ applies the EQ predicate on the "profit_control_enabled" field.

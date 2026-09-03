@@ -120,6 +120,18 @@ const (
 	FieldAllowMessagesDispatch = "allow_messages_dispatch"
 	// FieldAllowLive holds the string denoting the allow_live field in the database.
 	FieldAllowLive = "allow_live"
+	// FieldGrokMessagesProtocol holds the string denoting the grok_messages_protocol field in the database.
+	FieldGrokMessagesProtocol = "grok_messages_protocol"
+	// FieldGrokReasoningVisibilityMode holds the string denoting the grok_reasoning_visibility_mode field in the database.
+	FieldGrokReasoningVisibilityMode = "grok_reasoning_visibility_mode"
+	// FieldGrokReasoningProbeTTLSec holds the string denoting the grok_reasoning_probe_ttl_sec field in the database.
+	FieldGrokReasoningProbeTTLSec = "grok_reasoning_probe_ttl_sec"
+	// FieldGrokReasoningQuarantineSec holds the string denoting the grok_reasoning_quarantine_sec field in the database.
+	FieldGrokReasoningQuarantineSec = "grok_reasoning_quarantine_sec"
+	// FieldForceOpenaiFast holds the string denoting the force_openai_fast field in the database.
+	FieldForceOpenaiFast = "force_openai_fast"
+	// FieldFreeOpenaiFast holds the string denoting the free_openai_fast field in the database.
+	FieldFreeOpenaiFast = "free_openai_fast"
 	// FieldRequireOauthOnly holds the string denoting the require_oauth_only field in the database.
 	FieldRequireOauthOnly = "require_oauth_only"
 	// FieldRequirePrivacySet holds the string denoting the require_privacy_set field in the database.
@@ -130,22 +142,16 @@ const (
 	FieldMessagesDispatchModelConfig = "messages_dispatch_model_config"
 	// FieldModelsListConfig holds the string denoting the models_list_config field in the database.
 	FieldModelsListConfig = "models_list_config"
-	// FieldGrokMessagesProtocol holds the string denoting the grok_messages_protocol field in the database.
-	FieldGrokMessagesProtocol = "grok_messages_protocol"
-	// FieldGrokReasoningVisibilityMode holds the string denoting the grok_reasoning_visibility_mode field in the database.
-	FieldGrokReasoningVisibilityMode = "grok_reasoning_visibility_mode"
-	// FieldGrokReasoningProbeTTLSec holds the string denoting the grok_reasoning_probe_ttl_sec field in the database.
-	FieldGrokReasoningProbeTTLSec = "grok_reasoning_probe_ttl_sec"
-	// FieldGrokReasoningQuarantineSec holds the string denoting the grok_reasoning_quarantine_sec field in the database.
-	FieldGrokReasoningQuarantineSec = "grok_reasoning_quarantine_sec"
+	// FieldPromptPolicy holds the string denoting the prompt_policy field in the database.
+	FieldPromptPolicy = "prompt_policy"
 	// FieldRpmLimit holds the string denoting the rpm_limit field in the database.
 	FieldRpmLimit = "rpm_limit"
 	// FieldMaxReasoningEffort holds the string denoting the max_reasoning_effort field in the database.
 	FieldMaxReasoningEffort = "max_reasoning_effort"
+	// FieldMaxReasoningEffortOverLimit holds the string denoting the max_reasoning_effort_over_limit field in the database.
+	FieldMaxReasoningEffortOverLimit = "max_reasoning_effort_over_limit"
 	// FieldReasoningEffortMappings holds the string denoting the reasoning_effort_mappings field in the database.
 	FieldReasoningEffortMappings = "reasoning_effort_mappings"
-	// FieldPromptPolicy holds the string denoting the prompt_policy field in the database.
-	FieldPromptPolicy = "prompt_policy"
 	// FieldProfitControlEnabled holds the string denoting the profit_control_enabled field in the database.
 	FieldProfitControlEnabled = "profit_control_enabled"
 	// FieldProfitMinMargin holds the string denoting the profit_min_margin field in the database.
@@ -279,19 +285,22 @@ var Columns = []string{
 	FieldSortOrder,
 	FieldAllowMessagesDispatch,
 	FieldAllowLive,
+	FieldGrokMessagesProtocol,
+	FieldGrokReasoningVisibilityMode,
+	FieldGrokReasoningProbeTTLSec,
+	FieldGrokReasoningQuarantineSec,
+	FieldForceOpenaiFast,
+	FieldFreeOpenaiFast,
 	FieldRequireOauthOnly,
 	FieldRequirePrivacySet,
 	FieldDefaultMappedModel,
 	FieldMessagesDispatchModelConfig,
 	FieldModelsListConfig,
-	FieldGrokMessagesProtocol,
-	FieldGrokReasoningVisibilityMode,
-	FieldGrokReasoningProbeTTLSec,
-	FieldGrokReasoningQuarantineSec,
+	FieldPromptPolicy,
 	FieldRpmLimit,
 	FieldMaxReasoningEffort,
+	FieldMaxReasoningEffortOverLimit,
 	FieldReasoningEffortMappings,
-	FieldPromptPolicy,
 	FieldProfitControlEnabled,
 	FieldProfitMinMargin,
 	FieldProfitSafetyBuffer,
@@ -404,18 +413,6 @@ var (
 	DefaultAllowMessagesDispatch bool
 	// DefaultAllowLive holds the default value on creation for the "allow_live" field.
 	DefaultAllowLive bool
-	// DefaultRequireOauthOnly holds the default value on creation for the "require_oauth_only" field.
-	DefaultRequireOauthOnly bool
-	// DefaultRequirePrivacySet holds the default value on creation for the "require_privacy_set" field.
-	DefaultRequirePrivacySet bool
-	// DefaultDefaultMappedModel holds the default value on creation for the "default_mapped_model" field.
-	DefaultDefaultMappedModel string
-	// DefaultMappedModelValidator is a validator for the "default_mapped_model" field. It is called by the builders before save.
-	DefaultMappedModelValidator func(string) error
-	// DefaultMessagesDispatchModelConfig holds the default value on creation for the "messages_dispatch_model_config" field.
-	DefaultMessagesDispatchModelConfig domain.OpenAIMessagesDispatchModelConfig
-	// DefaultModelsListConfig holds the default value on creation for the "models_list_config" field.
-	DefaultModelsListConfig domain.GroupModelsListConfig
 	// DefaultGrokMessagesProtocol holds the default value on creation for the "grok_messages_protocol" field.
 	DefaultGrokMessagesProtocol string
 	// GrokMessagesProtocolValidator is a validator for the "grok_messages_protocol" field. It is called by the builders before save.
@@ -428,16 +425,36 @@ var (
 	DefaultGrokReasoningProbeTTLSec int
 	// DefaultGrokReasoningQuarantineSec holds the default value on creation for the "grok_reasoning_quarantine_sec" field.
 	DefaultGrokReasoningQuarantineSec int
+	// DefaultForceOpenaiFast holds the default value on creation for the "force_openai_fast" field.
+	DefaultForceOpenaiFast bool
+	// DefaultFreeOpenaiFast holds the default value on creation for the "free_openai_fast" field.
+	DefaultFreeOpenaiFast bool
+	// DefaultRequireOauthOnly holds the default value on creation for the "require_oauth_only" field.
+	DefaultRequireOauthOnly bool
+	// DefaultRequirePrivacySet holds the default value on creation for the "require_privacy_set" field.
+	DefaultRequirePrivacySet bool
+	// DefaultDefaultMappedModel holds the default value on creation for the "default_mapped_model" field.
+	DefaultDefaultMappedModel string
+	// DefaultMappedModelValidator is a validator for the "default_mapped_model" field. It is called by the builders before save.
+	DefaultMappedModelValidator func(string) error
+	// DefaultMessagesDispatchModelConfig holds the default value on creation for the "messages_dispatch_model_config" field.
+	DefaultMessagesDispatchModelConfig domain.OpenAIMessagesDispatchModelConfig
+	// DefaultModelsListConfig holds the default value on creation for the "models_list_config" field.
+	DefaultModelsListConfig domain.GroupModelsListConfig
+	// DefaultPromptPolicy holds the default value on creation for the "prompt_policy" field.
+	DefaultPromptPolicy domain.GroupPromptPolicy
 	// DefaultRpmLimit holds the default value on creation for the "rpm_limit" field.
 	DefaultRpmLimit int
 	// DefaultMaxReasoningEffort holds the default value on creation for the "max_reasoning_effort" field.
 	DefaultMaxReasoningEffort string
 	// MaxReasoningEffortValidator is a validator for the "max_reasoning_effort" field. It is called by the builders before save.
 	MaxReasoningEffortValidator func(string) error
+	// DefaultMaxReasoningEffortOverLimit holds the default value on creation for the "max_reasoning_effort_over_limit" field.
+	DefaultMaxReasoningEffortOverLimit string
+	// MaxReasoningEffortOverLimitValidator is a validator for the "max_reasoning_effort_over_limit" field. It is called by the builders before save.
+	MaxReasoningEffortOverLimitValidator func(string) error
 	// DefaultReasoningEffortMappings holds the default value on creation for the "reasoning_effort_mappings" field.
 	DefaultReasoningEffortMappings []domain.ReasoningEffortMapping
-	// DefaultPromptPolicy holds the default value on creation for the "prompt_policy" field.
-	DefaultPromptPolicy domain.GroupPromptPolicy
 	// DefaultProfitControlEnabled holds the default value on creation for the "profit_control_enabled" field.
 	DefaultProfitControlEnabled bool
 	// DefaultProfitMinMargin holds the default value on creation for the "profit_min_margin" field.
@@ -694,21 +711,6 @@ func ByAllowLive(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldAllowLive, opts...).ToFunc()
 }
 
-// ByRequireOauthOnly orders the results by the require_oauth_only field.
-func ByRequireOauthOnly(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldRequireOauthOnly, opts...).ToFunc()
-}
-
-// ByRequirePrivacySet orders the results by the require_privacy_set field.
-func ByRequirePrivacySet(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldRequirePrivacySet, opts...).ToFunc()
-}
-
-// ByDefaultMappedModel orders the results by the default_mapped_model field.
-func ByDefaultMappedModel(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldDefaultMappedModel, opts...).ToFunc()
-}
-
 // ByGrokMessagesProtocol orders the results by the grok_messages_protocol field.
 func ByGrokMessagesProtocol(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldGrokMessagesProtocol, opts...).ToFunc()
@@ -729,6 +731,31 @@ func ByGrokReasoningQuarantineSec(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldGrokReasoningQuarantineSec, opts...).ToFunc()
 }
 
+// ByForceOpenaiFast orders the results by the force_openai_fast field.
+func ByForceOpenaiFast(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldForceOpenaiFast, opts...).ToFunc()
+}
+
+// ByFreeOpenaiFast orders the results by the free_openai_fast field.
+func ByFreeOpenaiFast(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldFreeOpenaiFast, opts...).ToFunc()
+}
+
+// ByRequireOauthOnly orders the results by the require_oauth_only field.
+func ByRequireOauthOnly(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRequireOauthOnly, opts...).ToFunc()
+}
+
+// ByRequirePrivacySet orders the results by the require_privacy_set field.
+func ByRequirePrivacySet(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRequirePrivacySet, opts...).ToFunc()
+}
+
+// ByDefaultMappedModel orders the results by the default_mapped_model field.
+func ByDefaultMappedModel(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDefaultMappedModel, opts...).ToFunc()
+}
+
 // ByRpmLimit orders the results by the rpm_limit field.
 func ByRpmLimit(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRpmLimit, opts...).ToFunc()
@@ -737,6 +764,11 @@ func ByRpmLimit(opts ...sql.OrderTermOption) OrderOption {
 // ByMaxReasoningEffort orders the results by the max_reasoning_effort field.
 func ByMaxReasoningEffort(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldMaxReasoningEffort, opts...).ToFunc()
+}
+
+// ByMaxReasoningEffortOverLimit orders the results by the max_reasoning_effort_over_limit field.
+func ByMaxReasoningEffortOverLimit(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMaxReasoningEffortOverLimit, opts...).ToFunc()
 }
 
 // ByProfitControlEnabled orders the results by the profit_control_enabled field.
