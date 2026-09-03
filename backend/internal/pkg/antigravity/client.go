@@ -749,6 +749,103 @@ func (c *Client) FetchAvailableModels(ctx context.Context, accessToken, projectI
 	return nil, nil, lastErr
 }
 
+// UserQuotaBucket retrieveUserQuotaSummary 中的单个配额桶
+type UserQuotaBucket struct {
+	BucketID          string  `json:"bucketId"`
+	Window            string  `json:"window"` // "weekly" / "5h" 等窗口类型
+	RemainingFraction float64 `json:"remainingFraction"`
+	ResetTime         string  `json:"resetTime"`
+	DisplayName       string  `json:"displayName,omitempty"`
+	Description       string  `json:"description,omitempty"`
+}
+
+// UserQuotaGroup retrieveUserQuotaSummary 中的模型组（如 Gemini Models / Claude and GPT models）
+type UserQuotaGroup struct {
+	DisplayName string            `json:"displayName"`
+	Description string            `json:"description,omitempty"`
+	Buckets     []UserQuotaBucket `json:"buckets"`
+}
+
+// UserQuotaSummaryResponse retrieveUserQuotaSummary 响应（weekly + 5h 分桶配额摘要）
+type UserQuotaSummaryResponse struct {
+	Groups []UserQuotaGroup `json:"groups"`
+}
+
+// RetrieveUserQuotaSummary 获取按模型组的分桶配额摘要（weekly + 5h 双窗口）。
+// 与 fetchAvailableModels 的 per-model 视角互补；失败由调用方 best-effort 容忍。
+// 支持 URL fallback：prod -> daily
+func (c *Client) RetrieveUserQuotaSummary(ctx context.Context, accessToken, projectID string, bodyLimit int64) (*UserQuotaSummaryResponse, error) {
+	if c == nil || c.httpClient == nil {
+		return nil, errors.New("antigravity client is not configured")
+	}
+	if bodyLimit <= 0 {
+		return nil, errors.New("retrieveUserQuotaSummary body limit must be positive")
+	}
+
+	reqBody := FetchAvailableModelsRequest{Project: projectID}
+	bodyBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("序列化请求失败: %w", err)
+	}
+
+	// 固定顺序：prod -> daily
+	availableURLs := BaseURLs
+
+	fetchClient := c.fetchAvailableModelsHTTPClient()
+	var lastErr error
+	for urlIdx, baseURL := range availableURLs {
+		apiURL := baseURL + "/v1internal:retrieveUserQuotaSummary"
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, strings.NewReader(string(bodyBytes)))
+		if err != nil {
+			lastErr = fmt.Errorf("创建请求失败: %w", err)
+			continue
+		}
+		req.Header.Set("Authorization", "Bearer "+accessToken)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("User-Agent", GetUserAgentForContext(ctx))
+
+		resp, err := servertiming.Do(fetchClient, req)
+		if err != nil {
+			lastErr = fmt.Errorf("retrieveUserQuotaSummary 请求失败: %w", err)
+			if shouldFallbackToNextURL(err, 0) && urlIdx < len(availableURLs)-1 {
+				log.Printf("[antigravity] retrieveUserQuotaSummary URL fallback: %s -> %s", baseURL, availableURLs[urlIdx+1])
+				continue
+			}
+			return nil, lastErr
+		}
+
+		respBodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, bodyLimit+1))
+		_ = resp.Body.Close() // 立即关闭，避免循环内 defer 导致的资源泄漏
+		if err != nil {
+			return nil, fmt.Errorf("读取响应失败: %w", err)
+		}
+		if int64(len(respBodyBytes)) > bodyLimit {
+			return nil, fmt.Errorf("响应超过 %d 字节", bodyLimit)
+		}
+
+		// 检查是否需要 URL 降级
+		if shouldFallbackToNextURL(nil, resp.StatusCode) && urlIdx < len(availableURLs)-1 {
+			log.Printf("[antigravity] retrieveUserQuotaSummary URL fallback (HTTP %d): %s -> %s", resp.StatusCode, baseURL, availableURLs[urlIdx+1])
+			continue
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("retrieveUserQuotaSummary 失败 (HTTP %d): %s", resp.StatusCode, string(respBodyBytes))
+		}
+
+		var summaryResp UserQuotaSummaryResponse
+		if err := json.Unmarshal(respBodyBytes, &summaryResp); err != nil {
+			return nil, fmt.Errorf("响应解析失败: %w", err)
+		}
+
+		// 标记成功的 URL，下次优先使用
+		DefaultURLAvailability.MarkSuccess(baseURL)
+		return &summaryResp, nil
+	}
+
+	return nil, lastErr
+}
+
 func (c *Client) fetchAvailableModelsHTTPClient() *http.Client {
 	fetchClient := *c.httpClient
 	fetchClient.CheckRedirect = checkFetchAvailableModelsRedirect

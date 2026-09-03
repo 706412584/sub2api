@@ -297,7 +297,7 @@ func TestRetryLoop_ErrorPolicy_TempUnschedulable(t *testing.T) {
 func TestRetryLoop_ErrorPolicy_NilRateLimitService(t *testing.T) {
 	saveAndSetBaseURLs(t)
 
-	upstream := &epFixedUpstream{statusCode: 429, body: `{"error":"rate limited"}`}
+	upstream := &epFixedUpstream{statusCode: 429, body: `{"error":"upstream saturated briefly"}`}
 	// rateLimitService is nil — must not panic
 	svc := &AntigravityGatewayService{rateLimitService: nil}
 
@@ -333,7 +333,7 @@ func TestRetryLoop_ErrorPolicy_NilRateLimitService(t *testing.T) {
 func TestRetryLoop_ErrorPolicy_NoPolicy_OriginalBehavior(t *testing.T) {
 	saveAndSetBaseURLs(t)
 
-	upstream := &epFixedUpstream{statusCode: 429, body: `{"error":"rate limited"}`}
+	upstream := &epFixedUpstream{statusCode: 429, body: `{"error":"upstream saturated briefly"}`}
 	repo := &epAccountRepo{}
 	rlSvc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
 	svc := &AntigravityGatewayService{rateLimitService: rlSvc}

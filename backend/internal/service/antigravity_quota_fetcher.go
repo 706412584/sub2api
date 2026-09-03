@@ -86,6 +86,9 @@ func (f *AntigravityQuotaFetcher) FetchQuota(ctx context.Context, account *Accou
 	// 转换为 UsageInfo
 	usageInfo := f.buildUsageInfo(modelsResp, tierRaw, tierNormalized, loadResp)
 
+	// 追加 retrieveUserQuotaSummary 分桶配额（weekly + 5h 双窗口，best-effort 不阻塞）
+	f.applyAntigravityQuotaGroups(ctx, client, accessToken, projectID, usageInfo)
+
 	return &QuotaResult{
 		UsageInfo: usageInfo,
 		Raw:       modelsRaw,
@@ -107,6 +110,49 @@ func (f *AntigravityQuotaFetcher) fetchSubscriptionTier(ctx context.Context, cli
 	raw = loadResp.GetTier() // 已有方法：paidTier > currentTier
 	normalized = normalizeTier(raw)
 	return raw, normalized, loadResp
+}
+
+// applyAntigravityQuotaSummary 拉取 retrieveUserQuotaSummary 分桶配额并写入 UsageInfo。
+// best-effort：失败只记日志，不影响主配额结果（与 fetchSubscriptionTier 同模式）。
+func (f *AntigravityQuotaFetcher) applyAntigravityQuotaGroups(ctx context.Context, client *antigravity.Client, accessToken, projectID string, usageInfo *UsageInfo) {
+	if usageInfo == nil {
+		return
+	}
+	summary, err := client.RetrieveUserQuotaSummary(ctx, accessToken, projectID, resolveModelsListReadLimit(f.cfg))
+	if err != nil {
+		slog.Warn("failed to fetch antigravity quota summary", "error", err)
+		return
+	}
+	if summary == nil || len(summary.Groups) == 0 {
+		return
+	}
+
+	groups := make([]*AntigravityQuotaGroup, 0, len(summary.Groups))
+	for _, g := range summary.Groups {
+		buckets := make([]*AntigravityQuotaBucket, 0, len(g.Buckets))
+		for _, b := range g.Buckets {
+			utilization := int((1.0 - b.RemainingFraction) * 100)
+			if utilization < 0 {
+				utilization = 0
+			} else if utilization > 100 {
+				utilization = 100
+			}
+			buckets = append(buckets, &AntigravityQuotaBucket{
+				BucketID:    b.BucketID,
+				Window:      b.Window,
+				Utilization: utilization,
+				ResetTime:   b.ResetTime,
+				DisplayName: b.DisplayName,
+				Description: b.Description,
+			})
+		}
+		groups = append(groups, &AntigravityQuotaGroup{
+			DisplayName: g.DisplayName,
+			Description: g.Description,
+			Buckets:     buckets,
+		})
+	}
+	usageInfo.AntigravityQuotaGroups = groups
 }
 
 // normalizeTier 将原始 tier 字符串归一化为 FREE/PRO/ULTRA/UNKNOWN

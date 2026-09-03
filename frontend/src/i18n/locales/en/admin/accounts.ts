@@ -1683,6 +1683,8 @@ export default {
         gemini3Flash: 'G3F',
         gemini3Image: 'G31FI',
         claude: 'Claude',
+        quotaWindowWeekly: 'Wk',
+        quotaWindow5h: '5h',
         grokRequests: 'Req',
         grokTokens: 'Tok',
         grokFreeQuota24hHint: 'Estimated from local token usage over the rolling 24-hour window ({limit} limit)',
