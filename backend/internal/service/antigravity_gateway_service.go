@@ -63,7 +63,15 @@ const (
 
 	// MODEL_CAPACITY_EXHAUSTED 全局去重：重试全部失败后的 cooldown 时间
 	antigravityModelCapacityCooldown = 10 * time.Second
+
+	// 关键词兜底层（无结构化 RetryInfo 的 429）冷却策略，对齐参考项目退避分档：
+	// - rate_limited：分钟级限流（TPM/RPM），短冷却 + 切号
+	antigravityKeywordRateLimitedDuration = 30 * time.Second
 )
+
+// antigravityQuotaExhaustedBackoffSteps 配额耗尽的指数退避阶梯（60s → 5m → 30m → 2h 封顶）。
+// 切片不能做常量，放包级 var。
+var antigravityQuotaExhaustedBackoffSteps = []time.Duration{60 * time.Second, 5 * time.Minute, 30 * time.Minute, 2 * time.Hour}
 
 // antigravityPassthroughErrorMessages 透传给客户端的错误消息白名单（小写）
 // 匹配时使用 strings.Contains，无需完全匹配
