@@ -3861,7 +3861,7 @@ func TestHandleSSEToJSON_ResponseFailedWithoutAccountReturnsProtocolError(t *tes
 		`data: [DONE]`,
 	}, "\n"))
 
-	usage, err := svc.handleSSEToJSON(resp, c, rawChatCompletionsTestAccount(), body, "gpt-4o", "gpt-4o")
+	usage, err := svc.handleSSEToJSON(resp, c, nil, body, "gpt-4o", "gpt-4o")
 	require.Nil(t, usage)
 	require.Error(t, err)
 	require.Equal(t, http.StatusBadGateway, rec.Code)
