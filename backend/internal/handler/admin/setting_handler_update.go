@@ -256,6 +256,7 @@ type UpdateSettingsRequest struct {
 	RewriteMessageCacheControl             *bool   `json:"rewrite_message_cache_control"`
 	EnableClientDatelineNormalization      *bool   `json:"enable_client_dateline_normalization"`
 	AntigravityUserAgentVersion            *string `json:"antigravity_user_agent_version"`
+	AntigravityClientFingerprintEnabled    *bool   `json:"antigravity_client_fingerprint_enabled"`
 	OpenAICodexUserAgent                   *string `json:"openai_codex_user_agent"`
 	OpenAICodexClientVersion               *string `json:"openai_codex_client_version"`
 	OpenAICodexVersionAutoSyncEnabled      *bool   `json:"openai_codex_version_auto_sync_enabled"`
@@ -1734,6 +1735,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 				return *req.EnableClientDatelineNormalization
 			}
 			return previousSettings.EnableClientDatelineNormalization
+		}(),
+		AntigravityClientFingerprintEnabled: func() bool {
+			if req.AntigravityClientFingerprintEnabled != nil {
+				return *req.AntigravityClientFingerprintEnabled
+			}
+			return previousSettings.AntigravityClientFingerprintEnabled
 		}(),
 		AntigravityUserAgentVersion: func() string {
 			if req.AntigravityUserAgentVersion != nil {

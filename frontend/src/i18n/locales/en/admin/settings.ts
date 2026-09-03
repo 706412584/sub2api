@@ -511,6 +511,8 @@ export default {
         antigravityUserAgentVersion: 'Antigravity UA Version',
         antigravityUserAgentVersionPlaceholder: '1.23.2',
         antigravityUserAgentVersionHint: 'Leave empty to use ANTIGRAVITY_USER_AGENT_VERSION or the built-in default 1.23.2; when set, the admin setting takes precedence.',
+        antigravityClientFingerprint: 'Antigravity client fingerprint headers',
+        antigravityClientFingerprintHint: 'When enabled, upstream v1internal requests carry x-client-name / x-client-version / x-machine-id / x-vscode-sessionid (derived per-account, new session per restart). Disabled by default; canary on a single account and watch 401/403/429 baseline before enabling broadly.',
         openaiCodexUserAgent: 'OpenAI Codex UA',
         openaiCodexUserAgentPlaceholder: 'codex-tui/0.146.1 (Ubuntu 22.4.0; x86_64) WindowsTerminal (codex-tui; 0.146.1)',
         openaiCodexUserAgentHint: 'The full Codex User-Agent used for all outbound requests, for customizing the OS / arch / terminal fingerprint. Leave empty to build the standard codex-tui identity from the version below (recommended). If set, both the leading and trailing version declarations are synchronized to the version below, so the UA never stays pinned to the release entered here — under capacity pressure the upstream sheds load by client identity and drops stale or non-official identities first with server_is_overloaded.',

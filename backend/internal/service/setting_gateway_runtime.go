@@ -306,6 +306,63 @@ func (s *SettingService) GetAntigravityUserAgentVersion(ctx context.Context) str
 	return fallback
 }
 
+// cachedAntigravityFingerprint 缓存 Antigravity 客户端指纹开关（进程内缓存，60s TTL）
+type cachedAntigravityFingerprint struct {
+	enabled   bool
+	expiresAt int64
+}
+
+// GetAntigravityClientFingerprintEnabled 返回 Antigravity 上游客户端指纹头开关。
+// 后台设置优先；缺失或读取失败时回退环境变量 ANTIGRAVITY_CLIENT_FINGERPRINT / 默认关闭。
+func (s *SettingService) GetAntigravityClientFingerprintEnabled(ctx context.Context) bool {
+	if s == nil || s.settingRepo == nil {
+		return false
+	}
+	if cached, ok := s.antigravityFingerprintCache.Load().(*cachedAntigravityFingerprint); ok && cached != nil {
+		if time.Now().UnixNano() < cached.expiresAt {
+			return cached.enabled
+		}
+	}
+
+	result, _, _ := s.antigravityFingerprintSF.Do("antigravity_client_fingerprint", func() (any, error) {
+		if cached, ok := s.antigravityFingerprintCache.Load().(*cachedAntigravityFingerprint); ok && cached != nil {
+			if time.Now().UnixNano() < cached.expiresAt {
+				return cached.enabled, nil
+			}
+		}
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		dbCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), antigravityUserAgentVersionDBTimeout)
+		defer cancel()
+		value, err := s.settingRepo.GetValue(dbCtx, SettingKeyAntigravityClientFingerprint)
+		if err != nil && !errors.Is(err, ErrSettingNotFound) {
+			slog.Warn("failed to get antigravity client fingerprint setting", "error", err)
+			return false, nil
+		}
+		enabled := isTruthySettingValue(value)
+		s.antigravityFingerprintCache.Store(&cachedAntigravityFingerprint{
+			enabled:   enabled,
+			expiresAt: time.Now().Add(antigravityUserAgentVersionCacheTTL).UnixNano(),
+		})
+		return enabled, nil
+	})
+	if enabled, ok := result.(bool); ok {
+		return enabled
+	}
+	return false
+}
+
+// isTruthySettingValue 判断设置值是否为真（"1"/"true" 等）。
+func isTruthySettingValue(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
 // GetOpenAICodexUserAgent 返回 OpenAI Codex 上游请求使用的 User-Agent。
 // 后台设置优先；为空时回退到内置默认值。
 func (s *SettingService) GetOpenAICodexUserAgent(ctx context.Context) string {

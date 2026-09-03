@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/gin-gonic/gin"
 )
@@ -465,6 +466,15 @@ func (s *AntigravityGatewayService) handleSingleAccountRetryInPlace(
 
 // antigravityRetryLoop 执行带 URL fallback 的重试循环
 func (s *AntigravityGatewayService) antigravityRetryLoop(p antigravityRetryLoopParams) (*antigravityRetryLoopResult, error) {
+	// 客户端指纹：入口一次性把账号 ID 注入 ctx，覆盖本函数内全部
+	// NewAPIRequestWithURL 调用点（主循环/smart retry/单账号退避/credits 重试）。
+	// 开关由 pkg 层 resolver（settings 注入）或 env 控制，默认关闭。
+	if p.account != nil && p.account.ID > 0 && p.ctx != nil {
+		if _, ok := p.ctx.Value(ctxkey.AntigravityClientFingerprint).(int64); !ok {
+			p.ctx = context.WithValue(p.ctx, ctxkey.AntigravityClientFingerprint, p.account.ID)
+		}
+	}
+
 	// 预检查：模型限流 + overages 启用 + 积分未耗尽 → 直接注入 AI Credits
 	overagesInjected := false
 	if p.requestedModel != "" && p.account.Platform == PlatformAntigravity &&
