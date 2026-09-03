@@ -135,6 +135,17 @@ func (s *AntigravityGatewayService) handleSmartRetry(p antigravityRetryLoopParam
 		}
 	}
 
+	// 关键词兜底层：结构化 RetryInfo 未命中（shouldSmartRetry/shouldRateLimitModel
+	// 均为 false）、credits overages 也不适用时，按 classifyAntigravity429 的
+	// 关键词分类执行分档冷却。必须放在 credits 之后——QUOTA_EXHAUSTED 的
+	// overages 重试优先于退避；且仅对 Antigravity 平台账号生效。
+	if resp.StatusCode == http.StatusTooManyRequests && !shouldSmartRetry && !shouldRateLimitModel &&
+		p.account != nil && p.account.Platform == PlatformAntigravity {
+		if result := s.handleKeywordClassified429(p, category, respBody); result != nil {
+			return result
+		}
+	}
+
 	// 情况1: retryDelay >= 阈值，限流模型并切换账号
 	if shouldRateLimitModel {
 		// 单账号 503 退避重试模式：不设限流、不切换账号，改为原地等待+重试
@@ -873,6 +884,80 @@ func setModelRateLimitByModelName(ctx context.Context, repo AccountRepository, a
 		logger.LegacyPrintf("service.antigravity_gateway", "%s status=%d model_rate_limited model=%s account=%d reset_in=%v", prefix, statusCode, modelName, accountID, time.Until(resetAt).Truncate(time.Second))
 	}
 	return true
+}
+
+// handleKeywordClassified429 关键词兜底层：处理无结构化 RetryInfo 的 429。
+// 仅在结构化路径（parseAntigravitySmartRetryInfo）未命中时被调用。
+// 返回 nil 表示该分类不适用兜底（unknown / model_capacity），交回通用重试。
+func (s *AntigravityGatewayService) handleKeywordClassified429(p antigravityRetryLoopParams, category antigravity429Category, respBody []byte) *smartRetryResult {
+	if s == nil || p.account == nil {
+		return nil
+	}
+	switch category {
+	case antigravity429RateLimited:
+		// 分钟级限流（TPM/RPM）：短冷却 + 切号，快速轮转到健康账号
+		modelKey := resolveCreditsOveragesModelKey(p.ctx, p.account, "", p.requestedModel)
+		resetAt := time.Now().Add(antigravityKeywordRateLimitedDuration)
+		logger.LegacyPrintf("service.antigravity_gateway", "%s status=429 keyword_rate_limited account=%d model_key=%s cooldown=%v body=%s (keyword fallback, switch account)",
+			p.prefix, p.account.ID, modelKey, antigravityKeywordRateLimitedDuration, truncateForLog(respBody, 200))
+		if strings.TrimSpace(modelKey) != "" {
+			s.setAntigravityModelRateLimits(p.ctx, p.accountRepo, p.account, modelKey, p.prefix, http.StatusTooManyRequests, resetAt, false)
+		}
+		s.clearStickySession(p.ctx, p.groupID, p.sessionHash)
+		return &smartRetryResult{
+			action: smartRetryActionBreakWithResp,
+			switchError: &AntigravityAccountSwitchError{
+				OriginalAccountID: p.account.ID,
+				RateLimitedModel:  modelKey,
+				IsStickySession:   p.isStickySession,
+			},
+		}
+	case antigravity429QuotaExhausted:
+		// 配额耗尽（且 credits overages 未启用或已失败——能走到这里说明上面的
+		// credits 分支没有消费该请求）：按现有模型限流剩余时间升档退避。
+		modelKey := resolveCreditsOveragesModelKey(p.ctx, p.account, "", p.requestedModel)
+		if strings.TrimSpace(modelKey) == "" {
+			return nil
+		}
+		cooldown := s.escalateQuotaExhaustedCooldown(p, modelKey)
+		resetAt := time.Now().Add(cooldown)
+		logger.LegacyPrintf("service.antigravity_gateway", "%s status=429 keyword_quota_exhausted account=%d model_key=%s cooldown=%v body=%s (backoff escalation, switch account)",
+			p.prefix, p.account.ID, modelKey, cooldown, truncateForLog(respBody, 200))
+		s.setAntigravityModelRateLimits(p.ctx, p.accountRepo, p.account, modelKey, p.prefix, http.StatusTooManyRequests, resetAt, false)
+		s.clearStickySession(p.ctx, p.groupID, p.sessionHash)
+		return &smartRetryResult{
+			action: smartRetryActionBreakWithResp,
+			switchError: &AntigravityAccountSwitchError{
+				OriginalAccountID: p.account.ID,
+				RateLimitedModel:  modelKey,
+				IsStickySession:   p.isStickySession,
+			},
+		}
+	default:
+		// unknown：保持现状（通用重试），不过度惩罚未识别错误；
+		// model_capacity：全账号共享容量池，切号无意义，交回通用重试。
+		return nil
+	}
+}
+
+// escalateQuotaExhaustedCooldown 计算配额耗尽的升档退避时长。
+// 当前模型已处于限流中 → 升到下一档；未限流 → 第一档。阶梯 [60s, 5m, 30m, 2h] 封顶。
+func (s *AntigravityGatewayService) escalateQuotaExhaustedCooldown(p antigravityRetryLoopParams, modelKey string) time.Duration {
+	steps := antigravityQuotaExhaustedBackoffSteps
+	if len(steps) == 0 {
+		return antigravityDefaultRateLimitDuration
+	}
+	remaining := p.account.GetRateLimitRemainingTimeWithContext(p.ctx, p.requestedModel)
+	for i, step := range steps {
+		// 剩余时间落在该档位附近（含边界）→ 升到下一档
+		if remaining > 0 && remaining <= step {
+			if i+1 < len(steps) {
+				return steps[i+1]
+			}
+			return steps[len(steps)-1] // 已在最高档，保持封顶
+		}
+	}
+	return steps[0]
 }
 
 func (s *AntigravityGatewayService) setAntigravityModelRateLimits(ctx context.Context, repo AccountRepository, account *Account, modelName, prefix string, statusCode int, resetAt time.Time, afterSmartRetry bool) bool {
