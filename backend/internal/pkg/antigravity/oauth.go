@@ -434,7 +434,6 @@ var processStartupUUID = func() string {
 var (
 	clientFingerprintEnabled bool
 	clientFingerprintMu      sync.RWMutex
-	clientFingerprintSet     bool // 是否已通过 resolver/env 显式设置
 )
 
 // ClientFingerprintEnabledResolver 提供运行时客户端指纹开关覆盖能力。
@@ -446,7 +445,6 @@ func init() {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv(AntigravityClientFingerprintEnv))) {
 	case "1", "true", "yes", "on":
 		clientFingerprintEnabled = true
-		clientFingerprintSet = true
 	}
 }
 
