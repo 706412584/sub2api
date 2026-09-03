@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/proxyurl"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/proxyutil"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/servertiming"
@@ -48,6 +49,17 @@ func NewAPIRequestWithURL(ctx context.Context, baseURL, action, accessToken stri
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.Header.Set("User-Agent", GetUserAgentForContext(ctx))
+
+	// 客户端指纹头（默认关闭）：ctx 携带账号 ID 且开关开启时注入。
+	// 对齐参考项目的 IDE 指纹：x-client-name / x-client-version / x-machine-id /
+	// x-vscode-sessionid；刻意不带 x-goog-api-client（与参考一致）。
+	// 关闭时字节级等价于不注入前的行为。
+	if accountID, ok := ctx.Value(ctxkey.AntigravityClientFingerprint).(int64); ok && accountID > 0 && ClientFingerprintEnabledForContext(ctx) {
+		req.Header.Set("x-client-name", "antigravity")
+		req.Header.Set("x-client-version", GetUserAgentVersionForContext(ctx))
+		req.Header.Set("x-machine-id", DeriveAntigravityMachineID(accountID, ""))
+		req.Header.Set("x-vscode-sessionid", DeriveAntigravitySessionID(accountID))
+	}
 
 	return req, nil
 }

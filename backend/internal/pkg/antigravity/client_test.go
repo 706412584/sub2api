@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 )
 
 const defaultFetchAvailableModelsBodyLimit int64 = 8 << 20
@@ -1859,6 +1861,89 @@ func TestExtractProjectIDFromOnboardResponse(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// 客户端指纹头
+// ---------------------------------------------------------------------------
+
+func TestNewAPIRequestWithURL_指纹开关关闭时不注入(t *testing.T) {
+	ctx := context.Background()
+	// 不注入 ctxkey.AntigravityClientFingerprint → 无指纹头
+	req, err := NewAPIRequestWithURL(ctx, "https://example.com", "generateContent", "token", []byte(`{}`))
+	if err != nil {
+		t.Fatalf("创建请求失败: %v", err)
+	}
+	for _, h := range []string{"x-client-name", "x-client-version", "x-machine-id", "x-vscode-sessionid"} {
+		if v := req.Header.Get(h); v != "" {
+			t.Errorf("开关关闭时不应设置 %s，got %s", h, v)
+		}
+	}
+}
+
+func TestNewAPIRequestWithURL_开关开启注入四头(t *testing.T) {
+	// resolver 开启
+	SetClientFingerprintEnabledResolver(func(context.Context) bool { return true })
+	defer SetClientFingerprintEnabledResolver(nil)
+
+	ctx := context.WithValue(context.Background(), ctxkey.AntigravityClientFingerprint, int64(42))
+	req, err := NewAPIRequestWithURL(ctx, "https://example.com", "generateContent", "token", []byte(`{}`))
+	if err != nil {
+		t.Fatalf("创建请求失败: %v", err)
+	}
+	if v := req.Header.Get("x-client-name"); v != "antigravity" {
+		t.Errorf("x-client-name: got %s, want antigravity", v)
+	}
+	if v := req.Header.Get("x-client-version"); v == "" {
+		t.Error("x-client-version 不应为空")
+	}
+	machineID := req.Header.Get("x-machine-id")
+	if machineID == "" {
+		t.Error("x-machine-id 不应为空")
+	}
+	sessionID := req.Header.Get("x-vscode-sessionid")
+	if sessionID == "" {
+		t.Error("x-vscode-sessionid 不应为空")
+	}
+	// 确定性：同 accountID 两次派生结果一致
+	if machineID != DeriveAntigravityMachineID(42, "") {
+		t.Error("x-machine-id 应为确定性派生值")
+	}
+	if sessionID != DeriveAntigravitySessionID(42) {
+		t.Error("x-vscode-sessionid 应为确定性派生值")
+	}
+	// 不同账号 ID 派生不同值
+	if machineID == DeriveAntigravityMachineID(43, "") {
+		t.Error("不同账号应派生不同 machine-id")
+	}
+}
+
+func TestNewAPIRequestWithURL_开关开启但无账号ID不注入(t *testing.T) {
+	SetClientFingerprintEnabledResolver(func(context.Context) bool { return true })
+	defer SetClientFingerprintEnabledResolver(nil)
+
+	// 开关开启但 ctx 无账号 ID → 不注入
+	req, err := NewAPIRequestWithURL(context.Background(), "https://example.com", "generateContent", "token", []byte(`{}`))
+	if err != nil {
+		t.Fatalf("创建请求失败: %v", err)
+	}
+	if v := req.Header.Get("x-machine-id"); v != "" {
+		t.Errorf("无账号 ID 时不应设置 x-machine-id，got %s", v)
+	}
+}
+
+func TestDeriveAntigravityMachineID_手工覆盖优先(t *testing.T) {
+	override := "12345678-1234-1234-1234-123456789abc"
+	if got := DeriveAntigravityMachineID(42, override); got != override {
+		t.Errorf("合法 UUID 覆盖应优先: got %s, want %s", got, override)
+	}
+	// 非法覆盖回退派生值
+	if got := DeriveAntigravityMachineID(42, "not-a-uuid"); got == "not-a-uuid" {
+		t.Error("非法覆盖应回退确定性派生值")
+	}
+	// 同账号稳定
+	if DeriveAntigravityMachineID(7, "") != DeriveAntigravityMachineID(7, "") {
+		t.Error("同账号两次派生应一致")
+	}
+}
+
 // RetrieveUserQuotaSummary
 // ---------------------------------------------------------------------------
 
