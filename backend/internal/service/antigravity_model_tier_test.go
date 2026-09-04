@@ -6,6 +6,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 	"github.com/stretchr/testify/require"
 )
 
@@ -172,4 +173,28 @@ func TestTrimAntigravityTierSuffix(t *testing.T) {
 	require.Equal(t, "", TrimAntigravityTierSuffix("gemini-2.5-flash-lite"))
 	require.Equal(t, "", TrimAntigravityTierSuffix("claude-opus-4-6-thinking"))
 	require.Equal(t, "", TrimAntigravityTierSuffix("gpt-oss-120b-medium"), "非 gemini 前缀不参与")
+}
+
+// 管理端列表折叠：有裸名入口的家族折掉全部档位变体；无裸名的家族保持原样。
+func TestCollapseAntigravityTierVariantsForAdmin(t *testing.T) {
+	models := []antigravity.ClaudeModel{
+		{ID: "claude-sonnet-4-6"},
+		{ID: "gemini-3.8-flash"},
+		{ID: "gemini-3.8-flash-tiered"},
+		{ID: "gemini-3.6-flash"},
+		{ID: "gemini-3.6-flash-low"},
+		{ID: "gemini-3.6-flash-high"},
+		{ID: "gemini-3.7-flash-tiered"}, // 家族里只有 tiered、无裸名 → 保留
+	}
+	got := CollapseAntigravityTierVariantsForAdmin(models)
+	ids := make([]string, 0, len(got))
+	for _, m := range got {
+		ids = append(ids, m.ID)
+	}
+	require.ElementsMatch(t, []string{
+		"claude-sonnet-4-6",
+		"gemini-3.8-flash",
+		"gemini-3.6-flash",
+		"gemini-3.7-flash-tiered",
+	}, ids)
 }

@@ -3051,6 +3051,11 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 				CreatedAt:   "",
 			})
 		}
+		// 有裸名入口的分档家族折叠档位变体：裸名会按 reasoning effort 自动
+		// 选档（缺档时落 tiered），tiered/low/medium/high 与裸名是同一个模型，
+		// 留在列表里只会造成重复项（3.8 显示两个同名的 "Gemini 3.8 Flash"）。
+		// 无裸名入口的家族（映射里只有带档位的名字）保持原样。
+		models = service.CollapseAntigravityTierVariantsForAdmin(models)
 		response.Success(c, models)
 		return
 	}

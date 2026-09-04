@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"strings"
+
+	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 )
 
 // antigravityTierSuffixes 是分档 Gemini 模型的全部档位后缀。
@@ -167,6 +169,35 @@ func collapseAntigravityTierModels(models []string, roots map[string]struct{}) [
 			}
 		}
 		out = append(out, model)
+	}
+	return out
+}
+
+// ClaudeModelLike 是管理端模型条目的最小接口（antigravity.ClaudeModel 满足）。
+// CollapseAntigravityTierVariantsForAdmin 折叠管理端账号模型列表里的档位变体：
+// 只对"列表里存在裸名"的家族生效——裸名会按 reasoning effort 自动选档
+// （缺档时落 tiered），档位变体与裸名是同一个模型，留着只是重复项
+// （3.8 显示两个同名的 "Gemini 3.8 Flash"）。无裸名入口的家族
+// （例如映射里只有 gemini-3.7-flash-tiered）不动。
+func CollapseAntigravityTierVariantsForAdmin(models []antigravity.ClaudeModel) []antigravity.ClaudeModel {
+	if len(models) == 0 {
+		return models
+	}
+	bases := make(map[string]struct{}, len(models))
+	for _, m := range models {
+		base, tier := splitAntigravityTierModel(m.ID)
+		if tier == "" {
+			bases[base] = struct{}{}
+		}
+	}
+	out := make([]antigravity.ClaudeModel, 0, len(models))
+	for _, m := range models {
+		if base, tier := splitAntigravityTierModel(m.ID); tier != "" {
+			if _, hasBare := bases[base]; hasBare {
+				continue
+			}
+		}
+		out = append(out, m)
 	}
 	return out
 }
