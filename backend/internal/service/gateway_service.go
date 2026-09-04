@@ -1413,6 +1413,9 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 	// Collect unique models from all accounts
 	modelSet := make(map[string]struct{})
 	hasAnyMapping := false
+	// Antigravity 档位变体（gemini-3.8-flash-low/medium/high）由 reasoning effort
+	// 自动选档，对外只暴露裸名，避免客户端模型列表被档位淹没。
+	tierRoots := make(map[string]struct{})
 
 	for _, acc := range accounts {
 		// Passthrough routing accepts models independently of model_mapping. A stale
@@ -1432,6 +1435,11 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 			for model := range mapping {
 				modelSet[model] = struct{}{}
 			}
+			if acc.Platform == PlatformAntigravity {
+				for root := range antigravityTierFamilyRoots(mapping) {
+					tierRoots[root] = struct{}{}
+				}
+			}
 		}
 	}
 
@@ -1450,6 +1458,7 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 		models = append(models, model)
 	}
 	sort.Strings(models)
+	models = collapseAntigravityTierModels(models, tierRoots)
 
 	if s.modelsListCache != nil {
 		s.modelsListCache.Set(cacheKey, cloneStringSlice(models), s.modelsListCacheTTL)

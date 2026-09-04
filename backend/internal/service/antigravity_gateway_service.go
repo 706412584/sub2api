@@ -370,6 +370,8 @@ func (s *AntigravityGatewayService) TestConnection(ctx context.Context, account 
 	if mappedModel == "" {
 		return nil, fmt.Errorf("model %s not in whitelist", modelID)
 	}
+	// 分档 Gemini 模型按档位后缀补全（测试不带 effort → 最低档）
+	mappedModel = resolveAntigravityEffortTier(ctx, account, mappedModel)
 
 	// 构建请求体
 	var requestBody []byte
