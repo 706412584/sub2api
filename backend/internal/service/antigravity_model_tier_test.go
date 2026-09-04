@@ -93,20 +93,44 @@ func TestApplyAntigravityEffortTier_OtherPlatformsUntouched(t *testing.T) {
 	require.Equal(t, "gemini-3.8-flash", applyAntigravityEffortTier(nil, "gemini-3.8-flash", nil))
 }
 
-// 上游按账号灰度开放档位：只有 tiered（上游自动档）没有 low/medium/high 时，
-// 裸名落到 tiered 让上游选档，而不是把裸名原样发出去吃 404（实测 9300 账号 3.8）。
+// 上游按账号灰度开放档位。候选池含默认表后，3.8（默认表有全档）永远不会
+// 走"只有 tiered"分支——映射无档位时由默认表补齐。用不在默认表的 3.9 构造
+// 真实的 tiered-only 场景。
 func TestApplyAntigravityEffortTier_TieredOnlyFallsBackToTiered(t *testing.T) {
 	account := antigravityTierAccount(map[string]string{
-		"gemini-3.8-flash":        "gemini-3.8-flash",
-		"gemini-3.8-flash-tiered": "gemini-3.8-flash-tiered",
+		"gemini-3.9-flash":        "gemini-3.9-flash",
+		"gemini-3.9-flash-tiered": "gemini-3.9-flash-tiered",
 	})
 	high := "high"
-	require.Equal(t, "gemini-3.8-flash-tiered", applyAntigravityEffortTier(account, "gemini-3.8-flash", nil))
-	require.Equal(t, "gemini-3.8-flash-tiered", applyAntigravityEffortTier(account, "gemini-3.8-flash", &high))
+	require.Equal(t, "gemini-3.9-flash-tiered", applyAntigravityEffortTier(account, "gemini-3.9-flash", nil))
+	require.Equal(t, "gemini-3.9-flash-tiered", applyAntigravityEffortTier(account, "gemini-3.9-flash", &high))
 
-	// 连 tiered 都没有的裸名仍原样透传（由映射表决定是否有这个模型）
-	bare := antigravityTierAccount(map[string]string{"gemini-3.9-flash": "gemini-3.9-flash"})
-	require.Equal(t, "gemini-3.9-flash", applyAntigravityEffortTier(bare, "gemini-3.9-flash", nil))
+	// 连 tiered 都没有、默认表也没有的裸名仍原样透传
+	bare := antigravityTierAccount(map[string]string{"gemini-3.9-pro": "gemini-3.9-pro"})
+	require.Equal(t, "gemini-3.9-pro", applyAntigravityEffortTier(bare, "gemini-3.9-pro", nil))
+}
+
+// 3.8 的特性：上游 fetchAvailableModels 不返回它，sync-upstream 会把它从映射
+// 里清掉。但 DefaultAntigravityModelMapping 里有它的档位（实际可调，IDE 2.12.2
+// 在用）。候选池必须包含默认表，裸名才能选到档位，而不是直发上游吃 404。
+func TestApplyAntigravityEffortTier_DefaultMappingFillsSyncGap(t *testing.T) {
+	// 复刻线上 9300 的映射：sync 后没有任何 3.8 条目
+	account := antigravityTierAccount(map[string]string{
+		"gemini-3.6-flash-low":    "gemini-3.6-flash-low",
+		"gemini-3.6-flash-high":   "gemini-3.6-flash-high",
+		"gemini-3.7-flash-tiered": "gemini-3.7-flash-tiered",
+	})
+	// 默认表补位后 effort 选档生效：未传 effort → low
+	require.Equal(t, "gemini-3.8-flash-low",
+		applyAntigravityEffortTier(account, "gemini-3.8-flash", nil),
+		"映射无 3.8 时由默认表补位选档")
+	high := "high"
+	require.Equal(t, "gemini-3.8-flash-high",
+		applyAntigravityEffortTier(account, "gemini-3.8-flash", &high))
+
+	// 3.6 映射里有真实档位，仍以映射为准（默认表只补位不覆盖）
+	require.Equal(t, "gemini-3.6-flash-low",
+		applyAntigravityEffortTier(account, "gemini-3.6-flash", nil))
 }
 
 // resolveFinalAntigravityModelKey 的限流 key 必须与实际转发模型一致，

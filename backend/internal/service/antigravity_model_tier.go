@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 )
 
@@ -58,30 +59,42 @@ func antigravityTierPreference(effort *string) []string {
 	}
 }
 
-// antigravityTierVariants 收集账号映射目标里 base 的可选档位变体。
-// 只看映射的 value（上游模型名），因为最终发给上游的就是 value。
+// antigravityTierVariants 收集档位候选池里 base 的可选档位变体。
+// 候选池 = 账号映射 ∪ DefaultAntigravityModelMapping 的同家族档位：
+//   - 映射里的真实档位优先（上游 fetchAvailableModels 同步回来的，一定可调）
+//   - 默认表补位：3.8 这类模型上游列表不返回但实际可调（IDE 2.12.2 在用），
+//     同步会把它从映射里清掉，只查映射会让裸名无档可落、直发上游吃 404。
+//
 // tiered 不算 effort 可选档（它是上游自身的自动档），单独探测。
 func antigravityTierVariants(mapping map[string]string, base string) map[string]struct{} {
 	prefix := base + "-"
 	variants := make(map[string]struct{}, len(antigravitySelectableTiers))
-	for _, upstream := range mapping {
-		upstream = strings.ToLower(strings.TrimSpace(upstream))
-		if !strings.HasPrefix(upstream, prefix) {
-			continue
-		}
-		if tier := upstream[len(prefix):]; isSelectableAntigravityTier(tier) {
-			variants[tier] = struct{}{}
+	collect := func(source map[string]string) {
+		for _, upstream := range source {
+			upstream = strings.ToLower(strings.TrimSpace(upstream))
+			if !strings.HasPrefix(upstream, prefix) {
+				continue
+			}
+			if tier := upstream[len(prefix):]; isSelectableAntigravityTier(tier) {
+				variants[tier] = struct{}{}
+			}
 		}
 	}
+	collect(mapping)
+	collect(domain.DefaultAntigravityModelMapping)
 	return variants
 }
 
-// antigravityTieredVariant 报告映射里是否存在 base-tiered（上游自动档）。
+// antigravityTieredVariant 报告档位候选池里是否存在 base-tiered（上游自动档）。
 // 上游按账号灰度开放档位：有些账号只有 tiered 没有 low/medium/high，
 // 此时裸名选 tiered 让上游自己定档，而不是把裸名原样发出去吃 404。
 func antigravityTieredVariant(mapping map[string]string, base string) bool {
 	target := strings.ToLower(strings.TrimSpace(mapping[base+"-tiered"]))
-	return strings.HasPrefix(target, base+"-tiered")
+	if strings.HasPrefix(target, base+"-tiered") {
+		return true
+	}
+	fallback, ok := domain.DefaultAntigravityModelMapping[base+"-tiered"]
+	return ok && strings.ToLower(strings.TrimSpace(fallback)) == base+"-tiered"
 }
 
 // applyAntigravityEffortTier 给裸的分档 Gemini 模型补上档位后缀。
