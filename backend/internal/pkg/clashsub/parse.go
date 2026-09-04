@@ -180,6 +180,24 @@ func StableProxyName(prefix, identity, nodeName string) string {
 	return fmt.Sprintf("%s%s-%s", prefix, hash, frag)
 }
 
+// ProxyNameIdentityKey 取代理名里稳定的身份部分（{prefix}{hash8}）。
+// hash8 只由节点 identity 决定，与可读片段无关，因此可读片段规则变化
+// （例如开始保留中文）后仍能认出同一节点，避免同步时重建代理行、
+// 丢掉已绑定的账号。不符合托管命名格式时返回空串。
+func ProxyNameIdentityKey(prefix, name string) string {
+	rest, ok := strings.CutPrefix(name, prefix)
+	if !ok || len(rest) < 8 {
+		return ""
+	}
+	hash := rest[:8]
+	for _, r := range hash {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
+			return ""
+		}
+	}
+	return prefix + hash
+}
+
 func looksLikeClashYAML(s string) bool {
 	return strings.Contains(s, "proxies:") || strings.Contains(s, "proxy-groups:") || strings.HasPrefix(s, "port:") || strings.HasPrefix(s, "mixed-port:")
 }
