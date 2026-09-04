@@ -105,6 +105,17 @@ func resolveAntigravityEffortTier(ctx context.Context, account *Account, mappedM
 	return applyAntigravityEffortTier(account, mappedModel, RequestedReasoningEffortFromContext(ctx))
 }
 
+// TrimAntigravityTierSuffix 去掉分档 Gemini 模型的档位后缀并返回裸名；
+// 不是分档模型时返回空串。供对外模型列表在折叠成裸名后仍认得
+// 管理员在分组自定义列表里显式勾选的档位变体。
+func TrimAntigravityTierSuffix(model string) string {
+	base, tier := splitAntigravityTierModel(model)
+	if tier == "" || !strings.HasPrefix(base, "gemini-") {
+		return ""
+	}
+	return base
+}
+
 // antigravityTierFamilyRoots 找出会被 applyAntigravityEffortTier 自动选档的基础名：
 // 映射里存在裸名透传（base -> base）且存在可选档位变体。只有这些家族的档位变体
 // 能安全地从对外模型列表折叠掉——客户端请求裸名即可命中对应档位。

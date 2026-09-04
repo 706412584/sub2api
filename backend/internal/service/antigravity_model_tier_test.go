@@ -64,21 +64,23 @@ func TestApplyAntigravityEffortTier(t *testing.T) {
 }
 
 // 缺档时向低档回退，不意外升档。
+// 用 3.9（不在 ensureAntigravityDefaultPassthroughs 清单里）构造真正的缺档场景，
+// 3.6/3.8 会被默认透传补齐全档位，无法体现回退。
 func TestApplyAntigravityEffortTier_MissingTierFallsBackDown(t *testing.T) {
 	account := antigravityTierAccount(map[string]string{
-		"gemini-3.8-flash":      "gemini-3.8-flash",
-		"gemini-3.8-flash-low":  "gemini-3.8-flash-low",
-		"gemini-3.8-flash-high": "gemini-3.8-flash-high",
+		"gemini-3.9-flash":      "gemini-3.9-flash",
+		"gemini-3.9-flash-low":  "gemini-3.9-flash-low",
+		"gemini-3.9-flash-high": "gemini-3.9-flash-high",
 	})
 	medium := "medium"
-	require.Equal(t, "gemini-3.8-flash-low", applyAntigravityEffortTier(account, "gemini-3.8-flash", &medium),
+	require.Equal(t, "gemini-3.9-flash-low", applyAntigravityEffortTier(account, "gemini-3.9-flash", &medium),
 		"medium 缺失时回退 low 而不是升到 high")
 
 	onlyHigh := antigravityTierAccount(map[string]string{
-		"gemini-3.8-flash":      "gemini-3.8-flash",
-		"gemini-3.8-flash-high": "gemini-3.8-flash-high",
+		"gemini-3.9-flash":      "gemini-3.9-flash",
+		"gemini-3.9-flash-high": "gemini-3.9-flash-high",
 	})
-	require.Equal(t, "gemini-3.8-flash-high", applyAntigravityEffortTier(onlyHigh, "gemini-3.8-flash", nil),
+	require.Equal(t, "gemini-3.9-flash-high", applyAntigravityEffortTier(onlyHigh, "gemini-3.9-flash", nil),
 		"只有 high 一档时别无选择")
 }
 
@@ -144,4 +146,14 @@ func TestAntigravityTierFamilyRoots_RequiresPassthroughBase(t *testing.T) {
 
 	models := []string{"gemini-3.1-pro", "gemini-3.1-pro-low", "gemini-3.1-pro-high"}
 	require.Equal(t, models, collapseAntigravityTierModels(models, roots))
+}
+
+// 分组自定义模型列表勾选了档位变体时，需要能回落到裸名做白名单校验。
+func TestTrimAntigravityTierSuffix(t *testing.T) {
+	require.Equal(t, "gemini-3.8-flash", TrimAntigravityTierSuffix("gemini-3.8-flash-high"))
+	require.Equal(t, "gemini-3.8-flash", TrimAntigravityTierSuffix("gemini-3.8-flash-tiered"))
+	require.Equal(t, "", TrimAntigravityTierSuffix("gemini-3.8-flash"))
+	require.Equal(t, "", TrimAntigravityTierSuffix("gemini-2.5-flash-lite"))
+	require.Equal(t, "", TrimAntigravityTierSuffix("claude-opus-4-6-thinking"))
+	require.Equal(t, "", TrimAntigravityTierSuffix("gpt-oss-120b-medium"), "非 gemini 前缀不参与")
 }

@@ -83,6 +83,21 @@ const antigravityModels = [
   'gemini-3.1-pro-high',
   'gemini-3.1-pro-low',
   'gemini-3-pro-image',
+  // Gemini 3.6 / 3.8 分档系列
+  // 上游只接受带档位的名字，网关会按客户端 reasoning effort 自动选档
+  // （裸名请求未传 effort → low，medium/high 各自对应），因此账号映射里
+  // 需要同时保留裸名与档位变体；对外 /v1/models 只暴露裸名。
+  // gemini-3.8-* 尚未出现在上游 fetchAvailableModels 返回中，但可直接调用。
+  'gemini-3.6-flash',
+  'gemini-3.6-flash-low',
+  'gemini-3.6-flash-medium',
+  'gemini-3.6-flash-high',
+  'gemini-3.6-flash-tiered',
+  'gemini-3.8-flash',
+  'gemini-3.8-flash-low',
+  'gemini-3.8-flash-medium',
+  'gemini-3.8-flash-high',
+  'gemini-3.8-flash-tiered',
   // 其他
   'gpt-oss-120b-medium',
   'tab_flash_lite_preview'
@@ -237,26 +252,31 @@ const perplexityModels = [
 ]
 
 // 所有模型（去重）
-const allModelsList: string[] = [
-  ...openaiModels,
-  ...claudeModels,
-  ...geminiModels,
-  ...zhipuModels,
-  ...qwenModels,
-  ...deepseekModels,
-  ...mistralModels,
-  ...metaModels,
-  ...xaiModels,
-  ...cohereModels,
-  ...yiModels,
-  ...moonshotModels,
-  ...doubaoModels,
-  ...minimaxModels,
-  ...baiduModels,
-  ...sparkModels,
-  ...hunyuanModels,
-  ...perplexityModels
-]
+const allModelsList: string[] = Array.from(
+  new Set([
+    ...openaiModels,
+    ...claudeModels,
+    ...geminiModels,
+    // Antigravity 独有模型（gemini-3.x 分档、Claude thinking 变体等）此前缺席，
+    // 导致下拉候选里选不到它们，只能靠"填充相关模型"或手输。
+    ...antigravityModels,
+    ...zhipuModels,
+    ...qwenModels,
+    ...deepseekModels,
+    ...mistralModels,
+    ...metaModels,
+    ...xaiModels,
+    ...cohereModels,
+    ...yiModels,
+    ...moonshotModels,
+    ...doubaoModels,
+    ...minimaxModels,
+    ...baiduModels,
+    ...sparkModels,
+    ...hunyuanModels,
+    ...perplexityModels
+  ])
+)
 
 // 转换为下拉选项格式
 export const allModels = allModelsList.map(m => ({ value: m, label: m }))
