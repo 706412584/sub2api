@@ -25,24 +25,24 @@ import (
 
 type grokQuotaAccountRepo struct {
 	*mockAccountRepoForPlatform
-	updates               map[int64]map[string]any
-	updateCalls           int
-	rateLimitedCalls      int
-	lastRateLimitedID     int64
-	lastRateLimitResetAt  time.Time
-	tempUnschedCalls      int
-	lastTempUnschedID     int64
-	lastTempUnschedUntil  time.Time
-	lastTempUnschedReason string
-	modelRateLimitCalls   int
-	lastModelRateLimitID  int64
-	lastModelRateLimitKey string
-	lastModelRateLimitAt  time.Time
+	updates                  map[int64]map[string]any
+	updateCalls              int
+	rateLimitedCalls         int
+	lastRateLimitedID        int64
+	lastRateLimitResetAt     time.Time
+	tempUnschedCalls         int
+	lastTempUnschedID        int64
+	lastTempUnschedUntil     time.Time
+	lastTempUnschedReason    string
+	modelRateLimitCalls      int
+	lastModelRateLimitID     int64
+	lastModelRateLimitKey    string
+	lastModelRateLimitAt     time.Time
 	lastModelRateLimitReason string
-	recoveryClearCalls    int
-	recoveryObservedAt    time.Time
-	recoveryObservedReset time.Time
-	recoveryClearResult   bool
+	recoveryClearCalls       int
+	recoveryObservedAt       time.Time
+	recoveryObservedReset    time.Time
+	recoveryClearResult      bool
 }
 
 func (r *grokQuotaAccountRepo) UpdateExtra(_ context.Context, id int64, updates map[string]any) error {

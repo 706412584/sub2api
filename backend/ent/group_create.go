@@ -718,6 +718,90 @@ func (_c *GroupCreate) SetNillableAllowLive(v *bool) *GroupCreate {
 	return _c
 }
 
+// SetGrokMessagesProtocol sets the "grok_messages_protocol" field.
+func (_c *GroupCreate) SetGrokMessagesProtocol(v string) *GroupCreate {
+	_c.mutation.SetGrokMessagesProtocol(v)
+	return _c
+}
+
+// SetNillableGrokMessagesProtocol sets the "grok_messages_protocol" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableGrokMessagesProtocol(v *string) *GroupCreate {
+	if v != nil {
+		_c.SetGrokMessagesProtocol(*v)
+	}
+	return _c
+}
+
+// SetGrokReasoningVisibilityMode sets the "grok_reasoning_visibility_mode" field.
+func (_c *GroupCreate) SetGrokReasoningVisibilityMode(v string) *GroupCreate {
+	_c.mutation.SetGrokReasoningVisibilityMode(v)
+	return _c
+}
+
+// SetNillableGrokReasoningVisibilityMode sets the "grok_reasoning_visibility_mode" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableGrokReasoningVisibilityMode(v *string) *GroupCreate {
+	if v != nil {
+		_c.SetGrokReasoningVisibilityMode(*v)
+	}
+	return _c
+}
+
+// SetGrokReasoningProbeTTLSec sets the "grok_reasoning_probe_ttl_sec" field.
+func (_c *GroupCreate) SetGrokReasoningProbeTTLSec(v int) *GroupCreate {
+	_c.mutation.SetGrokReasoningProbeTTLSec(v)
+	return _c
+}
+
+// SetNillableGrokReasoningProbeTTLSec sets the "grok_reasoning_probe_ttl_sec" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableGrokReasoningProbeTTLSec(v *int) *GroupCreate {
+	if v != nil {
+		_c.SetGrokReasoningProbeTTLSec(*v)
+	}
+	return _c
+}
+
+// SetGrokReasoningQuarantineSec sets the "grok_reasoning_quarantine_sec" field.
+func (_c *GroupCreate) SetGrokReasoningQuarantineSec(v int) *GroupCreate {
+	_c.mutation.SetGrokReasoningQuarantineSec(v)
+	return _c
+}
+
+// SetNillableGrokReasoningQuarantineSec sets the "grok_reasoning_quarantine_sec" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableGrokReasoningQuarantineSec(v *int) *GroupCreate {
+	if v != nil {
+		_c.SetGrokReasoningQuarantineSec(*v)
+	}
+	return _c
+}
+
+// SetForceOpenaiFast sets the "force_openai_fast" field.
+func (_c *GroupCreate) SetForceOpenaiFast(v bool) *GroupCreate {
+	_c.mutation.SetForceOpenaiFast(v)
+	return _c
+}
+
+// SetNillableForceOpenaiFast sets the "force_openai_fast" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableForceOpenaiFast(v *bool) *GroupCreate {
+	if v != nil {
+		_c.SetForceOpenaiFast(*v)
+	}
+	return _c
+}
+
+// SetFreeOpenaiFast sets the "free_openai_fast" field.
+func (_c *GroupCreate) SetFreeOpenaiFast(v bool) *GroupCreate {
+	_c.mutation.SetFreeOpenaiFast(v)
+	return _c
+}
+
+// SetNillableFreeOpenaiFast sets the "free_openai_fast" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableFreeOpenaiFast(v *bool) *GroupCreate {
+	if v != nil {
+		_c.SetFreeOpenaiFast(*v)
+	}
+	return _c
+}
+
 // SetRequireOauthOnly sets the "require_oauth_only" field.
 func (_c *GroupCreate) SetRequireOauthOnly(v bool) *GroupCreate {
 	_c.mutation.SetRequireOauthOnly(v)
@@ -788,58 +872,16 @@ func (_c *GroupCreate) SetNillableModelsListConfig(v *domain.GroupModelsListConf
 	return _c
 }
 
-// SetGrokMessagesProtocol sets the "grok_messages_protocol" field.
-func (_c *GroupCreate) SetGrokMessagesProtocol(v string) *GroupCreate {
-	_c.mutation.SetGrokMessagesProtocol(v)
+// SetPromptPolicy sets the "prompt_policy" field.
+func (_c *GroupCreate) SetPromptPolicy(v domain.GroupPromptPolicy) *GroupCreate {
+	_c.mutation.SetPromptPolicy(v)
 	return _c
 }
 
-// SetNillableGrokMessagesProtocol sets the "grok_messages_protocol" field if the given value is not nil.
-func (_c *GroupCreate) SetNillableGrokMessagesProtocol(v *string) *GroupCreate {
+// SetNillablePromptPolicy sets the "prompt_policy" field if the given value is not nil.
+func (_c *GroupCreate) SetNillablePromptPolicy(v *domain.GroupPromptPolicy) *GroupCreate {
 	if v != nil {
-		_c.SetGrokMessagesProtocol(*v)
-	}
-	return _c
-}
-
-// SetGrokReasoningVisibilityMode sets the "grok_reasoning_visibility_mode" field.
-func (_c *GroupCreate) SetGrokReasoningVisibilityMode(v string) *GroupCreate {
-	_c.mutation.SetGrokReasoningVisibilityMode(v)
-	return _c
-}
-
-// SetNillableGrokReasoningVisibilityMode sets the "grok_reasoning_visibility_mode" field if the given value is not nil.
-func (_c *GroupCreate) SetNillableGrokReasoningVisibilityMode(v *string) *GroupCreate {
-	if v != nil {
-		_c.SetGrokReasoningVisibilityMode(*v)
-	}
-	return _c
-}
-
-// SetGrokReasoningProbeTTLSec sets the "grok_reasoning_probe_ttl_sec" field.
-func (_c *GroupCreate) SetGrokReasoningProbeTTLSec(v int) *GroupCreate {
-	_c.mutation.SetGrokReasoningProbeTTLSec(v)
-	return _c
-}
-
-// SetNillableGrokReasoningProbeTTLSec sets the "grok_reasoning_probe_ttl_sec" field if the given value is not nil.
-func (_c *GroupCreate) SetNillableGrokReasoningProbeTTLSec(v *int) *GroupCreate {
-	if v != nil {
-		_c.SetGrokReasoningProbeTTLSec(*v)
-	}
-	return _c
-}
-
-// SetGrokReasoningQuarantineSec sets the "grok_reasoning_quarantine_sec" field.
-func (_c *GroupCreate) SetGrokReasoningQuarantineSec(v int) *GroupCreate {
-	_c.mutation.SetGrokReasoningQuarantineSec(v)
-	return _c
-}
-
-// SetNillableGrokReasoningQuarantineSec sets the "grok_reasoning_quarantine_sec" field if the given value is not nil.
-func (_c *GroupCreate) SetNillableGrokReasoningQuarantineSec(v *int) *GroupCreate {
-	if v != nil {
-		_c.SetGrokReasoningQuarantineSec(*v)
+		_c.SetPromptPolicy(*v)
 	}
 	return _c
 }
@@ -872,23 +914,23 @@ func (_c *GroupCreate) SetNillableMaxReasoningEffort(v *string) *GroupCreate {
 	return _c
 }
 
+// SetMaxReasoningEffortOverLimit sets the "max_reasoning_effort_over_limit" field.
+func (_c *GroupCreate) SetMaxReasoningEffortOverLimit(v string) *GroupCreate {
+	_c.mutation.SetMaxReasoningEffortOverLimit(v)
+	return _c
+}
+
+// SetNillableMaxReasoningEffortOverLimit sets the "max_reasoning_effort_over_limit" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableMaxReasoningEffortOverLimit(v *string) *GroupCreate {
+	if v != nil {
+		_c.SetMaxReasoningEffortOverLimit(*v)
+	}
+	return _c
+}
+
 // SetReasoningEffortMappings sets the "reasoning_effort_mappings" field.
 func (_c *GroupCreate) SetReasoningEffortMappings(v []domain.ReasoningEffortMapping) *GroupCreate {
 	_c.mutation.SetReasoningEffortMappings(v)
-	return _c
-}
-
-// SetPromptPolicy sets the "prompt_policy" field.
-func (_c *GroupCreate) SetPromptPolicy(v domain.GroupPromptPolicy) *GroupCreate {
-	_c.mutation.SetPromptPolicy(v)
-	return _c
-}
-
-// SetNillablePromptPolicy sets the "prompt_policy" field if the given value is not nil.
-func (_c *GroupCreate) SetNillablePromptPolicy(v *domain.GroupPromptPolicy) *GroupCreate {
-	if v != nil {
-		_c.SetPromptPolicy(*v)
-	}
 	return _c
 }
 
@@ -1179,6 +1221,30 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultAllowLive
 		_c.mutation.SetAllowLive(v)
 	}
+	if _, ok := _c.mutation.GrokMessagesProtocol(); !ok {
+		v := group.DefaultGrokMessagesProtocol
+		_c.mutation.SetGrokMessagesProtocol(v)
+	}
+	if _, ok := _c.mutation.GrokReasoningVisibilityMode(); !ok {
+		v := group.DefaultGrokReasoningVisibilityMode
+		_c.mutation.SetGrokReasoningVisibilityMode(v)
+	}
+	if _, ok := _c.mutation.GrokReasoningProbeTTLSec(); !ok {
+		v := group.DefaultGrokReasoningProbeTTLSec
+		_c.mutation.SetGrokReasoningProbeTTLSec(v)
+	}
+	if _, ok := _c.mutation.GrokReasoningQuarantineSec(); !ok {
+		v := group.DefaultGrokReasoningQuarantineSec
+		_c.mutation.SetGrokReasoningQuarantineSec(v)
+	}
+	if _, ok := _c.mutation.ForceOpenaiFast(); !ok {
+		v := group.DefaultForceOpenaiFast
+		_c.mutation.SetForceOpenaiFast(v)
+	}
+	if _, ok := _c.mutation.FreeOpenaiFast(); !ok {
+		v := group.DefaultFreeOpenaiFast
+		_c.mutation.SetFreeOpenaiFast(v)
+	}
 	if _, ok := _c.mutation.RequireOauthOnly(); !ok {
 		v := group.DefaultRequireOauthOnly
 		_c.mutation.SetRequireOauthOnly(v)
@@ -1199,21 +1265,9 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultModelsListConfig
 		_c.mutation.SetModelsListConfig(v)
 	}
-	if _, ok := _c.mutation.GrokMessagesProtocol(); !ok {
-		v := group.DefaultGrokMessagesProtocol
-		_c.mutation.SetGrokMessagesProtocol(v)
-	}
-	if _, ok := _c.mutation.GrokReasoningVisibilityMode(); !ok {
-		v := group.DefaultGrokReasoningVisibilityMode
-		_c.mutation.SetGrokReasoningVisibilityMode(v)
-	}
-	if _, ok := _c.mutation.GrokReasoningProbeTTLSec(); !ok {
-		v := group.DefaultGrokReasoningProbeTTLSec
-		_c.mutation.SetGrokReasoningProbeTTLSec(v)
-	}
-	if _, ok := _c.mutation.GrokReasoningQuarantineSec(); !ok {
-		v := group.DefaultGrokReasoningQuarantineSec
-		_c.mutation.SetGrokReasoningQuarantineSec(v)
+	if _, ok := _c.mutation.PromptPolicy(); !ok {
+		v := group.DefaultPromptPolicy
+		_c.mutation.SetPromptPolicy(v)
 	}
 	if _, ok := _c.mutation.RpmLimit(); !ok {
 		v := group.DefaultRpmLimit
@@ -1223,13 +1277,13 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultMaxReasoningEffort
 		_c.mutation.SetMaxReasoningEffort(v)
 	}
+	if _, ok := _c.mutation.MaxReasoningEffortOverLimit(); !ok {
+		v := group.DefaultMaxReasoningEffortOverLimit
+		_c.mutation.SetMaxReasoningEffortOverLimit(v)
+	}
 	if _, ok := _c.mutation.ReasoningEffortMappings(); !ok {
 		v := group.DefaultReasoningEffortMappings
 		_c.mutation.SetReasoningEffortMappings(v)
-	}
-	if _, ok := _c.mutation.PromptPolicy(); !ok {
-		v := group.DefaultPromptPolicy
-		_c.mutation.SetPromptPolicy(v)
 	}
 	if _, ok := _c.mutation.ProfitControlEnabled(); !ok {
 		v := group.DefaultProfitControlEnabled
@@ -1390,26 +1444,6 @@ func (_c *GroupCreate) check() error {
 	if _, ok := _c.mutation.AllowLive(); !ok {
 		return &ValidationError{Name: "allow_live", err: errors.New(`ent: missing required field "Group.allow_live"`)}
 	}
-	if _, ok := _c.mutation.RequireOauthOnly(); !ok {
-		return &ValidationError{Name: "require_oauth_only", err: errors.New(`ent: missing required field "Group.require_oauth_only"`)}
-	}
-	if _, ok := _c.mutation.RequirePrivacySet(); !ok {
-		return &ValidationError{Name: "require_privacy_set", err: errors.New(`ent: missing required field "Group.require_privacy_set"`)}
-	}
-	if _, ok := _c.mutation.DefaultMappedModel(); !ok {
-		return &ValidationError{Name: "default_mapped_model", err: errors.New(`ent: missing required field "Group.default_mapped_model"`)}
-	}
-	if v, ok := _c.mutation.DefaultMappedModel(); ok {
-		if err := group.DefaultMappedModelValidator(v); err != nil {
-			return &ValidationError{Name: "default_mapped_model", err: fmt.Errorf(`ent: validator failed for field "Group.default_mapped_model": %w`, err)}
-		}
-	}
-	if _, ok := _c.mutation.MessagesDispatchModelConfig(); !ok {
-		return &ValidationError{Name: "messages_dispatch_model_config", err: errors.New(`ent: missing required field "Group.messages_dispatch_model_config"`)}
-	}
-	if _, ok := _c.mutation.ModelsListConfig(); !ok {
-		return &ValidationError{Name: "models_list_config", err: errors.New(`ent: missing required field "Group.models_list_config"`)}
-	}
 	if _, ok := _c.mutation.GrokMessagesProtocol(); !ok {
 		return &ValidationError{Name: "grok_messages_protocol", err: errors.New(`ent: missing required field "Group.grok_messages_protocol"`)}
 	}
@@ -1432,6 +1466,35 @@ func (_c *GroupCreate) check() error {
 	if _, ok := _c.mutation.GrokReasoningQuarantineSec(); !ok {
 		return &ValidationError{Name: "grok_reasoning_quarantine_sec", err: errors.New(`ent: missing required field "Group.grok_reasoning_quarantine_sec"`)}
 	}
+	if _, ok := _c.mutation.ForceOpenaiFast(); !ok {
+		return &ValidationError{Name: "force_openai_fast", err: errors.New(`ent: missing required field "Group.force_openai_fast"`)}
+	}
+	if _, ok := _c.mutation.FreeOpenaiFast(); !ok {
+		return &ValidationError{Name: "free_openai_fast", err: errors.New(`ent: missing required field "Group.free_openai_fast"`)}
+	}
+	if _, ok := _c.mutation.RequireOauthOnly(); !ok {
+		return &ValidationError{Name: "require_oauth_only", err: errors.New(`ent: missing required field "Group.require_oauth_only"`)}
+	}
+	if _, ok := _c.mutation.RequirePrivacySet(); !ok {
+		return &ValidationError{Name: "require_privacy_set", err: errors.New(`ent: missing required field "Group.require_privacy_set"`)}
+	}
+	if _, ok := _c.mutation.DefaultMappedModel(); !ok {
+		return &ValidationError{Name: "default_mapped_model", err: errors.New(`ent: missing required field "Group.default_mapped_model"`)}
+	}
+	if v, ok := _c.mutation.DefaultMappedModel(); ok {
+		if err := group.DefaultMappedModelValidator(v); err != nil {
+			return &ValidationError{Name: "default_mapped_model", err: fmt.Errorf(`ent: validator failed for field "Group.default_mapped_model": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.MessagesDispatchModelConfig(); !ok {
+		return &ValidationError{Name: "messages_dispatch_model_config", err: errors.New(`ent: missing required field "Group.messages_dispatch_model_config"`)}
+	}
+	if _, ok := _c.mutation.ModelsListConfig(); !ok {
+		return &ValidationError{Name: "models_list_config", err: errors.New(`ent: missing required field "Group.models_list_config"`)}
+	}
+	if _, ok := _c.mutation.PromptPolicy(); !ok {
+		return &ValidationError{Name: "prompt_policy", err: errors.New(`ent: missing required field "Group.prompt_policy"`)}
+	}
 	if _, ok := _c.mutation.RpmLimit(); !ok {
 		return &ValidationError{Name: "rpm_limit", err: errors.New(`ent: missing required field "Group.rpm_limit"`)}
 	}
@@ -1443,11 +1506,16 @@ func (_c *GroupCreate) check() error {
 			return &ValidationError{Name: "max_reasoning_effort", err: fmt.Errorf(`ent: validator failed for field "Group.max_reasoning_effort": %w`, err)}
 		}
 	}
+	if _, ok := _c.mutation.MaxReasoningEffortOverLimit(); !ok {
+		return &ValidationError{Name: "max_reasoning_effort_over_limit", err: errors.New(`ent: missing required field "Group.max_reasoning_effort_over_limit"`)}
+	}
+	if v, ok := _c.mutation.MaxReasoningEffortOverLimit(); ok {
+		if err := group.MaxReasoningEffortOverLimitValidator(v); err != nil {
+			return &ValidationError{Name: "max_reasoning_effort_over_limit", err: fmt.Errorf(`ent: validator failed for field "Group.max_reasoning_effort_over_limit": %w`, err)}
+		}
+	}
 	if _, ok := _c.mutation.ReasoningEffortMappings(); !ok {
 		return &ValidationError{Name: "reasoning_effort_mappings", err: errors.New(`ent: missing required field "Group.reasoning_effort_mappings"`)}
-	}
-	if _, ok := _c.mutation.PromptPolicy(); !ok {
-		return &ValidationError{Name: "prompt_policy", err: errors.New(`ent: missing required field "Group.prompt_policy"`)}
 	}
 	if _, ok := _c.mutation.ProfitControlEnabled(); !ok {
 		return &ValidationError{Name: "profit_control_enabled", err: errors.New(`ent: missing required field "Group.profit_control_enabled"`)}
@@ -1693,6 +1761,30 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 		_spec.SetField(group.FieldAllowLive, field.TypeBool, value)
 		_node.AllowLive = value
 	}
+	if value, ok := _c.mutation.GrokMessagesProtocol(); ok {
+		_spec.SetField(group.FieldGrokMessagesProtocol, field.TypeString, value)
+		_node.GrokMessagesProtocol = value
+	}
+	if value, ok := _c.mutation.GrokReasoningVisibilityMode(); ok {
+		_spec.SetField(group.FieldGrokReasoningVisibilityMode, field.TypeString, value)
+		_node.GrokReasoningVisibilityMode = value
+	}
+	if value, ok := _c.mutation.GrokReasoningProbeTTLSec(); ok {
+		_spec.SetField(group.FieldGrokReasoningProbeTTLSec, field.TypeInt, value)
+		_node.GrokReasoningProbeTTLSec = value
+	}
+	if value, ok := _c.mutation.GrokReasoningQuarantineSec(); ok {
+		_spec.SetField(group.FieldGrokReasoningQuarantineSec, field.TypeInt, value)
+		_node.GrokReasoningQuarantineSec = value
+	}
+	if value, ok := _c.mutation.ForceOpenaiFast(); ok {
+		_spec.SetField(group.FieldForceOpenaiFast, field.TypeBool, value)
+		_node.ForceOpenaiFast = value
+	}
+	if value, ok := _c.mutation.FreeOpenaiFast(); ok {
+		_spec.SetField(group.FieldFreeOpenaiFast, field.TypeBool, value)
+		_node.FreeOpenaiFast = value
+	}
 	if value, ok := _c.mutation.RequireOauthOnly(); ok {
 		_spec.SetField(group.FieldRequireOauthOnly, field.TypeBool, value)
 		_node.RequireOauthOnly = value
@@ -1713,21 +1805,9 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 		_spec.SetField(group.FieldModelsListConfig, field.TypeJSON, value)
 		_node.ModelsListConfig = value
 	}
-	if value, ok := _c.mutation.GrokMessagesProtocol(); ok {
-		_spec.SetField(group.FieldGrokMessagesProtocol, field.TypeString, value)
-		_node.GrokMessagesProtocol = value
-	}
-	if value, ok := _c.mutation.GrokReasoningVisibilityMode(); ok {
-		_spec.SetField(group.FieldGrokReasoningVisibilityMode, field.TypeString, value)
-		_node.GrokReasoningVisibilityMode = value
-	}
-	if value, ok := _c.mutation.GrokReasoningProbeTTLSec(); ok {
-		_spec.SetField(group.FieldGrokReasoningProbeTTLSec, field.TypeInt, value)
-		_node.GrokReasoningProbeTTLSec = value
-	}
-	if value, ok := _c.mutation.GrokReasoningQuarantineSec(); ok {
-		_spec.SetField(group.FieldGrokReasoningQuarantineSec, field.TypeInt, value)
-		_node.GrokReasoningQuarantineSec = value
+	if value, ok := _c.mutation.PromptPolicy(); ok {
+		_spec.SetField(group.FieldPromptPolicy, field.TypeJSON, value)
+		_node.PromptPolicy = value
 	}
 	if value, ok := _c.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)
@@ -1737,13 +1817,13 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 		_spec.SetField(group.FieldMaxReasoningEffort, field.TypeString, value)
 		_node.MaxReasoningEffort = value
 	}
+	if value, ok := _c.mutation.MaxReasoningEffortOverLimit(); ok {
+		_spec.SetField(group.FieldMaxReasoningEffortOverLimit, field.TypeString, value)
+		_node.MaxReasoningEffortOverLimit = value
+	}
 	if value, ok := _c.mutation.ReasoningEffortMappings(); ok {
 		_spec.SetField(group.FieldReasoningEffortMappings, field.TypeJSON, value)
 		_node.ReasoningEffortMappings = value
-	}
-	if value, ok := _c.mutation.PromptPolicy(); ok {
-		_spec.SetField(group.FieldPromptPolicy, field.TypeJSON, value)
-		_node.PromptPolicy = value
 	}
 	if value, ok := _c.mutation.ProfitControlEnabled(); ok {
 		_spec.SetField(group.FieldProfitControlEnabled, field.TypeBool, value)
@@ -2795,66 +2875,6 @@ func (u *GroupUpsert) UpdateAllowLive() *GroupUpsert {
 	return u
 }
 
-// SetRequireOauthOnly sets the "require_oauth_only" field.
-func (u *GroupUpsert) SetRequireOauthOnly(v bool) *GroupUpsert {
-	u.Set(group.FieldRequireOauthOnly, v)
-	return u
-}
-
-// UpdateRequireOauthOnly sets the "require_oauth_only" field to the value that was provided on create.
-func (u *GroupUpsert) UpdateRequireOauthOnly() *GroupUpsert {
-	u.SetExcluded(group.FieldRequireOauthOnly)
-	return u
-}
-
-// SetRequirePrivacySet sets the "require_privacy_set" field.
-func (u *GroupUpsert) SetRequirePrivacySet(v bool) *GroupUpsert {
-	u.Set(group.FieldRequirePrivacySet, v)
-	return u
-}
-
-// UpdateRequirePrivacySet sets the "require_privacy_set" field to the value that was provided on create.
-func (u *GroupUpsert) UpdateRequirePrivacySet() *GroupUpsert {
-	u.SetExcluded(group.FieldRequirePrivacySet)
-	return u
-}
-
-// SetDefaultMappedModel sets the "default_mapped_model" field.
-func (u *GroupUpsert) SetDefaultMappedModel(v string) *GroupUpsert {
-	u.Set(group.FieldDefaultMappedModel, v)
-	return u
-}
-
-// UpdateDefaultMappedModel sets the "default_mapped_model" field to the value that was provided on create.
-func (u *GroupUpsert) UpdateDefaultMappedModel() *GroupUpsert {
-	u.SetExcluded(group.FieldDefaultMappedModel)
-	return u
-}
-
-// SetMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field.
-func (u *GroupUpsert) SetMessagesDispatchModelConfig(v domain.OpenAIMessagesDispatchModelConfig) *GroupUpsert {
-	u.Set(group.FieldMessagesDispatchModelConfig, v)
-	return u
-}
-
-// UpdateMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field to the value that was provided on create.
-func (u *GroupUpsert) UpdateMessagesDispatchModelConfig() *GroupUpsert {
-	u.SetExcluded(group.FieldMessagesDispatchModelConfig)
-	return u
-}
-
-// SetModelsListConfig sets the "models_list_config" field.
-func (u *GroupUpsert) SetModelsListConfig(v domain.GroupModelsListConfig) *GroupUpsert {
-	u.Set(group.FieldModelsListConfig, v)
-	return u
-}
-
-// UpdateModelsListConfig sets the "models_list_config" field to the value that was provided on create.
-func (u *GroupUpsert) UpdateModelsListConfig() *GroupUpsert {
-	u.SetExcluded(group.FieldModelsListConfig)
-	return u
-}
-
 // SetGrokMessagesProtocol sets the "grok_messages_protocol" field.
 func (u *GroupUpsert) SetGrokMessagesProtocol(v string) *GroupUpsert {
 	u.Set(group.FieldGrokMessagesProtocol, v)
@@ -2915,6 +2935,102 @@ func (u *GroupUpsert) AddGrokReasoningQuarantineSec(v int) *GroupUpsert {
 	return u
 }
 
+// SetForceOpenaiFast sets the "force_openai_fast" field.
+func (u *GroupUpsert) SetForceOpenaiFast(v bool) *GroupUpsert {
+	u.Set(group.FieldForceOpenaiFast, v)
+	return u
+}
+
+// UpdateForceOpenaiFast sets the "force_openai_fast" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateForceOpenaiFast() *GroupUpsert {
+	u.SetExcluded(group.FieldForceOpenaiFast)
+	return u
+}
+
+// SetFreeOpenaiFast sets the "free_openai_fast" field.
+func (u *GroupUpsert) SetFreeOpenaiFast(v bool) *GroupUpsert {
+	u.Set(group.FieldFreeOpenaiFast, v)
+	return u
+}
+
+// UpdateFreeOpenaiFast sets the "free_openai_fast" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateFreeOpenaiFast() *GroupUpsert {
+	u.SetExcluded(group.FieldFreeOpenaiFast)
+	return u
+}
+
+// SetRequireOauthOnly sets the "require_oauth_only" field.
+func (u *GroupUpsert) SetRequireOauthOnly(v bool) *GroupUpsert {
+	u.Set(group.FieldRequireOauthOnly, v)
+	return u
+}
+
+// UpdateRequireOauthOnly sets the "require_oauth_only" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateRequireOauthOnly() *GroupUpsert {
+	u.SetExcluded(group.FieldRequireOauthOnly)
+	return u
+}
+
+// SetRequirePrivacySet sets the "require_privacy_set" field.
+func (u *GroupUpsert) SetRequirePrivacySet(v bool) *GroupUpsert {
+	u.Set(group.FieldRequirePrivacySet, v)
+	return u
+}
+
+// UpdateRequirePrivacySet sets the "require_privacy_set" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateRequirePrivacySet() *GroupUpsert {
+	u.SetExcluded(group.FieldRequirePrivacySet)
+	return u
+}
+
+// SetDefaultMappedModel sets the "default_mapped_model" field.
+func (u *GroupUpsert) SetDefaultMappedModel(v string) *GroupUpsert {
+	u.Set(group.FieldDefaultMappedModel, v)
+	return u
+}
+
+// UpdateDefaultMappedModel sets the "default_mapped_model" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateDefaultMappedModel() *GroupUpsert {
+	u.SetExcluded(group.FieldDefaultMappedModel)
+	return u
+}
+
+// SetMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field.
+func (u *GroupUpsert) SetMessagesDispatchModelConfig(v domain.OpenAIMessagesDispatchModelConfig) *GroupUpsert {
+	u.Set(group.FieldMessagesDispatchModelConfig, v)
+	return u
+}
+
+// UpdateMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateMessagesDispatchModelConfig() *GroupUpsert {
+	u.SetExcluded(group.FieldMessagesDispatchModelConfig)
+	return u
+}
+
+// SetModelsListConfig sets the "models_list_config" field.
+func (u *GroupUpsert) SetModelsListConfig(v domain.GroupModelsListConfig) *GroupUpsert {
+	u.Set(group.FieldModelsListConfig, v)
+	return u
+}
+
+// UpdateModelsListConfig sets the "models_list_config" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateModelsListConfig() *GroupUpsert {
+	u.SetExcluded(group.FieldModelsListConfig)
+	return u
+}
+
+// SetPromptPolicy sets the "prompt_policy" field.
+func (u *GroupUpsert) SetPromptPolicy(v domain.GroupPromptPolicy) *GroupUpsert {
+	u.Set(group.FieldPromptPolicy, v)
+	return u
+}
+
+// UpdatePromptPolicy sets the "prompt_policy" field to the value that was provided on create.
+func (u *GroupUpsert) UpdatePromptPolicy() *GroupUpsert {
+	u.SetExcluded(group.FieldPromptPolicy)
+	return u
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (u *GroupUpsert) SetRpmLimit(v int) *GroupUpsert {
 	u.Set(group.FieldRpmLimit, v)
@@ -2945,6 +3061,18 @@ func (u *GroupUpsert) UpdateMaxReasoningEffort() *GroupUpsert {
 	return u
 }
 
+// SetMaxReasoningEffortOverLimit sets the "max_reasoning_effort_over_limit" field.
+func (u *GroupUpsert) SetMaxReasoningEffortOverLimit(v string) *GroupUpsert {
+	u.Set(group.FieldMaxReasoningEffortOverLimit, v)
+	return u
+}
+
+// UpdateMaxReasoningEffortOverLimit sets the "max_reasoning_effort_over_limit" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateMaxReasoningEffortOverLimit() *GroupUpsert {
+	u.SetExcluded(group.FieldMaxReasoningEffortOverLimit)
+	return u
+}
+
 // SetReasoningEffortMappings sets the "reasoning_effort_mappings" field.
 func (u *GroupUpsert) SetReasoningEffortMappings(v []domain.ReasoningEffortMapping) *GroupUpsert {
 	u.Set(group.FieldReasoningEffortMappings, v)
@@ -2954,18 +3082,6 @@ func (u *GroupUpsert) SetReasoningEffortMappings(v []domain.ReasoningEffortMappi
 // UpdateReasoningEffortMappings sets the "reasoning_effort_mappings" field to the value that was provided on create.
 func (u *GroupUpsert) UpdateReasoningEffortMappings() *GroupUpsert {
 	u.SetExcluded(group.FieldReasoningEffortMappings)
-	return u
-}
-
-// SetPromptPolicy sets the "prompt_policy" field.
-func (u *GroupUpsert) SetPromptPolicy(v domain.GroupPromptPolicy) *GroupUpsert {
-	u.Set(group.FieldPromptPolicy, v)
-	return u
-}
-
-// UpdatePromptPolicy sets the "prompt_policy" field to the value that was provided on create.
-func (u *GroupUpsert) UpdatePromptPolicy() *GroupUpsert {
-	u.SetExcluded(group.FieldPromptPolicy)
 	return u
 }
 
@@ -4094,76 +4210,6 @@ func (u *GroupUpsertOne) UpdateAllowLive() *GroupUpsertOne {
 	})
 }
 
-// SetRequireOauthOnly sets the "require_oauth_only" field.
-func (u *GroupUpsertOne) SetRequireOauthOnly(v bool) *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.SetRequireOauthOnly(v)
-	})
-}
-
-// UpdateRequireOauthOnly sets the "require_oauth_only" field to the value that was provided on create.
-func (u *GroupUpsertOne) UpdateRequireOauthOnly() *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.UpdateRequireOauthOnly()
-	})
-}
-
-// SetRequirePrivacySet sets the "require_privacy_set" field.
-func (u *GroupUpsertOne) SetRequirePrivacySet(v bool) *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.SetRequirePrivacySet(v)
-	})
-}
-
-// UpdateRequirePrivacySet sets the "require_privacy_set" field to the value that was provided on create.
-func (u *GroupUpsertOne) UpdateRequirePrivacySet() *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.UpdateRequirePrivacySet()
-	})
-}
-
-// SetDefaultMappedModel sets the "default_mapped_model" field.
-func (u *GroupUpsertOne) SetDefaultMappedModel(v string) *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.SetDefaultMappedModel(v)
-	})
-}
-
-// UpdateDefaultMappedModel sets the "default_mapped_model" field to the value that was provided on create.
-func (u *GroupUpsertOne) UpdateDefaultMappedModel() *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.UpdateDefaultMappedModel()
-	})
-}
-
-// SetMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field.
-func (u *GroupUpsertOne) SetMessagesDispatchModelConfig(v domain.OpenAIMessagesDispatchModelConfig) *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.SetMessagesDispatchModelConfig(v)
-	})
-}
-
-// UpdateMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field to the value that was provided on create.
-func (u *GroupUpsertOne) UpdateMessagesDispatchModelConfig() *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.UpdateMessagesDispatchModelConfig()
-	})
-}
-
-// SetModelsListConfig sets the "models_list_config" field.
-func (u *GroupUpsertOne) SetModelsListConfig(v domain.GroupModelsListConfig) *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.SetModelsListConfig(v)
-	})
-}
-
-// UpdateModelsListConfig sets the "models_list_config" field to the value that was provided on create.
-func (u *GroupUpsertOne) UpdateModelsListConfig() *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.UpdateModelsListConfig()
-	})
-}
-
 // SetGrokMessagesProtocol sets the "grok_messages_protocol" field.
 func (u *GroupUpsertOne) SetGrokMessagesProtocol(v string) *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
@@ -4234,6 +4280,118 @@ func (u *GroupUpsertOne) UpdateGrokReasoningQuarantineSec() *GroupUpsertOne {
 	})
 }
 
+// SetForceOpenaiFast sets the "force_openai_fast" field.
+func (u *GroupUpsertOne) SetForceOpenaiFast(v bool) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetForceOpenaiFast(v)
+	})
+}
+
+// UpdateForceOpenaiFast sets the "force_openai_fast" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateForceOpenaiFast() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateForceOpenaiFast()
+	})
+}
+
+// SetFreeOpenaiFast sets the "free_openai_fast" field.
+func (u *GroupUpsertOne) SetFreeOpenaiFast(v bool) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetFreeOpenaiFast(v)
+	})
+}
+
+// UpdateFreeOpenaiFast sets the "free_openai_fast" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateFreeOpenaiFast() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateFreeOpenaiFast()
+	})
+}
+
+// SetRequireOauthOnly sets the "require_oauth_only" field.
+func (u *GroupUpsertOne) SetRequireOauthOnly(v bool) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetRequireOauthOnly(v)
+	})
+}
+
+// UpdateRequireOauthOnly sets the "require_oauth_only" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateRequireOauthOnly() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateRequireOauthOnly()
+	})
+}
+
+// SetRequirePrivacySet sets the "require_privacy_set" field.
+func (u *GroupUpsertOne) SetRequirePrivacySet(v bool) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetRequirePrivacySet(v)
+	})
+}
+
+// UpdateRequirePrivacySet sets the "require_privacy_set" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateRequirePrivacySet() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateRequirePrivacySet()
+	})
+}
+
+// SetDefaultMappedModel sets the "default_mapped_model" field.
+func (u *GroupUpsertOne) SetDefaultMappedModel(v string) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetDefaultMappedModel(v)
+	})
+}
+
+// UpdateDefaultMappedModel sets the "default_mapped_model" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateDefaultMappedModel() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateDefaultMappedModel()
+	})
+}
+
+// SetMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field.
+func (u *GroupUpsertOne) SetMessagesDispatchModelConfig(v domain.OpenAIMessagesDispatchModelConfig) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetMessagesDispatchModelConfig(v)
+	})
+}
+
+// UpdateMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateMessagesDispatchModelConfig() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateMessagesDispatchModelConfig()
+	})
+}
+
+// SetModelsListConfig sets the "models_list_config" field.
+func (u *GroupUpsertOne) SetModelsListConfig(v domain.GroupModelsListConfig) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetModelsListConfig(v)
+	})
+}
+
+// UpdateModelsListConfig sets the "models_list_config" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateModelsListConfig() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateModelsListConfig()
+	})
+}
+
+// SetPromptPolicy sets the "prompt_policy" field.
+func (u *GroupUpsertOne) SetPromptPolicy(v domain.GroupPromptPolicy) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetPromptPolicy(v)
+	})
+}
+
+// UpdatePromptPolicy sets the "prompt_policy" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdatePromptPolicy() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdatePromptPolicy()
+	})
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (u *GroupUpsertOne) SetRpmLimit(v int) *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
@@ -4269,6 +4427,20 @@ func (u *GroupUpsertOne) UpdateMaxReasoningEffort() *GroupUpsertOne {
 	})
 }
 
+// SetMaxReasoningEffortOverLimit sets the "max_reasoning_effort_over_limit" field.
+func (u *GroupUpsertOne) SetMaxReasoningEffortOverLimit(v string) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetMaxReasoningEffortOverLimit(v)
+	})
+}
+
+// UpdateMaxReasoningEffortOverLimit sets the "max_reasoning_effort_over_limit" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateMaxReasoningEffortOverLimit() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateMaxReasoningEffortOverLimit()
+	})
+}
+
 // SetReasoningEffortMappings sets the "reasoning_effort_mappings" field.
 func (u *GroupUpsertOne) SetReasoningEffortMappings(v []domain.ReasoningEffortMapping) *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
@@ -4280,20 +4452,6 @@ func (u *GroupUpsertOne) SetReasoningEffortMappings(v []domain.ReasoningEffortMa
 func (u *GroupUpsertOne) UpdateReasoningEffortMappings() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateReasoningEffortMappings()
-	})
-}
-
-// SetPromptPolicy sets the "prompt_policy" field.
-func (u *GroupUpsertOne) SetPromptPolicy(v domain.GroupPromptPolicy) *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.SetPromptPolicy(v)
-	})
-}
-
-// UpdatePromptPolicy sets the "prompt_policy" field to the value that was provided on create.
-func (u *GroupUpsertOne) UpdatePromptPolicy() *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.UpdatePromptPolicy()
 	})
 }
 
@@ -5596,76 +5754,6 @@ func (u *GroupUpsertBulk) UpdateAllowLive() *GroupUpsertBulk {
 	})
 }
 
-// SetRequireOauthOnly sets the "require_oauth_only" field.
-func (u *GroupUpsertBulk) SetRequireOauthOnly(v bool) *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.SetRequireOauthOnly(v)
-	})
-}
-
-// UpdateRequireOauthOnly sets the "require_oauth_only" field to the value that was provided on create.
-func (u *GroupUpsertBulk) UpdateRequireOauthOnly() *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.UpdateRequireOauthOnly()
-	})
-}
-
-// SetRequirePrivacySet sets the "require_privacy_set" field.
-func (u *GroupUpsertBulk) SetRequirePrivacySet(v bool) *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.SetRequirePrivacySet(v)
-	})
-}
-
-// UpdateRequirePrivacySet sets the "require_privacy_set" field to the value that was provided on create.
-func (u *GroupUpsertBulk) UpdateRequirePrivacySet() *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.UpdateRequirePrivacySet()
-	})
-}
-
-// SetDefaultMappedModel sets the "default_mapped_model" field.
-func (u *GroupUpsertBulk) SetDefaultMappedModel(v string) *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.SetDefaultMappedModel(v)
-	})
-}
-
-// UpdateDefaultMappedModel sets the "default_mapped_model" field to the value that was provided on create.
-func (u *GroupUpsertBulk) UpdateDefaultMappedModel() *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.UpdateDefaultMappedModel()
-	})
-}
-
-// SetMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field.
-func (u *GroupUpsertBulk) SetMessagesDispatchModelConfig(v domain.OpenAIMessagesDispatchModelConfig) *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.SetMessagesDispatchModelConfig(v)
-	})
-}
-
-// UpdateMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field to the value that was provided on create.
-func (u *GroupUpsertBulk) UpdateMessagesDispatchModelConfig() *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.UpdateMessagesDispatchModelConfig()
-	})
-}
-
-// SetModelsListConfig sets the "models_list_config" field.
-func (u *GroupUpsertBulk) SetModelsListConfig(v domain.GroupModelsListConfig) *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.SetModelsListConfig(v)
-	})
-}
-
-// UpdateModelsListConfig sets the "models_list_config" field to the value that was provided on create.
-func (u *GroupUpsertBulk) UpdateModelsListConfig() *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.UpdateModelsListConfig()
-	})
-}
-
 // SetGrokMessagesProtocol sets the "grok_messages_protocol" field.
 func (u *GroupUpsertBulk) SetGrokMessagesProtocol(v string) *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
@@ -5736,6 +5824,118 @@ func (u *GroupUpsertBulk) UpdateGrokReasoningQuarantineSec() *GroupUpsertBulk {
 	})
 }
 
+// SetForceOpenaiFast sets the "force_openai_fast" field.
+func (u *GroupUpsertBulk) SetForceOpenaiFast(v bool) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetForceOpenaiFast(v)
+	})
+}
+
+// UpdateForceOpenaiFast sets the "force_openai_fast" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateForceOpenaiFast() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateForceOpenaiFast()
+	})
+}
+
+// SetFreeOpenaiFast sets the "free_openai_fast" field.
+func (u *GroupUpsertBulk) SetFreeOpenaiFast(v bool) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetFreeOpenaiFast(v)
+	})
+}
+
+// UpdateFreeOpenaiFast sets the "free_openai_fast" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateFreeOpenaiFast() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateFreeOpenaiFast()
+	})
+}
+
+// SetRequireOauthOnly sets the "require_oauth_only" field.
+func (u *GroupUpsertBulk) SetRequireOauthOnly(v bool) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetRequireOauthOnly(v)
+	})
+}
+
+// UpdateRequireOauthOnly sets the "require_oauth_only" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateRequireOauthOnly() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateRequireOauthOnly()
+	})
+}
+
+// SetRequirePrivacySet sets the "require_privacy_set" field.
+func (u *GroupUpsertBulk) SetRequirePrivacySet(v bool) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetRequirePrivacySet(v)
+	})
+}
+
+// UpdateRequirePrivacySet sets the "require_privacy_set" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateRequirePrivacySet() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateRequirePrivacySet()
+	})
+}
+
+// SetDefaultMappedModel sets the "default_mapped_model" field.
+func (u *GroupUpsertBulk) SetDefaultMappedModel(v string) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetDefaultMappedModel(v)
+	})
+}
+
+// UpdateDefaultMappedModel sets the "default_mapped_model" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateDefaultMappedModel() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateDefaultMappedModel()
+	})
+}
+
+// SetMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field.
+func (u *GroupUpsertBulk) SetMessagesDispatchModelConfig(v domain.OpenAIMessagesDispatchModelConfig) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetMessagesDispatchModelConfig(v)
+	})
+}
+
+// UpdateMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateMessagesDispatchModelConfig() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateMessagesDispatchModelConfig()
+	})
+}
+
+// SetModelsListConfig sets the "models_list_config" field.
+func (u *GroupUpsertBulk) SetModelsListConfig(v domain.GroupModelsListConfig) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetModelsListConfig(v)
+	})
+}
+
+// UpdateModelsListConfig sets the "models_list_config" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateModelsListConfig() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateModelsListConfig()
+	})
+}
+
+// SetPromptPolicy sets the "prompt_policy" field.
+func (u *GroupUpsertBulk) SetPromptPolicy(v domain.GroupPromptPolicy) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetPromptPolicy(v)
+	})
+}
+
+// UpdatePromptPolicy sets the "prompt_policy" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdatePromptPolicy() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdatePromptPolicy()
+	})
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (u *GroupUpsertBulk) SetRpmLimit(v int) *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
@@ -5771,6 +5971,20 @@ func (u *GroupUpsertBulk) UpdateMaxReasoningEffort() *GroupUpsertBulk {
 	})
 }
 
+// SetMaxReasoningEffortOverLimit sets the "max_reasoning_effort_over_limit" field.
+func (u *GroupUpsertBulk) SetMaxReasoningEffortOverLimit(v string) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetMaxReasoningEffortOverLimit(v)
+	})
+}
+
+// UpdateMaxReasoningEffortOverLimit sets the "max_reasoning_effort_over_limit" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateMaxReasoningEffortOverLimit() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateMaxReasoningEffortOverLimit()
+	})
+}
+
 // SetReasoningEffortMappings sets the "reasoning_effort_mappings" field.
 func (u *GroupUpsertBulk) SetReasoningEffortMappings(v []domain.ReasoningEffortMapping) *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
@@ -5782,20 +5996,6 @@ func (u *GroupUpsertBulk) SetReasoningEffortMappings(v []domain.ReasoningEffortM
 func (u *GroupUpsertBulk) UpdateReasoningEffortMappings() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateReasoningEffortMappings()
-	})
-}
-
-// SetPromptPolicy sets the "prompt_policy" field.
-func (u *GroupUpsertBulk) SetPromptPolicy(v domain.GroupPromptPolicy) *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.SetPromptPolicy(v)
-	})
-}
-
-// UpdatePromptPolicy sets the "prompt_policy" field to the value that was provided on create.
-func (u *GroupUpsertBulk) UpdatePromptPolicy() *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.UpdatePromptPolicy()
 	})
 }
 

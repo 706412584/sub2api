@@ -124,6 +124,18 @@ type Group struct {
 	AllowMessagesDispatch bool `json:"allow_messages_dispatch,omitempty"`
 	// 是否允许此 OpenAI 分组访问 Live 接口
 	AllowLive bool `json:"allow_live,omitempty"`
+	// Grok 分组处理 /v1/messages 时使用的上游协议：responses（默认原生）或 chat_completions（可选可见思考）
+	GrokMessagesProtocol string `json:"grok_messages_protocol,omitempty"`
+	// Grok 思考明文调度模式：空=继承网关默认，off=不检查，soft=降权，enforce=排除并冷却
+	GrokReasoningVisibilityMode string `json:"grok_reasoning_visibility_mode,omitempty"`
+	// Grok 思考探测复用秒数：-1=继承网关，0=每次探测，N=缓存N秒
+	GrokReasoningProbeTTLSec int `json:"grok_reasoning_probe_ttl_sec,omitempty"`
+	// Grok enforce 冷却秒数：-1=继承网关，-2=暂停调度，0=仅本轮排除，N=临时不可调度N秒
+	GrokReasoningQuarantineSec int `json:"grok_reasoning_quarantine_sec,omitempty"`
+	// 是否强制此 OpenAI/Composite 分组请求使用 service_tier=priority
+	ForceOpenaiFast bool `json:"force_openai_fast,omitempty"`
+	// 是否让此 OpenAI/Composite 分组的 Fast 请求按 Standard 价格计费
+	FreeOpenaiFast bool `json:"free_openai_fast,omitempty"`
 	// 仅允许非 apikey 类型账号关联到此分组
 	RequireOauthOnly bool `json:"require_oauth_only,omitempty"`
 	// 调度时仅允许 privacy 已成功设置的账号
@@ -134,22 +146,16 @@ type Group struct {
 	MessagesDispatchModelConfig domain.OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config,omitempty"`
 	// 自定义 /v1/models 展示列表配置；仅影响模型列表响应，不影响调度
 	ModelsListConfig domain.GroupModelsListConfig `json:"models_list_config,omitempty"`
-	// Grok 分组处理 /v1/messages 时使用的上游协议：responses（默认原生）或 chat_completions（可选可见思考）
-	GrokMessagesProtocol string `json:"grok_messages_protocol,omitempty"`
-	// Grok 思考明文调度模式：空=继承网关默认，off=不检查，soft=降权，enforce=排除并冷却
-	GrokReasoningVisibilityMode string `json:"grok_reasoning_visibility_mode,omitempty"`
-	// Grok 思考探测复用秒数：-1=继承网关，0=每次探测，N=缓存N秒
-	GrokReasoningProbeTTLSec int `json:"grok_reasoning_probe_ttl_sec,omitempty"`
-	// Grok enforce 冷却秒数：-1=继承网关，-2=暂停调度，0=仅本轮排除，N=临时不可调度N秒
-	GrokReasoningQuarantineSec int `json:"grok_reasoning_quarantine_sec,omitempty"`
+	// Group prompt policy
+	PromptPolicy domain.GroupPromptPolicy `json:"prompt_policy,omitempty"`
 	// 分组 RPM 上限，0 表示不限制；设置后接管该分组用户的限流
 	RpmLimit int `json:"rpm_limit,omitempty"`
 	// OpenAI reasoning effort 上限；可选 minimal/low/medium/high/xhigh/max
 	MaxReasoningEffort string `json:"max_reasoning_effort,omitempty"`
-	// OpenAI reasoning effort 自定义精确映射；先映射再应用上限
+	// 超过推理强度上限时的访问控制：downgrade 自动降档，deny 拒绝访问
+	MaxReasoningEffortOverLimit string `json:"max_reasoning_effort_over_limit,omitempty"`
+	// OpenAI reasoning effort 自定义映射；可按模型精确名、前缀或后缀限定，先映射再应用上限
 	ReasoningEffortMappings []domain.ReasoningEffortMapping `json:"reasoning_effort_mappings,omitempty"`
-	// Group prompt policy
-	PromptPolicy domain.GroupPromptPolicy `json:"prompt_policy,omitempty"`
 	// 是否启用利润控制：调度时仅允许账号计费倍率满足毛利率要求的账号进入候选池
 	ProfitControlEnabled bool `json:"profit_control_enabled,omitempty"`
 	// 最低毛利率，小数（0.30=30%）；账号准入条件为 U <= D*(1-margin-buffer)
@@ -262,15 +268,15 @@ func (*Group) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case group.FieldVideoModelPrices, group.FieldModelPricing, group.FieldModelRouting, group.FieldSupportedModelScopes, group.FieldMessagesDispatchModelConfig, group.FieldModelsListConfig, group.FieldReasoningEffortMappings, group.FieldPromptPolicy:
+		case group.FieldVideoModelPrices, group.FieldModelPricing, group.FieldModelRouting, group.FieldSupportedModelScopes, group.FieldMessagesDispatchModelConfig, group.FieldModelsListConfig, group.FieldPromptPolicy, group.FieldReasoningEffortMappings:
 			values[i] = new([]byte)
-		case group.FieldPeakRateEnabled, group.FieldIsExclusive, group.FieldAllowImageGeneration, group.FieldAllowBatchImageGeneration, group.FieldImageRateIndependent, group.FieldVideoRateIndependent, group.FieldLongContextPricingEnabled, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldAllowLive, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet, group.FieldProfitControlEnabled:
+		case group.FieldPeakRateEnabled, group.FieldIsExclusive, group.FieldAllowImageGeneration, group.FieldAllowBatchImageGeneration, group.FieldImageRateIndependent, group.FieldVideoRateIndependent, group.FieldLongContextPricingEnabled, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldAllowLive, group.FieldForceOpenaiFast, group.FieldFreeOpenaiFast, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet, group.FieldProfitControlEnabled:
 			values[i] = new(sql.NullBool)
 		case group.FieldRateMultiplier, group.FieldPeakRateMultiplier, group.FieldDailyLimitUsd, group.FieldWeeklyLimitUsd, group.FieldMonthlyLimitUsd, group.FieldImageRateMultiplier, group.FieldImagePrice1k, group.FieldImagePrice2k, group.FieldImagePrice4k, group.FieldBatchImageDiscountMultiplier, group.FieldBatchImageHoldMultiplier, group.FieldVideoRateMultiplier, group.FieldVideoPrice480p, group.FieldVideoPrice720p, group.FieldVideoPrice1080p, group.FieldWebSearchPricePerCall, group.FieldSearchPricePer1k, group.FieldAudioRealtimePricePerMin, group.FieldAudioTtsPricePerMillionChars, group.FieldAudioSttPricePerHour, group.FieldProfitMinMargin, group.FieldProfitSafetyBuffer:
 			values[i] = new(sql.NullFloat64)
 		case group.FieldID, group.FieldDefaultValidityDays, group.FieldFallbackGroupID, group.FieldFallbackGroupIDOnInvalidRequest, group.FieldDefaultProxyID, group.FieldSortOrder, group.FieldGrokReasoningProbeTTLSec, group.FieldGrokReasoningQuarantineSec, group.FieldRpmLimit:
 			values[i] = new(sql.NullInt64)
-		case group.FieldName, group.FieldDescription, group.FieldPeakStart, group.FieldPeakEnd, group.FieldStatus, group.FieldDuplicateOperationID, group.FieldPlatform, group.FieldSubscriptionType, group.FieldDefaultMappedModel, group.FieldGrokMessagesProtocol, group.FieldGrokReasoningVisibilityMode, group.FieldMaxReasoningEffort:
+		case group.FieldName, group.FieldDescription, group.FieldPeakStart, group.FieldPeakEnd, group.FieldStatus, group.FieldDuplicateOperationID, group.FieldPlatform, group.FieldSubscriptionType, group.FieldGrokMessagesProtocol, group.FieldGrokReasoningVisibilityMode, group.FieldDefaultMappedModel, group.FieldMaxReasoningEffort, group.FieldMaxReasoningEffortOverLimit:
 			values[i] = new(sql.NullString)
 		case group.FieldCreatedAt, group.FieldUpdatedAt, group.FieldDeletedAt:
 			values[i] = new(sql.NullTime)
@@ -635,6 +641,42 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.AllowLive = value.Bool
 			}
+		case group.FieldGrokMessagesProtocol:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field grok_messages_protocol", values[i])
+			} else if value.Valid {
+				_m.GrokMessagesProtocol = value.String
+			}
+		case group.FieldGrokReasoningVisibilityMode:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field grok_reasoning_visibility_mode", values[i])
+			} else if value.Valid {
+				_m.GrokReasoningVisibilityMode = value.String
+			}
+		case group.FieldGrokReasoningProbeTTLSec:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field grok_reasoning_probe_ttl_sec", values[i])
+			} else if value.Valid {
+				_m.GrokReasoningProbeTTLSec = int(value.Int64)
+			}
+		case group.FieldGrokReasoningQuarantineSec:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field grok_reasoning_quarantine_sec", values[i])
+			} else if value.Valid {
+				_m.GrokReasoningQuarantineSec = int(value.Int64)
+			}
+		case group.FieldForceOpenaiFast:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field force_openai_fast", values[i])
+			} else if value.Valid {
+				_m.ForceOpenaiFast = value.Bool
+			}
+		case group.FieldFreeOpenaiFast:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field free_openai_fast", values[i])
+			} else if value.Valid {
+				_m.FreeOpenaiFast = value.Bool
+			}
 		case group.FieldRequireOauthOnly:
 			if value, ok := values[i].(*sql.NullBool); !ok {
 				return fmt.Errorf("unexpected type %T for field require_oauth_only", values[i])
@@ -669,29 +711,13 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 					return fmt.Errorf("unmarshal field models_list_config: %w", err)
 				}
 			}
-		case group.FieldGrokMessagesProtocol:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field grok_messages_protocol", values[i])
-			} else if value.Valid {
-				_m.GrokMessagesProtocol = value.String
-			}
-		case group.FieldGrokReasoningVisibilityMode:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field grok_reasoning_visibility_mode", values[i])
-			} else if value.Valid {
-				_m.GrokReasoningVisibilityMode = value.String
-			}
-		case group.FieldGrokReasoningProbeTTLSec:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field grok_reasoning_probe_ttl_sec", values[i])
-			} else if value.Valid {
-				_m.GrokReasoningProbeTTLSec = int(value.Int64)
-			}
-		case group.FieldGrokReasoningQuarantineSec:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field grok_reasoning_quarantine_sec", values[i])
-			} else if value.Valid {
-				_m.GrokReasoningQuarantineSec = int(value.Int64)
+		case group.FieldPromptPolicy:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field prompt_policy", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.PromptPolicy); err != nil {
+					return fmt.Errorf("unmarshal field prompt_policy: %w", err)
+				}
 			}
 		case group.FieldRpmLimit:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -705,20 +731,18 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.MaxReasoningEffort = value.String
 			}
+		case group.FieldMaxReasoningEffortOverLimit:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field max_reasoning_effort_over_limit", values[i])
+			} else if value.Valid {
+				_m.MaxReasoningEffortOverLimit = value.String
+			}
 		case group.FieldReasoningEffortMappings:
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field reasoning_effort_mappings", values[i])
 			} else if value != nil && len(*value) > 0 {
 				if err := json.Unmarshal(*value, &_m.ReasoningEffortMappings); err != nil {
 					return fmt.Errorf("unmarshal field reasoning_effort_mappings: %w", err)
-				}
-			}
-		case group.FieldPromptPolicy:
-			if value, ok := values[i].(*[]byte); !ok {
-				return fmt.Errorf("unexpected type %T for field prompt_policy", values[i])
-			} else if value != nil && len(*value) > 0 {
-				if err := json.Unmarshal(*value, &_m.PromptPolicy); err != nil {
-					return fmt.Errorf("unmarshal field prompt_policy: %w", err)
 				}
 			}
 		case group.FieldProfitControlEnabled:
@@ -1011,6 +1035,24 @@ func (_m *Group) String() string {
 	builder.WriteString("allow_live=")
 	builder.WriteString(fmt.Sprintf("%v", _m.AllowLive))
 	builder.WriteString(", ")
+	builder.WriteString("grok_messages_protocol=")
+	builder.WriteString(_m.GrokMessagesProtocol)
+	builder.WriteString(", ")
+	builder.WriteString("grok_reasoning_visibility_mode=")
+	builder.WriteString(_m.GrokReasoningVisibilityMode)
+	builder.WriteString(", ")
+	builder.WriteString("grok_reasoning_probe_ttl_sec=")
+	builder.WriteString(fmt.Sprintf("%v", _m.GrokReasoningProbeTTLSec))
+	builder.WriteString(", ")
+	builder.WriteString("grok_reasoning_quarantine_sec=")
+	builder.WriteString(fmt.Sprintf("%v", _m.GrokReasoningQuarantineSec))
+	builder.WriteString(", ")
+	builder.WriteString("force_openai_fast=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ForceOpenaiFast))
+	builder.WriteString(", ")
+	builder.WriteString("free_openai_fast=")
+	builder.WriteString(fmt.Sprintf("%v", _m.FreeOpenaiFast))
+	builder.WriteString(", ")
 	builder.WriteString("require_oauth_only=")
 	builder.WriteString(fmt.Sprintf("%v", _m.RequireOauthOnly))
 	builder.WriteString(", ")
@@ -1026,17 +1068,8 @@ func (_m *Group) String() string {
 	builder.WriteString("models_list_config=")
 	builder.WriteString(fmt.Sprintf("%v", _m.ModelsListConfig))
 	builder.WriteString(", ")
-	builder.WriteString("grok_messages_protocol=")
-	builder.WriteString(_m.GrokMessagesProtocol)
-	builder.WriteString(", ")
-	builder.WriteString("grok_reasoning_visibility_mode=")
-	builder.WriteString(_m.GrokReasoningVisibilityMode)
-	builder.WriteString(", ")
-	builder.WriteString("grok_reasoning_probe_ttl_sec=")
-	builder.WriteString(fmt.Sprintf("%v", _m.GrokReasoningProbeTTLSec))
-	builder.WriteString(", ")
-	builder.WriteString("grok_reasoning_quarantine_sec=")
-	builder.WriteString(fmt.Sprintf("%v", _m.GrokReasoningQuarantineSec))
+	builder.WriteString("prompt_policy=")
+	builder.WriteString(fmt.Sprintf("%v", _m.PromptPolicy))
 	builder.WriteString(", ")
 	builder.WriteString("rpm_limit=")
 	builder.WriteString(fmt.Sprintf("%v", _m.RpmLimit))
@@ -1044,11 +1077,11 @@ func (_m *Group) String() string {
 	builder.WriteString("max_reasoning_effort=")
 	builder.WriteString(_m.MaxReasoningEffort)
 	builder.WriteString(", ")
+	builder.WriteString("max_reasoning_effort_over_limit=")
+	builder.WriteString(_m.MaxReasoningEffortOverLimit)
+	builder.WriteString(", ")
 	builder.WriteString("reasoning_effort_mappings=")
 	builder.WriteString(fmt.Sprintf("%v", _m.ReasoningEffortMappings))
-	builder.WriteString(", ")
-	builder.WriteString("prompt_policy=")
-	builder.WriteString(fmt.Sprintf("%v", _m.PromptPolicy))
 	builder.WriteString(", ")
 	builder.WriteString("profit_control_enabled=")
 	builder.WriteString(fmt.Sprintf("%v", _m.ProfitControlEnabled))

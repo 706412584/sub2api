@@ -207,7 +207,6 @@ func (Group) Fields() []ent.Field {
 			Optional().
 			Nillable().
 			Comment("无效请求兜底使用的分组 ID"),
-
 		// 账号加入该分组且未显式指定代理时，自动绑定此代理（migration 187）
 		field.Int64("default_proxy_id").
 			Optional().
@@ -248,6 +247,26 @@ func (Group) Fields() []ent.Field {
 		field.Bool("allow_live").
 			Default(false).
 			Comment("是否允许此 OpenAI 分组访问 Live 接口"),
+		field.String("grok_messages_protocol").
+			MaxLen(32).
+			Default("responses").
+			Comment("Grok 分组处理 /v1/messages 时使用的上游协议：responses（默认原生）或 chat_completions（可选可见思考）"),
+		field.String("grok_reasoning_visibility_mode").
+			MaxLen(16).
+			Default("").
+			Comment("Grok 思考明文调度模式：空=继承网关默认，off=不检查，soft=降权，enforce=排除并冷却"),
+		field.Int("grok_reasoning_probe_ttl_sec").
+			Default(-1).
+			Comment("Grok 思考探测复用秒数：-1=继承网关，0=每次探测，N=缓存N秒"),
+		field.Int("grok_reasoning_quarantine_sec").
+			Default(-1).
+			Comment("Grok enforce 冷却秒数：-1=继承网关，-2=暂停调度，0=仅本轮排除，N=临时不可调度N秒"),
+		field.Bool("force_openai_fast").
+			Default(false).
+			Comment("是否强制此 OpenAI/Composite 分组请求使用 service_tier=priority"),
+		field.Bool("free_openai_fast").
+			Default(false).
+			Comment("是否让此 OpenAI/Composite 分组的 Fast 请求按 Standard 价格计费"),
 		field.Bool("require_oauth_only").
 			Default(false).
 			Comment("仅允许非 apikey 类型账号关联到此分组"),
@@ -266,20 +285,12 @@ func (Group) Fields() []ent.Field {
 			Default(domain.GroupModelsListConfig{}).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
 			Comment("自定义 /v1/models 展示列表配置；仅影响模型列表响应，不影响调度"),
-		field.String("grok_messages_protocol").
-			MaxLen(32).
-			Default("responses").
-			Comment("Grok 分组处理 /v1/messages 时使用的上游协议：responses（默认原生）或 chat_completions（可选可见思考）"),
-		field.String("grok_reasoning_visibility_mode").
-			MaxLen(16).
-			Default("").
-			Comment("Grok 思考明文调度模式：空=继承网关默认，off=不检查，soft=降权，enforce=排除并冷却"),
-		field.Int("grok_reasoning_probe_ttl_sec").
-			Default(-1).
-			Comment("Grok 思考探测复用秒数：-1=继承网关，0=每次探测，N=缓存N秒"),
-		field.Int("grok_reasoning_quarantine_sec").
-			Default(-1).
-			Comment("Grok enforce 冷却秒数：-1=继承网关，-2=暂停调度，0=仅本轮排除，N=临时不可调度N秒"),
+
+		// Prompt policy only changes or blocks request text when enabled.
+		field.JSON("prompt_policy", domain.GroupPromptPolicy{}).
+			Default(domain.GroupPromptPolicy{}).
+			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
+			Comment("Group prompt policy"),
 
 		// 分组级每分钟请求数上限（0 = 不限制）。设置后优先于用户级兜底生效。
 		field.Int("rpm_limit").
@@ -291,16 +302,14 @@ func (Group) Fields() []ent.Field {
 			MaxLen(20).
 			Default("").
 			Comment("OpenAI reasoning effort 上限；可选 minimal/low/medium/high/xhigh/max"),
+		field.String("max_reasoning_effort_over_limit").
+			MaxLen(20).
+			Default("downgrade").
+			Comment("超过推理强度上限时的访问控制：downgrade 自动降档，deny 拒绝访问"),
 		field.JSON("reasoning_effort_mappings", []domain.ReasoningEffortMapping{}).
 			Default([]domain.ReasoningEffortMapping{}).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
-			Comment("OpenAI reasoning effort 自定义精确映射；先映射再应用上限"),
-
-		// Prompt policy only changes or blocks request text when enabled.
-		field.JSON("prompt_policy", domain.GroupPromptPolicy{}).
-			Default(domain.GroupPromptPolicy{}).
-			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
-			Comment("Group prompt policy"),
+			Comment("OpenAI reasoning effort 自定义映射；可按模型精确名、前缀或后缀限定，先映射再应用上限"),
 
 		// 分组利润控制（migration 192/193）：openai/anthropic/gemini/grok/antigravity
 		// 的 token 分组可启用，composite 分组不能直接启用。

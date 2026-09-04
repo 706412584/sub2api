@@ -1016,76 +1016,6 @@ func (_u *GroupUpdate) SetNillableAllowLive(v *bool) *GroupUpdate {
 	return _u
 }
 
-// SetRequireOauthOnly sets the "require_oauth_only" field.
-func (_u *GroupUpdate) SetRequireOauthOnly(v bool) *GroupUpdate {
-	_u.mutation.SetRequireOauthOnly(v)
-	return _u
-}
-
-// SetNillableRequireOauthOnly sets the "require_oauth_only" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableRequireOauthOnly(v *bool) *GroupUpdate {
-	if v != nil {
-		_u.SetRequireOauthOnly(*v)
-	}
-	return _u
-}
-
-// SetRequirePrivacySet sets the "require_privacy_set" field.
-func (_u *GroupUpdate) SetRequirePrivacySet(v bool) *GroupUpdate {
-	_u.mutation.SetRequirePrivacySet(v)
-	return _u
-}
-
-// SetNillableRequirePrivacySet sets the "require_privacy_set" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableRequirePrivacySet(v *bool) *GroupUpdate {
-	if v != nil {
-		_u.SetRequirePrivacySet(*v)
-	}
-	return _u
-}
-
-// SetDefaultMappedModel sets the "default_mapped_model" field.
-func (_u *GroupUpdate) SetDefaultMappedModel(v string) *GroupUpdate {
-	_u.mutation.SetDefaultMappedModel(v)
-	return _u
-}
-
-// SetNillableDefaultMappedModel sets the "default_mapped_model" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableDefaultMappedModel(v *string) *GroupUpdate {
-	if v != nil {
-		_u.SetDefaultMappedModel(*v)
-	}
-	return _u
-}
-
-// SetMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field.
-func (_u *GroupUpdate) SetMessagesDispatchModelConfig(v domain.OpenAIMessagesDispatchModelConfig) *GroupUpdate {
-	_u.mutation.SetMessagesDispatchModelConfig(v)
-	return _u
-}
-
-// SetNillableMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableMessagesDispatchModelConfig(v *domain.OpenAIMessagesDispatchModelConfig) *GroupUpdate {
-	if v != nil {
-		_u.SetMessagesDispatchModelConfig(*v)
-	}
-	return _u
-}
-
-// SetModelsListConfig sets the "models_list_config" field.
-func (_u *GroupUpdate) SetModelsListConfig(v domain.GroupModelsListConfig) *GroupUpdate {
-	_u.mutation.SetModelsListConfig(v)
-	return _u
-}
-
-// SetNillableModelsListConfig sets the "models_list_config" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableModelsListConfig(v *domain.GroupModelsListConfig) *GroupUpdate {
-	if v != nil {
-		_u.SetModelsListConfig(*v)
-	}
-	return _u
-}
-
 // SetGrokMessagesProtocol sets the "grok_messages_protocol" field.
 func (_u *GroupUpdate) SetGrokMessagesProtocol(v string) *GroupUpdate {
 	_u.mutation.SetGrokMessagesProtocol(v)
@@ -1156,6 +1086,118 @@ func (_u *GroupUpdate) AddGrokReasoningQuarantineSec(v int) *GroupUpdate {
 	return _u
 }
 
+// SetForceOpenaiFast sets the "force_openai_fast" field.
+func (_u *GroupUpdate) SetForceOpenaiFast(v bool) *GroupUpdate {
+	_u.mutation.SetForceOpenaiFast(v)
+	return _u
+}
+
+// SetNillableForceOpenaiFast sets the "force_openai_fast" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableForceOpenaiFast(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetForceOpenaiFast(*v)
+	}
+	return _u
+}
+
+// SetFreeOpenaiFast sets the "free_openai_fast" field.
+func (_u *GroupUpdate) SetFreeOpenaiFast(v bool) *GroupUpdate {
+	_u.mutation.SetFreeOpenaiFast(v)
+	return _u
+}
+
+// SetNillableFreeOpenaiFast sets the "free_openai_fast" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableFreeOpenaiFast(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetFreeOpenaiFast(*v)
+	}
+	return _u
+}
+
+// SetRequireOauthOnly sets the "require_oauth_only" field.
+func (_u *GroupUpdate) SetRequireOauthOnly(v bool) *GroupUpdate {
+	_u.mutation.SetRequireOauthOnly(v)
+	return _u
+}
+
+// SetNillableRequireOauthOnly sets the "require_oauth_only" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableRequireOauthOnly(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetRequireOauthOnly(*v)
+	}
+	return _u
+}
+
+// SetRequirePrivacySet sets the "require_privacy_set" field.
+func (_u *GroupUpdate) SetRequirePrivacySet(v bool) *GroupUpdate {
+	_u.mutation.SetRequirePrivacySet(v)
+	return _u
+}
+
+// SetNillableRequirePrivacySet sets the "require_privacy_set" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableRequirePrivacySet(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetRequirePrivacySet(*v)
+	}
+	return _u
+}
+
+// SetDefaultMappedModel sets the "default_mapped_model" field.
+func (_u *GroupUpdate) SetDefaultMappedModel(v string) *GroupUpdate {
+	_u.mutation.SetDefaultMappedModel(v)
+	return _u
+}
+
+// SetNillableDefaultMappedModel sets the "default_mapped_model" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableDefaultMappedModel(v *string) *GroupUpdate {
+	if v != nil {
+		_u.SetDefaultMappedModel(*v)
+	}
+	return _u
+}
+
+// SetMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field.
+func (_u *GroupUpdate) SetMessagesDispatchModelConfig(v domain.OpenAIMessagesDispatchModelConfig) *GroupUpdate {
+	_u.mutation.SetMessagesDispatchModelConfig(v)
+	return _u
+}
+
+// SetNillableMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableMessagesDispatchModelConfig(v *domain.OpenAIMessagesDispatchModelConfig) *GroupUpdate {
+	if v != nil {
+		_u.SetMessagesDispatchModelConfig(*v)
+	}
+	return _u
+}
+
+// SetModelsListConfig sets the "models_list_config" field.
+func (_u *GroupUpdate) SetModelsListConfig(v domain.GroupModelsListConfig) *GroupUpdate {
+	_u.mutation.SetModelsListConfig(v)
+	return _u
+}
+
+// SetNillableModelsListConfig sets the "models_list_config" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableModelsListConfig(v *domain.GroupModelsListConfig) *GroupUpdate {
+	if v != nil {
+		_u.SetModelsListConfig(*v)
+	}
+	return _u
+}
+
+// SetPromptPolicy sets the "prompt_policy" field.
+func (_u *GroupUpdate) SetPromptPolicy(v domain.GroupPromptPolicy) *GroupUpdate {
+	_u.mutation.SetPromptPolicy(v)
+	return _u
+}
+
+// SetNillablePromptPolicy sets the "prompt_policy" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillablePromptPolicy(v *domain.GroupPromptPolicy) *GroupUpdate {
+	if v != nil {
+		_u.SetPromptPolicy(*v)
+	}
+	return _u
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_u *GroupUpdate) SetRpmLimit(v int) *GroupUpdate {
 	_u.mutation.ResetRpmLimit()
@@ -1191,6 +1233,20 @@ func (_u *GroupUpdate) SetNillableMaxReasoningEffort(v *string) *GroupUpdate {
 	return _u
 }
 
+// SetMaxReasoningEffortOverLimit sets the "max_reasoning_effort_over_limit" field.
+func (_u *GroupUpdate) SetMaxReasoningEffortOverLimit(v string) *GroupUpdate {
+	_u.mutation.SetMaxReasoningEffortOverLimit(v)
+	return _u
+}
+
+// SetNillableMaxReasoningEffortOverLimit sets the "max_reasoning_effort_over_limit" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableMaxReasoningEffortOverLimit(v *string) *GroupUpdate {
+	if v != nil {
+		_u.SetMaxReasoningEffortOverLimit(*v)
+	}
+	return _u
+}
+
 // SetReasoningEffortMappings sets the "reasoning_effort_mappings" field.
 func (_u *GroupUpdate) SetReasoningEffortMappings(v []domain.ReasoningEffortMapping) *GroupUpdate {
 	_u.mutation.SetReasoningEffortMappings(v)
@@ -1200,20 +1256,6 @@ func (_u *GroupUpdate) SetReasoningEffortMappings(v []domain.ReasoningEffortMapp
 // AppendReasoningEffortMappings appends value to the "reasoning_effort_mappings" field.
 func (_u *GroupUpdate) AppendReasoningEffortMappings(v []domain.ReasoningEffortMapping) *GroupUpdate {
 	_u.mutation.AppendReasoningEffortMappings(v)
-	return _u
-}
-
-// SetPromptPolicy sets the "prompt_policy" field.
-func (_u *GroupUpdate) SetPromptPolicy(v domain.GroupPromptPolicy) *GroupUpdate {
-	_u.mutation.SetPromptPolicy(v)
-	return _u
-}
-
-// SetNillablePromptPolicy sets the "prompt_policy" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillablePromptPolicy(v *domain.GroupPromptPolicy) *GroupUpdate {
-	if v != nil {
-		_u.SetPromptPolicy(*v)
-	}
 	return _u
 }
 
@@ -1588,11 +1630,6 @@ func (_u *GroupUpdate) check() error {
 			return &ValidationError{Name: "audio_stt_price_per_hour", err: fmt.Errorf(`ent: validator failed for field "Group.audio_stt_price_per_hour": %w`, err)}
 		}
 	}
-	if v, ok := _u.mutation.DefaultMappedModel(); ok {
-		if err := group.DefaultMappedModelValidator(v); err != nil {
-			return &ValidationError{Name: "default_mapped_model", err: fmt.Errorf(`ent: validator failed for field "Group.default_mapped_model": %w`, err)}
-		}
-	}
 	if v, ok := _u.mutation.GrokMessagesProtocol(); ok {
 		if err := group.GrokMessagesProtocolValidator(v); err != nil {
 			return &ValidationError{Name: "grok_messages_protocol", err: fmt.Errorf(`ent: validator failed for field "Group.grok_messages_protocol": %w`, err)}
@@ -1603,9 +1640,19 @@ func (_u *GroupUpdate) check() error {
 			return &ValidationError{Name: "grok_reasoning_visibility_mode", err: fmt.Errorf(`ent: validator failed for field "Group.grok_reasoning_visibility_mode": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.DefaultMappedModel(); ok {
+		if err := group.DefaultMappedModelValidator(v); err != nil {
+			return &ValidationError{Name: "default_mapped_model", err: fmt.Errorf(`ent: validator failed for field "Group.default_mapped_model": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.MaxReasoningEffort(); ok {
 		if err := group.MaxReasoningEffortValidator(v); err != nil {
 			return &ValidationError{Name: "max_reasoning_effort", err: fmt.Errorf(`ent: validator failed for field "Group.max_reasoning_effort": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.MaxReasoningEffortOverLimit(); ok {
+		if err := group.MaxReasoningEffortOverLimitValidator(v); err != nil {
+			return &ValidationError{Name: "max_reasoning_effort_over_limit", err: fmt.Errorf(`ent: validator failed for field "Group.max_reasoning_effort_over_limit": %w`, err)}
 		}
 	}
 	return nil
@@ -1927,21 +1974,6 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AllowLive(); ok {
 		_spec.SetField(group.FieldAllowLive, field.TypeBool, value)
 	}
-	if value, ok := _u.mutation.RequireOauthOnly(); ok {
-		_spec.SetField(group.FieldRequireOauthOnly, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.RequirePrivacySet(); ok {
-		_spec.SetField(group.FieldRequirePrivacySet, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.DefaultMappedModel(); ok {
-		_spec.SetField(group.FieldDefaultMappedModel, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.MessagesDispatchModelConfig(); ok {
-		_spec.SetField(group.FieldMessagesDispatchModelConfig, field.TypeJSON, value)
-	}
-	if value, ok := _u.mutation.ModelsListConfig(); ok {
-		_spec.SetField(group.FieldModelsListConfig, field.TypeJSON, value)
-	}
 	if value, ok := _u.mutation.GrokMessagesProtocol(); ok {
 		_spec.SetField(group.FieldGrokMessagesProtocol, field.TypeString, value)
 	}
@@ -1960,6 +1992,30 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AddedGrokReasoningQuarantineSec(); ok {
 		_spec.AddField(group.FieldGrokReasoningQuarantineSec, field.TypeInt, value)
 	}
+	if value, ok := _u.mutation.ForceOpenaiFast(); ok {
+		_spec.SetField(group.FieldForceOpenaiFast, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.FreeOpenaiFast(); ok {
+		_spec.SetField(group.FieldFreeOpenaiFast, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.RequireOauthOnly(); ok {
+		_spec.SetField(group.FieldRequireOauthOnly, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.RequirePrivacySet(); ok {
+		_spec.SetField(group.FieldRequirePrivacySet, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.DefaultMappedModel(); ok {
+		_spec.SetField(group.FieldDefaultMappedModel, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.MessagesDispatchModelConfig(); ok {
+		_spec.SetField(group.FieldMessagesDispatchModelConfig, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.ModelsListConfig(); ok {
+		_spec.SetField(group.FieldModelsListConfig, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.PromptPolicy(); ok {
+		_spec.SetField(group.FieldPromptPolicy, field.TypeJSON, value)
+	}
 	if value, ok := _u.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)
 	}
@@ -1969,6 +2025,9 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.MaxReasoningEffort(); ok {
 		_spec.SetField(group.FieldMaxReasoningEffort, field.TypeString, value)
 	}
+	if value, ok := _u.mutation.MaxReasoningEffortOverLimit(); ok {
+		_spec.SetField(group.FieldMaxReasoningEffortOverLimit, field.TypeString, value)
+	}
 	if value, ok := _u.mutation.ReasoningEffortMappings(); ok {
 		_spec.SetField(group.FieldReasoningEffortMappings, field.TypeJSON, value)
 	}
@@ -1976,9 +2035,6 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		_spec.AddModifier(func(u *sql.UpdateBuilder) {
 			sqljson.Append(u, group.FieldReasoningEffortMappings, value)
 		})
-	}
-	if value, ok := _u.mutation.PromptPolicy(); ok {
-		_spec.SetField(group.FieldPromptPolicy, field.TypeJSON, value)
 	}
 	if value, ok := _u.mutation.ProfitControlEnabled(); ok {
 		_spec.SetField(group.FieldProfitControlEnabled, field.TypeBool, value)
@@ -3288,76 +3344,6 @@ func (_u *GroupUpdateOne) SetNillableAllowLive(v *bool) *GroupUpdateOne {
 	return _u
 }
 
-// SetRequireOauthOnly sets the "require_oauth_only" field.
-func (_u *GroupUpdateOne) SetRequireOauthOnly(v bool) *GroupUpdateOne {
-	_u.mutation.SetRequireOauthOnly(v)
-	return _u
-}
-
-// SetNillableRequireOauthOnly sets the "require_oauth_only" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableRequireOauthOnly(v *bool) *GroupUpdateOne {
-	if v != nil {
-		_u.SetRequireOauthOnly(*v)
-	}
-	return _u
-}
-
-// SetRequirePrivacySet sets the "require_privacy_set" field.
-func (_u *GroupUpdateOne) SetRequirePrivacySet(v bool) *GroupUpdateOne {
-	_u.mutation.SetRequirePrivacySet(v)
-	return _u
-}
-
-// SetNillableRequirePrivacySet sets the "require_privacy_set" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableRequirePrivacySet(v *bool) *GroupUpdateOne {
-	if v != nil {
-		_u.SetRequirePrivacySet(*v)
-	}
-	return _u
-}
-
-// SetDefaultMappedModel sets the "default_mapped_model" field.
-func (_u *GroupUpdateOne) SetDefaultMappedModel(v string) *GroupUpdateOne {
-	_u.mutation.SetDefaultMappedModel(v)
-	return _u
-}
-
-// SetNillableDefaultMappedModel sets the "default_mapped_model" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableDefaultMappedModel(v *string) *GroupUpdateOne {
-	if v != nil {
-		_u.SetDefaultMappedModel(*v)
-	}
-	return _u
-}
-
-// SetMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field.
-func (_u *GroupUpdateOne) SetMessagesDispatchModelConfig(v domain.OpenAIMessagesDispatchModelConfig) *GroupUpdateOne {
-	_u.mutation.SetMessagesDispatchModelConfig(v)
-	return _u
-}
-
-// SetNillableMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableMessagesDispatchModelConfig(v *domain.OpenAIMessagesDispatchModelConfig) *GroupUpdateOne {
-	if v != nil {
-		_u.SetMessagesDispatchModelConfig(*v)
-	}
-	return _u
-}
-
-// SetModelsListConfig sets the "models_list_config" field.
-func (_u *GroupUpdateOne) SetModelsListConfig(v domain.GroupModelsListConfig) *GroupUpdateOne {
-	_u.mutation.SetModelsListConfig(v)
-	return _u
-}
-
-// SetNillableModelsListConfig sets the "models_list_config" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableModelsListConfig(v *domain.GroupModelsListConfig) *GroupUpdateOne {
-	if v != nil {
-		_u.SetModelsListConfig(*v)
-	}
-	return _u
-}
-
 // SetGrokMessagesProtocol sets the "grok_messages_protocol" field.
 func (_u *GroupUpdateOne) SetGrokMessagesProtocol(v string) *GroupUpdateOne {
 	_u.mutation.SetGrokMessagesProtocol(v)
@@ -3428,6 +3414,118 @@ func (_u *GroupUpdateOne) AddGrokReasoningQuarantineSec(v int) *GroupUpdateOne {
 	return _u
 }
 
+// SetForceOpenaiFast sets the "force_openai_fast" field.
+func (_u *GroupUpdateOne) SetForceOpenaiFast(v bool) *GroupUpdateOne {
+	_u.mutation.SetForceOpenaiFast(v)
+	return _u
+}
+
+// SetNillableForceOpenaiFast sets the "force_openai_fast" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableForceOpenaiFast(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetForceOpenaiFast(*v)
+	}
+	return _u
+}
+
+// SetFreeOpenaiFast sets the "free_openai_fast" field.
+func (_u *GroupUpdateOne) SetFreeOpenaiFast(v bool) *GroupUpdateOne {
+	_u.mutation.SetFreeOpenaiFast(v)
+	return _u
+}
+
+// SetNillableFreeOpenaiFast sets the "free_openai_fast" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableFreeOpenaiFast(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetFreeOpenaiFast(*v)
+	}
+	return _u
+}
+
+// SetRequireOauthOnly sets the "require_oauth_only" field.
+func (_u *GroupUpdateOne) SetRequireOauthOnly(v bool) *GroupUpdateOne {
+	_u.mutation.SetRequireOauthOnly(v)
+	return _u
+}
+
+// SetNillableRequireOauthOnly sets the "require_oauth_only" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableRequireOauthOnly(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetRequireOauthOnly(*v)
+	}
+	return _u
+}
+
+// SetRequirePrivacySet sets the "require_privacy_set" field.
+func (_u *GroupUpdateOne) SetRequirePrivacySet(v bool) *GroupUpdateOne {
+	_u.mutation.SetRequirePrivacySet(v)
+	return _u
+}
+
+// SetNillableRequirePrivacySet sets the "require_privacy_set" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableRequirePrivacySet(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetRequirePrivacySet(*v)
+	}
+	return _u
+}
+
+// SetDefaultMappedModel sets the "default_mapped_model" field.
+func (_u *GroupUpdateOne) SetDefaultMappedModel(v string) *GroupUpdateOne {
+	_u.mutation.SetDefaultMappedModel(v)
+	return _u
+}
+
+// SetNillableDefaultMappedModel sets the "default_mapped_model" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableDefaultMappedModel(v *string) *GroupUpdateOne {
+	if v != nil {
+		_u.SetDefaultMappedModel(*v)
+	}
+	return _u
+}
+
+// SetMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field.
+func (_u *GroupUpdateOne) SetMessagesDispatchModelConfig(v domain.OpenAIMessagesDispatchModelConfig) *GroupUpdateOne {
+	_u.mutation.SetMessagesDispatchModelConfig(v)
+	return _u
+}
+
+// SetNillableMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableMessagesDispatchModelConfig(v *domain.OpenAIMessagesDispatchModelConfig) *GroupUpdateOne {
+	if v != nil {
+		_u.SetMessagesDispatchModelConfig(*v)
+	}
+	return _u
+}
+
+// SetModelsListConfig sets the "models_list_config" field.
+func (_u *GroupUpdateOne) SetModelsListConfig(v domain.GroupModelsListConfig) *GroupUpdateOne {
+	_u.mutation.SetModelsListConfig(v)
+	return _u
+}
+
+// SetNillableModelsListConfig sets the "models_list_config" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableModelsListConfig(v *domain.GroupModelsListConfig) *GroupUpdateOne {
+	if v != nil {
+		_u.SetModelsListConfig(*v)
+	}
+	return _u
+}
+
+// SetPromptPolicy sets the "prompt_policy" field.
+func (_u *GroupUpdateOne) SetPromptPolicy(v domain.GroupPromptPolicy) *GroupUpdateOne {
+	_u.mutation.SetPromptPolicy(v)
+	return _u
+}
+
+// SetNillablePromptPolicy sets the "prompt_policy" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillablePromptPolicy(v *domain.GroupPromptPolicy) *GroupUpdateOne {
+	if v != nil {
+		_u.SetPromptPolicy(*v)
+	}
+	return _u
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_u *GroupUpdateOne) SetRpmLimit(v int) *GroupUpdateOne {
 	_u.mutation.ResetRpmLimit()
@@ -3463,6 +3561,20 @@ func (_u *GroupUpdateOne) SetNillableMaxReasoningEffort(v *string) *GroupUpdateO
 	return _u
 }
 
+// SetMaxReasoningEffortOverLimit sets the "max_reasoning_effort_over_limit" field.
+func (_u *GroupUpdateOne) SetMaxReasoningEffortOverLimit(v string) *GroupUpdateOne {
+	_u.mutation.SetMaxReasoningEffortOverLimit(v)
+	return _u
+}
+
+// SetNillableMaxReasoningEffortOverLimit sets the "max_reasoning_effort_over_limit" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableMaxReasoningEffortOverLimit(v *string) *GroupUpdateOne {
+	if v != nil {
+		_u.SetMaxReasoningEffortOverLimit(*v)
+	}
+	return _u
+}
+
 // SetReasoningEffortMappings sets the "reasoning_effort_mappings" field.
 func (_u *GroupUpdateOne) SetReasoningEffortMappings(v []domain.ReasoningEffortMapping) *GroupUpdateOne {
 	_u.mutation.SetReasoningEffortMappings(v)
@@ -3472,20 +3584,6 @@ func (_u *GroupUpdateOne) SetReasoningEffortMappings(v []domain.ReasoningEffortM
 // AppendReasoningEffortMappings appends value to the "reasoning_effort_mappings" field.
 func (_u *GroupUpdateOne) AppendReasoningEffortMappings(v []domain.ReasoningEffortMapping) *GroupUpdateOne {
 	_u.mutation.AppendReasoningEffortMappings(v)
-	return _u
-}
-
-// SetPromptPolicy sets the "prompt_policy" field.
-func (_u *GroupUpdateOne) SetPromptPolicy(v domain.GroupPromptPolicy) *GroupUpdateOne {
-	_u.mutation.SetPromptPolicy(v)
-	return _u
-}
-
-// SetNillablePromptPolicy sets the "prompt_policy" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillablePromptPolicy(v *domain.GroupPromptPolicy) *GroupUpdateOne {
-	if v != nil {
-		_u.SetPromptPolicy(*v)
-	}
 	return _u
 }
 
@@ -3873,11 +3971,6 @@ func (_u *GroupUpdateOne) check() error {
 			return &ValidationError{Name: "audio_stt_price_per_hour", err: fmt.Errorf(`ent: validator failed for field "Group.audio_stt_price_per_hour": %w`, err)}
 		}
 	}
-	if v, ok := _u.mutation.DefaultMappedModel(); ok {
-		if err := group.DefaultMappedModelValidator(v); err != nil {
-			return &ValidationError{Name: "default_mapped_model", err: fmt.Errorf(`ent: validator failed for field "Group.default_mapped_model": %w`, err)}
-		}
-	}
 	if v, ok := _u.mutation.GrokMessagesProtocol(); ok {
 		if err := group.GrokMessagesProtocolValidator(v); err != nil {
 			return &ValidationError{Name: "grok_messages_protocol", err: fmt.Errorf(`ent: validator failed for field "Group.grok_messages_protocol": %w`, err)}
@@ -3888,9 +3981,19 @@ func (_u *GroupUpdateOne) check() error {
 			return &ValidationError{Name: "grok_reasoning_visibility_mode", err: fmt.Errorf(`ent: validator failed for field "Group.grok_reasoning_visibility_mode": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.DefaultMappedModel(); ok {
+		if err := group.DefaultMappedModelValidator(v); err != nil {
+			return &ValidationError{Name: "default_mapped_model", err: fmt.Errorf(`ent: validator failed for field "Group.default_mapped_model": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.MaxReasoningEffort(); ok {
 		if err := group.MaxReasoningEffortValidator(v); err != nil {
 			return &ValidationError{Name: "max_reasoning_effort", err: fmt.Errorf(`ent: validator failed for field "Group.max_reasoning_effort": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.MaxReasoningEffortOverLimit(); ok {
+		if err := group.MaxReasoningEffortOverLimitValidator(v); err != nil {
+			return &ValidationError{Name: "max_reasoning_effort_over_limit", err: fmt.Errorf(`ent: validator failed for field "Group.max_reasoning_effort_over_limit": %w`, err)}
 		}
 	}
 	return nil
@@ -4229,21 +4332,6 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	if value, ok := _u.mutation.AllowLive(); ok {
 		_spec.SetField(group.FieldAllowLive, field.TypeBool, value)
 	}
-	if value, ok := _u.mutation.RequireOauthOnly(); ok {
-		_spec.SetField(group.FieldRequireOauthOnly, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.RequirePrivacySet(); ok {
-		_spec.SetField(group.FieldRequirePrivacySet, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.DefaultMappedModel(); ok {
-		_spec.SetField(group.FieldDefaultMappedModel, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.MessagesDispatchModelConfig(); ok {
-		_spec.SetField(group.FieldMessagesDispatchModelConfig, field.TypeJSON, value)
-	}
-	if value, ok := _u.mutation.ModelsListConfig(); ok {
-		_spec.SetField(group.FieldModelsListConfig, field.TypeJSON, value)
-	}
 	if value, ok := _u.mutation.GrokMessagesProtocol(); ok {
 		_spec.SetField(group.FieldGrokMessagesProtocol, field.TypeString, value)
 	}
@@ -4262,6 +4350,30 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	if value, ok := _u.mutation.AddedGrokReasoningQuarantineSec(); ok {
 		_spec.AddField(group.FieldGrokReasoningQuarantineSec, field.TypeInt, value)
 	}
+	if value, ok := _u.mutation.ForceOpenaiFast(); ok {
+		_spec.SetField(group.FieldForceOpenaiFast, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.FreeOpenaiFast(); ok {
+		_spec.SetField(group.FieldFreeOpenaiFast, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.RequireOauthOnly(); ok {
+		_spec.SetField(group.FieldRequireOauthOnly, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.RequirePrivacySet(); ok {
+		_spec.SetField(group.FieldRequirePrivacySet, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.DefaultMappedModel(); ok {
+		_spec.SetField(group.FieldDefaultMappedModel, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.MessagesDispatchModelConfig(); ok {
+		_spec.SetField(group.FieldMessagesDispatchModelConfig, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.ModelsListConfig(); ok {
+		_spec.SetField(group.FieldModelsListConfig, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.PromptPolicy(); ok {
+		_spec.SetField(group.FieldPromptPolicy, field.TypeJSON, value)
+	}
 	if value, ok := _u.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)
 	}
@@ -4271,6 +4383,9 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	if value, ok := _u.mutation.MaxReasoningEffort(); ok {
 		_spec.SetField(group.FieldMaxReasoningEffort, field.TypeString, value)
 	}
+	if value, ok := _u.mutation.MaxReasoningEffortOverLimit(); ok {
+		_spec.SetField(group.FieldMaxReasoningEffortOverLimit, field.TypeString, value)
+	}
 	if value, ok := _u.mutation.ReasoningEffortMappings(); ok {
 		_spec.SetField(group.FieldReasoningEffortMappings, field.TypeJSON, value)
 	}
@@ -4278,9 +4393,6 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 		_spec.AddModifier(func(u *sql.UpdateBuilder) {
 			sqljson.Append(u, group.FieldReasoningEffortMappings, value)
 		})
-	}
-	if value, ok := _u.mutation.PromptPolicy(); ok {
-		_spec.SetField(group.FieldPromptPolicy, field.TypeJSON, value)
 	}
 	if value, ok := _u.mutation.ProfitControlEnabled(); ok {
 		_spec.SetField(group.FieldProfitControlEnabled, field.TypeBool, value)
