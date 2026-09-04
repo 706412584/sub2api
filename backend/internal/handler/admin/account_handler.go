@@ -3022,8 +3022,36 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 
 	// Handle Antigravity accounts: return Claude + Gemini models
 	if account.Platform == service.PlatformAntigravity {
-		// 直接复用 antigravity.DefaultModels()，与 /v1/models 端点保持同步
-		response.Success(c, antigravity.DefaultModels())
+		// 按账号映射过滤：上游按账号灰度开放档位（例如有的账号 3.8 只有
+		// tiered 没有 low/medium/high），返回全量默认列表会让用户在下拉里
+		// 选到该账号实际不可用的档位，测试连接直接 not in whitelist。
+		mapping := account.GetModelMapping()
+		if len(mapping) == 0 {
+			response.Success(c, antigravity.DefaultModels())
+			return
+		}
+		defaults := antigravity.DefaultModels()
+		models := make([]antigravity.ClaudeModel, 0, len(mapping))
+		seen := make(map[string]struct{}, len(mapping))
+		for _, dm := range defaults {
+			if _, ok := mapping[dm.ID]; ok {
+				models = append(models, dm)
+				seen[dm.ID] = struct{}{}
+			}
+		}
+		// 映射里存在但默认列表没有的模型（上游同步回来的新档位等）原样列出
+		for requestedModel := range mapping {
+			if _, ok := seen[requestedModel]; ok {
+				continue
+			}
+			models = append(models, antigravity.ClaudeModel{
+				ID:          requestedModel,
+				Type:        "model",
+				DisplayName: requestedModel,
+				CreatedAt:   "",
+			})
+		}
+		response.Success(c, models)
 		return
 	}
 

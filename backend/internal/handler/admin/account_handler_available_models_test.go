@@ -584,3 +584,57 @@ func TestAccountHandlerSyncUpstreamModels_MetadataEnrichmentFailureReturnsWarnin
 	require.Len(t, resp.Data.Warnings, 1)
 	require.Equal(t, "upstream_model_metadata_incomplete", resp.Data.Warnings[0].Code)
 }
+
+// Antigravity 账号的可用模型列表必须按账号映射过滤：
+// 上游按账号灰度开放档位（如 3.8 只有 tiered），返回全量默认列表会让
+// 用户选到 not in whitelist 的档位变体。
+func TestAccountHandlerGetAvailableModels_AntigravityFiltersByMapping(t *testing.T) {
+	svc := &availableModelsAdminService{
+		stubAdminService: newStubAdminService(),
+		account: service.Account{
+			ID:       47,
+			Name:     "ag-oauth",
+			Platform: service.PlatformAntigravity,
+			Type:     service.AccountTypeOAuth,
+			Status:   service.StatusActive,
+			Credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"claude-sonnet-4-6":       "claude-sonnet-4-6",
+					"gemini-3.8-flash":        "gemini-3.8-flash",
+					"gemini-3.8-flash-tiered": "gemini-3.8-flash-tiered",
+				},
+			},
+		},
+	}
+	router := setupAvailableModelsRouter(svc)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts/47/models", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var resp struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	ids := make([]string, 0, len(resp.Data))
+	for _, m := range resp.Data {
+		ids = append(ids, m.ID)
+	}
+	// GetModelMapping 运行时会注入裸名透传（gemini-3-flash / 3.1-pro-* / 3.6 / 3.8 裸名）
+	require.ElementsMatch(t, []string{
+		"claude-sonnet-4-6",
+		"gemini-3.8-flash",
+		"gemini-3.8-flash-tiered",
+		"gemini-3-flash",
+		"gemini-3.1-pro-high",
+		"gemini-3.1-pro-low",
+		"gemini-3.6-flash",
+	}, ids)
+	require.NotContains(t, ids, "gemini-3.8-flash-low", "账号未开放的档位不能出现在列表里")
+	require.NotContains(t, ids, "gemini-3.8-flash-medium", "账号未开放的档位不能出现在列表里")
+	require.NotContains(t, ids, "gemini-3.6-flash-low", "账号未开放的档位不能出现在列表里")
+}
