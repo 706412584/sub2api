@@ -171,10 +171,15 @@ func cloneMap(in map[string]any) map[string]any {
 	return out
 }
 
+// short 截取代理名用于 mihomo 配置内部标识。
+// 按 rune 截断而非字节：节点名保留中文后 hash8 + 24 个汉字可达 81 字节，
+// 按字节切会把汉字切成半个，写进 YAML 就是非法 UTF-8。
+// 前 8 位 hash 始终保留，截断不影响唯一性。
 func short(s, prefix string) string {
 	s = strings.TrimPrefix(s, prefix)
-	if len(s) > 40 {
-		return s[:40]
+	runes := []rune(s)
+	if len(runes) > 40 {
+		return string(runes[:40])
 	}
 	return s
 }
