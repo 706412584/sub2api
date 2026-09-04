@@ -305,15 +305,29 @@ func NewClientWithEgress(proxyURL, egressURL string) (*Client, error) {
 			return nil, fmt.Errorf("configure proxy: %w", err)
 		}
 	} else {
-		// 先建一条经 egress 到目标代理的 dialer，再在它之上套目标代理
+		// 链式代理，与 repository.buildUpstreamTransport 同模式：
+		// sub2api → egress → 目标代理 → 上游。
+		// - http 目标代理：先把 DialContext 换成 egress 隧道（ConfigureTransportProxy
+		//   的 http 分支只设 transport.Proxy 不动 DialContext，TCP 到目标代理
+		//   天然走 DialContext → egress）
+		// - socks5 目标代理：用 ConfigureTransportProxyWithDialContextToProxy，
+		//   让 SOCKS5 的 forward 拨号经 egress 隧道
 		base := &net.Dialer{Timeout: proxyDialTimeout}
 		tunnel, err := proxyutil.NewEgressDialer(egressURL, base)
 		if err != nil {
 			return nil, fmt.Errorf("build egress dialer: %w", err)
 		}
-		targetAddr := net.JoinHostPort(parsed.Hostname(), parsed.Port())
-		if err := proxyutil.ConfigureTransportProxyWithDialContextToProxy(transport, parsed, targetAddr, tunnel.DialContext); err != nil {
-			return nil, fmt.Errorf("configure chained proxy: %w", err)
+		scheme := strings.ToLower(parsed.Scheme)
+		if scheme == "socks5" || scheme == "socks5h" {
+			targetAddr := net.JoinHostPort(parsed.Hostname(), parsed.Port())
+			if err := proxyutil.ConfigureTransportProxyWithDialContextToProxy(transport, parsed, targetAddr, tunnel.DialContext); err != nil {
+				return nil, fmt.Errorf("configure chained proxy: %w", err)
+			}
+		} else {
+			transport.DialContext = tunnel.DialContext
+			if err := proxyutil.ConfigureTransportProxy(transport, parsed); err != nil {
+				return nil, fmt.Errorf("configure chained proxy: %w", err)
+			}
 		}
 	}
 
