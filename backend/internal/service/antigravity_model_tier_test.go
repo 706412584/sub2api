@@ -92,6 +92,22 @@ func TestApplyAntigravityEffortTier_OtherPlatformsUntouched(t *testing.T) {
 	require.Equal(t, "gemini-3.8-flash", applyAntigravityEffortTier(nil, "gemini-3.8-flash", nil))
 }
 
+// 上游按账号灰度开放档位：只有 tiered（上游自动档）没有 low/medium/high 时，
+// 裸名落到 tiered 让上游选档，而不是把裸名原样发出去吃 404（实测 9300 账号 3.8）。
+func TestApplyAntigravityEffortTier_TieredOnlyFallsBackToTiered(t *testing.T) {
+	account := antigravityTierAccount(map[string]string{
+		"gemini-3.8-flash":        "gemini-3.8-flash",
+		"gemini-3.8-flash-tiered": "gemini-3.8-flash-tiered",
+	})
+	high := "high"
+	require.Equal(t, "gemini-3.8-flash-tiered", applyAntigravityEffortTier(account, "gemini-3.8-flash", nil))
+	require.Equal(t, "gemini-3.8-flash-tiered", applyAntigravityEffortTier(account, "gemini-3.8-flash", &high))
+
+	// 连 tiered 都没有的裸名仍原样透传（由映射表决定是否有这个模型）
+	bare := antigravityTierAccount(map[string]string{"gemini-3.9-flash": "gemini-3.9-flash"})
+	require.Equal(t, "gemini-3.9-flash", applyAntigravityEffortTier(bare, "gemini-3.9-flash", nil))
+}
+
 // resolveFinalAntigravityModelKey 的限流 key 必须与实际转发模型一致，
 // 否则档位模型的限流状态会记到裸名上。
 func TestResolveFinalAntigravityModelKey_AppliesEffortTier(t *testing.T) {
