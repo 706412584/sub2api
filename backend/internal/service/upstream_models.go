@@ -1072,7 +1072,10 @@ func (s *AccountTestService) fetchAntigravityOAuthUpstreamModels(ctx context.Con
 		return nil, newUpstreamModelSyncConfigError("No Antigravity access token is available", nil)
 	}
 
-	client, err := antigravity.NewClient(upstreamModelsProxyURL(account))
+	client, err := antigravity.NewClientWithEgress(
+		upstreamModelsProxyURL(account),
+		upstreamModelsEgressURL(ctx, account, s.proxyRepo),
+	)
 	if err != nil {
 		return nil, newUpstreamModelSyncConfigError("Failed to configure Antigravity client", err)
 	}
@@ -1108,6 +1111,20 @@ func upstreamModelsProxyURL(account *Account) string {
 		return account.Proxy.URL()
 	}
 	return ""
+}
+
+// upstreamModelsEgressURL 返回账号代理的 egress（链式）代理 URL。
+// sync-upstream 走 antigravity.NewClientWithEgress 而非 httpUpstream，
+// 必须显式接上链式设置，否则配置了 egress 的代理在此路径被绕过。
+func upstreamModelsEgressURL(ctx context.Context, account *Account, repo ProxyRepository) string {
+	if account == nil || account.ProxyID == nil || repo == nil {
+		return ""
+	}
+	proxy, err := repo.GetByID(ctx, *account.ProxyID)
+	if err != nil || proxy == nil {
+		return ""
+	}
+	return proxy.EgressChainURL(ctx, repo)
 }
 
 func buildV1ModelsURL(base string) string {

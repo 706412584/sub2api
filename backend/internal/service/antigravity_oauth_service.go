@@ -105,16 +105,18 @@ func (s *AntigravityOAuthService) ExchangeCode(ctx context.Context, input *Antig
 		return nil, fmt.Errorf("state 无效")
 	}
 
-	// 确定代理 URL
+	// 确定代理 URL（含 egress 链式代理）
 	proxyURL := session.ProxyURL
+	egressURL := ""
 	if input.ProxyID != nil {
 		proxy, err := s.proxyRepo.GetByID(ctx, *input.ProxyID)
 		if err == nil && proxy != nil {
 			proxyURL = proxy.URL()
+			egressURL = proxy.EgressChainURL(ctx, s.proxyRepo)
 		}
 	}
 
-	client, err := antigravity.NewClient(proxyURL)
+	client, err := antigravity.NewClientWithEgress(proxyURL, egressURL)
 	if err != nil {
 		return nil, fmt.Errorf("create antigravity client failed: %w", err)
 	}
@@ -148,7 +150,7 @@ func (s *AntigravityOAuthService) ExchangeCode(ctx context.Context, input *Antig
 	}
 
 	// 获取 project_id + plan_type（部分账户类型可能没有），失败时重试
-	loadResult, loadErr := s.loadProjectIDWithRetry(ctx, tokenResp.AccessToken, proxyURL, 3)
+	loadResult, loadErr := s.loadProjectIDWithRetry(ctx, tokenResp.AccessToken, proxyURL, egressURL, 3)
 	if loadErr != nil {
 		fmt.Printf("[AntigravityOAuth] 警告: 获取 project_id 失败（重试后）: %v\n", loadErr)
 		result.ProjectIDMissing = true
@@ -161,13 +163,15 @@ func (s *AntigravityOAuthService) ExchangeCode(ctx context.Context, input *Antig
 	}
 
 	// 令牌刚获取，立即设置隐私（不依赖后续账号创建流程）
-	result.PrivacyMode = setAntigravityPrivacy(ctx, result.AccessToken, result.ProjectID, proxyURL)
+	result.PrivacyMode = setAntigravityPrivacy(ctx, result.AccessToken, result.ProjectID, proxyURL, egressURL)
 
 	return result, nil
 }
 
-// RefreshToken 刷新 token
-func (s *AntigravityOAuthService) RefreshToken(ctx context.Context, refreshToken, proxyURL string) (*AntigravityTokenInfo, error) {
+// RefreshToken 刷新 token。
+// egressURL 非空时走链式代理（sub2api → egress → 目标代理 → Google），
+// 保证配置了 egress 的代理在刷新路径上不绕过链式设置。
+func (s *AntigravityOAuthService) RefreshToken(ctx context.Context, refreshToken, proxyURL, egressURL string) (*AntigravityTokenInfo, error) {
 	var lastErr error
 
 	for attempt := 0; attempt <= 3; attempt++ {
@@ -179,7 +183,7 @@ func (s *AntigravityOAuthService) RefreshToken(ctx context.Context, refreshToken
 			time.Sleep(backoff)
 		}
 
-		client, err := antigravity.NewClient(proxyURL)
+		client, err := antigravity.NewClientWithEgress(proxyURL, egressURL)
 		if err != nil {
 			return nil, fmt.Errorf("create antigravity client failed: %w", err)
 		}
@@ -213,22 +217,23 @@ func (s *AntigravityOAuthService) RefreshToken(ctx context.Context, refreshToken
 
 // ValidateRefreshToken 用 refresh token 验证并获取完整的 token 信息（含 email 和 project_id）
 func (s *AntigravityOAuthService) ValidateRefreshToken(ctx context.Context, refreshToken string, proxyID *int64) (*AntigravityTokenInfo, error) {
-	var proxyURL string
+	var proxyURL, egressURL string
 	if proxyID != nil {
 		proxy, err := s.proxyRepo.GetByID(ctx, *proxyID)
 		if err == nil && proxy != nil {
 			proxyURL = proxy.URL()
+			egressURL = proxy.EgressChainURL(ctx, s.proxyRepo)
 		}
 	}
 
 	// 刷新 token
-	tokenInfo, err := s.RefreshToken(ctx, refreshToken, proxyURL)
+	tokenInfo, err := s.RefreshToken(ctx, refreshToken, proxyURL, egressURL)
 	if err != nil {
 		return nil, err
 	}
 
 	// 获取用户信息（email）
-	client, err := antigravity.NewClient(proxyURL)
+	client, err := antigravity.NewClientWithEgress(proxyURL, egressURL)
 	if err != nil {
 		return nil, fmt.Errorf("create antigravity client failed: %w", err)
 	}
@@ -240,7 +245,7 @@ func (s *AntigravityOAuthService) ValidateRefreshToken(ctx context.Context, refr
 	}
 
 	// 获取 project_id + plan_type（容错，失败不阻塞）
-	loadResult, loadErr := s.loadProjectIDWithRetry(ctx, tokenInfo.AccessToken, proxyURL, 3)
+	loadResult, loadErr := s.loadProjectIDWithRetry(ctx, tokenInfo.AccessToken, proxyURL, egressURL, 3)
 	if loadErr != nil {
 		fmt.Printf("[AntigravityOAuth] 警告: 获取 project_id 失败（重试后）: %v\n", loadErr)
 		tokenInfo.ProjectIDMissing = true
@@ -253,7 +258,7 @@ func (s *AntigravityOAuthService) ValidateRefreshToken(ctx context.Context, refr
 	}
 
 	// 令牌刚获取，立即设置隐私
-	tokenInfo.PrivacyMode = setAntigravityPrivacy(ctx, tokenInfo.AccessToken, tokenInfo.ProjectID, proxyURL)
+	tokenInfo.PrivacyMode = setAntigravityPrivacy(ctx, tokenInfo.AccessToken, tokenInfo.ProjectID, proxyURL, egressURL)
 
 	return tokenInfo, nil
 }
@@ -285,15 +290,16 @@ func (s *AntigravityOAuthService) RefreshAccountToken(ctx context.Context, accou
 		return nil, fmt.Errorf("无可用的 refresh_token")
 	}
 
-	var proxyURL string
+	var proxyURL, egressURL string
 	if account.ProxyID != nil {
 		proxy, err := s.proxyRepo.GetByID(ctx, *account.ProxyID)
 		if err == nil && proxy != nil {
 			proxyURL = proxy.URL()
+			egressURL = proxy.EgressChainURL(ctx, s.proxyRepo)
 		}
 	}
 
-	tokenInfo, err := s.RefreshToken(ctx, refreshToken, proxyURL)
+	tokenInfo, err := s.RefreshToken(ctx, refreshToken, proxyURL, egressURL)
 	if err != nil {
 		return nil, err
 	}
@@ -306,7 +312,7 @@ func (s *AntigravityOAuthService) RefreshAccountToken(ctx context.Context, accou
 
 	// 每次刷新都调用 LoadCodeAssist 获取 project_id + plan_type，失败时重试
 	existingProjectID := strings.TrimSpace(account.GetCredential("project_id"))
-	loadResult, loadErr := s.loadProjectIDWithRetry(ctx, tokenInfo.AccessToken, proxyURL, 3)
+	loadResult, loadErr := s.loadProjectIDWithRetry(ctx, tokenInfo.AccessToken, proxyURL, egressURL, 3)
 
 	if loadErr != nil {
 		tokenInfo.ProjectID = existingProjectID
@@ -334,7 +340,7 @@ type loadCodeAssistResult struct {
 }
 
 // loadProjectIDWithRetry 带重试机制获取 project_id，同时从响应中提取 plan_type。
-func (s *AntigravityOAuthService) loadProjectIDWithRetry(ctx context.Context, accessToken, proxyURL string, maxRetries int) (*loadCodeAssistResult, error) {
+func (s *AntigravityOAuthService) loadProjectIDWithRetry(ctx context.Context, accessToken, proxyURL, egressURL string, maxRetries int) (*loadCodeAssistResult, error) {
 	var lastErr error
 	var lastSubscription *AntigravitySubscriptionResult
 
@@ -347,7 +353,7 @@ func (s *AntigravityOAuthService) loadProjectIDWithRetry(ctx context.Context, ac
 			time.Sleep(backoff)
 		}
 
-		client, err := antigravity.NewClient(proxyURL)
+		client, err := antigravity.NewClientWithEgress(proxyURL, egressURL)
 		if err != nil {
 			return nil, fmt.Errorf("create antigravity client failed: %w", err)
 		}
@@ -441,14 +447,15 @@ func resolveDefaultTierID(loadRaw map[string]any) string {
 
 // FillProjectID 仅获取 project_id，不刷新 OAuth token
 func (s *AntigravityOAuthService) FillProjectID(ctx context.Context, account *Account, accessToken string) (string, error) {
-	var proxyURL string
+	var proxyURL, egressURL string
 	if account.ProxyID != nil {
 		proxy, err := s.proxyRepo.GetByID(ctx, *account.ProxyID)
 		if err == nil && proxy != nil {
 			proxyURL = proxy.URL()
+			egressURL = proxy.EgressChainURL(ctx, s.proxyRepo)
 		}
 	}
-	result, err := s.loadProjectIDWithRetry(ctx, accessToken, proxyURL, 3)
+	result, err := s.loadProjectIDWithRetry(ctx, accessToken, proxyURL, egressURL, 3)
 	if result != nil {
 		return result.ProjectID, err
 	}

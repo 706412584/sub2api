@@ -288,6 +288,7 @@ func ProvideGrokReasoningProbeService(
 
 func ProvideAccountTestService(
 	accountRepo AccountRepository,
+	proxyRepo ProxyRepository,
 	geminiTokenProvider *GeminiTokenProvider,
 	claudeTokenProvider *ClaudeTokenProvider,
 	grokTokenProvider *GrokTokenProvider,
@@ -312,6 +313,7 @@ func ProvideAccountTestService(
 	)
 	service.agentIdentityWS = openAIGatewayService
 	service.SetSettingService(settingService)
+	service.SetProxyRepo(proxyRepo)
 	service.SetGrokConsoleDPoPProvider(consoleDPoPProvider)
 	service.SetGrokWebGateway(openAIGatewayService)
 	service.SetPluginManager(pluginManager)

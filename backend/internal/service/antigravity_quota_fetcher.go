@@ -46,12 +46,13 @@ func (f *AntigravityQuotaFetcher) CanFetch(account *Account) bool {
 	return accessToken != ""
 }
 
-// FetchQuota 获取 Antigravity 账户额度信息
+// FetchQuota 获取 Antigravity 账户额度信息。
+// egressURL 非空时走链式代理，保证配置了 egress 的代理不绕过链式设置。
 func (f *AntigravityQuotaFetcher) FetchQuota(ctx context.Context, account *Account, proxyURL string) (*QuotaResult, error) {
 	accessToken := account.GetCredential("access_token")
 	projectID := account.GetCredential("project_id")
 
-	client, err := antigravity.NewClient(proxyURL)
+	client, err := antigravity.NewClientWithEgress(proxyURL, f.GetEgressChainURL(ctx, account))
 	if err != nil {
 		return nil, fmt.Errorf("create antigravity client failed: %w", err)
 	}
@@ -262,6 +263,19 @@ func (f *AntigravityQuotaFetcher) GetProxyURL(ctx context.Context, account *Acco
 		return ""
 	}
 	return proxy.URL()
+}
+
+// GetEgressChainURL 获取账户代理的 egress（链式）代理 URL，
+// 未配置或链无效时返回空串。
+func (f *AntigravityQuotaFetcher) GetEgressChainURL(ctx context.Context, account *Account) string {
+	if account.ProxyID == nil || f.proxyRepo == nil {
+		return ""
+	}
+	proxy, err := f.proxyRepo.GetByID(ctx, *account.ProxyID)
+	if err != nil || proxy == nil {
+		return ""
+	}
+	return proxy.EgressChainURL(ctx, f.proxyRepo)
 }
 
 // classifyForbiddenType 根据 403 响应体判断禁止类型

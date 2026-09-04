@@ -1690,14 +1690,15 @@ func (s *adminServiceImpl) EnsureAntigravityPrivacy(ctx context.Context, account
 
 	projectID, _ := account.Credentials["project_id"].(string)
 
-	var proxyURL string
+	var proxyURL, egressURL string
 	if account.ProxyID != nil {
 		if p, err := s.proxyRepo.GetByID(ctx, *account.ProxyID); err == nil && p != nil {
 			proxyURL = p.URL()
+			egressURL = p.EgressChainURL(ctx, s.proxyRepo)
 		}
 	}
 
-	mode := setAntigravityPrivacy(ctx, token, projectID, proxyURL)
+	mode := setAntigravityPrivacy(ctx, token, projectID, proxyURL, egressURL)
 	if mode == "" {
 		return ""
 	}
@@ -1723,14 +1724,15 @@ func (s *adminServiceImpl) ForceAntigravityPrivacy(ctx context.Context, account 
 
 	projectID, _ := account.Credentials["project_id"].(string)
 
-	var proxyURL string
+	var proxyURL, egressURL string
 	if account.ProxyID != nil {
 		if p, err := s.proxyRepo.GetByID(ctx, *account.ProxyID); err == nil && p != nil {
 			proxyURL = p.URL()
+			egressURL = p.EgressChainURL(ctx, s.proxyRepo)
 		}
 	}
 
-	mode := setAntigravityPrivacy(ctx, token, projectID, proxyURL)
+	mode := setAntigravityPrivacy(ctx, token, projectID, proxyURL, egressURL)
 	if mode == "" {
 		return ""
 	}

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"net"
 	"net/url"
 	"strconv"
@@ -49,6 +50,34 @@ func (p *Proxy) URL() string {
 		u.User = url.UserPassword(p.Username, p.Password)
 	}
 	return u.String()
+}
+
+// EgressChainURL 返回该代理的 egress（上游链式）代理 URL，
+// 没配置 egress 或链无效时返回空串。
+// 语义与 repository.EgressProxyResolver 一致：深度上限 3、
+// 循环保护、中间节点必须 active。给不走 httpUpstream 的路径
+// （OAuth token 刷新、配额获取）补齐链式代理支持。
+func (p *Proxy) EgressChainURL(ctx context.Context, repo ProxyRepository) string {
+	if p == nil || repo == nil || p.EgressProxyID == nil {
+		return ""
+	}
+	visited := map[int64]struct{}{p.ID: {}}
+	current := p
+	for depth := 0; depth < 3 && current.EgressProxyID != nil; depth++ {
+		egress, err := repo.GetByID(ctx, *current.EgressProxyID)
+		if err != nil || egress == nil || !egress.IsActive() {
+			return ""
+		}
+		if _, seen := visited[egress.ID]; seen {
+			return ""
+		}
+		visited[egress.ID] = struct{}{}
+		if egress.EgressProxyID == nil {
+			return egress.URL()
+		}
+		current = egress
+	}
+	return ""
 }
 
 type ProxyWithAccountCount struct {
