@@ -641,7 +641,10 @@ func (s *ProxySubscriptionService) fetchBody(ctx context.Context, m *ProxySubscr
 		if err != nil {
 			return nil, err
 		}
-		req.Header.Set("User-Agent", "sub2api-proxy-subscription/0.1")
+		// UA 仿冒 clash 客户端：不少订阅服务端（尤其裸 IP 直连的机场面板）
+		// 按 UA 做白名单，陌生 UA 直接在 TLS 层掐断（连 403 都不给）。
+		// clash.meta 是各面板最普遍放行的标识。
+		req.Header.Set("User-Agent", "clash.meta/1.19.0")
 		resp, err := s.httpClient.Do(req)
 		if err != nil {
 			return nil, fmt.Errorf("fetch subscription: %w", err)

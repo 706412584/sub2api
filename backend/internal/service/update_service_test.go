@@ -305,3 +305,35 @@ func TestFindDeltaPatchAssets(t *testing.T) {
 	require.Equal(t, "sub2api_0.1.167_linux_amd64.tar.gz", full.Name)
 	require.Equal(t, "hpatchz_linux_amd64", hpatch.Name)
 }
+
+// TestCompareVersionsForkSuffix 钉死 fork 版本线的比较语义。
+// 线上事故：v0.1.190-fork.2 发布后，运行 v0.1.189 的部署检测不到更新——
+// GoReleaser prerelease:auto 把带 semver 后缀的 tag 标成 prerelease，
+// /releases/latest 排除它；且旧 compareVersions 丢弃后缀，
+// fork.1 → fork.2 的线内升级也判不出。
+func TestCompareVersionsForkSuffix(t *testing.T) {
+	cases := []struct {
+		current, latest string
+		want            int
+		desc            string
+	}{
+		// 服务器实测场景：v0.1.189 vs v0.1.190-fork.2 → 必须检出更新
+		{"0.1.189", "0.1.190-fork.2", -1, "189 应升级到 190-fork.2"},
+		{"v0.1.189", "v0.1.190-fork.2", -1, "带 v 前缀同样检出"},
+		// fork 线内升级
+		{"0.1.190-fork.1", "0.1.190-fork.2", -1, "fork.1 应升级到 fork.2"},
+		{"0.1.190-fork.2", "0.1.190-fork.1", 1, "fork.2 高于 fork.1"},
+		{"0.1.190-fork.2", "0.1.190-fork.2", 0, "相同版本"},
+		// 同号：无后缀（上游正式版）> fork 后缀
+		{"0.1.190-fork.2", "0.1.190", -1, "fork.2 低于上游同号正式版"},
+		{"0.1.190", "0.1.190-fork.2", 1, "上游正式版高于 fork.2"},
+		// 常规比较不受影响
+		{"0.1.190-fork.2", "0.2.0", -1, "fork.2 低于上游 0.2.0"},
+		{"0.1.188", "0.1.189", -1, "普通版本升级"},
+		{"0.1.190-fork.2", "0.1.191", -1, "fork 低于更新的上游版本"},
+	}
+	for _, tc := range cases {
+		got := compareVersions(tc.current, tc.latest)
+		require.Equal(t, tc.want, got, "compare(%q, %q): %s", tc.current, tc.latest, tc.desc)
+	}
+}

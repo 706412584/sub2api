@@ -20,6 +20,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
+	"go.uber.org/zap"
 
 	"github.com/gin-gonic/gin"
 )
@@ -896,13 +897,17 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 
 		var event map[string]any
 		if err := json.Unmarshal([]byte(dataLine), &event); err != nil {
-			// JSON 解析失败，直接透传原始数据
-			block := ""
-			if eventName != "" {
-				block = "event: " + eventName + "\n"
-			}
-			block += "data: " + dataLine + "\n\n"
-			return []string{block}, dataLine, nil, nil
+			// JSON 解析失败：丢弃该事件而不是透传。
+			// 此前直接透传原始数据——中转站（实测 motomoto）插进流的畸形片段
+			// （如 "invalid character ','"）会原样进客户端，污染工具入参的
+			// input_json_delta 流，客户端拼不出合法 JSON，触发 120s
+			// tool_input watchdog 中止整个会话。
+			logger.L().Warn("anthropic stream: dropped malformed SSE event",
+				zap.Error(err),
+				zap.Int("data_len", len(dataLine)),
+				zap.String("event_name", eventName),
+			)
+			return nil, "", nil, nil
 		}
 
 		eventType, _ := event["type"].(string)
