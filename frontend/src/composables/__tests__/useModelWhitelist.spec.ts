@@ -4,7 +4,7 @@ vi.mock('@/api/admin/accounts', () => ({
   getAntigravityDefaultModelMapping: vi.fn()
 }))
 
-import { buildModelMappingObject, getModelsByPlatform, splitModelMappingObject } from '../useModelWhitelist'
+import { allModels, buildModelMappingObject, getModelsByPlatform, splitModelMappingObject } from '../useModelWhitelist'
 
 describe('useModelWhitelist', () => {
   it('openai 模型列表包含 GPT-5.4 官方快照', () => {
@@ -104,6 +104,27 @@ describe('useModelWhitelist', () => {
     const models = getModelsByPlatform('antigravity')
 
     expect(models).toContain('gemini-3.1-pro')
+  })
+
+  it('antigravity 模型列表包含 3.6/3.8 分档模型的裸名与档位变体', () => {
+    const models = getModelsByPlatform('antigravity')
+
+    // 裸名必须在列表里：账号映射需要它做透传，网关才会按 reasoning effort 自动选档
+    expect(models).toContain('gemini-3.6-flash')
+    expect(models).toContain('gemini-3.8-flash')
+    for (const tier of ['low', 'medium', 'high', 'tiered']) {
+      expect(models).toContain(`gemini-3.6-flash-${tier}`)
+      expect(models).toContain(`gemini-3.8-flash-${tier}`)
+    }
+  })
+
+  it('allModels 下拉候选覆盖 antigravity 独有模型且不重复', () => {
+    const values = allModels.map(m => m.value)
+
+    expect(values).toContain('gemini-3.8-flash')
+    expect(values).toContain('gemini-3.6-flash-high')
+    expect(values).toContain('claude-opus-4-6-thinking')
+    expect(new Set(values).size).toBe(values.length)
   })
 
   it('whitelist 模式会忽略通配符条目', () => {

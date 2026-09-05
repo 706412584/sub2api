@@ -180,6 +180,24 @@ func StableProxyName(prefix, identity, nodeName string) string {
 	return fmt.Sprintf("%s%s-%s", prefix, hash, frag)
 }
 
+// ProxyNameIdentityKey 取代理名里稳定的身份部分（{prefix}{hash8}）。
+// hash8 只由节点 identity 决定，与可读片段无关，因此可读片段规则变化
+// （例如开始保留中文）后仍能认出同一节点，避免同步时重建代理行、
+// 丢掉已绑定的账号。不符合托管命名格式时返回空串。
+func ProxyNameIdentityKey(prefix, name string) string {
+	rest, ok := strings.CutPrefix(name, prefix)
+	if !ok || len(rest) < 8 {
+		return ""
+	}
+	hash := rest[:8]
+	for _, r := range hash {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
+			return ""
+		}
+	}
+	return prefix + hash
+}
+
 func looksLikeClashYAML(s string) bool {
 	return strings.Contains(s, "proxies:") || strings.Contains(s, "proxy-groups:") || strings.HasPrefix(s, "port:") || strings.HasPrefix(s, "mixed-port:")
 }
@@ -253,20 +271,55 @@ func nameMatchesAny(name string, needles []string) bool {
 	return false
 }
 
+// sanitizeNameFragment 从节点名提取可读片段用于代理名。
+// 保留 ASCII 字母数字与 CJK 中文（机场节点名常见「新加坡05」这类地区标识，
+// 剥掉后只剩 "05BGPCTCUCM" 之类无法辨认的串）；分隔符（|、空格、·、/）
+// 统一折叠为单个 '-'；emoji 国旗等符号剥离（占长度且无辨识价值）。
+// max 按 rune 计数而非字节，否则一个中文吃 3 字节，24 上限只能放 8 个汉字。
 func sanitizeNameFragment(s string, max int) string {
-	var b strings.Builder
+	var runes []rune
+	pendingSep := false
 	for _, r := range s {
 		switch {
-		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
-			_, _ = b.WriteRune(r)
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9',
+			isCJKNameRune(r):
+			if pendingSep && len(runes) > 0 {
+				runes = append(runes, '-')
+			}
+			pendingSep = false
+			runes = append(runes, r)
 		case r == '-' || r == '_':
-			_, _ = b.WriteRune(r)
+			if len(runes) > 0 {
+				pendingSep = false
+				runes = append(runes, r)
+			}
+		case r == '|' || r == '/' || r == '\\' || r == '·' || r == '.' || unicode.IsSpace(r):
+			// 分隔符：延迟落笔，避免结尾出现悬空 '-'
+			pendingSep = true
 		}
-		if b.Len() >= max {
+		if len(runes) >= max {
 			break
 		}
 	}
-	return strings.Trim(b.String(), "-_")
+	return strings.Trim(string(runes), "-_")
+}
+
+// isCJKNameRune 报告该字符是否为节点名中值得保留的中日韩文字。
+// 覆盖 CJK 统一表意文字（基本区 + 扩展 A）与假名、韩文音节，
+// 不含 emoji / 区域指示符（国旗）等符号。
+func isCJKNameRune(r rune) bool {
+	switch {
+	case r >= 0x4E00 && r <= 0x9FFF: // CJK 统一表意文字
+		return true
+	case r >= 0x3400 && r <= 0x4DBF: // CJK 扩展 A
+		return true
+	case r >= 0x3040 && r <= 0x30FF: // 平假名 / 片假名
+		return true
+	case r >= 0xAC00 && r <= 0xD7AF: // 韩文音节
+		return true
+	default:
+		return false
+	}
 }
 
 func shortHash(s string) string {

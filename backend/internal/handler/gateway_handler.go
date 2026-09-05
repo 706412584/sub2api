@@ -1428,6 +1428,15 @@ func customModelsListAllowsModel(availablePatterns []string, model string) bool 
 			return true
 		}
 	}
+	// Antigravity 分档模型在可用列表里被折叠成裸名，管理员显式勾选的档位变体
+	// 仍应放行（映射里依然存在该 key）。
+	if base := service.TrimAntigravityTierSuffix(model); base != "" {
+		for _, pattern := range availablePatterns {
+			if pattern == base {
+				return true
+			}
+		}
+	}
 	normalizedClaudeModel := claude.NormalizeModelID(strings.TrimSuffix(model, "-thinking"))
 	if normalizedClaudeModel != model {
 		for _, pattern := range availablePatterns {

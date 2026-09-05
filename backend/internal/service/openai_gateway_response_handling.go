@@ -244,6 +244,16 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 	// 否则下游 SDK（例如 OpenCode）会因为类型校验失败而报错。
 	errorEventSent := false
 	clientDisconnected := false // 客户端断开后继续 drain 上游以收集 usage
+	// drain 截止时间：断开后继续读上游只为补全 usage 计费，不应等满整个
+	// stream interval（默认 180s）——断流重试风暴下每个僵尸响应占住一个
+	// 并发槽数分钟，用户槽被打满后所有请求 429（线上实测持槽 688s）。
+	var clientDrainDeadline time.Time
+	markClientDisconnected := func() {
+		if !clientDisconnected {
+			clientDisconnected = true
+			clientDrainDeadline = time.Now().Add(clientDisconnectDrainTimeout)
+		}
+	}
 	sawTerminalEvent := false
 	sawFailedEvent := false
 	sawBareError := false
@@ -279,7 +289,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			_ = resp.Body.Close()
 			return
 		}
-		clientDisconnected = true
+		markClientDisconnected()
 		logger.LegacyPrintf("service.openai_gateway", "Client disconnected during streaming, continuing to drain upstream for billing")
 	}
 	completeGuardedEvent := func(queueDrained bool) {
@@ -293,7 +303,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			}
 			if shouldFlush {
 				if err := flushBuffered(); err != nil {
-					clientDisconnected = true
+					markClientDisconnected()
 					logger.LegacyPrintf("service.openai_gateway", "Client disconnected during streaming flush, continuing to drain upstream for billing")
 				} else {
 					clientOutputStarted = true
@@ -321,15 +331,15 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 		errorEventSent = true
 		payload := `{"type":"error","sequence_number":0,"error":{"type":"upstream_error","message":` + strconv.Quote(reason) + `,"code":` + strconv.Quote(reason) + `}}`
 		if err := flushBuffered(); err != nil {
-			clientDisconnected = true
+			markClientDisconnected()
 			return
 		}
 		if _, err := writePendingString("data: " + payload + "\n\n"); err != nil {
-			clientDisconnected = true
+			markClientDisconnected()
 			return
 		}
 		if err := flushBuffered(); err != nil {
-			clientDisconnected = true
+			markClientDisconnected()
 			return
 		}
 		clientOutputStarted = true
@@ -360,7 +370,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			return
 		}
 		if err := flushBuffered(); err != nil {
-			clientDisconnected = true
+			markClientDisconnected()
 			logger.LegacyPrintf("service.openai_gateway", "%s", disconnectMessage)
 			return
 		}
@@ -776,7 +786,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 				eventInProgress = line != ""
 				if shouldFlush {
 					if err := flushBuffered(); err != nil {
-						clientDisconnected = true
+						markClientDisconnected()
 						logger.LegacyPrintf("service.openai_gateway", "Client disconnected during streaming flush, continuing to drain upstream for billing")
 					} else {
 						clientOutputStarted = true
@@ -932,6 +942,11 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 
 		case <-keepaliveCh:
 			if clientDisconnected || failureDelivered {
+				// drain 截止：放弃补全 usage，按已收到的计费返回，释放并发槽。
+				if clientDisconnected && !clientDrainDeadline.IsZero() && time.Now().After(clientDrainDeadline) {
+					logger.LegacyPrintf("service.openai_gateway", "Client-disconnect drain deadline reached, stop draining for billing (account=%d)", account.ID)
+					return resultWithUsage(), nil
+				}
 				continue
 			}
 			if eventInProgress {
@@ -946,7 +961,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 				n, err := w.Write([]byte(":\n\n"))
 				recordOpenAIStreamKeepaliveBytes(c, n)
 				if err != nil {
-					clientDisconnected = true
+					markClientDisconnected()
 					logger.LegacyPrintf("service.openai_gateway", "Client disconnected during streaming, continuing to drain upstream for billing")
 					continue
 				}
@@ -955,12 +970,12 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 				continue
 			}
 			if _, err := writePendingString(":\n\n"); err != nil {
-				clientDisconnected = true
+				markClientDisconnected()
 				logger.LegacyPrintf("service.openai_gateway", "Client disconnected during streaming, continuing to drain upstream for billing")
 				continue
 			}
 			if err := flushBuffered(); err != nil {
-				clientDisconnected = true
+				markClientDisconnected()
 				logger.LegacyPrintf("service.openai_gateway", "Client disconnected during keepalive flush, continuing to drain upstream for billing")
 			} else {
 				lastDownstreamWriteAt = time.Now()

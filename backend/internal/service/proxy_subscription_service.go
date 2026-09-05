@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -303,6 +304,45 @@ func (s *ProxySubscriptionService) SyncAllEnabled(ctx context.Context) error {
 	return first
 }
 
+// ReconcileEngines 用已落盘的 mihomo 配置拉起进程（服务启动时调用）。
+// 服务重启后 MihomoEngine.procs 是空的，而订阅源要等 next_due_at 到期才会
+// 重新 sync——期间所有 sidecar 端口没人监听，代理全部不可用，只能手动点同步。
+// 这里不重新拉订阅（避免启动依赖外部源）：config.yaml 在上次 sync 已落盘，
+// 直接用 DB 里的 LastConfigHash 调 EnsureRunning 拉起进程；config 缺失的源
+// 走一次完整 syncOne 兜底。
+func (s *ProxySubscriptionService) ReconcileEngines(ctx context.Context) {
+	if s == nil || s.engine == nil {
+		return
+	}
+	list, err := s.repo.ListEnabled(ctx)
+	if err != nil {
+		log.Printf("[ProxySubscription] startup reconcile: list enabled failed: %v", err)
+		return
+	}
+	started, missing := 0, 0
+	for _, m := range list {
+		cfgPath := s.engine.ConfigPathFor(m.ID)
+		if st, err := os.Stat(cfgPath); err != nil || st.IsDir() || m.LastConfigHash == "" {
+			// 配置从未落盘：做一次完整同步（拉订阅 + 写配置 + 起进程）
+			if _, err := s.syncOne(ctx, m); err != nil {
+				log.Printf("[ProxySubscription] startup reconcile: source %d(%s) initial sync failed: %v", m.ID, m.Name, err)
+			} else {
+				started++
+			}
+			missing++
+			continue
+		}
+		if err := s.engine.EnsureRunning(m.ID, m.NamePrefix, m.BindAddress, nil, m.LastConfigHash); err != nil {
+			log.Printf("[ProxySubscription] startup reconcile: source %d(%s) ensure running failed: %v", m.ID, m.Name, err)
+			continue
+		}
+		started++
+	}
+	if len(list) > 0 {
+		log.Printf("[ProxySubscription] startup reconcile done: %d/%d engine sources running (%d needed initial sync)", started, len(list), missing)
+	}
+}
+
 // SyncDue runs due sources (next_due_at <= now or nil).
 func (s *ProxySubscriptionService) SyncDue(ctx context.Context, now time.Time, limit int) error {
 	list, err := s.repo.ListDue(ctx, now, limit)
@@ -454,6 +494,10 @@ func (s *ProxySubscriptionService) applyProxies(ctx context.Context, prefix stri
 		return fmt.Errorf("list owned proxies: %w", err)
 	}
 	byName := map[string]ProxyWithAccountCount{}
+	// 按 {prefix}{hash8} 索引：hash8 只由节点 identity 决定，代理名的可读片段
+	// 规则变化（如开始保留中文）后仍能认出同一节点，走重命名而不是删旧建新，
+	// 避免已绑定账号的代理被重建。
+	byIdentity := map[string]ProxyWithAccountCount{}
 	for _, p := range existing {
 		if prev, ok := byName[p.Name]; ok {
 			if p.ID < prev.ID {
@@ -462,12 +506,31 @@ func (s *ProxySubscriptionService) applyProxies(ctx context.Context, prefix stri
 			continue
 		}
 		byName[p.Name] = p
+		if key := clashsub.ProxyNameIdentityKey(prefix, p.Name); key != "" {
+			if prev, ok := byIdentity[key]; !ok || p.ID < prev.ID {
+				byIdentity[key] = p
+			}
+		}
 	}
 	desiredNames := map[string]clashsub.LocalEndpoint{}
+	renamedIDs := map[int64]struct{}{}
 	for _, ep := range desired {
 		desiredNames[ep.Name] = ep
-		if cur, ok := byName[ep.Name]; ok {
-			needUpdate := cur.Host != ep.Host || cur.Port != ep.Port || cur.Protocol != ep.Protocol || cur.Status != StatusActive
+		cur, ok := byName[ep.Name]
+		if !ok {
+			// 名字没命中：可读片段规则变了但节点未变时，按身份 hash 复用旧行重命名。
+			if key := clashsub.ProxyNameIdentityKey(prefix, ep.Name); key != "" {
+				if prior, found := byIdentity[key]; found {
+					if _, dup := desiredNames[prior.Name]; !dup {
+						cur, ok = prior, true
+						renamedIDs[prior.ID] = struct{}{}
+					}
+				}
+			}
+		}
+		if ok {
+			needUpdate := cur.Name != ep.Name || cur.Host != ep.Host || cur.Port != ep.Port ||
+				cur.Protocol != ep.Protocol || cur.Status != StatusActive
 			if needUpdate {
 				// Preserve expiry/fallback fields to avoid UpdateProxy zeroing.
 				cur.Host = ep.Host
@@ -504,6 +567,9 @@ func (s *ProxySubscriptionService) applyProxies(ctx context.Context, prefix stri
 		keepID[name] = p.ID
 	}
 	for _, p := range existing {
+		if _, renamed := renamedIDs[p.ID]; renamed {
+			continue
+		}
 		primary := keepID[p.Name]
 		isDup := primary != 0 && p.ID != primary
 		_, wanted := desiredNames[p.Name]

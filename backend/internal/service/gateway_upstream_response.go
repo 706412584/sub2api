@@ -24,6 +24,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// clientDisconnectDrainTimeout 客户端断开后继续 drain 上游的最长时间。
+// 断开后 drain 只为补全 usage 计费；上限必须远小于 stream interval
+// （默认 180s），否则断流重试风暴下每个僵尸响应占住一个并发槽数分钟，
+// 用户并发槽被打满后所有请求 429（线上实测单请求持槽 688s）。
+const clientDisconnectDrainTimeout = 30 * time.Second
+
 // isClaudeCodeClient 判断请求是否来自真正的 Claude Code 客户端。
 // 判定条件：
 //  1. User-Agent 匹配 claude-cli/X.Y.Z（大小写不敏感）
@@ -833,6 +839,18 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 
 	needModelReplace := originalModel != mappedModel
 	clientDisconnected := false // 客户端断开标志，断开后继续读取上游以获取完整usage
+	// 客户端断开后的 drain 截止时间：断开后继续读上游只为补全 usage 计费，
+	// 不应把整个 stream interval（默认 180s）耗在一个已经没有读者的响应上——
+	// IDE 断流重试风暴下，每个"僵尸 drain"占住一个并发槽 3 分钟以上，槽位
+	// 很快被打满并 429（线上实测单请求持槽 688s）。drain 超时后按已收到的
+	// usage 计费返回。
+	var clientDrainDeadline time.Time
+	markClientDisconnected := func() {
+		if !clientDisconnected {
+			clientDisconnected = true
+			clientDrainDeadline = time.Now().Add(clientDisconnectDrainTimeout)
+		}
+	}
 	sawTerminalEvent := false
 	useNoopDeltaKeepalive := c != nil && c.Request != nil && shouldUseClaudeCodeNoopDeltaKeepalive(c.GetHeader("User-Agent"))
 	noopDeltaKeepaliveBlockIndex := -1
@@ -1075,11 +1093,11 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 					if !clientDisconnected {
 						restored := reverseToolNamesIfPresent(c, []byte(block))
 						if _, werr := fmt.Fprint(w, string(restored)); werr != nil {
-							clientDisconnected = true
-							logger.LegacyPrintf("service.gateway", "Client disconnected during streaming, continuing to drain upstream for billing")
+							markClientDisconnected()
+							logger.LegacyPrintf("service.gateway", "Client disconnected during streaming, continuing to drain upstream for billing (deadline %s)", clientDrainDeadline.Format(time.RFC3339))
 							// 不 break：客户端断开后仍需继续合并本事件及后续事件的 usage，
 							// 否则会漏计当前事件携带的 usage 导致少计费。后续写入由
-							// clientDisconnected 守卫跳过。
+							// clientDisconnected 守卫跳过；drain 超时后按已收到的 usage 返回。
 						} else {
 							flusher.Flush()
 							lastDataAt = time.Now()
@@ -1119,6 +1137,13 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 
 		case <-keepaliveCh:
 			if clientDisconnected {
+				// drain 截止：放弃补全 usage，按已收到的计费返回，释放并发槽。
+				// timer 触发后必须 reset 才会再次触发——否则截止时间永远检查不到。
+				if !clientDrainDeadline.IsZero() && time.Now().After(clientDrainDeadline) {
+					logger.LegacyPrintf("service.gateway", "Client-disconnect drain deadline reached, stop draining for billing (account=%d)", account.ID)
+					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: true}, nil
+				}
+				resetKeepaliveTimer()
 				continue
 			}
 			if time.Since(lastDataAt) < keepaliveInterval {
@@ -1132,7 +1157,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 				}
 			}
 			if _, werr := fmt.Fprint(w, keepaliveBlock); werr != nil {
-				clientDisconnected = true
+				markClientDisconnected()
 				logger.LegacyPrintf("service.gateway", "Client disconnected during keepalive ping, continuing to drain upstream for billing")
 				continue
 			}

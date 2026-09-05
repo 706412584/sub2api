@@ -20,14 +20,15 @@ const (
 // ProxySubscriptionRunner periodically syncs due embedded subscription sources.
 // Only the leader instance runs sync + mihomo (multi-instance safe).
 type ProxySubscriptionRunner struct {
-	svc        *ProxySubscriptionService
-	interval   time.Duration
-	stopCh     chan struct{}
-	stopOnce   sync.Once
-	wg         sync.WaitGroup
-	lockCache  LeaderLockCache
-	db         *sql.DB
-	instanceID string
+	svc           *ProxySubscriptionService
+	interval      time.Duration
+	stopCh        chan struct{}
+	stopOnce      sync.Once
+	wg            sync.WaitGroup
+	lockCache     LeaderLockCache
+	db            *sql.DB
+	instanceID    string
+	reconcileOnce sync.Once
 }
 
 // NewProxySubscriptionRunner creates a runner (not started).
@@ -100,6 +101,13 @@ func (r *ProxySubscriptionRunner) runOnce() {
 		return
 	}
 	defer release()
+
+	// 启动后首次成为 leader 时，用已落盘配置拉起 mihomo 引擎。
+	// 服务重启后引擎进程表是空的，订阅源要等 next_due_at 到期才重新 sync，
+	// 期间 sidecar 端口全部无人监听——重启即恢复，不再依赖手动点同步。
+	r.reconcileOnce.Do(func() {
+		r.svc.ReconcileEngines(ctx)
+	})
 
 	if err := r.svc.SyncDue(ctx, time.Now(), proxySubscriptionDueLimit); err != nil {
 		log.Printf("[ProxySubscriptionRunner] sync due failed: %v", err)

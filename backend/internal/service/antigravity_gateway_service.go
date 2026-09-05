@@ -370,6 +370,8 @@ func (s *AntigravityGatewayService) TestConnection(ctx context.Context, account 
 	if mappedModel == "" {
 		return nil, fmt.Errorf("model %s not in whitelist", modelID)
 	}
+	// 分档 Gemini 模型按档位后缀补全（测试不带 effort → 最低档）
+	mappedModel = resolveAntigravityEffortTier(ctx, account, mappedModel)
 
 	// 构建请求体
 	var requestBody []byte
@@ -448,14 +450,16 @@ func testConnectionHandleError(
 }
 
 // buildGeminiTestRequest 构建 Gemini 格式测试请求
-// 使用最小 token 消耗：输入 "." + maxOutputTokens: 1
+// Antigravity 的分档 gemini（3.6/3.8 tiered 等）会先花若干思考 token，
+// maxOutputTokens: 1 时正文一个字符都出不来，管理界面显示空响应；
+// 给到 32 让测试能回出可见文本。
 func (s *AntigravityGatewayService) buildGeminiTestRequest(projectID, model string) ([]byte, error) {
 	payload := map[string]any{
 		"contents": []map[string]any{
 			{
 				"role": "user",
 				"parts": []map[string]any{
-					{"text": "."},
+					{"text": "Reply with exactly: OK"},
 				},
 			},
 		},
@@ -466,7 +470,7 @@ func (s *AntigravityGatewayService) buildGeminiTestRequest(projectID, model stri
 			},
 		},
 		"generationConfig": map[string]any{
-			"maxOutputTokens": 1,
+			"maxOutputTokens": 32,
 		},
 	}
 	payloadBytes, _ := json.Marshal(payload)
@@ -474,17 +478,17 @@ func (s *AntigravityGatewayService) buildGeminiTestRequest(projectID, model stri
 }
 
 // buildClaudeTestRequest 构建 Claude 格式测试请求并转换为 Gemini 格式
-// 使用最小 token 消耗：输入 "." + MaxTokens: 1
+// 与 gemini 测试请求同理：MaxTokens 给到 32，避免思考型模型正文为空。
 func (s *AntigravityGatewayService) buildClaudeTestRequest(projectID, mappedModel string) ([]byte, error) {
 	claudeReq := &antigravity.ClaudeRequest{
 		Model: mappedModel,
 		Messages: []antigravity.ClaudeMessage{
 			{
 				Role:    "user",
-				Content: json.RawMessage(`"."`),
+				Content: json.RawMessage(`"Reply with exactly: OK"`),
 			},
 		},
-		MaxTokens: 1,
+		MaxTokens: 32,
 		Stream:    false,
 	}
 	return antigravity.TransformClaudeToGemini(claudeReq, projectID, mappedModel)

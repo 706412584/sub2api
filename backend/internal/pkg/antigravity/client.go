@@ -270,6 +270,15 @@ const (
 )
 
 func NewClient(proxyURL string) (*Client, error) {
+	return NewClientWithEgress(proxyURL, "")
+}
+
+// NewClientWithEgress 创建带链式代理（egress）的客户端：
+// 请求路径 sub2api → egress 代理 → 目标代理 → 上游。
+// egressURL 为空时与 NewClient 行为一致。
+// 用于不走 httpUpstream 的路径（OAuth token 刷新等），
+// 这些路径此前直连目标代理，配置了 egress 的代理会绕过链式设置。
+func NewClientWithEgress(proxyURL, egressURL string) (*Client, error) {
 	client := &http.Client{
 		Timeout: clientTimeout,
 	}
@@ -278,18 +287,51 @@ func NewClient(proxyURL string) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	if parsed != nil {
-		transport := &http.Transport{
-			DialContext: (&net.Dialer{
-				Timeout: proxyDialTimeout,
-			}).DialContext,
-			TLSHandshakeTimeout: proxyTLSHandshakeTimeout,
-		}
+	if parsed == nil {
+		return &Client{
+			httpClient: client,
+		}, nil
+	}
+
+	transport := &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout: proxyDialTimeout,
+		}).DialContext,
+		TLSHandshakeTimeout: proxyTLSHandshakeTimeout,
+	}
+
+	if strings.TrimSpace(egressURL) == "" {
 		if err := proxyutil.ConfigureTransportProxy(transport, parsed); err != nil {
 			return nil, fmt.Errorf("configure proxy: %w", err)
 		}
-		client.Transport = transport
+	} else {
+		// 链式代理，与 repository.buildUpstreamTransport 同模式：
+		// sub2api → egress → 目标代理 → 上游。
+		// - http 目标代理：先把 DialContext 换成 egress 隧道（ConfigureTransportProxy
+		//   的 http 分支只设 transport.Proxy 不动 DialContext，TCP 到目标代理
+		//   天然走 DialContext → egress）
+		// - socks5 目标代理：用 ConfigureTransportProxyWithDialContextToProxy，
+		//   让 SOCKS5 的 forward 拨号经 egress 隧道
+		base := &net.Dialer{Timeout: proxyDialTimeout}
+		tunnel, err := proxyutil.NewEgressDialer(egressURL, base)
+		if err != nil {
+			return nil, fmt.Errorf("build egress dialer: %w", err)
+		}
+		scheme := strings.ToLower(parsed.Scheme)
+		if scheme == "socks5" || scheme == "socks5h" {
+			targetAddr := net.JoinHostPort(parsed.Hostname(), parsed.Port())
+			if err := proxyutil.ConfigureTransportProxyWithDialContextToProxy(transport, parsed, targetAddr, tunnel.DialContext); err != nil {
+				return nil, fmt.Errorf("configure chained proxy: %w", err)
+			}
+		} else {
+			transport.DialContext = tunnel.DialContext
+			if err := proxyutil.ConfigureTransportProxy(transport, parsed); err != nil {
+				return nil, fmt.Errorf("configure chained proxy: %w", err)
+			}
+		}
 	}
+
+	client.Transport = transport
 	return &Client{
 		httpClient: client,
 	}, nil

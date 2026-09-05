@@ -196,6 +196,7 @@ func normalizeGrokAccountTestMode(mode string) string {
 // AccountTestService handles account testing operations
 type AccountTestService struct {
 	accountRepo               AccountRepository
+	proxyRepo                 ProxyRepository
 	geminiTokenProvider       *GeminiTokenProvider
 	claudeTokenProvider       *ClaudeTokenProvider
 	grokTokenProvider         *GrokTokenProvider
@@ -217,6 +218,14 @@ type AccountTestService struct {
 	// 由 wire 注入（与网关共享同一 provider 实例）。
 	grokConsoleDPoP *GrokConsoleDPoPProvider
 	grokWebGateway  *OpenAIGatewayService
+}
+
+// SetProxyRepo 注入代理仓库（sync-upstream 的 egress 链解析需要，
+// 可选注入以兼容既有测试桩）。
+func (s *AccountTestService) SetProxyRepo(repo ProxyRepository) {
+	if s != nil {
+		s.proxyRepo = repo
+	}
 }
 
 // SetGrokConsoleDPoPProvider 注入 Console DPoP provider（手动测试用）。

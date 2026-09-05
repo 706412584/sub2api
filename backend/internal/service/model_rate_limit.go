@@ -147,7 +147,8 @@ func resolveFinalAntigravityModelKey(ctx context.Context, account *Account, requ
 	if enabled, ok := ThinkingEnabledFromContext(ctx); ok {
 		modelKey = applyThinkingModelSuffix(modelKey, enabled)
 	}
-	return modelKey
+	// reasoning effort 决定 Gemini 分档模型的档位后缀（gemini-3.8-flash -> gemini-3.8-flash-high）
+	return resolveAntigravityEffortTier(ctx, account, modelKey)
 }
 
 func isAntigravityGeminiModel(model string) bool {

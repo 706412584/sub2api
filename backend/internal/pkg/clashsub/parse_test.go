@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestParseSubscriptionYAML(t *testing.T) {
@@ -141,5 +142,60 @@ func TestParseFixtureFile(t *testing.T) {
 	}
 	if len(nodes) < 2 {
 		t.Fatalf("fixture should yield >=2 nodes, got %d", len(nodes))
+	}
+}
+
+// TestSanitizeNameFragmentKeepsCJK 钉死中文/分隔符处理：机场节点名里的地区中文
+// 必须保留（否则 IP 管理列表全是 "05BGPCTCUCM" 之类无法辨认的串），
+// '|' 等分隔符折叠为 '-'，emoji 国旗剥离，限长按 rune 计。
+func TestSanitizeNameFragmentKeepsCJK(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		max  int
+		want string
+	}{
+		{"中文+分隔符", "🇸🇬新加坡05|BGP|CTC|UCM", 24, "新加坡05-BGP-CTC-UCM"},
+		{"纯英文不变", "US-1", 24, "US-1"},
+		{"emoji 剥离保留中文", "🇺🇸美国05|流媒体|0.1x", 24, "美国05-流媒体-0-1x"},
+		{"空格折叠", "新加坡 · 新加坡", 24, "新加坡-新加坡"},
+		{"rune 限长", "新加坡新加坡新加坡新加坡", 6, "新加坡新加坡"},
+		{"全 emoji 落空", "🇸🇬🇺🇸", 24, ""},
+		{"前导分隔符不留悬空", "|||香港01", 24, "香港01"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := sanitizeNameFragment(tc.in, tc.max); got != tc.want {
+				t.Fatalf("sanitizeNameFragment(%q, %d) = %q, want %q", tc.in, tc.max, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestStableProxyNameReadableWithCJK 端到端：代理名应含可读中文片段。
+func TestStableProxyNameReadableWithCJK(t *testing.T) {
+	name := StableProxyName("sidecar-a-", "hysteria2|1.2.3.4|60000|SG05", "🇸🇬新加坡05|BGP|CTC|UCM")
+	if !strings.Contains(name, "新加坡05") {
+		t.Fatalf("proxy name should keep CJK region label, got %q", name)
+	}
+	if !strings.HasPrefix(name, "sidecar-a-") {
+		t.Fatalf("bad prefix: %q", name)
+	}
+}
+
+// TestMihomoProxyNameStaysValidUTF8 保留中文后代理名可达 80+ 字节，
+// short() 若按字节截断会把汉字切成半个，写进 mihomo YAML 就是非法 UTF-8。
+func TestMihomoProxyNameStaysValidUTF8(t *testing.T) {
+	longCJK := strings.Repeat("新加坡", 12) // 36 runes / 108 bytes
+	name := StableProxyName("sidecar-a-", "hysteria2|1.2.3.4|60000|SG", longCJK)
+	got := short(name, "sidecar-a-")
+	if !utf8.ValidString(got) {
+		t.Fatalf("short() produced invalid UTF-8: %q", got)
+	}
+	if len([]rune(got)) > 40 {
+		t.Fatalf("short() should cap at 40 runes, got %d", len([]rune(got)))
+	}
+	if !strings.HasPrefix(got, strings.TrimPrefix(name, "sidecar-a-")[:8]) {
+		t.Fatalf("short() must keep the 8-char hash: %q", got)
 	}
 }

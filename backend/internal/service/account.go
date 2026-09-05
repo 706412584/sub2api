@@ -769,15 +769,17 @@ func (a *Account) resolveModelMapping(rawMapping map[string]any) map[string]stri
 	}
 	if len(result) > 0 {
 		if a.Platform == domain.PlatformAntigravity {
+			// 注意：分档模型（3.6/3.8）只透传裸名，不补档位变体。
+			// 档位变体以账号 model_mapping 里上游同步回来的真实集合为准——
+			// 上游按账号灰度开放档位（例如只给 tiered 不给 low/medium/high），
+			// 强行补齐会让自动选档选到上游 404 的模型。
+			// 裸名 + applyAntigravityEffortTier 会从真实存在的档位里选。
 			ensureAntigravityDefaultPassthroughs(result, []string{
 				"gemini-3-flash",
 				"gemini-3.1-pro-high",
 				"gemini-3.1-pro-low",
 				"gemini-3.6-flash",
-				"gemini-3.6-flash-high",
-				"gemini-3.6-flash-low",
-				"gemini-3.6-flash-medium",
-				"gemini-3.6-flash-tiered",
+				"gemini-3.8-flash",
 			})
 			applyAntigravityGemini31ProAliases(result)
 		}
