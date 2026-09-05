@@ -1149,8 +1149,56 @@ func (s *UpdateService) saveToCache(ctx context.Context, info *UpdateInfo) {
 	_ = s.cache.SetUpdateInfo(ctx, string(data), time.Duration(updateCacheTTL)*time.Second)
 }
 
-// compareVersions compares two semantic versions
+// compareVersions compares two versions, fork-suffix aware.
+// 规则（fork 版本线 0.1.190-fork.N 专用语义）：
+//   - 先比主版本号（同 semver 语义）
+//   - 主版本号相同时比后缀：无后缀 > 有后缀（0.1.190 > 0.1.190-fork.2，
+//     正式版优先）；同为 fork 后缀时比 fork 序号（fork.2 > fork.1）
+//
+// 这样 fork 线内的升级（fork.1 → fork.2）能被检出，同时 fork 版本
+// 永远低于上游同号正式版。
 func compareVersions(current, latest string) int {
+	cMain, cSuffix := splitForkVersion(current)
+	lMain, lSuffix := splitForkVersion(latest)
+
+	cmp := compareMainVersions(cMain, lMain)
+	if cmp != 0 {
+		return cmp
+	}
+	// 主版本号相同，比较 fork 后缀
+	if cSuffix == lSuffix {
+		return 0
+	}
+	if cSuffix == 0 {
+		return 1 // 无后缀（正式版）> 有后缀
+	}
+	if lSuffix == 0 {
+		return -1
+	}
+	if cSuffix < lSuffix {
+		return -1
+	}
+	return 1
+}
+
+// splitForkVersion 拆出主版本号与 fork 序号（无 fork 后缀返回 0）。
+func splitForkVersion(v string) (string, int) {
+	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
+	if idx := strings.IndexByte(v, '-'); idx != -1 {
+		main := v[:idx]
+		suffix := v[idx+1:]
+		// 只识别 -fork.N 形态；其他后缀（如 -beta）按无 fork 序号处理
+		if strings.HasPrefix(suffix, "fork.") {
+			if n, err := strconv.Atoi(strings.TrimPrefix(suffix, "fork.")); err == nil && n > 0 {
+				return main, n
+			}
+		}
+		return main, 0
+	}
+	return v, 0
+}
+
+func compareMainVersions(current, latest string) int {
 	currentParts := parseVersion(current)
 	latestParts := parseVersion(latest)
 
