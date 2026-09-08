@@ -207,6 +207,7 @@ func (Group) Fields() []ent.Field {
 			Optional().
 			Nillable().
 			Comment("无效请求兜底使用的分组 ID"),
+
 		// 账号加入该分组且未显式指定代理时，自动绑定此代理（migration 187）
 		field.Int64("default_proxy_id").
 			Optional().
@@ -281,10 +282,14 @@ func (Group) Fields() []ent.Field {
 			Default(domain.OpenAIMessagesDispatchModelConfig{}).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
 			Comment("OpenAI Messages 调度模型配置：按 Claude 系列/精确模型映射到目标 GPT 模型"),
-		field.JSON("models_list_config", domain.GroupModelsListConfig{}).
-			Default(domain.GroupModelsListConfig{}).
+		field.JSON("model_allowlist", domain.GroupModelAllowlist{}).
+			Default(domain.GroupModelAllowlist{}).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
-			Comment("自定义 /v1/models 展示列表配置；仅影响模型列表响应，不影响调度"),
+			Comment("分组模型白名单：同时约束模型列表接口与请求准入"),
+		field.JSON("codex_models_manifest_config", domain.GroupCodexModelsManifestConfig{}).
+			Default(domain.GroupCodexModelsManifestConfig{}).
+			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
+			Comment("固定账号获取 Codex Model Manifest 配置；开启后 /models 请求只用选定账号拉取（仅 openai 平台）"),
 
 		// Prompt policy only changes or blocks request text when enabled.
 		field.JSON("prompt_policy", domain.GroupPromptPolicy{}).

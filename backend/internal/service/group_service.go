@@ -11,6 +11,7 @@ import (
 var (
 	ErrGroupNotFound = infraerrors.NotFound("GROUP_NOT_FOUND", "group not found")
 	ErrGroupExists   = infraerrors.Conflict("GROUP_EXISTS", "group name already exists")
+	ErrGroupNotEmpty = infraerrors.Conflict("GROUP_NOT_EMPTY", "group contains accounts")
 )
 
 type GroupRepository interface {
@@ -51,11 +52,17 @@ type GroupDuplicateRepository interface {
 type AdminGroupRepository interface {
 	GroupRepository
 	GroupDuplicateRepository
+	EmptyGroupDeleteRepository
 	// SetDefaultProxyBoundGroups 将 groupIDs 的 default_proxy_id 设为 proxyID；
 	// 原先绑定到该代理但不在列表中的分组会被清空。
 	SetDefaultProxyBoundGroups(ctx context.Context, proxyID int64, groupIDs []int64) error
 	// ListGroupIDsByDefaultProxy 返回 default_proxy_id = proxyID 的分组 ID。
 	ListGroupIDsByDefaultProxy(ctx context.Context, proxyID int64) ([]int64, error)
+}
+
+// EmptyGroupDeleteRepository provides the guarded cascade used by simple mode.
+type EmptyGroupDeleteRepository interface {
+	DeleteCascadeIfEmpty(ctx context.Context, id int64) ([]int64, error)
 }
 
 // GroupSortOrderUpdate 分组排序更新
