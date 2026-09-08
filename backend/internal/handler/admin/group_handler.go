@@ -243,7 +243,7 @@ type CreateGroupRequest struct {
 	ModelAllowlist              service.GroupModelAllowlist               `json:"model_allowlist"`
 	// 固定账号 manifest 配置；创建路径禁止开启，仅编辑可配置。
 	CodexModelsManifestConfig service.GroupCodexModelsManifestConfig `json:"codex_models_manifest_config"`
-	GrokMessagesProtocol        string                                    `json:"grok_messages_protocol"`
+	GrokMessagesProtocol      string                                 `json:"grok_messages_protocol"`
 	// Grok 思考明文可见性调度模式：inherit（跟随网关）/off/soft/enforce
 	GrokReasoningVisibilityMode string `json:"grok_reasoning_visibility_mode"`
 	// 分组级探测复用秒数：-1=继承网关，0=每次探测，N=缓存N秒
@@ -328,7 +328,7 @@ type UpdateGroupRequest struct {
 	ModelAllowlist              *service.GroupModelAllowlist               `json:"model_allowlist"`
 	// 固定账号 manifest 配置；nil 表示不修改。
 	CodexModelsManifestConfig *service.GroupCodexModelsManifestConfig `json:"codex_models_manifest_config"`
-	GrokMessagesProtocol        *string                                    `json:"grok_messages_protocol"`
+	GrokMessagesProtocol      *string                                 `json:"grok_messages_protocol"`
 	// Grok 思考明文可见性调度模式；nil 表示未提供不改动。
 	GrokReasoningVisibilityMode *string `json:"grok_reasoning_visibility_mode"`
 	// 分组级探测复用秒数；nil 表示未提供不改动。

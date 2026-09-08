@@ -301,7 +301,7 @@ type CreateGroupInput struct {
 	ModelAllowlist              GroupModelAllowlist
 	// CodexModelsManifestConfig 固定账号 manifest 配置；创建路径禁止开启，仅编辑可配置。
 	CodexModelsManifestConfig GroupCodexModelsManifestConfig
-	GrokMessagesProtocol        string
+	GrokMessagesProtocol      string
 	// GrokReasoningVisibilityMode 分组级 Grok 思考明文可见性调度模式。
 	GrokReasoningVisibilityMode string
 	// GrokReasoningProbeTTLSec 分组级探测复用秒数，-1=继承网关
@@ -393,7 +393,7 @@ type UpdateGroupInput struct {
 	ModelAllowlist              *GroupModelAllowlist
 	// CodexModelsManifestConfig nil 表示不修改；非 openai 平台会被归一化为关闭。
 	CodexModelsManifestConfig *GroupCodexModelsManifestConfig
-	GrokMessagesProtocol        *string
+	GrokMessagesProtocol      *string
 	// GrokReasoningVisibilityMode nil 表示未提供不改动。
 	GrokReasoningVisibilityMode *string
 	// GrokReasoningProbeTTLSec nil 表示未提供不改动。

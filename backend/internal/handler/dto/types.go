@@ -195,11 +195,11 @@ type AdminGroup struct {
 	MessagesDispatchModelConfig domain.OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config"`
 	ModelAllowlist              service.GroupModelAllowlist              `json:"model_allowlist"`
 	// 固定账号获取 Codex Model Manifest 配置（仅 openai 平台使用）。
-	CodexModelsManifestConfig domain.GroupCodexModelsManifestConfig `json:"codex_models_manifest_config"`
-	GrokMessagesProtocol        string                                   `json:"grok_messages_protocol"`
-	GrokReasoningVisibilityMode string                                   `json:"grok_reasoning_visibility_mode"`
-	GrokReasoningProbeTTLSec    int                                      `json:"grok_reasoning_probe_ttl_sec"`
-	GrokReasoningQuarantineSec  int                                      `json:"grok_reasoning_quarantine_sec"`
+	CodexModelsManifestConfig   domain.GroupCodexModelsManifestConfig `json:"codex_models_manifest_config"`
+	GrokMessagesProtocol        string                                `json:"grok_messages_protocol"`
+	GrokReasoningVisibilityMode string                                `json:"grok_reasoning_visibility_mode"`
+	GrokReasoningProbeTTLSec    int                                   `json:"grok_reasoning_probe_ttl_sec"`
+	GrokReasoningQuarantineSec  int                                   `json:"grok_reasoning_quarantine_sec"`
 
 	// 支持的模型系列（仅 antigravity 平台使用）
 	SupportedModelScopes    []string       `json:"supported_model_scopes"`
