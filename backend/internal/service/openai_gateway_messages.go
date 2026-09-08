@@ -294,10 +294,9 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	if account.Platform == PlatformOpenAI {
 		policyBody, changed, policyErr := ApplyOpenAIReasoningEffortPolicyFromContext(ctx, responsesBody)
 		if policyErr != nil {
-			var overLimit *ReasoningEffortOverLimitError
-			if errors.As(policyErr, &overLimit) {
+			if IsReasoningEffortPolicyDenied(policyErr) {
 				MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalPolicyDenied)
-				writeAnthropicError(c, http.StatusForbidden, "forbidden_error", overLimit.Error())
+				writeAnthropicError(c, http.StatusForbidden, "forbidden_error", policyErr.Error())
 			}
 			return nil, policyErr
 		}
@@ -423,7 +422,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 
 	// 7. Send request
 	proxyURL := ""
-	if account.Proxy != nil {
+	if account.ProxyID != nil && account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
 	// Grok may reject encrypted reasoning replayed under a different OAuth
@@ -707,6 +706,7 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 
 	result := &OpenAIForwardResult{
 		RequestID:                     requestID,
+		UpstreamHeaders:               resp.Header,
 		ResponseID:                    finalResponse.ID,
 		Usage:                         usage,
 		Model:                         originalModel,
@@ -745,6 +745,8 @@ func (s *OpenAIGatewayService) recordOpenAIMessagesStreamUpstreamError(c *gin.Co
 	message = sanitizeUpstreamErrorMessage(message)
 	setOpsUpstreamError(c, http.StatusBadGateway, message, "")
 	event := OpsUpstreamErrorEvent{
+		ProxyID:            opsUpstreamProxyID(account),
+		ProxyName:          opsUpstreamProxyName(account),
 		Platform:           PlatformOpenAI,
 		UpstreamStatusCode: http.StatusBadGateway,
 		UpstreamRequestID:  strings.TrimSpace(upstreamRequestID),
@@ -1011,6 +1013,7 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 	resultWithUsage := func() *OpenAIForwardResult {
 		out := &OpenAIForwardResult{
 			RequestID:                     requestID,
+			UpstreamHeaders:               resp.Header,
 			ResponseID:                    responseID,
 			Usage:                         usage,
 			Model:                         originalModel,

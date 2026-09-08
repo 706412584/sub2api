@@ -12,7 +12,7 @@ import (
 )
 
 type OpenAIMessagesDispatchModelConfig = domain.OpenAIMessagesDispatchModelConfig
-type GroupModelsListConfig = domain.GroupModelsListConfig
+type GroupCodexModelsManifestConfig = domain.GroupCodexModelsManifestConfig
 type ReasoningEffortMapping = domain.ReasoningEffortMapping
 type GroupPromptPolicy = domain.GroupPromptPolicy
 
@@ -109,7 +109,10 @@ type Group struct {
 	RequirePrivacySet           bool // 调度时仅允许 privacy 已成功设置的账号（OpenAI/Antigravity/Anthropic/Gemini）
 	DefaultMappedModel          string
 	MessagesDispatchModelConfig OpenAIMessagesDispatchModelConfig
-	ModelsListConfig            GroupModelsListConfig
+	ModelAllowlist              GroupModelAllowlist
+	// CodexModelsManifestConfig 开启后，普通模型列表与 Codex manifest 优先使用
+	// 固定账号列表拉取并合并，不经过调度器（仅 openai 平台）。
+	CodexModelsManifestConfig GroupCodexModelsManifestConfig
 	// GrokMessagesProtocol selects the upstream protocol for native /v1/messages
 	// on Grok groups: "responses" (default, native) or "chat_completions" (opt-in visible thinking).
 	GrokMessagesProtocol string
@@ -127,7 +130,7 @@ type Group struct {
 	// 一旦设置即接管该分组用户的限流（覆盖用户级 rpm_limit），可被 user-group rpm_override 进一步覆盖。
 	RPMLimit int
 
-	// MaxReasoningEffort limits the effective OpenAI/Codex reasoning effort.
+	// MaxReasoningEffort limits the effective Anthropic/OpenAI reasoning effort.
 	// Empty means unlimited; supported values are minimal/low/medium/high/xhigh/max.
 	MaxReasoningEffort string
 	// MaxReasoningEffortOverLimit is the access control when an explicit effort
@@ -154,6 +157,12 @@ type Group struct {
 	AccountCount            int64
 	ActiveAccountCount      int64
 	RateLimitedAccountCount int64
+}
+
+// IsGroupBindableInSimpleMode is the shared policy for groups that may be
+// surfaced and bound to accounts while running in simple mode.
+func IsGroupBindableInSimpleMode(group *Group) bool {
+	return group != nil && group.Platform != PlatformComposite
 }
 
 func (g *Group) IsActive() bool {

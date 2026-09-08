@@ -312,6 +312,7 @@ func ProvideAccountTestService(
 		tlsFPProfileService,
 	)
 	service.agentIdentityWS = openAIGatewayService
+	service.SetOpenAIGatewayService(openAIGatewayService)
 	service.SetSettingService(settingService)
 	service.SetProxyRepo(proxyRepo)
 	service.SetGrokConsoleDPoPProvider(consoleDPoPProvider)
