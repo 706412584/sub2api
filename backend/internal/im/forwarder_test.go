@@ -45,7 +45,10 @@ func sseServer(t *testing.T, events []string, status int, checkReq func(r *http.
 		}
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(status)
-		flusher := w.(http.Flusher)
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			return
+		}
 		for _, ev := range events {
 			_, _ = fmt.Fprintln(w, ev)
 			flusher.Flush()
@@ -170,7 +173,10 @@ func TestForwarderStream_Non200(t *testing.T) {
 func TestForwarderStream_HalfLineSSE(t *testing.T) {
 	// SSE lines split across writes (TCP half-packets) must still parse.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		flusher := w.(http.Flusher)
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			return
+		}
 		w.Header().Set("Content-Type", "text/event-stream")
 		chunks := []string{
 			"event: content_block_del",
