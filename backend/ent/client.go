@@ -35,6 +35,9 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
+	"github.com/Wei-Shaw/sub2api/ent/imbot"
+	"github.com/Wei-Shaw/sub2api/ent/imbotchat"
+	"github.com/Wei-Shaw/sub2api/ent/imbotmessage"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
@@ -101,6 +104,12 @@ type Client struct {
 	ErrorPassthroughRule *ErrorPassthroughRuleClient
 	// Group is the client for interacting with the Group builders.
 	Group *GroupClient
+	// IMBot is the client for interacting with the IMBot builders.
+	IMBot *IMBotClient
+	// IMBotChat is the client for interacting with the IMBotChat builders.
+	IMBotChat *IMBotChatClient
+	// IMBotMessage is the client for interacting with the IMBotMessage builders.
+	IMBotMessage *IMBotMessageClient
 	// IdempotencyRecord is the client for interacting with the IdempotencyRecord builders.
 	IdempotencyRecord *IdempotencyRecordClient
 	// IdentityAdoptionDecision is the client for interacting with the IdentityAdoptionDecision builders.
@@ -176,6 +185,9 @@ func (c *Client) init() {
 	c.DynamicProxyPool = NewDynamicProxyPoolClient(c.config)
 	c.ErrorPassthroughRule = NewErrorPassthroughRuleClient(c.config)
 	c.Group = NewGroupClient(c.config)
+	c.IMBot = NewIMBotClient(c.config)
+	c.IMBotChat = NewIMBotChatClient(c.config)
+	c.IMBotMessage = NewIMBotMessageClient(c.config)
 	c.IdempotencyRecord = NewIdempotencyRecordClient(c.config)
 	c.IdentityAdoptionDecision = NewIdentityAdoptionDecisionClient(c.config)
 	c.PaymentAuditLog = NewPaymentAuditLogClient(c.config)
@@ -309,6 +321,9 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		DynamicProxyPool:              NewDynamicProxyPoolClient(cfg),
 		ErrorPassthroughRule:          NewErrorPassthroughRuleClient(cfg),
 		Group:                         NewGroupClient(cfg),
+		IMBot:                         NewIMBotClient(cfg),
+		IMBotChat:                     NewIMBotChatClient(cfg),
+		IMBotMessage:                  NewIMBotMessageClient(cfg),
 		IdempotencyRecord:             NewIdempotencyRecordClient(cfg),
 		IdentityAdoptionDecision:      NewIdentityAdoptionDecisionClient(cfg),
 		PaymentAuditLog:               NewPaymentAuditLogClient(cfg),
@@ -369,6 +384,9 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		DynamicProxyPool:              NewDynamicProxyPoolClient(cfg),
 		ErrorPassthroughRule:          NewErrorPassthroughRuleClient(cfg),
 		Group:                         NewGroupClient(cfg),
+		IMBot:                         NewIMBotClient(cfg),
+		IMBotChat:                     NewIMBotChatClient(cfg),
+		IMBotMessage:                  NewIMBotMessageClient(cfg),
 		IdempotencyRecord:             NewIdempotencyRecordClient(cfg),
 		IdentityAdoptionDecision:      NewIdentityAdoptionDecisionClient(cfg),
 		PaymentAuditLog:               NewPaymentAuditLogClient(cfg),
@@ -426,12 +444,13 @@ func (c *Client) Use(hooks ...Hook) {
 		c.BatchImageJob, c.ChannelMonitor, c.ChannelMonitorDailyRollup,
 		c.ChannelMonitorHistory, c.ChannelMonitorRequestTemplate,
 		c.CompositeModelRoute, c.DynamicProxyPool, c.ErrorPassthroughRule, c.Group,
-		c.IdempotencyRecord, c.IdentityAdoptionDecision, c.PaymentAuditLog,
-		c.PaymentOrder, c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode,
-		c.PromoCodeUsage, c.Proxy, c.ProxySubscription, c.RedeemCode, c.SecuritySecret,
-		c.Setting, c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask,
-		c.UsageLog, c.User, c.UserAllowedGroup, c.UserAttributeDefinition,
-		c.UserAttributeValue, c.UserPlatformQuota, c.UserSubscription,
+		c.IMBot, c.IMBotChat, c.IMBotMessage, c.IdempotencyRecord,
+		c.IdentityAdoptionDecision, c.PaymentAuditLog, c.PaymentOrder,
+		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
+		c.Proxy, c.ProxySubscription, c.RedeemCode, c.SecuritySecret, c.Setting,
+		c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog,
+		c.User, c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
+		c.UserPlatformQuota, c.UserSubscription,
 	} {
 		n.Use(hooks...)
 	}
@@ -446,12 +465,13 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.BatchImageJob, c.ChannelMonitor, c.ChannelMonitorDailyRollup,
 		c.ChannelMonitorHistory, c.ChannelMonitorRequestTemplate,
 		c.CompositeModelRoute, c.DynamicProxyPool, c.ErrorPassthroughRule, c.Group,
-		c.IdempotencyRecord, c.IdentityAdoptionDecision, c.PaymentAuditLog,
-		c.PaymentOrder, c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode,
-		c.PromoCodeUsage, c.Proxy, c.ProxySubscription, c.RedeemCode, c.SecuritySecret,
-		c.Setting, c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask,
-		c.UsageLog, c.User, c.UserAllowedGroup, c.UserAttributeDefinition,
-		c.UserAttributeValue, c.UserPlatformQuota, c.UserSubscription,
+		c.IMBot, c.IMBotChat, c.IMBotMessage, c.IdempotencyRecord,
+		c.IdentityAdoptionDecision, c.PaymentAuditLog, c.PaymentOrder,
+		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
+		c.Proxy, c.ProxySubscription, c.RedeemCode, c.SecuritySecret, c.Setting,
+		c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog,
+		c.User, c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
+		c.UserPlatformQuota, c.UserSubscription,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -496,6 +516,12 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.ErrorPassthroughRule.mutate(ctx, m)
 	case *GroupMutation:
 		return c.Group.mutate(ctx, m)
+	case *IMBotMutation:
+		return c.IMBot.mutate(ctx, m)
+	case *IMBotChatMutation:
+		return c.IMBotChat.mutate(ctx, m)
+	case *IMBotMessageMutation:
+		return c.IMBotMessage.mutate(ctx, m)
 	case *IdempotencyRecordMutation:
 		return c.IdempotencyRecord.mutate(ctx, m)
 	case *IdentityAdoptionDecisionMutation:
@@ -696,6 +722,22 @@ func (c *APIKeyClient) QueryUsageLogs(_m *APIKey) *UsageLogQuery {
 			sqlgraph.From(apikey.Table, apikey.FieldID, id),
 			sqlgraph.To(usagelog.Table, usagelog.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, apikey.UsageLogsTable, apikey.UsageLogsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryImBots queries the im_bots edge of a APIKey.
+func (c *APIKeyClient) QueryImBots(_m *APIKey) *IMBotQuery {
+	query := (&IMBotClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(apikey.Table, apikey.FieldID, id),
+			sqlgraph.To(imbot.Table, imbot.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, apikey.ImBotsTable, apikey.ImBotsColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil
@@ -3425,6 +3467,487 @@ func (c *GroupClient) mutate(ctx context.Context, m *GroupMutation) (Value, erro
 		return (&GroupDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Group mutation op: %q", m.Op())
+	}
+}
+
+// IMBotClient is a client for the IMBot schema.
+type IMBotClient struct {
+	config
+}
+
+// NewIMBotClient returns a client for the IMBot from the given config.
+func NewIMBotClient(c config) *IMBotClient {
+	return &IMBotClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `imbot.Hooks(f(g(h())))`.
+func (c *IMBotClient) Use(hooks ...Hook) {
+	c.hooks.IMBot = append(c.hooks.IMBot, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `imbot.Intercept(f(g(h())))`.
+func (c *IMBotClient) Intercept(interceptors ...Interceptor) {
+	c.inters.IMBot = append(c.inters.IMBot, interceptors...)
+}
+
+// Create returns a builder for creating a IMBot entity.
+func (c *IMBotClient) Create() *IMBotCreate {
+	mutation := newIMBotMutation(c.config, OpCreate)
+	return &IMBotCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of IMBot entities.
+func (c *IMBotClient) CreateBulk(builders ...*IMBotCreate) *IMBotCreateBulk {
+	return &IMBotCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *IMBotClient) MapCreateBulk(slice any, setFunc func(*IMBotCreate, int)) *IMBotCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &IMBotCreateBulk{err: fmt.Errorf("calling to IMBotClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*IMBotCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &IMBotCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for IMBot.
+func (c *IMBotClient) Update() *IMBotUpdate {
+	mutation := newIMBotMutation(c.config, OpUpdate)
+	return &IMBotUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *IMBotClient) UpdateOne(_m *IMBot) *IMBotUpdateOne {
+	mutation := newIMBotMutation(c.config, OpUpdateOne, withIMBot(_m))
+	return &IMBotUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *IMBotClient) UpdateOneID(id int64) *IMBotUpdateOne {
+	mutation := newIMBotMutation(c.config, OpUpdateOne, withIMBotID(id))
+	return &IMBotUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for IMBot.
+func (c *IMBotClient) Delete() *IMBotDelete {
+	mutation := newIMBotMutation(c.config, OpDelete)
+	return &IMBotDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *IMBotClient) DeleteOne(_m *IMBot) *IMBotDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *IMBotClient) DeleteOneID(id int64) *IMBotDeleteOne {
+	builder := c.Delete().Where(imbot.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &IMBotDeleteOne{builder}
+}
+
+// Query returns a query builder for IMBot.
+func (c *IMBotClient) Query() *IMBotQuery {
+	return &IMBotQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeIMBot},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a IMBot entity by its id.
+func (c *IMBotClient) Get(ctx context.Context, id int64) (*IMBot, error) {
+	return c.Query().Where(imbot.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *IMBotClient) GetX(ctx context.Context, id int64) *IMBot {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryAPIKey queries the api_key edge of a IMBot.
+func (c *IMBotClient) QueryAPIKey(_m *IMBot) *APIKeyQuery {
+	query := (&APIKeyClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(imbot.Table, imbot.FieldID, id),
+			sqlgraph.To(apikey.Table, apikey.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, imbot.APIKeyTable, imbot.APIKeyColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryChats queries the chats edge of a IMBot.
+func (c *IMBotClient) QueryChats(_m *IMBot) *IMBotChatQuery {
+	query := (&IMBotChatClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(imbot.Table, imbot.FieldID, id),
+			sqlgraph.To(imbotchat.Table, imbotchat.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, imbot.ChatsTable, imbot.ChatsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *IMBotClient) Hooks() []Hook {
+	hooks := c.hooks.IMBot
+	return append(hooks[:len(hooks):len(hooks)], imbot.Hooks[:]...)
+}
+
+// Interceptors returns the client interceptors.
+func (c *IMBotClient) Interceptors() []Interceptor {
+	inters := c.inters.IMBot
+	return append(inters[:len(inters):len(inters)], imbot.Interceptors[:]...)
+}
+
+func (c *IMBotClient) mutate(ctx context.Context, m *IMBotMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&IMBotCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&IMBotUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&IMBotUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&IMBotDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown IMBot mutation op: %q", m.Op())
+	}
+}
+
+// IMBotChatClient is a client for the IMBotChat schema.
+type IMBotChatClient struct {
+	config
+}
+
+// NewIMBotChatClient returns a client for the IMBotChat from the given config.
+func NewIMBotChatClient(c config) *IMBotChatClient {
+	return &IMBotChatClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `imbotchat.Hooks(f(g(h())))`.
+func (c *IMBotChatClient) Use(hooks ...Hook) {
+	c.hooks.IMBotChat = append(c.hooks.IMBotChat, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `imbotchat.Intercept(f(g(h())))`.
+func (c *IMBotChatClient) Intercept(interceptors ...Interceptor) {
+	c.inters.IMBotChat = append(c.inters.IMBotChat, interceptors...)
+}
+
+// Create returns a builder for creating a IMBotChat entity.
+func (c *IMBotChatClient) Create() *IMBotChatCreate {
+	mutation := newIMBotChatMutation(c.config, OpCreate)
+	return &IMBotChatCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of IMBotChat entities.
+func (c *IMBotChatClient) CreateBulk(builders ...*IMBotChatCreate) *IMBotChatCreateBulk {
+	return &IMBotChatCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *IMBotChatClient) MapCreateBulk(slice any, setFunc func(*IMBotChatCreate, int)) *IMBotChatCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &IMBotChatCreateBulk{err: fmt.Errorf("calling to IMBotChatClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*IMBotChatCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &IMBotChatCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for IMBotChat.
+func (c *IMBotChatClient) Update() *IMBotChatUpdate {
+	mutation := newIMBotChatMutation(c.config, OpUpdate)
+	return &IMBotChatUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *IMBotChatClient) UpdateOne(_m *IMBotChat) *IMBotChatUpdateOne {
+	mutation := newIMBotChatMutation(c.config, OpUpdateOne, withIMBotChat(_m))
+	return &IMBotChatUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *IMBotChatClient) UpdateOneID(id int64) *IMBotChatUpdateOne {
+	mutation := newIMBotChatMutation(c.config, OpUpdateOne, withIMBotChatID(id))
+	return &IMBotChatUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for IMBotChat.
+func (c *IMBotChatClient) Delete() *IMBotChatDelete {
+	mutation := newIMBotChatMutation(c.config, OpDelete)
+	return &IMBotChatDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *IMBotChatClient) DeleteOne(_m *IMBotChat) *IMBotChatDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *IMBotChatClient) DeleteOneID(id int64) *IMBotChatDeleteOne {
+	builder := c.Delete().Where(imbotchat.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &IMBotChatDeleteOne{builder}
+}
+
+// Query returns a query builder for IMBotChat.
+func (c *IMBotChatClient) Query() *IMBotChatQuery {
+	return &IMBotChatQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeIMBotChat},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a IMBotChat entity by its id.
+func (c *IMBotChatClient) Get(ctx context.Context, id int64) (*IMBotChat, error) {
+	return c.Query().Where(imbotchat.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *IMBotChatClient) GetX(ctx context.Context, id int64) *IMBotChat {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryBot queries the bot edge of a IMBotChat.
+func (c *IMBotChatClient) QueryBot(_m *IMBotChat) *IMBotQuery {
+	query := (&IMBotClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(imbotchat.Table, imbotchat.FieldID, id),
+			sqlgraph.To(imbot.Table, imbot.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, imbotchat.BotTable, imbotchat.BotColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryMessages queries the messages edge of a IMBotChat.
+func (c *IMBotChatClient) QueryMessages(_m *IMBotChat) *IMBotMessageQuery {
+	query := (&IMBotMessageClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(imbotchat.Table, imbotchat.FieldID, id),
+			sqlgraph.To(imbotmessage.Table, imbotmessage.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, imbotchat.MessagesTable, imbotchat.MessagesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *IMBotChatClient) Hooks() []Hook {
+	return c.hooks.IMBotChat
+}
+
+// Interceptors returns the client interceptors.
+func (c *IMBotChatClient) Interceptors() []Interceptor {
+	return c.inters.IMBotChat
+}
+
+func (c *IMBotChatClient) mutate(ctx context.Context, m *IMBotChatMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&IMBotChatCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&IMBotChatUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&IMBotChatUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&IMBotChatDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown IMBotChat mutation op: %q", m.Op())
+	}
+}
+
+// IMBotMessageClient is a client for the IMBotMessage schema.
+type IMBotMessageClient struct {
+	config
+}
+
+// NewIMBotMessageClient returns a client for the IMBotMessage from the given config.
+func NewIMBotMessageClient(c config) *IMBotMessageClient {
+	return &IMBotMessageClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `imbotmessage.Hooks(f(g(h())))`.
+func (c *IMBotMessageClient) Use(hooks ...Hook) {
+	c.hooks.IMBotMessage = append(c.hooks.IMBotMessage, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `imbotmessage.Intercept(f(g(h())))`.
+func (c *IMBotMessageClient) Intercept(interceptors ...Interceptor) {
+	c.inters.IMBotMessage = append(c.inters.IMBotMessage, interceptors...)
+}
+
+// Create returns a builder for creating a IMBotMessage entity.
+func (c *IMBotMessageClient) Create() *IMBotMessageCreate {
+	mutation := newIMBotMessageMutation(c.config, OpCreate)
+	return &IMBotMessageCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of IMBotMessage entities.
+func (c *IMBotMessageClient) CreateBulk(builders ...*IMBotMessageCreate) *IMBotMessageCreateBulk {
+	return &IMBotMessageCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *IMBotMessageClient) MapCreateBulk(slice any, setFunc func(*IMBotMessageCreate, int)) *IMBotMessageCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &IMBotMessageCreateBulk{err: fmt.Errorf("calling to IMBotMessageClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*IMBotMessageCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &IMBotMessageCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for IMBotMessage.
+func (c *IMBotMessageClient) Update() *IMBotMessageUpdate {
+	mutation := newIMBotMessageMutation(c.config, OpUpdate)
+	return &IMBotMessageUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *IMBotMessageClient) UpdateOne(_m *IMBotMessage) *IMBotMessageUpdateOne {
+	mutation := newIMBotMessageMutation(c.config, OpUpdateOne, withIMBotMessage(_m))
+	return &IMBotMessageUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *IMBotMessageClient) UpdateOneID(id int64) *IMBotMessageUpdateOne {
+	mutation := newIMBotMessageMutation(c.config, OpUpdateOne, withIMBotMessageID(id))
+	return &IMBotMessageUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for IMBotMessage.
+func (c *IMBotMessageClient) Delete() *IMBotMessageDelete {
+	mutation := newIMBotMessageMutation(c.config, OpDelete)
+	return &IMBotMessageDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *IMBotMessageClient) DeleteOne(_m *IMBotMessage) *IMBotMessageDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *IMBotMessageClient) DeleteOneID(id int64) *IMBotMessageDeleteOne {
+	builder := c.Delete().Where(imbotmessage.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &IMBotMessageDeleteOne{builder}
+}
+
+// Query returns a query builder for IMBotMessage.
+func (c *IMBotMessageClient) Query() *IMBotMessageQuery {
+	return &IMBotMessageQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeIMBotMessage},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a IMBotMessage entity by its id.
+func (c *IMBotMessageClient) Get(ctx context.Context, id int64) (*IMBotMessage, error) {
+	return c.Query().Where(imbotmessage.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *IMBotMessageClient) GetX(ctx context.Context, id int64) *IMBotMessage {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryChat queries the chat edge of a IMBotMessage.
+func (c *IMBotMessageClient) QueryChat(_m *IMBotMessage) *IMBotChatQuery {
+	query := (&IMBotChatClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(imbotmessage.Table, imbotmessage.FieldID, id),
+			sqlgraph.To(imbotchat.Table, imbotchat.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, imbotmessage.ChatTable, imbotmessage.ChatColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *IMBotMessageClient) Hooks() []Hook {
+	return c.hooks.IMBotMessage
+}
+
+// Interceptors returns the client interceptors.
+func (c *IMBotMessageClient) Interceptors() []Interceptor {
+	return c.inters.IMBotMessage
+}
+
+func (c *IMBotMessageClient) mutate(ctx context.Context, m *IMBotMessageMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&IMBotMessageCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&IMBotMessageUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&IMBotMessageUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&IMBotMessageDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown IMBotMessage mutation op: %q", m.Op())
 	}
 }
 
@@ -7111,24 +7634,26 @@ type (
 		AuthIdentityChannel, BatchImageEvent, BatchImageItem, BatchImageJob,
 		ChannelMonitor, ChannelMonitorDailyRollup, ChannelMonitorHistory,
 		ChannelMonitorRequestTemplate, CompositeModelRoute, DynamicProxyPool,
-		ErrorPassthroughRule, Group, IdempotencyRecord, IdentityAdoptionDecision,
-		PaymentAuditLog, PaymentOrder, PaymentProviderInstance, PendingAuthSession,
-		PromoCode, PromoCodeUsage, Proxy, ProxySubscription, RedeemCode,
-		SecuritySecret, Setting, SubscriptionPlan, TLSFingerprintProfile,
-		UsageCleanupTask, UsageLog, User, UserAllowedGroup, UserAttributeDefinition,
-		UserAttributeValue, UserPlatformQuota, UserSubscription []ent.Hook
+		ErrorPassthroughRule, Group, IMBot, IMBotChat, IMBotMessage, IdempotencyRecord,
+		IdentityAdoptionDecision, PaymentAuditLog, PaymentOrder,
+		PaymentProviderInstance, PendingAuthSession, PromoCode, PromoCodeUsage, Proxy,
+		ProxySubscription, RedeemCode, SecuritySecret, Setting, SubscriptionPlan,
+		TLSFingerprintProfile, UsageCleanupTask, UsageLog, User, UserAllowedGroup,
+		UserAttributeDefinition, UserAttributeValue, UserPlatformQuota,
+		UserSubscription []ent.Hook
 	}
 	inters struct {
 		APIKey, Account, AccountGroup, Announcement, AnnouncementRead, AuthIdentity,
 		AuthIdentityChannel, BatchImageEvent, BatchImageItem, BatchImageJob,
 		ChannelMonitor, ChannelMonitorDailyRollup, ChannelMonitorHistory,
 		ChannelMonitorRequestTemplate, CompositeModelRoute, DynamicProxyPool,
-		ErrorPassthroughRule, Group, IdempotencyRecord, IdentityAdoptionDecision,
-		PaymentAuditLog, PaymentOrder, PaymentProviderInstance, PendingAuthSession,
-		PromoCode, PromoCodeUsage, Proxy, ProxySubscription, RedeemCode,
-		SecuritySecret, Setting, SubscriptionPlan, TLSFingerprintProfile,
-		UsageCleanupTask, UsageLog, User, UserAllowedGroup, UserAttributeDefinition,
-		UserAttributeValue, UserPlatformQuota, UserSubscription []ent.Interceptor
+		ErrorPassthroughRule, Group, IMBot, IMBotChat, IMBotMessage, IdempotencyRecord,
+		IdentityAdoptionDecision, PaymentAuditLog, PaymentOrder,
+		PaymentProviderInstance, PendingAuthSession, PromoCode, PromoCodeUsage, Proxy,
+		ProxySubscription, RedeemCode, SecuritySecret, Setting, SubscriptionPlan,
+		TLSFingerprintProfile, UsageCleanupTask, UsageLog, User, UserAllowedGroup,
+		UserAttributeDefinition, UserAttributeValue, UserPlatformQuota,
+		UserSubscription []ent.Interceptor
 	}
 )
 

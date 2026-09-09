@@ -60,6 +60,15 @@ type ErrorPassthroughRule func(*sql.Selector)
 // Group is the predicate function for group builders.
 type Group func(*sql.Selector)
 
+// IMBot is the predicate function for imbot builders.
+type IMBot func(*sql.Selector)
+
+// IMBotChat is the predicate function for imbotchat builders.
+type IMBotChat func(*sql.Selector)
+
+// IMBotMessage is the predicate function for imbotmessage builders.
+type IMBotMessage func(*sql.Selector)
+
 // IdempotencyRecord is the predicate function for idempotencyrecord builders.
 type IdempotencyRecord func(*sql.Selector)
 

@@ -225,6 +225,42 @@ func (f GroupFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.GroupMutation", m)
 }
 
+// The IMBotFunc type is an adapter to allow the use of ordinary
+// function as IMBot mutator.
+type IMBotFunc func(context.Context, *ent.IMBotMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f IMBotFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.IMBotMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.IMBotMutation", m)
+}
+
+// The IMBotChatFunc type is an adapter to allow the use of ordinary
+// function as IMBotChat mutator.
+type IMBotChatFunc func(context.Context, *ent.IMBotChatMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f IMBotChatFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.IMBotChatMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.IMBotChatMutation", m)
+}
+
+// The IMBotMessageFunc type is an adapter to allow the use of ordinary
+// function as IMBotMessage mutator.
+type IMBotMessageFunc func(context.Context, *ent.IMBotMessageMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f IMBotMessageFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.IMBotMessageMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.IMBotMessageMutation", m)
+}
+
 // The IdempotencyRecordFunc type is an adapter to allow the use of ordinary
 // function as IdempotencyRecord mutator.
 type IdempotencyRecordFunc func(context.Context, *ent.IdempotencyRecordMutation) (ent.Value, error)

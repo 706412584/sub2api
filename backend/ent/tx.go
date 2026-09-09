@@ -50,6 +50,12 @@ type Tx struct {
 	ErrorPassthroughRule *ErrorPassthroughRuleClient
 	// Group is the client for interacting with the Group builders.
 	Group *GroupClient
+	// IMBot is the client for interacting with the IMBot builders.
+	IMBot *IMBotClient
+	// IMBotChat is the client for interacting with the IMBotChat builders.
+	IMBotChat *IMBotChatClient
+	// IMBotMessage is the client for interacting with the IMBotMessage builders.
+	IMBotMessage *IMBotMessageClient
 	// IdempotencyRecord is the client for interacting with the IdempotencyRecord builders.
 	IdempotencyRecord *IdempotencyRecordClient
 	// IdentityAdoptionDecision is the client for interacting with the IdentityAdoptionDecision builders.
@@ -245,6 +251,9 @@ func (tx *Tx) init() {
 	tx.DynamicProxyPool = NewDynamicProxyPoolClient(tx.config)
 	tx.ErrorPassthroughRule = NewErrorPassthroughRuleClient(tx.config)
 	tx.Group = NewGroupClient(tx.config)
+	tx.IMBot = NewIMBotClient(tx.config)
+	tx.IMBotChat = NewIMBotChatClient(tx.config)
+	tx.IMBotMessage = NewIMBotMessageClient(tx.config)
 	tx.IdempotencyRecord = NewIdempotencyRecordClient(tx.config)
 	tx.IdentityAdoptionDecision = NewIdentityAdoptionDecisionClient(tx.config)
 	tx.PaymentAuditLog = NewPaymentAuditLogClient(tx.config)

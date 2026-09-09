@@ -1072,6 +1072,128 @@ var (
 			},
 		},
 	}
+	// ImBotsColumns holds the columns for the "im_bots" table.
+	ImBotsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "deleted_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "name", Type: field.TypeString, Size: 100},
+		{Name: "platform", Type: field.TypeString, Size: 32},
+		{Name: "credentials_encrypted", Type: field.TypeString, Size: 2147483647},
+		{Name: "model_override", Type: field.TypeString, Size: 200, Default: ""},
+		{Name: "system_prompt", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "status", Type: field.TypeString, Size: 20, Default: "disabled"},
+		{Name: "max_concurrency", Type: field.TypeInt, Default: 2},
+		{Name: "history_max_messages", Type: field.TypeInt, Default: 40},
+		{Name: "pairing_enabled", Type: field.TypeBool, Default: true},
+		{Name: "last_error", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "api_key_id", Type: field.TypeInt64},
+	}
+	// ImBotsTable holds the schema information for the "im_bots" table.
+	ImBotsTable = &schema.Table{
+		Name:       "im_bots",
+		Columns:    ImBotsColumns,
+		PrimaryKey: []*schema.Column{ImBotsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "im_bots_api_keys_im_bots",
+				Columns:    []*schema.Column{ImBotsColumns[14]},
+				RefColumns: []*schema.Column{APIKeysColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "imbot_status",
+				Unique:  false,
+				Columns: []*schema.Column{ImBotsColumns[9]},
+			},
+			{
+				Name:    "imbot_api_key_id",
+				Unique:  false,
+				Columns: []*schema.Column{ImBotsColumns[14]},
+			},
+		},
+	}
+	// ImBotChatsColumns holds the columns for the "im_bot_chats" table.
+	ImBotChatsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "chat_id", Type: field.TypeString, Size: 255},
+		{Name: "platform_user_id", Type: field.TypeString, Size: 255, Default: ""},
+		{Name: "display_name", Type: field.TypeString, Size: 255, Default: ""},
+		{Name: "session_uuid", Type: field.TypeString, Size: 36},
+		{Name: "model_override", Type: field.TypeString, Size: 200, Default: ""},
+		{Name: "status", Type: field.TypeString, Size: 20, Default: "active"},
+		{Name: "paired_at", Type: field.TypeTime},
+		{Name: "last_message_at", Type: field.TypeTime, Nullable: true},
+		{Name: "bot_id", Type: field.TypeInt64},
+	}
+	// ImBotChatsTable holds the schema information for the "im_bot_chats" table.
+	ImBotChatsTable = &schema.Table{
+		Name:       "im_bot_chats",
+		Columns:    ImBotChatsColumns,
+		PrimaryKey: []*schema.Column{ImBotChatsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "im_bot_chats_im_bots_chats",
+				Columns:    []*schema.Column{ImBotChatsColumns[11]},
+				RefColumns: []*schema.Column{ImBotsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "imbotchat_bot_id_chat_id",
+				Unique:  true,
+				Columns: []*schema.Column{ImBotChatsColumns[11], ImBotChatsColumns[3]},
+			},
+			{
+				Name:    "imbotchat_bot_id_last_message_at",
+				Unique:  false,
+				Columns: []*schema.Column{ImBotChatsColumns[11], ImBotChatsColumns[10]},
+			},
+		},
+	}
+	// ImBotMessagesColumns holds the columns for the "im_bot_messages" table.
+	ImBotMessagesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "bot_id", Type: field.TypeInt64},
+		{Name: "role", Type: field.TypeString, Size: 16},
+		{Name: "content", Type: field.TypeString, Size: 2147483647},
+		{Name: "request_id", Type: field.TypeString, Size: 64, Default: ""},
+		{Name: "chat_id", Type: field.TypeInt64},
+	}
+	// ImBotMessagesTable holds the schema information for the "im_bot_messages" table.
+	ImBotMessagesTable = &schema.Table{
+		Name:       "im_bot_messages",
+		Columns:    ImBotMessagesColumns,
+		PrimaryKey: []*schema.Column{ImBotMessagesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "im_bot_messages_im_bot_chats_messages",
+				Columns:    []*schema.Column{ImBotMessagesColumns[7]},
+				RefColumns: []*schema.Column{ImBotChatsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "imbotmessage_chat_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{ImBotMessagesColumns[7], ImBotMessagesColumns[1]},
+			},
+			{
+				Name:    "imbotmessage_bot_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{ImBotMessagesColumns[3], ImBotMessagesColumns[1]},
+			},
+		},
+	}
 	// IdempotencyRecordsColumns holds the columns for the "idempotency_records" table.
 	IdempotencyRecordsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -2217,6 +2339,9 @@ var (
 		DynamicProxyPoolsTable,
 		ErrorPassthroughRulesTable,
 		GroupsTable,
+		ImBotsTable,
+		ImBotChatsTable,
+		ImBotMessagesTable,
 		IdempotencyRecordsTable,
 		IdentityAdoptionDecisionsTable,
 		PaymentAuditLogsTable,
@@ -2311,6 +2436,18 @@ func init() {
 	}
 	GroupsTable.Annotation = &entsql.Annotation{
 		Table: "groups",
+	}
+	ImBotsTable.ForeignKeys[0].RefTable = APIKeysTable
+	ImBotsTable.Annotation = &entsql.Annotation{
+		Table: "im_bots",
+	}
+	ImBotChatsTable.ForeignKeys[0].RefTable = ImBotsTable
+	ImBotChatsTable.Annotation = &entsql.Annotation{
+		Table: "im_bot_chats",
+	}
+	ImBotMessagesTable.ForeignKeys[0].RefTable = ImBotChatsTable
+	ImBotMessagesTable.Annotation = &entsql.Annotation{
+		Table: "im_bot_messages",
 	}
 	IdempotencyRecordsTable.Annotation = &entsql.Annotation{
 		Table: "idempotency_records",

@@ -25,6 +25,9 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
+	"github.com/Wei-Shaw/sub2api/ent/imbot"
+	"github.com/Wei-Shaw/sub2api/ent/imbotchat"
+	"github.com/Wei-Shaw/sub2api/ent/imbotmessage"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
@@ -1394,6 +1397,211 @@ func init() {
 	groupDescProfitSafetyBuffer := groupFields[68].Descriptor()
 	// group.DefaultProfitSafetyBuffer holds the default value on creation for the profit_safety_buffer field.
 	group.DefaultProfitSafetyBuffer = groupDescProfitSafetyBuffer.Default.(float64)
+	imbotMixin := schema.IMBot{}.Mixin()
+	imbotMixinHooks1 := imbotMixin[1].Hooks()
+	imbot.Hooks[0] = imbotMixinHooks1[0]
+	imbotMixinInters1 := imbotMixin[1].Interceptors()
+	imbot.Interceptors[0] = imbotMixinInters1[0]
+	imbotMixinFields0 := imbotMixin[0].Fields()
+	_ = imbotMixinFields0
+	imbotFields := schema.IMBot{}.Fields()
+	_ = imbotFields
+	// imbotDescCreatedAt is the schema descriptor for created_at field.
+	imbotDescCreatedAt := imbotMixinFields0[0].Descriptor()
+	// imbot.DefaultCreatedAt holds the default value on creation for the created_at field.
+	imbot.DefaultCreatedAt = imbotDescCreatedAt.Default.(func() time.Time)
+	// imbotDescUpdatedAt is the schema descriptor for updated_at field.
+	imbotDescUpdatedAt := imbotMixinFields0[1].Descriptor()
+	// imbot.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	imbot.DefaultUpdatedAt = imbotDescUpdatedAt.Default.(func() time.Time)
+	// imbot.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	imbot.UpdateDefaultUpdatedAt = imbotDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// imbotDescName is the schema descriptor for name field.
+	imbotDescName := imbotFields[0].Descriptor()
+	// imbot.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	imbot.NameValidator = func() func(string) error {
+		validators := imbotDescName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name string) error {
+			for _, fn := range fns {
+				if err := fn(name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// imbotDescPlatform is the schema descriptor for platform field.
+	imbotDescPlatform := imbotFields[1].Descriptor()
+	// imbot.PlatformValidator is a validator for the "platform" field. It is called by the builders before save.
+	imbot.PlatformValidator = func() func(string) error {
+		validators := imbotDescPlatform.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(platform string) error {
+			for _, fn := range fns {
+				if err := fn(platform); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// imbotDescModelOverride is the schema descriptor for model_override field.
+	imbotDescModelOverride := imbotFields[4].Descriptor()
+	// imbot.DefaultModelOverride holds the default value on creation for the model_override field.
+	imbot.DefaultModelOverride = imbotDescModelOverride.Default.(string)
+	// imbot.ModelOverrideValidator is a validator for the "model_override" field. It is called by the builders before save.
+	imbot.ModelOverrideValidator = imbotDescModelOverride.Validators[0].(func(string) error)
+	// imbotDescSystemPrompt is the schema descriptor for system_prompt field.
+	imbotDescSystemPrompt := imbotFields[5].Descriptor()
+	// imbot.DefaultSystemPrompt holds the default value on creation for the system_prompt field.
+	imbot.DefaultSystemPrompt = imbotDescSystemPrompt.Default.(string)
+	// imbotDescStatus is the schema descriptor for status field.
+	imbotDescStatus := imbotFields[6].Descriptor()
+	// imbot.DefaultStatus holds the default value on creation for the status field.
+	imbot.DefaultStatus = imbotDescStatus.Default.(string)
+	// imbot.StatusValidator is a validator for the "status" field. It is called by the builders before save.
+	imbot.StatusValidator = imbotDescStatus.Validators[0].(func(string) error)
+	// imbotDescMaxConcurrency is the schema descriptor for max_concurrency field.
+	imbotDescMaxConcurrency := imbotFields[7].Descriptor()
+	// imbot.DefaultMaxConcurrency holds the default value on creation for the max_concurrency field.
+	imbot.DefaultMaxConcurrency = imbotDescMaxConcurrency.Default.(int)
+	// imbotDescHistoryMaxMessages is the schema descriptor for history_max_messages field.
+	imbotDescHistoryMaxMessages := imbotFields[8].Descriptor()
+	// imbot.DefaultHistoryMaxMessages holds the default value on creation for the history_max_messages field.
+	imbot.DefaultHistoryMaxMessages = imbotDescHistoryMaxMessages.Default.(int)
+	// imbotDescPairingEnabled is the schema descriptor for pairing_enabled field.
+	imbotDescPairingEnabled := imbotFields[9].Descriptor()
+	// imbot.DefaultPairingEnabled holds the default value on creation for the pairing_enabled field.
+	imbot.DefaultPairingEnabled = imbotDescPairingEnabled.Default.(bool)
+	// imbotDescLastError is the schema descriptor for last_error field.
+	imbotDescLastError := imbotFields[10].Descriptor()
+	// imbot.DefaultLastError holds the default value on creation for the last_error field.
+	imbot.DefaultLastError = imbotDescLastError.Default.(string)
+	imbotchatMixin := schema.IMBotChat{}.Mixin()
+	imbotchatMixinFields0 := imbotchatMixin[0].Fields()
+	_ = imbotchatMixinFields0
+	imbotchatFields := schema.IMBotChat{}.Fields()
+	_ = imbotchatFields
+	// imbotchatDescCreatedAt is the schema descriptor for created_at field.
+	imbotchatDescCreatedAt := imbotchatMixinFields0[0].Descriptor()
+	// imbotchat.DefaultCreatedAt holds the default value on creation for the created_at field.
+	imbotchat.DefaultCreatedAt = imbotchatDescCreatedAt.Default.(func() time.Time)
+	// imbotchatDescUpdatedAt is the schema descriptor for updated_at field.
+	imbotchatDescUpdatedAt := imbotchatMixinFields0[1].Descriptor()
+	// imbotchat.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	imbotchat.DefaultUpdatedAt = imbotchatDescUpdatedAt.Default.(func() time.Time)
+	// imbotchat.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	imbotchat.UpdateDefaultUpdatedAt = imbotchatDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// imbotchatDescChatID is the schema descriptor for chat_id field.
+	imbotchatDescChatID := imbotchatFields[1].Descriptor()
+	// imbotchat.ChatIDValidator is a validator for the "chat_id" field. It is called by the builders before save.
+	imbotchat.ChatIDValidator = func() func(string) error {
+		validators := imbotchatDescChatID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(chat_id string) error {
+			for _, fn := range fns {
+				if err := fn(chat_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// imbotchatDescPlatformUserID is the schema descriptor for platform_user_id field.
+	imbotchatDescPlatformUserID := imbotchatFields[2].Descriptor()
+	// imbotchat.DefaultPlatformUserID holds the default value on creation for the platform_user_id field.
+	imbotchat.DefaultPlatformUserID = imbotchatDescPlatformUserID.Default.(string)
+	// imbotchat.PlatformUserIDValidator is a validator for the "platform_user_id" field. It is called by the builders before save.
+	imbotchat.PlatformUserIDValidator = imbotchatDescPlatformUserID.Validators[0].(func(string) error)
+	// imbotchatDescDisplayName is the schema descriptor for display_name field.
+	imbotchatDescDisplayName := imbotchatFields[3].Descriptor()
+	// imbotchat.DefaultDisplayName holds the default value on creation for the display_name field.
+	imbotchat.DefaultDisplayName = imbotchatDescDisplayName.Default.(string)
+	// imbotchat.DisplayNameValidator is a validator for the "display_name" field. It is called by the builders before save.
+	imbotchat.DisplayNameValidator = imbotchatDescDisplayName.Validators[0].(func(string) error)
+	// imbotchatDescSessionUUID is the schema descriptor for session_uuid field.
+	imbotchatDescSessionUUID := imbotchatFields[4].Descriptor()
+	// imbotchat.SessionUUIDValidator is a validator for the "session_uuid" field. It is called by the builders before save.
+	imbotchat.SessionUUIDValidator = func() func(string) error {
+		validators := imbotchatDescSessionUUID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(session_uuid string) error {
+			for _, fn := range fns {
+				if err := fn(session_uuid); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// imbotchatDescModelOverride is the schema descriptor for model_override field.
+	imbotchatDescModelOverride := imbotchatFields[5].Descriptor()
+	// imbotchat.DefaultModelOverride holds the default value on creation for the model_override field.
+	imbotchat.DefaultModelOverride = imbotchatDescModelOverride.Default.(string)
+	// imbotchat.ModelOverrideValidator is a validator for the "model_override" field. It is called by the builders before save.
+	imbotchat.ModelOverrideValidator = imbotchatDescModelOverride.Validators[0].(func(string) error)
+	// imbotchatDescStatus is the schema descriptor for status field.
+	imbotchatDescStatus := imbotchatFields[6].Descriptor()
+	// imbotchat.DefaultStatus holds the default value on creation for the status field.
+	imbotchat.DefaultStatus = imbotchatDescStatus.Default.(string)
+	// imbotchat.StatusValidator is a validator for the "status" field. It is called by the builders before save.
+	imbotchat.StatusValidator = imbotchatDescStatus.Validators[0].(func(string) error)
+	// imbotchatDescPairedAt is the schema descriptor for paired_at field.
+	imbotchatDescPairedAt := imbotchatFields[7].Descriptor()
+	// imbotchat.DefaultPairedAt holds the default value on creation for the paired_at field.
+	imbotchat.DefaultPairedAt = imbotchatDescPairedAt.Default.(func() time.Time)
+	imbotmessageMixin := schema.IMBotMessage{}.Mixin()
+	imbotmessageMixinFields0 := imbotmessageMixin[0].Fields()
+	_ = imbotmessageMixinFields0
+	imbotmessageFields := schema.IMBotMessage{}.Fields()
+	_ = imbotmessageFields
+	// imbotmessageDescCreatedAt is the schema descriptor for created_at field.
+	imbotmessageDescCreatedAt := imbotmessageMixinFields0[0].Descriptor()
+	// imbotmessage.DefaultCreatedAt holds the default value on creation for the created_at field.
+	imbotmessage.DefaultCreatedAt = imbotmessageDescCreatedAt.Default.(func() time.Time)
+	// imbotmessageDescUpdatedAt is the schema descriptor for updated_at field.
+	imbotmessageDescUpdatedAt := imbotmessageMixinFields0[1].Descriptor()
+	// imbotmessage.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	imbotmessage.DefaultUpdatedAt = imbotmessageDescUpdatedAt.Default.(func() time.Time)
+	// imbotmessage.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	imbotmessage.UpdateDefaultUpdatedAt = imbotmessageDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// imbotmessageDescRole is the schema descriptor for role field.
+	imbotmessageDescRole := imbotmessageFields[2].Descriptor()
+	// imbotmessage.RoleValidator is a validator for the "role" field. It is called by the builders before save.
+	imbotmessage.RoleValidator = func() func(string) error {
+		validators := imbotmessageDescRole.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(role string) error {
+			for _, fn := range fns {
+				if err := fn(role); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// imbotmessageDescRequestID is the schema descriptor for request_id field.
+	imbotmessageDescRequestID := imbotmessageFields[4].Descriptor()
+	// imbotmessage.DefaultRequestID holds the default value on creation for the request_id field.
+	imbotmessage.DefaultRequestID = imbotmessageDescRequestID.Default.(string)
+	// imbotmessage.RequestIDValidator is a validator for the "request_id" field. It is called by the builders before save.
+	imbotmessage.RequestIDValidator = imbotmessageDescRequestID.Validators[0].(func(string) error)
 	idempotencyrecordMixin := schema.IdempotencyRecord{}.Mixin()
 	idempotencyrecordMixinFields0 := idempotencyrecordMixin[0].Fields()
 	_ = idempotencyrecordMixinFields0
