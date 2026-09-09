@@ -2585,3 +2585,63 @@ export type {
   PlatformQuotaWindow,
   PlatformQuotasResponse,
 } from '@/api/admin/users'
+
+// ==================== IM Bots ====================
+
+export interface IMBotCredentialField {
+  key: string
+  label: string
+  secret?: boolean
+  placeholder?: string
+  required?: boolean
+}
+
+export interface IMPlatform {
+  platform: string
+  available: boolean
+  credential_fields: IMBotCredentialField[]
+}
+
+export interface IMBot {
+  id: number
+  name: string
+  platform: string
+  api_key_id: number
+  model_override: string
+  system_prompt: string
+  status: 'enabled' | 'disabled' | 'error'
+  max_concurrency: number
+  history_max_messages: number
+  pairing_enabled: boolean
+  last_error: string
+  created_at: string
+  updated_at: string
+}
+
+export interface IMBotChat {
+  id: number
+  bot_id: number
+  chat_id: string
+  platform_user_id: string
+  display_name: string
+  session_uuid: string
+  model_override: string
+  status: 'active' | 'blocked'
+  paired_at: string
+  last_message_at: string | null
+}
+
+export interface IMBotMessage {
+  id: number
+  chat_id: number
+  bot_id: number
+  role: 'user' | 'assistant'
+  content: string
+  request_id: string
+  created_at: string
+}
+
+export interface IMBotPairCode {
+  code: string
+  expires_at: string
+}
