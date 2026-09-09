@@ -98,7 +98,7 @@ func TestPairing_DenyHintOncePerWindow(t *testing.T) {
 // fakeRepo implements the chat-upsert slice the pairing gate needs.
 type fakeRepo struct {
 	service.IMBotRepository // panics on unexpected calls
-	chats                  map[string]*service.IMBotChat
+	chats                   map[string]*service.IMBotChat
 }
 
 func (f *fakeRepo) UpsertChat(_ context.Context, chat *service.IMBotChat) error {

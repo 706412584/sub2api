@@ -5,11 +5,11 @@ import (
 	"fmt"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
-	telegram "github.com/Wei-Shaw/sub2api/internal/im/platform/telegram"
 	feishu "github.com/Wei-Shaw/sub2api/internal/im/platform/feishu"
+	telegram "github.com/Wei-Shaw/sub2api/internal/im/platform/telegram"
 	"github.com/Wei-Shaw/sub2api/internal/service"
-	"github.com/redis/go-redis/v9"
 	"github.com/google/wire"
+	"github.com/redis/go-redis/v9"
 )
 
 // HubRef is the consumer-facing handle handed to handlers (nil-safe ops).
@@ -43,12 +43,12 @@ func (r HubRef) TestConnection(ctx context.Context, bot *service.IMBot) error {
 		return err
 	}
 	adapter, err := factory.Create(BotConfig{
-		ID:               bot.ID,
-		Name:             bot.Name,
-		Platform:         Platform(bot.Platform),
-		ModelOverride:    bot.ModelOverride,
-		SystemPrompt:     bot.SystemPrompt,
-		MaxConcurrency:   bot.MaxConcurrency,
+		ID:                 bot.ID,
+		Name:               bot.Name,
+		Platform:           Platform(bot.Platform),
+		ModelOverride:      bot.ModelOverride,
+		SystemPrompt:       bot.SystemPrompt,
+		MaxConcurrency:     bot.MaxConcurrency,
 		HistoryMaxMessages: bot.HistoryMaxMessages,
 	}, []byte(creds))
 	if err != nil {

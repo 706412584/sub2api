@@ -55,12 +55,12 @@ func TestMessageBuffer_SealAndContinue(t *testing.T) {
 	sink := &recordingSink{}
 	b := NewMessageBuffer(context.Background(), BufferConfig{
 		FlushThreshold: 1000,      // never early-flush
-		FlushInterval: time.Hour, // no timer flush
+		FlushInterval:  time.Hour, // no timer flush
 		MaxChunkRunes:  10,
 	}, sink)
-	b.Append("0123456789")   // exactly cap -> seal chunk 0
-	b.Append("abcdefgh")    // pending in chunk 1
-	b.Finish(nil)           // final flush chunk 1
+	b.Append("0123456789") // exactly cap -> seal chunk 0
+	b.Append("abcdefgh")   // pending in chunk 1
+	b.Finish(nil)          // final flush chunk 1
 	chunks, finals := sink.snapshot()
 	require.Len(t, chunks, 2)
 	require.Equal(t, "0123456789", chunks[0])

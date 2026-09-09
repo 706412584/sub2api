@@ -35,20 +35,20 @@ type UpdateIMBotInput struct {
 }
 
 const (
-	IMBotMaxConcurrencyDefault  = 2
-	IMBotHistoryMaxDefault       = 40
-	IMBotMaxConcurrencyLimit     = 16
-	IMBotHistoryMaxLimit          = 200
+	IMBotMaxConcurrencyDefault = 2
+	IMBotHistoryMaxDefault     = 40
+	IMBotMaxConcurrencyLimit   = 16
+	IMBotHistoryMaxLimit       = 200
 )
 
 // IMBotService handles admin CRUD for IM bots and bridges to the running
 // hub via IMBotReloader. Implemented as a standalone service (not part of
 // the huge adminServiceImpl) to keep the im module's dependencies narrow.
 type IMBotService struct {
-	repo       IMBotRepository
-	apiKeyRepo APIKeyRepository
-	encryptor  SecretEncryptor
-	reloader   IMBotReloader
+	repo                    IMBotRepository
+	apiKeyRepo              APIKeyRepository
+	encryptor               SecretEncryptor
+	reloader                IMBotReloader
 	encryptionKeyConfigured bool
 }
 
@@ -328,8 +328,8 @@ func (i *IMChatUpdateInput) ToFields() (IMChatUpdateFields, error) {
 // IMPlatformSchema describes one platform for the admin wizard (list of
 // credential fields, availability).
 type IMPlatformSchema struct {
-	Platform   string                    `json:"platform"`
-	Available  bool                      `json:"available"`
+	Platform   string                      `json:"platform"`
+	Available  bool                        `json:"available"`
 	Credential []IMPlatformCredentialField `json:"credential_fields"`
 }
 
