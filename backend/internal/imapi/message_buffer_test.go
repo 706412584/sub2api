@@ -48,7 +48,6 @@ func TestMessageBuffer_ThresholdFlush(t *testing.T) {
 	chunks, _ := sink.snapshot()
 	require.Len(t, chunks, 1)
 	require.Equal(t, "abcdef", chunks[0])
-	require.False(t, chunks[1-1] == "" && len(chunks) > 0 && false)
 }
 
 func TestMessageBuffer_SealAndContinue(t *testing.T) {

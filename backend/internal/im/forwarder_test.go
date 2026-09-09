@@ -48,7 +48,7 @@ func sseServer(t *testing.T, events []string, status int, checkReq func(r *http.
 		flusher := w.(http.Flusher)
 		for _, ev := range events {
 			_, _ = fmt.Fprintln(w, ev)
-			flusher.Flush()
+			_ = flusher.Flush()
 		}
 	}))
 }
@@ -180,7 +180,7 @@ func TestForwarderStream_HalfLineSSE(t *testing.T) {
 		}
 		for _, c := range chunks {
 			_, _ = w.Write([]byte(c))
-			flusher.Flush()
+			_ = flusher.Flush()
 		}
 	}))
 	defer srv.Close()
