@@ -1,5 +1,7 @@
 <template>
-  <div class="space-y-4">
+  <AppLayout>
+    <TablePageLayout>
+      <div class="space-y-4">
     <div class="flex items-center justify-between">
       <div>
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
@@ -117,12 +119,16 @@
       :bot="chatsBot"
       @close="chatsBot = null"
     />
-  </div>
+      </div>
+    </TablePageLayout>
+  </AppLayout>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import AppLayout from '@/components/layout/AppLayout.vue'
+import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import {
   imBotsApi,
   listIMPlatforms,

@@ -54,6 +54,7 @@ func NewHub(cfg config.IMConfig, repo service.IMBotRepository, keyRepo APIKeySou
 		rdb:     rdb,
 		fwd:     NewForwarder(cfg.BaseURL),
 		bots:    map[int64]*botHandle{},
+		factories: map[Platform]AdapterFactory{},
 	}
 	if h.cfg.BaseURL == "" {
 		h.cfg.BaseURL = "http://127.0.0.1:18080"
