@@ -32,6 +32,9 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
+	"github.com/Wei-Shaw/sub2api/ent/imbot"
+	"github.com/Wei-Shaw/sub2api/ent/imbotchat"
+	"github.com/Wei-Shaw/sub2api/ent/imbotmessage"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
@@ -84,6 +87,9 @@ const (
 	TypeDynamicProxyPool              = "DynamicProxyPool"
 	TypeErrorPassthroughRule          = "ErrorPassthroughRule"
 	TypeGroup                         = "Group"
+	TypeIMBot                         = "IMBot"
+	TypeIMBotChat                     = "IMBotChat"
+	TypeIMBotMessage                  = "IMBotMessage"
 	TypeIdempotencyRecord             = "IdempotencyRecord"
 	TypeIdentityAdoptionDecision      = "IdentityAdoptionDecision"
 	TypePaymentAuditLog               = "PaymentAuditLog"
@@ -154,6 +160,9 @@ type APIKeyMutation struct {
 	usage_logs         map[int64]struct{}
 	removedusage_logs  map[int64]struct{}
 	clearedusage_logs  bool
+	im_bots            map[int64]struct{}
+	removedim_bots     map[int64]struct{}
+	clearedim_bots     bool
 	done               bool
 	oldValue           func(context.Context) (*APIKey, error)
 	predicates         []predicate.APIKey
@@ -1502,6 +1511,60 @@ func (m *APIKeyMutation) ResetUsageLogs() {
 	m.removedusage_logs = nil
 }
 
+// AddImBotIDs adds the "im_bots" edge to the IMBot entity by ids.
+func (m *APIKeyMutation) AddImBotIDs(ids ...int64) {
+	if m.im_bots == nil {
+		m.im_bots = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.im_bots[ids[i]] = struct{}{}
+	}
+}
+
+// ClearImBots clears the "im_bots" edge to the IMBot entity.
+func (m *APIKeyMutation) ClearImBots() {
+	m.clearedim_bots = true
+}
+
+// ImBotsCleared reports if the "im_bots" edge to the IMBot entity was cleared.
+func (m *APIKeyMutation) ImBotsCleared() bool {
+	return m.clearedim_bots
+}
+
+// RemoveImBotIDs removes the "im_bots" edge to the IMBot entity by IDs.
+func (m *APIKeyMutation) RemoveImBotIDs(ids ...int64) {
+	if m.removedim_bots == nil {
+		m.removedim_bots = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.im_bots, ids[i])
+		m.removedim_bots[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedImBots returns the removed IDs of the "im_bots" edge to the IMBot entity.
+func (m *APIKeyMutation) RemovedImBotsIDs() (ids []int64) {
+	for id := range m.removedim_bots {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ImBotsIDs returns the "im_bots" edge IDs in the mutation.
+func (m *APIKeyMutation) ImBotsIDs() (ids []int64) {
+	for id := range m.im_bots {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetImBots resets all changes to the "im_bots" edge.
+func (m *APIKeyMutation) ResetImBots() {
+	m.im_bots = nil
+	m.clearedim_bots = false
+	m.removedim_bots = nil
+}
+
 // Where appends a list predicates to the APIKeyMutation builder.
 func (m *APIKeyMutation) Where(ps ...predicate.APIKey) {
 	m.predicates = append(m.predicates, ps...)
@@ -2165,7 +2228,7 @@ func (m *APIKeyMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *APIKeyMutation) AddedEdges() []string {
-	edges := make([]string, 0, 3)
+	edges := make([]string, 0, 4)
 	if m.user != nil {
 		edges = append(edges, apikey.EdgeUser)
 	}
@@ -2174,6 +2237,9 @@ func (m *APIKeyMutation) AddedEdges() []string {
 	}
 	if m.usage_logs != nil {
 		edges = append(edges, apikey.EdgeUsageLogs)
+	}
+	if m.im_bots != nil {
+		edges = append(edges, apikey.EdgeImBots)
 	}
 	return edges
 }
@@ -2196,15 +2262,24 @@ func (m *APIKeyMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case apikey.EdgeImBots:
+		ids := make([]ent.Value, 0, len(m.im_bots))
+		for id := range m.im_bots {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *APIKeyMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 3)
+	edges := make([]string, 0, 4)
 	if m.removedusage_logs != nil {
 		edges = append(edges, apikey.EdgeUsageLogs)
+	}
+	if m.removedim_bots != nil {
+		edges = append(edges, apikey.EdgeImBots)
 	}
 	return edges
 }
@@ -2219,13 +2294,19 @@ func (m *APIKeyMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case apikey.EdgeImBots:
+		ids := make([]ent.Value, 0, len(m.removedim_bots))
+		for id := range m.removedim_bots {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *APIKeyMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 3)
+	edges := make([]string, 0, 4)
 	if m.cleareduser {
 		edges = append(edges, apikey.EdgeUser)
 	}
@@ -2234,6 +2315,9 @@ func (m *APIKeyMutation) ClearedEdges() []string {
 	}
 	if m.clearedusage_logs {
 		edges = append(edges, apikey.EdgeUsageLogs)
+	}
+	if m.clearedim_bots {
+		edges = append(edges, apikey.EdgeImBots)
 	}
 	return edges
 }
@@ -2248,6 +2332,8 @@ func (m *APIKeyMutation) EdgeCleared(name string) bool {
 		return m.clearedgroup
 	case apikey.EdgeUsageLogs:
 		return m.clearedusage_logs
+	case apikey.EdgeImBots:
+		return m.clearedim_bots
 	}
 	return false
 }
@@ -2278,6 +2364,9 @@ func (m *APIKeyMutation) ResetEdge(name string) error {
 		return nil
 	case apikey.EdgeUsageLogs:
 		m.ResetUsageLogs()
+		return nil
+	case apikey.EdgeImBots:
+		m.ResetImBots()
 		return nil
 	}
 	return fmt.Errorf("unknown APIKey edge %s", name)
@@ -30523,6 +30612,3034 @@ func (m *GroupMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown Group edge %s", name)
+}
+
+// IMBotMutation represents an operation that mutates the IMBot nodes in the graph.
+type IMBotMutation struct {
+	config
+	op                      Op
+	typ                     string
+	id                      *int64
+	created_at              *time.Time
+	updated_at              *time.Time
+	deleted_at              *time.Time
+	name                    *string
+	platform                *string
+	credentials_encrypted   *string
+	model_override          *string
+	system_prompt           *string
+	status                  *string
+	max_concurrency         *int
+	addmax_concurrency      *int
+	history_max_messages    *int
+	addhistory_max_messages *int
+	pairing_enabled         *bool
+	last_error              *string
+	clearedFields           map[string]struct{}
+	api_key                 *int64
+	clearedapi_key          bool
+	chats                   map[int64]struct{}
+	removedchats            map[int64]struct{}
+	clearedchats            bool
+	done                    bool
+	oldValue                func(context.Context) (*IMBot, error)
+	predicates              []predicate.IMBot
+}
+
+var _ ent.Mutation = (*IMBotMutation)(nil)
+
+// imbotOption allows management of the mutation configuration using functional options.
+type imbotOption func(*IMBotMutation)
+
+// newIMBotMutation creates new mutation for the IMBot entity.
+func newIMBotMutation(c config, op Op, opts ...imbotOption) *IMBotMutation {
+	m := &IMBotMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeIMBot,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withIMBotID sets the ID field of the mutation.
+func withIMBotID(id int64) imbotOption {
+	return func(m *IMBotMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *IMBot
+		)
+		m.oldValue = func(ctx context.Context) (*IMBot, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().IMBot.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withIMBot sets the old IMBot of the mutation.
+func withIMBot(node *IMBot) imbotOption {
+	return func(m *IMBotMutation) {
+		m.oldValue = func(context.Context) (*IMBot, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m IMBotMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m IMBotMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *IMBotMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *IMBotMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().IMBot.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *IMBotMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *IMBotMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the IMBot entity.
+// If the IMBot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *IMBotMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *IMBotMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *IMBotMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the IMBot entity.
+// If the IMBot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *IMBotMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetDeletedAt sets the "deleted_at" field.
+func (m *IMBotMutation) SetDeletedAt(t time.Time) {
+	m.deleted_at = &t
+}
+
+// DeletedAt returns the value of the "deleted_at" field in the mutation.
+func (m *IMBotMutation) DeletedAt() (r time.Time, exists bool) {
+	v := m.deleted_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDeletedAt returns the old "deleted_at" field's value of the IMBot entity.
+// If the IMBot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotMutation) OldDeletedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDeletedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDeletedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDeletedAt: %w", err)
+	}
+	return oldValue.DeletedAt, nil
+}
+
+// ClearDeletedAt clears the value of the "deleted_at" field.
+func (m *IMBotMutation) ClearDeletedAt() {
+	m.deleted_at = nil
+	m.clearedFields[imbot.FieldDeletedAt] = struct{}{}
+}
+
+// DeletedAtCleared returns if the "deleted_at" field was cleared in this mutation.
+func (m *IMBotMutation) DeletedAtCleared() bool {
+	_, ok := m.clearedFields[imbot.FieldDeletedAt]
+	return ok
+}
+
+// ResetDeletedAt resets all changes to the "deleted_at" field.
+func (m *IMBotMutation) ResetDeletedAt() {
+	m.deleted_at = nil
+	delete(m.clearedFields, imbot.FieldDeletedAt)
+}
+
+// SetName sets the "name" field.
+func (m *IMBotMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *IMBotMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the IMBot entity.
+// If the IMBot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *IMBotMutation) ResetName() {
+	m.name = nil
+}
+
+// SetPlatform sets the "platform" field.
+func (m *IMBotMutation) SetPlatform(s string) {
+	m.platform = &s
+}
+
+// Platform returns the value of the "platform" field in the mutation.
+func (m *IMBotMutation) Platform() (r string, exists bool) {
+	v := m.platform
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPlatform returns the old "platform" field's value of the IMBot entity.
+// If the IMBot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotMutation) OldPlatform(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPlatform is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPlatform requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPlatform: %w", err)
+	}
+	return oldValue.Platform, nil
+}
+
+// ResetPlatform resets all changes to the "platform" field.
+func (m *IMBotMutation) ResetPlatform() {
+	m.platform = nil
+}
+
+// SetCredentialsEncrypted sets the "credentials_encrypted" field.
+func (m *IMBotMutation) SetCredentialsEncrypted(s string) {
+	m.credentials_encrypted = &s
+}
+
+// CredentialsEncrypted returns the value of the "credentials_encrypted" field in the mutation.
+func (m *IMBotMutation) CredentialsEncrypted() (r string, exists bool) {
+	v := m.credentials_encrypted
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCredentialsEncrypted returns the old "credentials_encrypted" field's value of the IMBot entity.
+// If the IMBot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotMutation) OldCredentialsEncrypted(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCredentialsEncrypted is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCredentialsEncrypted requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCredentialsEncrypted: %w", err)
+	}
+	return oldValue.CredentialsEncrypted, nil
+}
+
+// ResetCredentialsEncrypted resets all changes to the "credentials_encrypted" field.
+func (m *IMBotMutation) ResetCredentialsEncrypted() {
+	m.credentials_encrypted = nil
+}
+
+// SetAPIKeyID sets the "api_key_id" field.
+func (m *IMBotMutation) SetAPIKeyID(i int64) {
+	m.api_key = &i
+}
+
+// APIKeyID returns the value of the "api_key_id" field in the mutation.
+func (m *IMBotMutation) APIKeyID() (r int64, exists bool) {
+	v := m.api_key
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAPIKeyID returns the old "api_key_id" field's value of the IMBot entity.
+// If the IMBot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotMutation) OldAPIKeyID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAPIKeyID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAPIKeyID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAPIKeyID: %w", err)
+	}
+	return oldValue.APIKeyID, nil
+}
+
+// ResetAPIKeyID resets all changes to the "api_key_id" field.
+func (m *IMBotMutation) ResetAPIKeyID() {
+	m.api_key = nil
+}
+
+// SetModelOverride sets the "model_override" field.
+func (m *IMBotMutation) SetModelOverride(s string) {
+	m.model_override = &s
+}
+
+// ModelOverride returns the value of the "model_override" field in the mutation.
+func (m *IMBotMutation) ModelOverride() (r string, exists bool) {
+	v := m.model_override
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldModelOverride returns the old "model_override" field's value of the IMBot entity.
+// If the IMBot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotMutation) OldModelOverride(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldModelOverride is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldModelOverride requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldModelOverride: %w", err)
+	}
+	return oldValue.ModelOverride, nil
+}
+
+// ResetModelOverride resets all changes to the "model_override" field.
+func (m *IMBotMutation) ResetModelOverride() {
+	m.model_override = nil
+}
+
+// SetSystemPrompt sets the "system_prompt" field.
+func (m *IMBotMutation) SetSystemPrompt(s string) {
+	m.system_prompt = &s
+}
+
+// SystemPrompt returns the value of the "system_prompt" field in the mutation.
+func (m *IMBotMutation) SystemPrompt() (r string, exists bool) {
+	v := m.system_prompt
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSystemPrompt returns the old "system_prompt" field's value of the IMBot entity.
+// If the IMBot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotMutation) OldSystemPrompt(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSystemPrompt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSystemPrompt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSystemPrompt: %w", err)
+	}
+	return oldValue.SystemPrompt, nil
+}
+
+// ResetSystemPrompt resets all changes to the "system_prompt" field.
+func (m *IMBotMutation) ResetSystemPrompt() {
+	m.system_prompt = nil
+}
+
+// SetStatus sets the "status" field.
+func (m *IMBotMutation) SetStatus(s string) {
+	m.status = &s
+}
+
+// Status returns the value of the "status" field in the mutation.
+func (m *IMBotMutation) Status() (r string, exists bool) {
+	v := m.status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatus returns the old "status" field's value of the IMBot entity.
+// If the IMBot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotMutation) OldStatus(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
+	}
+	return oldValue.Status, nil
+}
+
+// ResetStatus resets all changes to the "status" field.
+func (m *IMBotMutation) ResetStatus() {
+	m.status = nil
+}
+
+// SetMaxConcurrency sets the "max_concurrency" field.
+func (m *IMBotMutation) SetMaxConcurrency(i int) {
+	m.max_concurrency = &i
+	m.addmax_concurrency = nil
+}
+
+// MaxConcurrency returns the value of the "max_concurrency" field in the mutation.
+func (m *IMBotMutation) MaxConcurrency() (r int, exists bool) {
+	v := m.max_concurrency
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMaxConcurrency returns the old "max_concurrency" field's value of the IMBot entity.
+// If the IMBot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotMutation) OldMaxConcurrency(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMaxConcurrency is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMaxConcurrency requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMaxConcurrency: %w", err)
+	}
+	return oldValue.MaxConcurrency, nil
+}
+
+// AddMaxConcurrency adds i to the "max_concurrency" field.
+func (m *IMBotMutation) AddMaxConcurrency(i int) {
+	if m.addmax_concurrency != nil {
+		*m.addmax_concurrency += i
+	} else {
+		m.addmax_concurrency = &i
+	}
+}
+
+// AddedMaxConcurrency returns the value that was added to the "max_concurrency" field in this mutation.
+func (m *IMBotMutation) AddedMaxConcurrency() (r int, exists bool) {
+	v := m.addmax_concurrency
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetMaxConcurrency resets all changes to the "max_concurrency" field.
+func (m *IMBotMutation) ResetMaxConcurrency() {
+	m.max_concurrency = nil
+	m.addmax_concurrency = nil
+}
+
+// SetHistoryMaxMessages sets the "history_max_messages" field.
+func (m *IMBotMutation) SetHistoryMaxMessages(i int) {
+	m.history_max_messages = &i
+	m.addhistory_max_messages = nil
+}
+
+// HistoryMaxMessages returns the value of the "history_max_messages" field in the mutation.
+func (m *IMBotMutation) HistoryMaxMessages() (r int, exists bool) {
+	v := m.history_max_messages
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldHistoryMaxMessages returns the old "history_max_messages" field's value of the IMBot entity.
+// If the IMBot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotMutation) OldHistoryMaxMessages(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldHistoryMaxMessages is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldHistoryMaxMessages requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldHistoryMaxMessages: %w", err)
+	}
+	return oldValue.HistoryMaxMessages, nil
+}
+
+// AddHistoryMaxMessages adds i to the "history_max_messages" field.
+func (m *IMBotMutation) AddHistoryMaxMessages(i int) {
+	if m.addhistory_max_messages != nil {
+		*m.addhistory_max_messages += i
+	} else {
+		m.addhistory_max_messages = &i
+	}
+}
+
+// AddedHistoryMaxMessages returns the value that was added to the "history_max_messages" field in this mutation.
+func (m *IMBotMutation) AddedHistoryMaxMessages() (r int, exists bool) {
+	v := m.addhistory_max_messages
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetHistoryMaxMessages resets all changes to the "history_max_messages" field.
+func (m *IMBotMutation) ResetHistoryMaxMessages() {
+	m.history_max_messages = nil
+	m.addhistory_max_messages = nil
+}
+
+// SetPairingEnabled sets the "pairing_enabled" field.
+func (m *IMBotMutation) SetPairingEnabled(b bool) {
+	m.pairing_enabled = &b
+}
+
+// PairingEnabled returns the value of the "pairing_enabled" field in the mutation.
+func (m *IMBotMutation) PairingEnabled() (r bool, exists bool) {
+	v := m.pairing_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPairingEnabled returns the old "pairing_enabled" field's value of the IMBot entity.
+// If the IMBot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotMutation) OldPairingEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPairingEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPairingEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPairingEnabled: %w", err)
+	}
+	return oldValue.PairingEnabled, nil
+}
+
+// ResetPairingEnabled resets all changes to the "pairing_enabled" field.
+func (m *IMBotMutation) ResetPairingEnabled() {
+	m.pairing_enabled = nil
+}
+
+// SetLastError sets the "last_error" field.
+func (m *IMBotMutation) SetLastError(s string) {
+	m.last_error = &s
+}
+
+// LastError returns the value of the "last_error" field in the mutation.
+func (m *IMBotMutation) LastError() (r string, exists bool) {
+	v := m.last_error
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastError returns the old "last_error" field's value of the IMBot entity.
+// If the IMBot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotMutation) OldLastError(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastError is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastError requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastError: %w", err)
+	}
+	return oldValue.LastError, nil
+}
+
+// ResetLastError resets all changes to the "last_error" field.
+func (m *IMBotMutation) ResetLastError() {
+	m.last_error = nil
+}
+
+// ClearAPIKey clears the "api_key" edge to the APIKey entity.
+func (m *IMBotMutation) ClearAPIKey() {
+	m.clearedapi_key = true
+	m.clearedFields[imbot.FieldAPIKeyID] = struct{}{}
+}
+
+// APIKeyCleared reports if the "api_key" edge to the APIKey entity was cleared.
+func (m *IMBotMutation) APIKeyCleared() bool {
+	return m.clearedapi_key
+}
+
+// APIKeyIDs returns the "api_key" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// APIKeyID instead. It exists only for internal usage by the builders.
+func (m *IMBotMutation) APIKeyIDs() (ids []int64) {
+	if id := m.api_key; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetAPIKey resets all changes to the "api_key" edge.
+func (m *IMBotMutation) ResetAPIKey() {
+	m.api_key = nil
+	m.clearedapi_key = false
+}
+
+// AddChatIDs adds the "chats" edge to the IMBotChat entity by ids.
+func (m *IMBotMutation) AddChatIDs(ids ...int64) {
+	if m.chats == nil {
+		m.chats = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.chats[ids[i]] = struct{}{}
+	}
+}
+
+// ClearChats clears the "chats" edge to the IMBotChat entity.
+func (m *IMBotMutation) ClearChats() {
+	m.clearedchats = true
+}
+
+// ChatsCleared reports if the "chats" edge to the IMBotChat entity was cleared.
+func (m *IMBotMutation) ChatsCleared() bool {
+	return m.clearedchats
+}
+
+// RemoveChatIDs removes the "chats" edge to the IMBotChat entity by IDs.
+func (m *IMBotMutation) RemoveChatIDs(ids ...int64) {
+	if m.removedchats == nil {
+		m.removedchats = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.chats, ids[i])
+		m.removedchats[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedChats returns the removed IDs of the "chats" edge to the IMBotChat entity.
+func (m *IMBotMutation) RemovedChatsIDs() (ids []int64) {
+	for id := range m.removedchats {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ChatsIDs returns the "chats" edge IDs in the mutation.
+func (m *IMBotMutation) ChatsIDs() (ids []int64) {
+	for id := range m.chats {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetChats resets all changes to the "chats" edge.
+func (m *IMBotMutation) ResetChats() {
+	m.chats = nil
+	m.clearedchats = false
+	m.removedchats = nil
+}
+
+// Where appends a list predicates to the IMBotMutation builder.
+func (m *IMBotMutation) Where(ps ...predicate.IMBot) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the IMBotMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *IMBotMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.IMBot, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *IMBotMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *IMBotMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (IMBot).
+func (m *IMBotMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *IMBotMutation) Fields() []string {
+	fields := make([]string, 0, 14)
+	if m.created_at != nil {
+		fields = append(fields, imbot.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, imbot.FieldUpdatedAt)
+	}
+	if m.deleted_at != nil {
+		fields = append(fields, imbot.FieldDeletedAt)
+	}
+	if m.name != nil {
+		fields = append(fields, imbot.FieldName)
+	}
+	if m.platform != nil {
+		fields = append(fields, imbot.FieldPlatform)
+	}
+	if m.credentials_encrypted != nil {
+		fields = append(fields, imbot.FieldCredentialsEncrypted)
+	}
+	if m.api_key != nil {
+		fields = append(fields, imbot.FieldAPIKeyID)
+	}
+	if m.model_override != nil {
+		fields = append(fields, imbot.FieldModelOverride)
+	}
+	if m.system_prompt != nil {
+		fields = append(fields, imbot.FieldSystemPrompt)
+	}
+	if m.status != nil {
+		fields = append(fields, imbot.FieldStatus)
+	}
+	if m.max_concurrency != nil {
+		fields = append(fields, imbot.FieldMaxConcurrency)
+	}
+	if m.history_max_messages != nil {
+		fields = append(fields, imbot.FieldHistoryMaxMessages)
+	}
+	if m.pairing_enabled != nil {
+		fields = append(fields, imbot.FieldPairingEnabled)
+	}
+	if m.last_error != nil {
+		fields = append(fields, imbot.FieldLastError)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *IMBotMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case imbot.FieldCreatedAt:
+		return m.CreatedAt()
+	case imbot.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case imbot.FieldDeletedAt:
+		return m.DeletedAt()
+	case imbot.FieldName:
+		return m.Name()
+	case imbot.FieldPlatform:
+		return m.Platform()
+	case imbot.FieldCredentialsEncrypted:
+		return m.CredentialsEncrypted()
+	case imbot.FieldAPIKeyID:
+		return m.APIKeyID()
+	case imbot.FieldModelOverride:
+		return m.ModelOverride()
+	case imbot.FieldSystemPrompt:
+		return m.SystemPrompt()
+	case imbot.FieldStatus:
+		return m.Status()
+	case imbot.FieldMaxConcurrency:
+		return m.MaxConcurrency()
+	case imbot.FieldHistoryMaxMessages:
+		return m.HistoryMaxMessages()
+	case imbot.FieldPairingEnabled:
+		return m.PairingEnabled()
+	case imbot.FieldLastError:
+		return m.LastError()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *IMBotMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case imbot.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case imbot.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case imbot.FieldDeletedAt:
+		return m.OldDeletedAt(ctx)
+	case imbot.FieldName:
+		return m.OldName(ctx)
+	case imbot.FieldPlatform:
+		return m.OldPlatform(ctx)
+	case imbot.FieldCredentialsEncrypted:
+		return m.OldCredentialsEncrypted(ctx)
+	case imbot.FieldAPIKeyID:
+		return m.OldAPIKeyID(ctx)
+	case imbot.FieldModelOverride:
+		return m.OldModelOverride(ctx)
+	case imbot.FieldSystemPrompt:
+		return m.OldSystemPrompt(ctx)
+	case imbot.FieldStatus:
+		return m.OldStatus(ctx)
+	case imbot.FieldMaxConcurrency:
+		return m.OldMaxConcurrency(ctx)
+	case imbot.FieldHistoryMaxMessages:
+		return m.OldHistoryMaxMessages(ctx)
+	case imbot.FieldPairingEnabled:
+		return m.OldPairingEnabled(ctx)
+	case imbot.FieldLastError:
+		return m.OldLastError(ctx)
+	}
+	return nil, fmt.Errorf("unknown IMBot field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *IMBotMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case imbot.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case imbot.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case imbot.FieldDeletedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDeletedAt(v)
+		return nil
+	case imbot.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case imbot.FieldPlatform:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPlatform(v)
+		return nil
+	case imbot.FieldCredentialsEncrypted:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCredentialsEncrypted(v)
+		return nil
+	case imbot.FieldAPIKeyID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAPIKeyID(v)
+		return nil
+	case imbot.FieldModelOverride:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetModelOverride(v)
+		return nil
+	case imbot.FieldSystemPrompt:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSystemPrompt(v)
+		return nil
+	case imbot.FieldStatus:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatus(v)
+		return nil
+	case imbot.FieldMaxConcurrency:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMaxConcurrency(v)
+		return nil
+	case imbot.FieldHistoryMaxMessages:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetHistoryMaxMessages(v)
+		return nil
+	case imbot.FieldPairingEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPairingEnabled(v)
+		return nil
+	case imbot.FieldLastError:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastError(v)
+		return nil
+	}
+	return fmt.Errorf("unknown IMBot field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *IMBotMutation) AddedFields() []string {
+	var fields []string
+	if m.addmax_concurrency != nil {
+		fields = append(fields, imbot.FieldMaxConcurrency)
+	}
+	if m.addhistory_max_messages != nil {
+		fields = append(fields, imbot.FieldHistoryMaxMessages)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *IMBotMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case imbot.FieldMaxConcurrency:
+		return m.AddedMaxConcurrency()
+	case imbot.FieldHistoryMaxMessages:
+		return m.AddedHistoryMaxMessages()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *IMBotMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case imbot.FieldMaxConcurrency:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMaxConcurrency(v)
+		return nil
+	case imbot.FieldHistoryMaxMessages:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddHistoryMaxMessages(v)
+		return nil
+	}
+	return fmt.Errorf("unknown IMBot numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *IMBotMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(imbot.FieldDeletedAt) {
+		fields = append(fields, imbot.FieldDeletedAt)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *IMBotMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *IMBotMutation) ClearField(name string) error {
+	switch name {
+	case imbot.FieldDeletedAt:
+		m.ClearDeletedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown IMBot nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *IMBotMutation) ResetField(name string) error {
+	switch name {
+	case imbot.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case imbot.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case imbot.FieldDeletedAt:
+		m.ResetDeletedAt()
+		return nil
+	case imbot.FieldName:
+		m.ResetName()
+		return nil
+	case imbot.FieldPlatform:
+		m.ResetPlatform()
+		return nil
+	case imbot.FieldCredentialsEncrypted:
+		m.ResetCredentialsEncrypted()
+		return nil
+	case imbot.FieldAPIKeyID:
+		m.ResetAPIKeyID()
+		return nil
+	case imbot.FieldModelOverride:
+		m.ResetModelOverride()
+		return nil
+	case imbot.FieldSystemPrompt:
+		m.ResetSystemPrompt()
+		return nil
+	case imbot.FieldStatus:
+		m.ResetStatus()
+		return nil
+	case imbot.FieldMaxConcurrency:
+		m.ResetMaxConcurrency()
+		return nil
+	case imbot.FieldHistoryMaxMessages:
+		m.ResetHistoryMaxMessages()
+		return nil
+	case imbot.FieldPairingEnabled:
+		m.ResetPairingEnabled()
+		return nil
+	case imbot.FieldLastError:
+		m.ResetLastError()
+		return nil
+	}
+	return fmt.Errorf("unknown IMBot field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *IMBotMutation) AddedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.api_key != nil {
+		edges = append(edges, imbot.EdgeAPIKey)
+	}
+	if m.chats != nil {
+		edges = append(edges, imbot.EdgeChats)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *IMBotMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case imbot.EdgeAPIKey:
+		if id := m.api_key; id != nil {
+			return []ent.Value{*id}
+		}
+	case imbot.EdgeChats:
+		ids := make([]ent.Value, 0, len(m.chats))
+		for id := range m.chats {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *IMBotMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.removedchats != nil {
+		edges = append(edges, imbot.EdgeChats)
+	}
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *IMBotMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case imbot.EdgeChats:
+		ids := make([]ent.Value, 0, len(m.removedchats))
+		for id := range m.removedchats {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *IMBotMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.clearedapi_key {
+		edges = append(edges, imbot.EdgeAPIKey)
+	}
+	if m.clearedchats {
+		edges = append(edges, imbot.EdgeChats)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *IMBotMutation) EdgeCleared(name string) bool {
+	switch name {
+	case imbot.EdgeAPIKey:
+		return m.clearedapi_key
+	case imbot.EdgeChats:
+		return m.clearedchats
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *IMBotMutation) ClearEdge(name string) error {
+	switch name {
+	case imbot.EdgeAPIKey:
+		m.ClearAPIKey()
+		return nil
+	}
+	return fmt.Errorf("unknown IMBot unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *IMBotMutation) ResetEdge(name string) error {
+	switch name {
+	case imbot.EdgeAPIKey:
+		m.ResetAPIKey()
+		return nil
+	case imbot.EdgeChats:
+		m.ResetChats()
+		return nil
+	}
+	return fmt.Errorf("unknown IMBot edge %s", name)
+}
+
+// IMBotChatMutation represents an operation that mutates the IMBotChat nodes in the graph.
+type IMBotChatMutation struct {
+	config
+	op               Op
+	typ              string
+	id               *int64
+	created_at       *time.Time
+	updated_at       *time.Time
+	chat_id          *string
+	platform_user_id *string
+	display_name     *string
+	session_uuid     *string
+	model_override   *string
+	status           *string
+	paired_at        *time.Time
+	last_message_at  *time.Time
+	clearedFields    map[string]struct{}
+	bot              *int64
+	clearedbot       bool
+	messages         map[int64]struct{}
+	removedmessages  map[int64]struct{}
+	clearedmessages  bool
+	done             bool
+	oldValue         func(context.Context) (*IMBotChat, error)
+	predicates       []predicate.IMBotChat
+}
+
+var _ ent.Mutation = (*IMBotChatMutation)(nil)
+
+// imbotchatOption allows management of the mutation configuration using functional options.
+type imbotchatOption func(*IMBotChatMutation)
+
+// newIMBotChatMutation creates new mutation for the IMBotChat entity.
+func newIMBotChatMutation(c config, op Op, opts ...imbotchatOption) *IMBotChatMutation {
+	m := &IMBotChatMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeIMBotChat,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withIMBotChatID sets the ID field of the mutation.
+func withIMBotChatID(id int64) imbotchatOption {
+	return func(m *IMBotChatMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *IMBotChat
+		)
+		m.oldValue = func(ctx context.Context) (*IMBotChat, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().IMBotChat.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withIMBotChat sets the old IMBotChat of the mutation.
+func withIMBotChat(node *IMBotChat) imbotchatOption {
+	return func(m *IMBotChatMutation) {
+		m.oldValue = func(context.Context) (*IMBotChat, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m IMBotChatMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m IMBotChatMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *IMBotChatMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *IMBotChatMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().IMBotChat.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *IMBotChatMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *IMBotChatMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the IMBotChat entity.
+// If the IMBotChat object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotChatMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *IMBotChatMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *IMBotChatMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *IMBotChatMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the IMBotChat entity.
+// If the IMBotChat object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotChatMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *IMBotChatMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetBotID sets the "bot_id" field.
+func (m *IMBotChatMutation) SetBotID(i int64) {
+	m.bot = &i
+}
+
+// BotID returns the value of the "bot_id" field in the mutation.
+func (m *IMBotChatMutation) BotID() (r int64, exists bool) {
+	v := m.bot
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBotID returns the old "bot_id" field's value of the IMBotChat entity.
+// If the IMBotChat object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotChatMutation) OldBotID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBotID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBotID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBotID: %w", err)
+	}
+	return oldValue.BotID, nil
+}
+
+// ResetBotID resets all changes to the "bot_id" field.
+func (m *IMBotChatMutation) ResetBotID() {
+	m.bot = nil
+}
+
+// SetChatID sets the "chat_id" field.
+func (m *IMBotChatMutation) SetChatID(s string) {
+	m.chat_id = &s
+}
+
+// ChatID returns the value of the "chat_id" field in the mutation.
+func (m *IMBotChatMutation) ChatID() (r string, exists bool) {
+	v := m.chat_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldChatID returns the old "chat_id" field's value of the IMBotChat entity.
+// If the IMBotChat object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotChatMutation) OldChatID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldChatID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldChatID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldChatID: %w", err)
+	}
+	return oldValue.ChatID, nil
+}
+
+// ResetChatID resets all changes to the "chat_id" field.
+func (m *IMBotChatMutation) ResetChatID() {
+	m.chat_id = nil
+}
+
+// SetPlatformUserID sets the "platform_user_id" field.
+func (m *IMBotChatMutation) SetPlatformUserID(s string) {
+	m.platform_user_id = &s
+}
+
+// PlatformUserID returns the value of the "platform_user_id" field in the mutation.
+func (m *IMBotChatMutation) PlatformUserID() (r string, exists bool) {
+	v := m.platform_user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPlatformUserID returns the old "platform_user_id" field's value of the IMBotChat entity.
+// If the IMBotChat object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotChatMutation) OldPlatformUserID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPlatformUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPlatformUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPlatformUserID: %w", err)
+	}
+	return oldValue.PlatformUserID, nil
+}
+
+// ResetPlatformUserID resets all changes to the "platform_user_id" field.
+func (m *IMBotChatMutation) ResetPlatformUserID() {
+	m.platform_user_id = nil
+}
+
+// SetDisplayName sets the "display_name" field.
+func (m *IMBotChatMutation) SetDisplayName(s string) {
+	m.display_name = &s
+}
+
+// DisplayName returns the value of the "display_name" field in the mutation.
+func (m *IMBotChatMutation) DisplayName() (r string, exists bool) {
+	v := m.display_name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDisplayName returns the old "display_name" field's value of the IMBotChat entity.
+// If the IMBotChat object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotChatMutation) OldDisplayName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDisplayName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDisplayName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDisplayName: %w", err)
+	}
+	return oldValue.DisplayName, nil
+}
+
+// ResetDisplayName resets all changes to the "display_name" field.
+func (m *IMBotChatMutation) ResetDisplayName() {
+	m.display_name = nil
+}
+
+// SetSessionUUID sets the "session_uuid" field.
+func (m *IMBotChatMutation) SetSessionUUID(s string) {
+	m.session_uuid = &s
+}
+
+// SessionUUID returns the value of the "session_uuid" field in the mutation.
+func (m *IMBotChatMutation) SessionUUID() (r string, exists bool) {
+	v := m.session_uuid
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSessionUUID returns the old "session_uuid" field's value of the IMBotChat entity.
+// If the IMBotChat object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotChatMutation) OldSessionUUID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSessionUUID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSessionUUID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSessionUUID: %w", err)
+	}
+	return oldValue.SessionUUID, nil
+}
+
+// ResetSessionUUID resets all changes to the "session_uuid" field.
+func (m *IMBotChatMutation) ResetSessionUUID() {
+	m.session_uuid = nil
+}
+
+// SetModelOverride sets the "model_override" field.
+func (m *IMBotChatMutation) SetModelOverride(s string) {
+	m.model_override = &s
+}
+
+// ModelOverride returns the value of the "model_override" field in the mutation.
+func (m *IMBotChatMutation) ModelOverride() (r string, exists bool) {
+	v := m.model_override
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldModelOverride returns the old "model_override" field's value of the IMBotChat entity.
+// If the IMBotChat object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotChatMutation) OldModelOverride(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldModelOverride is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldModelOverride requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldModelOverride: %w", err)
+	}
+	return oldValue.ModelOverride, nil
+}
+
+// ResetModelOverride resets all changes to the "model_override" field.
+func (m *IMBotChatMutation) ResetModelOverride() {
+	m.model_override = nil
+}
+
+// SetStatus sets the "status" field.
+func (m *IMBotChatMutation) SetStatus(s string) {
+	m.status = &s
+}
+
+// Status returns the value of the "status" field in the mutation.
+func (m *IMBotChatMutation) Status() (r string, exists bool) {
+	v := m.status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatus returns the old "status" field's value of the IMBotChat entity.
+// If the IMBotChat object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotChatMutation) OldStatus(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
+	}
+	return oldValue.Status, nil
+}
+
+// ResetStatus resets all changes to the "status" field.
+func (m *IMBotChatMutation) ResetStatus() {
+	m.status = nil
+}
+
+// SetPairedAt sets the "paired_at" field.
+func (m *IMBotChatMutation) SetPairedAt(t time.Time) {
+	m.paired_at = &t
+}
+
+// PairedAt returns the value of the "paired_at" field in the mutation.
+func (m *IMBotChatMutation) PairedAt() (r time.Time, exists bool) {
+	v := m.paired_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPairedAt returns the old "paired_at" field's value of the IMBotChat entity.
+// If the IMBotChat object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotChatMutation) OldPairedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPairedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPairedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPairedAt: %w", err)
+	}
+	return oldValue.PairedAt, nil
+}
+
+// ResetPairedAt resets all changes to the "paired_at" field.
+func (m *IMBotChatMutation) ResetPairedAt() {
+	m.paired_at = nil
+}
+
+// SetLastMessageAt sets the "last_message_at" field.
+func (m *IMBotChatMutation) SetLastMessageAt(t time.Time) {
+	m.last_message_at = &t
+}
+
+// LastMessageAt returns the value of the "last_message_at" field in the mutation.
+func (m *IMBotChatMutation) LastMessageAt() (r time.Time, exists bool) {
+	v := m.last_message_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastMessageAt returns the old "last_message_at" field's value of the IMBotChat entity.
+// If the IMBotChat object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotChatMutation) OldLastMessageAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastMessageAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastMessageAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastMessageAt: %w", err)
+	}
+	return oldValue.LastMessageAt, nil
+}
+
+// ClearLastMessageAt clears the value of the "last_message_at" field.
+func (m *IMBotChatMutation) ClearLastMessageAt() {
+	m.last_message_at = nil
+	m.clearedFields[imbotchat.FieldLastMessageAt] = struct{}{}
+}
+
+// LastMessageAtCleared returns if the "last_message_at" field was cleared in this mutation.
+func (m *IMBotChatMutation) LastMessageAtCleared() bool {
+	_, ok := m.clearedFields[imbotchat.FieldLastMessageAt]
+	return ok
+}
+
+// ResetLastMessageAt resets all changes to the "last_message_at" field.
+func (m *IMBotChatMutation) ResetLastMessageAt() {
+	m.last_message_at = nil
+	delete(m.clearedFields, imbotchat.FieldLastMessageAt)
+}
+
+// ClearBot clears the "bot" edge to the IMBot entity.
+func (m *IMBotChatMutation) ClearBot() {
+	m.clearedbot = true
+	m.clearedFields[imbotchat.FieldBotID] = struct{}{}
+}
+
+// BotCleared reports if the "bot" edge to the IMBot entity was cleared.
+func (m *IMBotChatMutation) BotCleared() bool {
+	return m.clearedbot
+}
+
+// BotIDs returns the "bot" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// BotID instead. It exists only for internal usage by the builders.
+func (m *IMBotChatMutation) BotIDs() (ids []int64) {
+	if id := m.bot; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetBot resets all changes to the "bot" edge.
+func (m *IMBotChatMutation) ResetBot() {
+	m.bot = nil
+	m.clearedbot = false
+}
+
+// AddMessageIDs adds the "messages" edge to the IMBotMessage entity by ids.
+func (m *IMBotChatMutation) AddMessageIDs(ids ...int64) {
+	if m.messages == nil {
+		m.messages = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.messages[ids[i]] = struct{}{}
+	}
+}
+
+// ClearMessages clears the "messages" edge to the IMBotMessage entity.
+func (m *IMBotChatMutation) ClearMessages() {
+	m.clearedmessages = true
+}
+
+// MessagesCleared reports if the "messages" edge to the IMBotMessage entity was cleared.
+func (m *IMBotChatMutation) MessagesCleared() bool {
+	return m.clearedmessages
+}
+
+// RemoveMessageIDs removes the "messages" edge to the IMBotMessage entity by IDs.
+func (m *IMBotChatMutation) RemoveMessageIDs(ids ...int64) {
+	if m.removedmessages == nil {
+		m.removedmessages = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.messages, ids[i])
+		m.removedmessages[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedMessages returns the removed IDs of the "messages" edge to the IMBotMessage entity.
+func (m *IMBotChatMutation) RemovedMessagesIDs() (ids []int64) {
+	for id := range m.removedmessages {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// MessagesIDs returns the "messages" edge IDs in the mutation.
+func (m *IMBotChatMutation) MessagesIDs() (ids []int64) {
+	for id := range m.messages {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetMessages resets all changes to the "messages" edge.
+func (m *IMBotChatMutation) ResetMessages() {
+	m.messages = nil
+	m.clearedmessages = false
+	m.removedmessages = nil
+}
+
+// Where appends a list predicates to the IMBotChatMutation builder.
+func (m *IMBotChatMutation) Where(ps ...predicate.IMBotChat) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the IMBotChatMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *IMBotChatMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.IMBotChat, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *IMBotChatMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *IMBotChatMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (IMBotChat).
+func (m *IMBotChatMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *IMBotChatMutation) Fields() []string {
+	fields := make([]string, 0, 11)
+	if m.created_at != nil {
+		fields = append(fields, imbotchat.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, imbotchat.FieldUpdatedAt)
+	}
+	if m.bot != nil {
+		fields = append(fields, imbotchat.FieldBotID)
+	}
+	if m.chat_id != nil {
+		fields = append(fields, imbotchat.FieldChatID)
+	}
+	if m.platform_user_id != nil {
+		fields = append(fields, imbotchat.FieldPlatformUserID)
+	}
+	if m.display_name != nil {
+		fields = append(fields, imbotchat.FieldDisplayName)
+	}
+	if m.session_uuid != nil {
+		fields = append(fields, imbotchat.FieldSessionUUID)
+	}
+	if m.model_override != nil {
+		fields = append(fields, imbotchat.FieldModelOverride)
+	}
+	if m.status != nil {
+		fields = append(fields, imbotchat.FieldStatus)
+	}
+	if m.paired_at != nil {
+		fields = append(fields, imbotchat.FieldPairedAt)
+	}
+	if m.last_message_at != nil {
+		fields = append(fields, imbotchat.FieldLastMessageAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *IMBotChatMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case imbotchat.FieldCreatedAt:
+		return m.CreatedAt()
+	case imbotchat.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case imbotchat.FieldBotID:
+		return m.BotID()
+	case imbotchat.FieldChatID:
+		return m.ChatID()
+	case imbotchat.FieldPlatformUserID:
+		return m.PlatformUserID()
+	case imbotchat.FieldDisplayName:
+		return m.DisplayName()
+	case imbotchat.FieldSessionUUID:
+		return m.SessionUUID()
+	case imbotchat.FieldModelOverride:
+		return m.ModelOverride()
+	case imbotchat.FieldStatus:
+		return m.Status()
+	case imbotchat.FieldPairedAt:
+		return m.PairedAt()
+	case imbotchat.FieldLastMessageAt:
+		return m.LastMessageAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *IMBotChatMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case imbotchat.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case imbotchat.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case imbotchat.FieldBotID:
+		return m.OldBotID(ctx)
+	case imbotchat.FieldChatID:
+		return m.OldChatID(ctx)
+	case imbotchat.FieldPlatformUserID:
+		return m.OldPlatformUserID(ctx)
+	case imbotchat.FieldDisplayName:
+		return m.OldDisplayName(ctx)
+	case imbotchat.FieldSessionUUID:
+		return m.OldSessionUUID(ctx)
+	case imbotchat.FieldModelOverride:
+		return m.OldModelOverride(ctx)
+	case imbotchat.FieldStatus:
+		return m.OldStatus(ctx)
+	case imbotchat.FieldPairedAt:
+		return m.OldPairedAt(ctx)
+	case imbotchat.FieldLastMessageAt:
+		return m.OldLastMessageAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown IMBotChat field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *IMBotChatMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case imbotchat.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case imbotchat.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case imbotchat.FieldBotID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBotID(v)
+		return nil
+	case imbotchat.FieldChatID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetChatID(v)
+		return nil
+	case imbotchat.FieldPlatformUserID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPlatformUserID(v)
+		return nil
+	case imbotchat.FieldDisplayName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDisplayName(v)
+		return nil
+	case imbotchat.FieldSessionUUID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSessionUUID(v)
+		return nil
+	case imbotchat.FieldModelOverride:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetModelOverride(v)
+		return nil
+	case imbotchat.FieldStatus:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatus(v)
+		return nil
+	case imbotchat.FieldPairedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPairedAt(v)
+		return nil
+	case imbotchat.FieldLastMessageAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastMessageAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown IMBotChat field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *IMBotChatMutation) AddedFields() []string {
+	var fields []string
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *IMBotChatMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *IMBotChatMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown IMBotChat numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *IMBotChatMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(imbotchat.FieldLastMessageAt) {
+		fields = append(fields, imbotchat.FieldLastMessageAt)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *IMBotChatMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *IMBotChatMutation) ClearField(name string) error {
+	switch name {
+	case imbotchat.FieldLastMessageAt:
+		m.ClearLastMessageAt()
+		return nil
+	}
+	return fmt.Errorf("unknown IMBotChat nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *IMBotChatMutation) ResetField(name string) error {
+	switch name {
+	case imbotchat.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case imbotchat.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case imbotchat.FieldBotID:
+		m.ResetBotID()
+		return nil
+	case imbotchat.FieldChatID:
+		m.ResetChatID()
+		return nil
+	case imbotchat.FieldPlatformUserID:
+		m.ResetPlatformUserID()
+		return nil
+	case imbotchat.FieldDisplayName:
+		m.ResetDisplayName()
+		return nil
+	case imbotchat.FieldSessionUUID:
+		m.ResetSessionUUID()
+		return nil
+	case imbotchat.FieldModelOverride:
+		m.ResetModelOverride()
+		return nil
+	case imbotchat.FieldStatus:
+		m.ResetStatus()
+		return nil
+	case imbotchat.FieldPairedAt:
+		m.ResetPairedAt()
+		return nil
+	case imbotchat.FieldLastMessageAt:
+		m.ResetLastMessageAt()
+		return nil
+	}
+	return fmt.Errorf("unknown IMBotChat field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *IMBotChatMutation) AddedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.bot != nil {
+		edges = append(edges, imbotchat.EdgeBot)
+	}
+	if m.messages != nil {
+		edges = append(edges, imbotchat.EdgeMessages)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *IMBotChatMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case imbotchat.EdgeBot:
+		if id := m.bot; id != nil {
+			return []ent.Value{*id}
+		}
+	case imbotchat.EdgeMessages:
+		ids := make([]ent.Value, 0, len(m.messages))
+		for id := range m.messages {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *IMBotChatMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.removedmessages != nil {
+		edges = append(edges, imbotchat.EdgeMessages)
+	}
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *IMBotChatMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case imbotchat.EdgeMessages:
+		ids := make([]ent.Value, 0, len(m.removedmessages))
+		for id := range m.removedmessages {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *IMBotChatMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.clearedbot {
+		edges = append(edges, imbotchat.EdgeBot)
+	}
+	if m.clearedmessages {
+		edges = append(edges, imbotchat.EdgeMessages)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *IMBotChatMutation) EdgeCleared(name string) bool {
+	switch name {
+	case imbotchat.EdgeBot:
+		return m.clearedbot
+	case imbotchat.EdgeMessages:
+		return m.clearedmessages
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *IMBotChatMutation) ClearEdge(name string) error {
+	switch name {
+	case imbotchat.EdgeBot:
+		m.ClearBot()
+		return nil
+	}
+	return fmt.Errorf("unknown IMBotChat unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *IMBotChatMutation) ResetEdge(name string) error {
+	switch name {
+	case imbotchat.EdgeBot:
+		m.ResetBot()
+		return nil
+	case imbotchat.EdgeMessages:
+		m.ResetMessages()
+		return nil
+	}
+	return fmt.Errorf("unknown IMBotChat edge %s", name)
+}
+
+// IMBotMessageMutation represents an operation that mutates the IMBotMessage nodes in the graph.
+type IMBotMessageMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *int64
+	created_at    *time.Time
+	updated_at    *time.Time
+	bot_id        *int64
+	addbot_id     *int64
+	role          *string
+	content       *string
+	request_id    *string
+	clearedFields map[string]struct{}
+	chat          *int64
+	clearedchat   bool
+	done          bool
+	oldValue      func(context.Context) (*IMBotMessage, error)
+	predicates    []predicate.IMBotMessage
+}
+
+var _ ent.Mutation = (*IMBotMessageMutation)(nil)
+
+// imbotmessageOption allows management of the mutation configuration using functional options.
+type imbotmessageOption func(*IMBotMessageMutation)
+
+// newIMBotMessageMutation creates new mutation for the IMBotMessage entity.
+func newIMBotMessageMutation(c config, op Op, opts ...imbotmessageOption) *IMBotMessageMutation {
+	m := &IMBotMessageMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeIMBotMessage,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withIMBotMessageID sets the ID field of the mutation.
+func withIMBotMessageID(id int64) imbotmessageOption {
+	return func(m *IMBotMessageMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *IMBotMessage
+		)
+		m.oldValue = func(ctx context.Context) (*IMBotMessage, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().IMBotMessage.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withIMBotMessage sets the old IMBotMessage of the mutation.
+func withIMBotMessage(node *IMBotMessage) imbotmessageOption {
+	return func(m *IMBotMessageMutation) {
+		m.oldValue = func(context.Context) (*IMBotMessage, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m IMBotMessageMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m IMBotMessageMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *IMBotMessageMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *IMBotMessageMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().IMBotMessage.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *IMBotMessageMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *IMBotMessageMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the IMBotMessage entity.
+// If the IMBotMessage object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotMessageMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *IMBotMessageMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *IMBotMessageMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *IMBotMessageMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the IMBotMessage entity.
+// If the IMBotMessage object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotMessageMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *IMBotMessageMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetChatID sets the "chat_id" field.
+func (m *IMBotMessageMutation) SetChatID(i int64) {
+	m.chat = &i
+}
+
+// ChatID returns the value of the "chat_id" field in the mutation.
+func (m *IMBotMessageMutation) ChatID() (r int64, exists bool) {
+	v := m.chat
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldChatID returns the old "chat_id" field's value of the IMBotMessage entity.
+// If the IMBotMessage object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotMessageMutation) OldChatID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldChatID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldChatID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldChatID: %w", err)
+	}
+	return oldValue.ChatID, nil
+}
+
+// ResetChatID resets all changes to the "chat_id" field.
+func (m *IMBotMessageMutation) ResetChatID() {
+	m.chat = nil
+}
+
+// SetBotID sets the "bot_id" field.
+func (m *IMBotMessageMutation) SetBotID(i int64) {
+	m.bot_id = &i
+	m.addbot_id = nil
+}
+
+// BotID returns the value of the "bot_id" field in the mutation.
+func (m *IMBotMessageMutation) BotID() (r int64, exists bool) {
+	v := m.bot_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBotID returns the old "bot_id" field's value of the IMBotMessage entity.
+// If the IMBotMessage object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotMessageMutation) OldBotID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBotID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBotID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBotID: %w", err)
+	}
+	return oldValue.BotID, nil
+}
+
+// AddBotID adds i to the "bot_id" field.
+func (m *IMBotMessageMutation) AddBotID(i int64) {
+	if m.addbot_id != nil {
+		*m.addbot_id += i
+	} else {
+		m.addbot_id = &i
+	}
+}
+
+// AddedBotID returns the value that was added to the "bot_id" field in this mutation.
+func (m *IMBotMessageMutation) AddedBotID() (r int64, exists bool) {
+	v := m.addbot_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetBotID resets all changes to the "bot_id" field.
+func (m *IMBotMessageMutation) ResetBotID() {
+	m.bot_id = nil
+	m.addbot_id = nil
+}
+
+// SetRole sets the "role" field.
+func (m *IMBotMessageMutation) SetRole(s string) {
+	m.role = &s
+}
+
+// Role returns the value of the "role" field in the mutation.
+func (m *IMBotMessageMutation) Role() (r string, exists bool) {
+	v := m.role
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRole returns the old "role" field's value of the IMBotMessage entity.
+// If the IMBotMessage object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotMessageMutation) OldRole(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRole is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRole requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRole: %w", err)
+	}
+	return oldValue.Role, nil
+}
+
+// ResetRole resets all changes to the "role" field.
+func (m *IMBotMessageMutation) ResetRole() {
+	m.role = nil
+}
+
+// SetContent sets the "content" field.
+func (m *IMBotMessageMutation) SetContent(s string) {
+	m.content = &s
+}
+
+// Content returns the value of the "content" field in the mutation.
+func (m *IMBotMessageMutation) Content() (r string, exists bool) {
+	v := m.content
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldContent returns the old "content" field's value of the IMBotMessage entity.
+// If the IMBotMessage object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotMessageMutation) OldContent(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldContent is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldContent requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldContent: %w", err)
+	}
+	return oldValue.Content, nil
+}
+
+// ResetContent resets all changes to the "content" field.
+func (m *IMBotMessageMutation) ResetContent() {
+	m.content = nil
+}
+
+// SetRequestID sets the "request_id" field.
+func (m *IMBotMessageMutation) SetRequestID(s string) {
+	m.request_id = &s
+}
+
+// RequestID returns the value of the "request_id" field in the mutation.
+func (m *IMBotMessageMutation) RequestID() (r string, exists bool) {
+	v := m.request_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRequestID returns the old "request_id" field's value of the IMBotMessage entity.
+// If the IMBotMessage object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMBotMessageMutation) OldRequestID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRequestID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRequestID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRequestID: %w", err)
+	}
+	return oldValue.RequestID, nil
+}
+
+// ResetRequestID resets all changes to the "request_id" field.
+func (m *IMBotMessageMutation) ResetRequestID() {
+	m.request_id = nil
+}
+
+// ClearChat clears the "chat" edge to the IMBotChat entity.
+func (m *IMBotMessageMutation) ClearChat() {
+	m.clearedchat = true
+	m.clearedFields[imbotmessage.FieldChatID] = struct{}{}
+}
+
+// ChatCleared reports if the "chat" edge to the IMBotChat entity was cleared.
+func (m *IMBotMessageMutation) ChatCleared() bool {
+	return m.clearedchat
+}
+
+// ChatIDs returns the "chat" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// ChatID instead. It exists only for internal usage by the builders.
+func (m *IMBotMessageMutation) ChatIDs() (ids []int64) {
+	if id := m.chat; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetChat resets all changes to the "chat" edge.
+func (m *IMBotMessageMutation) ResetChat() {
+	m.chat = nil
+	m.clearedchat = false
+}
+
+// Where appends a list predicates to the IMBotMessageMutation builder.
+func (m *IMBotMessageMutation) Where(ps ...predicate.IMBotMessage) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the IMBotMessageMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *IMBotMessageMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.IMBotMessage, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *IMBotMessageMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *IMBotMessageMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (IMBotMessage).
+func (m *IMBotMessageMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *IMBotMessageMutation) Fields() []string {
+	fields := make([]string, 0, 7)
+	if m.created_at != nil {
+		fields = append(fields, imbotmessage.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, imbotmessage.FieldUpdatedAt)
+	}
+	if m.chat != nil {
+		fields = append(fields, imbotmessage.FieldChatID)
+	}
+	if m.bot_id != nil {
+		fields = append(fields, imbotmessage.FieldBotID)
+	}
+	if m.role != nil {
+		fields = append(fields, imbotmessage.FieldRole)
+	}
+	if m.content != nil {
+		fields = append(fields, imbotmessage.FieldContent)
+	}
+	if m.request_id != nil {
+		fields = append(fields, imbotmessage.FieldRequestID)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *IMBotMessageMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case imbotmessage.FieldCreatedAt:
+		return m.CreatedAt()
+	case imbotmessage.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case imbotmessage.FieldChatID:
+		return m.ChatID()
+	case imbotmessage.FieldBotID:
+		return m.BotID()
+	case imbotmessage.FieldRole:
+		return m.Role()
+	case imbotmessage.FieldContent:
+		return m.Content()
+	case imbotmessage.FieldRequestID:
+		return m.RequestID()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *IMBotMessageMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case imbotmessage.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case imbotmessage.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case imbotmessage.FieldChatID:
+		return m.OldChatID(ctx)
+	case imbotmessage.FieldBotID:
+		return m.OldBotID(ctx)
+	case imbotmessage.FieldRole:
+		return m.OldRole(ctx)
+	case imbotmessage.FieldContent:
+		return m.OldContent(ctx)
+	case imbotmessage.FieldRequestID:
+		return m.OldRequestID(ctx)
+	}
+	return nil, fmt.Errorf("unknown IMBotMessage field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *IMBotMessageMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case imbotmessage.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case imbotmessage.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case imbotmessage.FieldChatID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetChatID(v)
+		return nil
+	case imbotmessage.FieldBotID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBotID(v)
+		return nil
+	case imbotmessage.FieldRole:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRole(v)
+		return nil
+	case imbotmessage.FieldContent:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetContent(v)
+		return nil
+	case imbotmessage.FieldRequestID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRequestID(v)
+		return nil
+	}
+	return fmt.Errorf("unknown IMBotMessage field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *IMBotMessageMutation) AddedFields() []string {
+	var fields []string
+	if m.addbot_id != nil {
+		fields = append(fields, imbotmessage.FieldBotID)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *IMBotMessageMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case imbotmessage.FieldBotID:
+		return m.AddedBotID()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *IMBotMessageMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case imbotmessage.FieldBotID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddBotID(v)
+		return nil
+	}
+	return fmt.Errorf("unknown IMBotMessage numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *IMBotMessageMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *IMBotMessageMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *IMBotMessageMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown IMBotMessage nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *IMBotMessageMutation) ResetField(name string) error {
+	switch name {
+	case imbotmessage.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case imbotmessage.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case imbotmessage.FieldChatID:
+		m.ResetChatID()
+		return nil
+	case imbotmessage.FieldBotID:
+		m.ResetBotID()
+		return nil
+	case imbotmessage.FieldRole:
+		m.ResetRole()
+		return nil
+	case imbotmessage.FieldContent:
+		m.ResetContent()
+		return nil
+	case imbotmessage.FieldRequestID:
+		m.ResetRequestID()
+		return nil
+	}
+	return fmt.Errorf("unknown IMBotMessage field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *IMBotMessageMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.chat != nil {
+		edges = append(edges, imbotmessage.EdgeChat)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *IMBotMessageMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case imbotmessage.EdgeChat:
+		if id := m.chat; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *IMBotMessageMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *IMBotMessageMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *IMBotMessageMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedchat {
+		edges = append(edges, imbotmessage.EdgeChat)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *IMBotMessageMutation) EdgeCleared(name string) bool {
+	switch name {
+	case imbotmessage.EdgeChat:
+		return m.clearedchat
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *IMBotMessageMutation) ClearEdge(name string) error {
+	switch name {
+	case imbotmessage.EdgeChat:
+		m.ClearChat()
+		return nil
+	}
+	return fmt.Errorf("unknown IMBotMessage unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *IMBotMessageMutation) ResetEdge(name string) error {
+	switch name {
+	case imbotmessage.EdgeChat:
+		m.ResetChat()
+		return nil
+	}
+	return fmt.Errorf("unknown IMBotMessage edge %s", name)
 }
 
 // IdempotencyRecordMutation represents an operation that mutates the IdempotencyRecord nodes in the graph.

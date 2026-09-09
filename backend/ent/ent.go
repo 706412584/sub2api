@@ -32,6 +32,9 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
+	"github.com/Wei-Shaw/sub2api/ent/imbot"
+	"github.com/Wei-Shaw/sub2api/ent/imbotchat"
+	"github.com/Wei-Shaw/sub2api/ent/imbotmessage"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
@@ -131,6 +134,9 @@ func checkColumn(t, c string) error {
 			dynamicproxypool.Table:              dynamicproxypool.ValidColumn,
 			errorpassthroughrule.Table:          errorpassthroughrule.ValidColumn,
 			group.Table:                         group.ValidColumn,
+			imbot.Table:                         imbot.ValidColumn,
+			imbotchat.Table:                     imbotchat.ValidColumn,
+			imbotmessage.Table:                  imbotmessage.ValidColumn,
 			idempotencyrecord.Table:             idempotencyrecord.ValidColumn,
 			identityadoptiondecision.Table:      identityadoptiondecision.ValidColumn,
 			paymentauditlog.Table:               paymentauditlog.ValidColumn,

@@ -28,6 +28,9 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
+	"github.com/Wei-Shaw/sub2api/ent/imbot"
+	"github.com/Wei-Shaw/sub2api/ent/imbotchat"
+	"github.com/Wei-Shaw/sub2api/ent/imbotmessage"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
@@ -592,6 +595,87 @@ func (f TraverseGroup) Traverse(ctx context.Context, q ent.Query) error {
 		return f(ctx, q)
 	}
 	return fmt.Errorf("unexpected query type %T. expect *ent.GroupQuery", q)
+}
+
+// The IMBotFunc type is an adapter to allow the use of ordinary function as a Querier.
+type IMBotFunc func(context.Context, *ent.IMBotQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f IMBotFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.IMBotQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.IMBotQuery", q)
+}
+
+// The TraverseIMBot type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseIMBot func(context.Context, *ent.IMBotQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseIMBot) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseIMBot) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.IMBotQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.IMBotQuery", q)
+}
+
+// The IMBotChatFunc type is an adapter to allow the use of ordinary function as a Querier.
+type IMBotChatFunc func(context.Context, *ent.IMBotChatQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f IMBotChatFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.IMBotChatQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.IMBotChatQuery", q)
+}
+
+// The TraverseIMBotChat type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseIMBotChat func(context.Context, *ent.IMBotChatQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseIMBotChat) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseIMBotChat) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.IMBotChatQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.IMBotChatQuery", q)
+}
+
+// The IMBotMessageFunc type is an adapter to allow the use of ordinary function as a Querier.
+type IMBotMessageFunc func(context.Context, *ent.IMBotMessageQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f IMBotMessageFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.IMBotMessageQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.IMBotMessageQuery", q)
+}
+
+// The TraverseIMBotMessage type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseIMBotMessage func(context.Context, *ent.IMBotMessageQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseIMBotMessage) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseIMBotMessage) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.IMBotMessageQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.IMBotMessageQuery", q)
 }
 
 // The IdempotencyRecordFunc type is an adapter to allow the use of ordinary function as a Querier.
@@ -1254,6 +1338,12 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.ErrorPassthroughRuleQuery, predicate.ErrorPassthroughRule, errorpassthroughrule.OrderOption]{typ: ent.TypeErrorPassthroughRule, tq: q}, nil
 	case *ent.GroupQuery:
 		return &query[*ent.GroupQuery, predicate.Group, group.OrderOption]{typ: ent.TypeGroup, tq: q}, nil
+	case *ent.IMBotQuery:
+		return &query[*ent.IMBotQuery, predicate.IMBot, imbot.OrderOption]{typ: ent.TypeIMBot, tq: q}, nil
+	case *ent.IMBotChatQuery:
+		return &query[*ent.IMBotChatQuery, predicate.IMBotChat, imbotchat.OrderOption]{typ: ent.TypeIMBotChat, tq: q}, nil
+	case *ent.IMBotMessageQuery:
+		return &query[*ent.IMBotMessageQuery, predicate.IMBotMessage, imbotmessage.OrderOption]{typ: ent.TypeIMBotMessage, tq: q}, nil
 	case *ent.IdempotencyRecordQuery:
 		return &query[*ent.IdempotencyRecordQuery, predicate.IdempotencyRecord, idempotencyrecord.OrderOption]{typ: ent.TypeIdempotencyRecord, tq: q}, nil
 	case *ent.IdentityAdoptionDecisionQuery:

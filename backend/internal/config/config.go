@@ -105,6 +105,28 @@ type Config struct {
 	ImageStorage            ImageStorageConfig            `mapstructure:"image_storage"`
 	ProxySubscription       ProxySubscriptionConfig       `mapstructure:"proxy_subscription"`
 	Plugins                 PluginConfig                  `mapstructure:"plugins"`
+	IM                      IMConfig                      `mapstructure:"im"`
+}
+
+// IMConfig configures the built-in IM chat bots (Telegram/Feishu/... adapters
+// that proxy private chats through the local gateway).
+type IMConfig struct {
+	// Enabled is the feature flag for the whole IM bot subsystem.
+	Enabled bool `mapstructure:"enabled"`
+	// BaseURL is the gateway endpoint adapters self-call for /v1/messages.
+	// Empty defaults to http://127.0.0.1:{server.port}. Override when the
+	// server listens behind a reverse proxy or in containers.
+	BaseURL string `mapstructure:"base_url"`
+	// MaxInboundBytes caps one inbound chat message.
+	MaxInboundBytes int `mapstructure:"max_inbound_bytes"`
+	// MaxHistoryBytes caps the rebuilt context window sent upstream.
+	MaxHistoryBytes int `mapstructure:"max_history_bytes"`
+	// DefaultMaxTokens is the per-turn generation cap.
+	DefaultMaxTokens int `mapstructure:"default_max_tokens"`
+	// MessageRetentionDays: chat messages older than this are swept daily.
+	MessageRetentionDays int `mapstructure:"message_retention_days"`
+	// PairingCodeTTLSeconds is how long a pairing code stays valid.
+	PairingCodeTTLSeconds int `mapstructure:"pairing_code_ttl_seconds"`
 }
 
 // ProxySubscriptionConfig controls embedded Clash/share-link subscription sync + in-process mihomo.
@@ -2322,6 +2344,22 @@ func setDefaults() {
 	viper.SetDefault("plugins.max_upload_bytes", int64(128*1024*1024))
 	viper.SetDefault("plugins.max_uncompressed_bytes", int64(256*1024*1024))
 	viper.SetDefault("plugins.start_timeout_seconds", 15)
+
+	// IM chat bots
+	viper.SetDefault("im.enabled", false)
+	viper.SetDefault("im.base_url", "")
+	viper.SetDefault("im.max_inbound_bytes", 8000)
+	viper.SetDefault("im.max_history_bytes", 24576)
+	viper.SetDefault("im.default_max_tokens", 4096)
+	viper.SetDefault("im.message_retention_days", 90)
+	viper.SetDefault("im.pairing_code_ttl_seconds", 3600)
+	_ = viper.BindEnv("im.enabled", "IM_ENABLED")
+	_ = viper.BindEnv("im.base_url", "IM_BASE_URL")
+	_ = viper.BindEnv("im.max_inbound_bytes", "IM_MAX_INBOUND_BYTES")
+	_ = viper.BindEnv("im.max_history_bytes", "IM_MAX_HISTORY_BYTES")
+	_ = viper.BindEnv("im.default_max_tokens", "IM_DEFAULT_MAX_TOKENS")
+	_ = viper.BindEnv("im.message_retention_days", "IM_MESSAGE_RETENTION_DAYS")
+	_ = viper.BindEnv("im.pairing_code_ttl_seconds", "IM_PAIRING_CODE_TTL_SECONDS")
 
 	// Timezone (default to Asia/Shanghai for Chinese users)
 	viper.SetDefault("timezone", "Asia/Shanghai")

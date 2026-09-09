@@ -73,6 +73,9 @@ func RegisterAdminRoutes(
 		// 代理管理
 		registerProxyRoutes(admin, h, stepUpAuth)
 
+		// IM 机器人管理
+		registerIMBotRoutes(admin, h)
+
 		// 卡密管理
 		registerRedeemCodeRoutes(admin, h)
 
@@ -977,5 +980,26 @@ func channelMonitorModeV2Guard(settingService *service.SettingService) gin.Handl
 			return
 		}
 		c.Next()
+	}
+}
+
+// registerIMBotRoutes registers /admin/im-bots management endpoints.
+func registerIMBotRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	bots := admin.Group("/im-bots")
+	{
+		bots.GET("", h.Admin.IMBot.List)
+		bots.GET("/platforms", h.Admin.IMBot.Platforms)
+		bots.POST("", h.Admin.IMBot.Create)
+		bots.GET("/:id", h.Admin.IMBot.GetByID)
+		bots.PUT("/:id", h.Admin.IMBot.Update)
+		bots.DELETE("/:id", h.Admin.IMBot.Delete)
+		bots.POST("/:id/test", h.Admin.IMBot.Test)
+		bots.POST("/:id/enable", h.Admin.IMBot.Enable)
+		bots.POST("/:id/disable", h.Admin.IMBot.Disable)
+		bots.POST("/:id/pair-codes", h.Admin.IMBot.GeneratePairCode)
+		bots.GET("/:id/chats", h.Admin.IMBot.ListChats)
+		bots.GET("/:id/chats/:chatId/messages", h.Admin.IMBot.ListChatMessages)
+		bots.PUT("/:id/chats/:chatId", h.Admin.IMBot.UpdateChat)
+		bots.DELETE("/:id/chats/:chatId", h.Admin.IMBot.DeleteChat)
 	}
 }
