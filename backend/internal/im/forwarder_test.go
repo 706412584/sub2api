@@ -26,7 +26,7 @@ type fakeStream struct {
 func (f *fakeStream) Append(d string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.text.WriteString(d)
+	_, _ = f.text.WriteString(d)
 }
 
 func (f *fakeStream) Finish(err error) {

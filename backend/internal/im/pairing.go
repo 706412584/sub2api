@@ -73,7 +73,7 @@ func (p *pairing) Verify(ctx context.Context, repo service.IMBotRepository, bot 
 
 	codeKey := fmt.Sprintf("%s%d", pairingCodeKeyPrefix, bot.ID)
 	stored, err := p.rdb.Get(ctx, codeKey).Result()
-	if err != nil || strings.EqualFold(strings.TrimSpace(code), stored) == false || stored == "" {
+	if err != nil || !strings.EqualFold(strings.TrimSpace(code), stored) || stored == "" {
 		_ = p.rdb.Incr(ctx, failKey)
 		_ = p.rdb.Expire(ctx, failKey, pairingFailWindow)
 		return nil, service.ErrIMChatNotFound
@@ -120,7 +120,7 @@ func randomPairingCode() (string, error) {
 		if err != nil {
 			return "", err
 		}
-		sb.WriteByte(pairingCodeAlphabet[n.Int64()])
+		_ = sb.WriteByte(pairingCodeAlphabet[n.Int64()])
 	}
 	return sb.String(), nil
 }

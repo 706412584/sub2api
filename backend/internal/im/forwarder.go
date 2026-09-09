@@ -110,7 +110,7 @@ func (f *Forwarder) stream(ctx context.Context, req *ForwardRequest, stream Outb
 		body.System = req.System
 	}
 	for _, m := range req.Messages {
-		body.Messages = append(body.Messages, anthropicMessage{Role: m.Role, Content: m.Content})
+		body.Messages = append(body.Messages, anthropicMessage(m))
 	}
 	if req.SessionUUID != "" {
 		body.Metadata = &forwardMetadata{
@@ -196,7 +196,7 @@ func applySSEEvent(data, eventName string, stream OutboundStream, full *strings.
 			} `json:"delta"`
 		}
 		if err := json.Unmarshal([]byte(data), &ev); err == nil && ev.Delta.Text != "" {
-			full.WriteString(ev.Delta.Text)
+			_, _ = full.WriteString(ev.Delta.Text)
 			stream.Append(ev.Delta.Text)
 		}
 	case "message_start":

@@ -85,7 +85,7 @@ func (b *messageBuffer) Append(delta string) {
 	if b.finished {
 		return
 	}
-	b.fullText.WriteString(delta)
+	_, _ = b.fullText.WriteString(delta)
 	b.pending += delta
 
 	// Seal-and-continue while the current chunk is over the platform cap:
