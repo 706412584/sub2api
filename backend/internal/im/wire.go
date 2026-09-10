@@ -20,13 +20,14 @@ type HubRef struct {
 // Enabled reports whether the IM subsystem is on.
 func (r HubRef) Enabled() bool { return r.hub != nil }
 
-// GeneratePairCode issues a pairing code for a bot.
-func (r HubRef) GeneratePairCode(ctx context.Context, botID int64) (string, any, error) {
+// GeneratePairCode issues a pairing code for a bot, plus the scan-to-pair
+// deep link when the platform exposes a public handle.
+func (r HubRef) GeneratePairCode(ctx context.Context, botID int64) (string, any, string, error) {
 	if r.hub == nil {
-		return "", nil, service.ErrIMBotNotFound
+		return "", nil, "", service.ErrIMBotNotFound
 	}
-	code, expiresAt, err := r.hub.GeneratePairCode(ctx, botID)
-	return code, expiresAt, err
+	code, expiresAt, link, err := r.hub.GeneratePairCode(ctx, botID)
+	return code, expiresAt, link, err
 }
 
 // TestConnection validates stored credentials for a bot.

@@ -2644,4 +2644,6 @@ export interface IMBotMessage {
 export interface IMBotPairCode {
   code: string
   expires_at: string
+  /** scan-to-pair deep link (e.g. https://t.me/<bot>?start=<code>); empty when the platform has no public handle */
+  pair_url: string
 }

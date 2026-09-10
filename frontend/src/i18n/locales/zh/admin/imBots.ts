@@ -45,6 +45,7 @@ export const imBotsZh = {
   pair: {
     title: '「{name}」配对码',
     hint: '在 IM 里私聊该机器人，发送此配对码完成绑定',
+    scanHint: '用 IM 扫码，或点击二维码直接拉起会话，自动完成配对',
     expiresAt: '有效期至 {time}（一次性）',
     failed: '生成配对码失败'
   },

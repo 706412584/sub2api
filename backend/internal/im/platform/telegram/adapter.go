@@ -78,7 +78,11 @@ type Adapter struct {
 	bot     *tgbotapi.BotAPI
 	port    *Port
 	started bool
-	mu      sync.Mutex
+
+	// cached @username from getMe (stable for a bot's lifetime)
+	username      string
+	usernameReady bool
+	mu            sync.Mutex
 }
 
 // Run implements imapi.PlatformAdapter: long-poll loop, private chats only.
@@ -91,6 +95,10 @@ func (a *Adapter) Run(ctx context.Context, handler func(ctx context.Context, msg
 	a.bot = bot
 	a.port = &Port{bot: bot}
 	a.started = true
+	if me, err := bot.GetMe(); err == nil && me.UserName != "" {
+		a.username = me.UserName
+		a.usernameReady = true
+	}
 	a.mu.Unlock()
 
 	cfg := tgbotapi.NewUpdate(0)
@@ -138,6 +146,36 @@ func (a *Adapter) TestConnection(ctx context.Context) error {
 		return errors.New(http.StatusBadGateway, "IM_TEST_EMPTY", "telegram returned an empty bot username")
 	}
 	return nil
+}
+
+// BotUsername implements imapi.ProfileProvider: the cached @username (also
+// resolves on demand when the adapter isn't running yet).
+func (a *Adapter) BotUsername(ctx context.Context) (string, error) {
+	a.mu.Lock()
+	cached, ready, token, bot := a.username, a.usernameReady, a.botToken, a.bot
+	a.mu.Unlock()
+	if ready {
+		return cached, nil
+	}
+	if bot == nil {
+		var err error
+		bot, err = tgbotapi.NewBotAPIWithClient(token, tgbotapi.APIEndpoint, httpClient())
+		if err != nil {
+			return "", fmt.Errorf("telegram auth failed: %w", err)
+		}
+	}
+	me, err := bot.GetMe()
+	if err != nil {
+		return "", fmt.Errorf("telegram getMe failed: %w", err)
+	}
+	_ = ctx
+	if me.UserName == "" {
+		return "", errors.New(http.StatusBadGateway, "IM_TEST_EMPTY", "telegram returned an empty bot username")
+	}
+	a.mu.Lock()
+	a.username, a.usernameReady = me.UserName, true
+	a.mu.Unlock()
+	return me.UserName, nil
 }
 
 // ChatPort implements imapi.PlatformAdapter.

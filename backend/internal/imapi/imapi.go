@@ -66,6 +66,14 @@ type ImageSender interface {
 	SendImage(ctx context.Context, chatID, url, caption string) error
 }
 
+// ProfileProvider is an optional adapter extension exposing the bot's public
+// profile (e.g. the Telegram @username). Used to build scan-to-pair deep
+// links; platforms without a public handle simply don't implement it.
+type ProfileProvider interface {
+	// BotUsername returns the platform-native public handle ("" if none).
+	BotUsername(ctx context.Context) (string, error)
+}
+
 // PlatformAdapter runs one bot's platform connection. Each implementation
 // owns its SDK and event loop (run inside its own goroutine by the hub).
 type PlatformAdapter interface {

@@ -87,6 +87,27 @@ func TestPairing_CaseInsensitiveTrim(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestPairing_StartDeepLinkPayload(t *testing.T) {
+	p, _ := newTestPairing(t)
+	ctx := context.Background()
+	repo := &fakeRepo{}
+	bot := &service.IMBot{ID: 7}
+
+	code, _, err := p.Generate(ctx, 7)
+	require.NoError(t, err)
+
+	// the scan-to-pair deep link makes Telegram auto-send "/start <code>";
+	// pairingAttemptText must surface the code for the plain gate
+	attempt := pairingAttemptText("/start " + strings.ToLower(code))
+	_, err = p.Verify(ctx, repo, bot, attempt, "u", "c", "A")
+	require.NoError(t, err)
+
+	// "/start" alone (user tapped START without a link) is not a code
+	require.Equal(t, "", pairingAttemptText("/start"))
+	// bare codes pass through untouched
+	require.Equal(t, "ABC234", pairingAttemptText("ABC234"))
+}
+
 func TestPairing_DenyHintOncePerWindow(t *testing.T) {
 	p, _ := newTestPairing(t)
 	ctx := context.Background()
