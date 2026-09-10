@@ -1,106 +1,108 @@
 <template>
   <AppLayout>
     <TablePageLayout>
-      <div class="space-y-4">
-    <div class="flex items-center justify-between">
-      <div>
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
-          {{ t('admin.imBots.title') }}
-        </h2>
-        <p class="text-sm text-gray-500 dark:text-gray-400">
-          {{ t('admin.imBots.description') }}
-        </p>
-      </div>
-      <button
-        class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-        :disabled="loading"
-        @click="openCreate"
-      >
-        {{ t('admin.imBots.create') }}
-      </button>
-    </div>
+      <template #actions>
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              {{ t('admin.imBots.title') }}
+            </h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+              {{ t('admin.imBots.description') }}
+            </p>
+          </div>
+          <button
+            class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            :disabled="loading"
+            @click="openCreate"
+          >
+            {{ t('admin.imBots.create') }}
+          </button>
+        </div>
+      </template>
 
-    <!-- List -->
-    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-      <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-        <thead class="bg-gray-50 dark:bg-gray-900/50">
-          <tr>
-            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">{{ t('admin.imBots.fields.name') }}</th>
-            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">{{ t('admin.imBots.fields.platform') }}</th>
-            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">{{ t('admin.imBots.fields.apiKey') }}</th>
-            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">{{ t('admin.imBots.fields.model') }}</th>
-            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">{{ t('admin.imBots.statusLabel') }}</th>
-            <th class="px-4 py-2.5 text-right text-xs font-medium text-gray-500 uppercase">{{ t('common.actions') }}</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-          <tr v-if="loading">
-            <td colspan="6" class="px-4 py-8 text-center text-sm text-gray-500">{{ t('common.loading') }}</td>
-          </tr>
-          <tr v-else-if="bots.length === 0">
-            <td colspan="6" class="px-4 py-8 text-center text-sm text-gray-500">{{ t('admin.imBots.empty') }}</td>
-          </tr>
-          <tr v-for="bot in bots" :key="bot.id" class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-            <td class="px-4 py-2.5 text-sm font-medium text-gray-900 dark:text-gray-100">{{ bot.name }}</td>
-            <td class="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300">
-              <span class="px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
-                {{ bot.platform }}
-              </span>
-            </td>
-            <td class="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300">#{{ bot.api_key_id }}</td>
-            <td class="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300">{{ bot.model_override || t('admin.imBots.groupDefault') }}</td>
-            <td class="px-4 py-2.5">
-              <span
-                class="px-2 py-0.5 rounded text-xs font-medium"
-                :class="statusClass(bot.status)"
-                :title="bot.status === 'error' ? bot.last_error : ''"
-              >
-                {{ t(`admin.imBots.status.${bot.status}`) }}
-              </span>
-            </td>
-            <td class="px-4 py-2.5 text-right">
-              <div class="flex items-center justify-end gap-1.5">
-                <button class="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700" @click="handleTest(bot)">
-                  {{ t('admin.imBots.actions.test') }}
-                </button>
-                <button
-                  class="text-xs px-2 py-1 rounded border hover:bg-gray-100 dark:hover:bg-gray-700"
-                  :class="bot.status === 'enabled' ? 'border-yellow-400 text-yellow-600' : 'border-green-500 text-green-600'"
-                  @click="handleToggle(bot)"
+      <template #table>
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead class="bg-gray-50 dark:bg-gray-900/50">
+            <tr>
+              <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">{{ t('admin.imBots.fields.name') }}</th>
+              <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">{{ t('admin.imBots.fields.platform') }}</th>
+              <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">{{ t('admin.imBots.fields.apiKey') }}</th>
+              <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">{{ t('admin.imBots.fields.model') }}</th>
+              <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">{{ t('admin.imBots.statusLabel') }}</th>
+              <th class="px-4 py-2.5 text-right text-xs font-medium text-gray-500 uppercase">{{ t('common.actions') }}</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+            <tr v-if="loading">
+              <td colspan="6" class="px-4 py-8 text-center text-sm text-gray-500">{{ t('common.loading') }}</td>
+            </tr>
+            <tr v-else-if="bots.length === 0">
+              <td colspan="6" class="px-4 py-8 text-center text-sm text-gray-500">{{ t('admin.imBots.empty') }}</td>
+            </tr>
+            <tr v-for="bot in bots" :key="bot.id" class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+              <td class="px-4 py-2.5 text-sm font-medium text-gray-900 dark:text-gray-100">{{ bot.name }}</td>
+              <td class="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300">
+                <span class="px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+                  {{ bot.platform }}
+                </span>
+              </td>
+              <td class="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300">#{{ bot.api_key_id }}</td>
+              <td class="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300">{{ bot.model_override || t('admin.imBots.groupDefault') }}</td>
+              <td class="px-4 py-2.5">
+                <span
+                  class="px-2 py-0.5 rounded text-xs font-medium"
+                  :class="statusClass(bot.status)"
+                  :title="bot.status === 'error' ? bot.last_error : ''"
                 >
-                  {{ bot.status === 'enabled' ? t('admin.imBots.actions.disable') : t('admin.imBots.actions.enable') }}
-                </button>
-                <button class="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700" @click="openPairCode(bot)">
-                  {{ t('admin.imBots.actions.pairCode') }}
-                </button>
-                <button class="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700" @click="openChats(bot)">
-                  {{ t('admin.imBots.actions.chats') }}
-                </button>
-                <button class="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700" @click="openEdit(bot)">
-                  {{ t('common.edit') }}
-                </button>
-                <button class="text-xs px-2 py-1 rounded border border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20" @click="handleDelete(bot)">
-                  {{ t('common.delete') }}
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+                  {{ t(`admin.imBots.status.${bot.status}`) }}
+                </span>
+              </td>
+              <td class="px-4 py-2.5 text-right">
+                <div class="flex items-center justify-end gap-1.5">
+                  <button class="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700" @click="handleTest(bot)">
+                    {{ t('admin.imBots.actions.test') }}
+                  </button>
+                  <button
+                    class="text-xs px-2 py-1 rounded border hover:bg-gray-100 dark:hover:bg-gray-700"
+                    :class="bot.status === 'enabled' ? 'border-yellow-400 text-yellow-600' : 'border-green-500 text-green-600'"
+                    @click="handleToggle(bot)"
+                  >
+                    {{ bot.status === 'enabled' ? t('admin.imBots.actions.disable') : t('admin.imBots.actions.enable') }}
+                  </button>
+                  <button class="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700" @click="openPairCode(bot)">
+                    {{ t('admin.imBots.actions.pairCode') }}
+                  </button>
+                  <button class="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700" @click="openChats(bot)">
+                    {{ t('admin.imBots.actions.chats') }}
+                  </button>
+                  <button class="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700" @click="openEdit(bot)">
+                    {{ t('common.edit') }}
+                  </button>
+                  <button class="text-xs px-2 py-1 rounded border border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20" @click="handleDelete(bot)">
+                    {{ t('common.delete') }}
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
 
-    <!-- Pagination -->
-    <div v-if="pages > 1" class="flex items-center justify-between text-sm">
-      <span class="text-gray-500">{{ t('common.pageOf', { page, pages }) }}</span>
-      <div class="flex gap-2">
-        <button class="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 disabled:opacity-40" :disabled="page <= 1" @click="goPage(page - 1)">
-          {{ t('common.prev') }}
-        </button>
-        <button class="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 disabled:opacity-40" :disabled="page >= pages" @click="goPage(page + 1)">
-          {{ t('common.next') }}
-        </button>
-      </div>
-    </div>
+      <template #pagination>
+        <div v-if="pages > 1" class="flex items-center justify-between text-sm">
+          <span class="text-gray-500">{{ t('common.pageOf', { page, pages }) }}</span>
+          <div class="flex gap-2">
+            <button class="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 disabled:opacity-40" :disabled="page <= 1" @click="goPage(page - 1)">
+              {{ t('common.prev') }}
+            </button>
+            <button class="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 disabled:opacity-40" :disabled="page >= pages" @click="goPage(page + 1)">
+              {{ t('common.next') }}
+            </button>
+          </div>
+        </div>
+      </template>
+    </TablePageLayout>
 
     <BotFormModal
       v-if="showForm"
@@ -119,8 +121,6 @@
       :bot="chatsBot"
       @close="chatsBot = null"
     />
-      </div>
-    </TablePageLayout>
   </AppLayout>
 </template>
 
