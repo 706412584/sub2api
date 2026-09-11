@@ -1,0 +1,67 @@
+[
+  {
+    "status": 201,
+    "data": {
+      "id": 4,
+      "name": "可见思考节点 A",
+      "enabled": true,
+      "source_type": "url",
+      "subscription_url_masked": "https://w1.wanhdy.com/s/d28ad5828f271c3d942b2b4acf429af3",
+      "has_inline_body": false,
+      "name_prefix": "sidecar-a-",
+      "protocol": "socks5",
+      "bind_address": "127.0.0.1",
+      "base_port": 17890,
+      "max_ports": 2,
+      "sync_interval_sec": 3600,
+      "node_allow_contains": [],
+      "node_identity_allowlist": [
+        "vless|rk.mdlbqwl.com|19826|🇯🇵 日本 1",
+        "vless|rk.mdlbqwl.com|19828|🇯🇵 日本 3"
+      ],
+      "last_sync_at": null,
+      "last_sync_status": "",
+      "last_sync_error": "",
+      "last_config_hash": "",
+      "desired_count": 0,
+      "created_by": 1,
+      "next_due_at": "2026-07-31T20:15:31Z",
+      "created_at": "2026-07-31T20:15:31Z",
+      "updated_at": "2026-07-31T20:15:31Z"
+    },
+    "code": 0,
+    "message": "success"
+  },
+  {
+    "status": 201,
+    "data": {
+      "id": 5,
+      "name": "可见思考节点 B",
+      "enabled": true,
+      "source_type": "url",
+      "subscription_url_masked": "https://w1.wanhdy.com/s/d28ad5828f271c3d942b2b4acf429af3",
+      "has_inline_body": false,
+      "name_prefix": "sidecar-b-",
+      "protocol": "http",
+      "bind_address": "127.0.0.1",
+      "base_port": 27892,
+      "max_ports": 1,
+      "sync_interval_sec": 3600,
+      "node_allow_contains": [],
+      "node_identity_allowlist": [
+        "vless|rk.mdlbqwl.com|19827|🇯🇵 日本 2"
+      ],
+      "last_sync_at": null,
+      "last_sync_status": "",
+      "last_sync_error": "",
+      "last_config_hash": "",
+      "desired_count": 0,
+      "created_by": 1,
+      "next_due_at": "2026-07-31T20:15:31Z",
+      "created_at": "2026-07-31T20:15:31Z",
+      "updated_at": "2026-07-31T20:15:31Z"
+    },
+    "code": 0,
+    "message": "success"
+  }
+]

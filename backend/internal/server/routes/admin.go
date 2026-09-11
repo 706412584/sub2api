@@ -25,8 +25,11 @@ func RegisterAdminRoutes(
 
 	admin := v1.Group("/admin")
 	admin.Use(gin.HandlerFunc(adminAuth))
-	// 面板全局按用户限流（默认管理员豁免，可在系统设置中关闭豁免）
-	admin.Use(panelRateLimiter.Global())
+	// 面板全局按用户限流（默认管理员豁免，可在系统设置中关闭豁免）。
+	// 单元测试会传 nil，避免让路由覆盖率测试依赖完整运行时装配。
+	if panelRateLimiter != nil {
+		admin.Use(panelRateLimiter.Global())
+	}
 	// 审计中间件挂在认证之后：所有管理面变更类操作 + 敏感读取入审计日志
 	admin.Use(gin.HandlerFunc(auditLog))
 	admin.Use(middleware.AdminComplianceGuard(settingService))
@@ -58,6 +61,9 @@ func RegisterAdminRoutes(
 		// Antigravity OAuth
 		registerAntigravityOAuthRoutes(admin, h)
 
+		// Kiro OAuth
+		registerKiroOAuthRoutes(admin, h)
+
 		// Grok OAuth
 		registerGrokOAuthRoutes(admin, h)
 
@@ -66,6 +72,9 @@ func RegisterAdminRoutes(
 
 		// 代理管理
 		registerProxyRoutes(admin, h, stepUpAuth)
+
+		// IM 机器人管理
+		registerIMBotRoutes(admin, h)
 
 		// 卡密管理
 		registerRedeemCodeRoutes(admin, h)
@@ -118,6 +127,12 @@ func RegisterAdminRoutes(
 		// 渠道监控
 		registerChannelMonitorRoutes(admin, h, settingService)
 		registerChannelMonitorV2Routes(admin, h, settingService)
+
+		// Embedded proxy subscriptions (mihomo)
+		registerProxySubscriptionRoutes(admin, h)
+
+		// Dynamic proxy pools (IP extraction API)
+		registerDynamicProxyPoolRoutes(admin, h)
 
 		// 风控中心
 		registerContentModerationRoutes(admin, h)
@@ -369,6 +384,8 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAu
 		accounts.POST("/:id/duplicate", h.Admin.Account.Duplicate)
 		accounts.POST("/check-mixed-channel", h.Admin.Account.CheckMixedChannel)
 		accounts.POST("/import/codex-session", h.Admin.Account.ImportCodexSession)
+		accounts.POST("/import/kiro", h.Admin.Account.ImportKiroAccounts)
+		accounts.POST("/import/grok-session", h.Admin.Account.ImportGrokSessions)
 		accounts.POST("/sync/crs", h.Admin.Account.SyncFromCRS)
 		accounts.POST("/sync/crs/preview", h.Admin.Account.PreviewFromCRS)
 		accounts.PUT("/:id", h.Admin.Account.Update)
@@ -381,6 +398,13 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAu
 		accounts.DELETE("/:id/ollama-cloud-usage/session", h.Admin.Account.DeleteOllamaCloudUsageSession)
 		accounts.PUT("/:id/ollama-cloud-usage/auto-refresh", h.Admin.Account.SetOllamaCloudUsageAutoRefresh)
 		accounts.POST("/:id/ollama-cloud-usage/refresh", h.Admin.Account.RefreshOllamaCloudUsage)
+		// Grok Console / Web 会话凭据（专用加密表，不回显敏感字段）
+		accounts.POST("/:id/grok-console-session", h.Admin.Account.SaveGrokConsoleSession)
+		accounts.GET("/:id/grok-console-session", h.Admin.Account.GetGrokConsoleSession)
+		accounts.DELETE("/:id/grok-console-session", h.Admin.Account.DeleteGrokConsoleSession)
+		accounts.POST("/:id/grok-web-session", h.Admin.Account.SaveGrokWebSession)
+		accounts.GET("/:id/grok-web-session", h.Admin.Account.GetGrokWebSession)
+		accounts.DELETE("/:id/grok-web-session", h.Admin.Account.DeleteGrokWebSession)
 		accounts.DELETE("/:id", h.Admin.Account.Delete)
 		accounts.POST("/:id/test", h.Admin.Account.Test)
 		accounts.POST("/:id/recover-state", h.Admin.Account.RecoverState)
@@ -413,6 +437,7 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAu
 		accounts.POST("/batch-delete", h.Admin.Account.BatchDelete)
 		accounts.POST("/batch-clear-error", h.Admin.Account.BatchClearError)
 		accounts.POST("/batch-refresh", h.Admin.Account.BatchRefresh)
+		accounts.POST("/batch-test", h.Admin.Account.BatchTestAccounts)
 
 		// Antigravity 默认模型映射
 		accounts.GET("/antigravity/default-model-mapping", h.Admin.Account.GetAntigravityDefaultModelMapping)
@@ -475,6 +500,18 @@ func registerAntigravityOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers)
 	}
 }
 
+func registerKiroOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	kiro := admin.Group("/kiro")
+	{
+		kiro.POST("/oauth/normalize", h.Admin.KiroOAuth.NormalizeCredentials)
+		kiro.POST("/oauth/create-account", h.Admin.KiroOAuth.CreateAccount)
+		kiro.POST("/api-key/create-account", h.Admin.KiroOAuth.CreateAPIKeyAccount)
+		kiro.POST("/oauth/builder-id/start", h.Admin.KiroOAuth.StartBuilderIDDeviceFlow)
+		kiro.POST("/oauth/builder-id/poll", h.Admin.KiroOAuth.PollBuilderIDDeviceFlow)
+		kiro.POST("/oauth/builder-id/create-account", h.Admin.KiroOAuth.CreateAccountFromBuilderIDDeviceFlow)
+	}
+}
+
 func registerGrokOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	grok := admin.Group("/grok")
 	{
@@ -519,8 +556,11 @@ func registerProxyRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAuth
 		proxies.DELETE("/:id", h.Admin.Proxy.Delete)
 		proxies.POST("/:id/test", h.Admin.Proxy.Test)
 		proxies.POST("/:id/quality-check", h.Admin.Proxy.CheckQuality)
+		proxies.POST("/:id/grok-reasoning-probe", h.Admin.Proxy.ProbeGrokReasoning)
 		proxies.GET("/:id/stats", h.Admin.Proxy.GetStats)
 		proxies.GET("/:id/accounts", h.Admin.Proxy.GetProxyAccounts)
+		proxies.GET("/:id/bound-groups", h.Admin.Proxy.GetBoundGroups)
+		proxies.PUT("/:id/bound-groups", h.Admin.Proxy.SetBoundGroups)
 		proxies.POST("/batch-delete", h.Admin.Proxy.BatchDelete)
 		proxies.POST("/batch", h.Admin.Proxy.BatchCreate)
 	}
@@ -576,15 +616,35 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		// 429默认回避配置
 		adminSettings.GET("/rate-limit-429-cooldown", h.Admin.Setting.GetRateLimit429CooldownSettings)
 		adminSettings.PUT("/rate-limit-429-cooldown", h.Admin.Setting.UpdateRateLimit429CooldownSettings)
+		// GPT/Grok 429 立即限流配置
+		adminSettings.GET("/openai-grok-429-exhaustion", h.Admin.Setting.GetOpenAIGrok429ExhaustionSettings)
+		adminSettings.PUT("/openai-grok-429-exhaustion", h.Admin.Setting.UpdateOpenAIGrok429ExhaustionSettings)
+		// 号池全局异步探测配置
+		adminSettings.GET("/account-pool-probe", h.Admin.Setting.GetAccountPoolProbeSettings)
+		adminSettings.PUT("/account-pool-probe", h.Admin.Setting.UpdateAccountPoolProbeSettings)
+		// Grok 运维/测活专用出口
+		adminSettings.GET("/grok-ops-proxy", h.Admin.Setting.GetGrokOpsProxySettings)
+		adminSettings.PUT("/grok-ops-proxy", h.Admin.Setting.UpdateGrokOpsProxySettings)
+		// Grok CLI 身份版本（热覆盖 / 检测 npm latest / 一键应用 / 恢复默认）
+		adminSettings.GET("/grok-cli-identity", h.Admin.Setting.GetGrokCLIIdentitySettings)
+		adminSettings.PUT("/grok-cli-identity", h.Admin.Setting.UpdateGrokCLIIdentitySettings)
+		adminSettings.POST("/grok-cli-identity/check", h.Admin.Setting.CheckGrokCLIIdentityLatest)
+		adminSettings.POST("/grok-cli-identity/apply-latest", h.Admin.Setting.ApplyGrokCLIIdentityLatest)
+		adminSettings.POST("/grok-cli-identity/restore-default", h.Admin.Setting.RestoreGrokCLIIdentityDefault)
 		// OpenAI OAuth image-tool unavailable cooldown configuration
 		adminSettings.GET("/openai-images-oauth-unavailable-cooldown", h.Admin.Setting.GetOpenAIImagesOAuthUnavailableCooldownSettings)
 		adminSettings.PUT("/openai-images-oauth-unavailable-cooldown", h.Admin.Setting.UpdateOpenAIImagesOAuthUnavailableCooldownSettings)
 		// 面板 API 限流配置
 		adminSettings.GET("/panel-rate-limit", h.Admin.Setting.GetPanelRateLimitSettings)
 		adminSettings.PUT("/panel-rate-limit", h.Admin.Setting.UpdatePanelRateLimitSettings)
-		// 流超时处理配置
 		adminSettings.GET("/stream-timeout", h.Admin.Setting.GetStreamTimeoutSettings)
 		adminSettings.PUT("/stream-timeout", h.Admin.Setting.UpdateStreamTimeoutSettings)
+		// Grok 思考明文调度配置
+		adminSettings.GET("/grok-reasoning-visibility", h.Admin.Setting.GetGrokReasoningVisibilitySettings)
+		adminSettings.PUT("/grok-reasoning-visibility", h.Admin.Setting.UpdateGrokReasoningVisibilitySettings)
+		// Grok 工具提示注入配置
+		adminSettings.GET("/grok-tool-prompt", h.Admin.Setting.GetGrokToolPromptSettings)
+		adminSettings.PUT("/grok-tool-prompt", h.Admin.Setting.UpdateGrokToolPromptSettings)
 		// 请求整流器配置
 		adminSettings.GET("/rectifier", h.Admin.Setting.GetRectifierSettings)
 		adminSettings.PUT("/rectifier", h.Admin.Setting.UpdateRectifierSettings)
@@ -649,6 +709,8 @@ func registerBackupRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAut
 		backup.DELETE("/:id", h.Admin.Backup.DeleteBackup)
 		// 备份下载链接可直接取走整库数据——要求 step-up 2FA
 		backup.GET("/:id/download-url", gin.HandlerFunc(stepUpAuth), h.Admin.Backup.GetDownloadURL)
+		// 本地备份无预签名，走鉴权代理下载——同样要求 step-up 2FA
+		backup.GET("/:id/download", gin.HandlerFunc(stepUpAuth), h.Admin.Backup.DownloadBackup)
 
 		// 恢复操作：整库覆盖可回滚安全设置（含 step-up 开关本身）——要求 step-up 2FA
 		backup.POST("/:id/restore", gin.HandlerFunc(stepUpAuth), h.Admin.Backup.RestoreBackup)
@@ -825,6 +887,43 @@ func registerAffiliateRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	}
 }
 
+func registerProxySubscriptionRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	subs := admin.Group("/proxy-subscriptions")
+	{
+		subs.GET("/engine/status", h.Admin.ProxySubscription.EngineStatus)
+		subs.POST("/preview-nodes", h.Admin.ProxySubscription.PreviewNodesDraft)
+		subs.GET("", h.Admin.ProxySubscription.List)
+		subs.POST("", h.Admin.ProxySubscription.Create)
+		subs.GET("/:id", h.Admin.ProxySubscription.Get)
+		subs.PUT("/:id", h.Admin.ProxySubscription.Update)
+		subs.DELETE("/:id", h.Admin.ProxySubscription.Delete)
+		subs.POST("/:id/sync", h.Admin.ProxySubscription.Sync)
+		subs.POST("/:id/preview-nodes", h.Admin.ProxySubscription.PreviewNodes)
+		subs.POST("/:id/nodes/test", h.Admin.ProxySubscription.TestNode)
+	}
+}
+
+func registerDynamicProxyPoolRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	pools := admin.Group("/dynamic-proxy-pools")
+	{
+		pools.GET("/entry-proxies", h.Admin.DynamicProxyPool.ListPoolEntryProxiesForGroup)
+		pools.GET("", h.Admin.DynamicProxyPool.List)
+		pools.POST("", h.Admin.DynamicProxyPool.Create)
+		pools.GET("/:id", h.Admin.DynamicProxyPool.Get)
+		pools.PUT("/:id", h.Admin.DynamicProxyPool.Update)
+		pools.DELETE("/:id", h.Admin.DynamicProxyPool.Delete)
+		pools.POST("/:id/extract", h.Admin.DynamicProxyPool.Extract)
+		pools.POST("/:id/entry-proxy/start", h.Admin.DynamicProxyPool.StartEntryProxy)
+		pools.POST("/:id/entry-proxy/stop", h.Admin.DynamicProxyPool.StopEntryProxy)
+		pools.GET("/:id/proxies", h.Admin.DynamicProxyPool.ListPoolProxies)
+		pools.POST("/:id/proxies", h.Admin.DynamicProxyPool.AssociateProxies)
+		pools.DELETE("/:id/proxies", h.Admin.DynamicProxyPool.DisassociateProxies)
+		pools.POST("/:id/preview-nodes", h.Admin.DynamicProxyPool.PreviewSubscriptionNodes)
+		pools.POST("/:id/add-nodes", h.Admin.DynamicProxyPool.AddSubscriptionNodes)
+		pools.POST("/:id/proxies/:proxyId/test", h.Admin.DynamicProxyPool.TestPoolProxy)
+	}
+}
+
 func registerChannelMonitorV2Routes(admin *gin.RouterGroup, h *handler.Handlers, settingService *service.SettingService) {
 	// Config GET/PUT: feature enabled only (operators can prepare V2 before flipping mode).
 	// Read/matrix endpoints: require mode=v2 so V1 deployments do not serve passive data.
@@ -883,5 +982,26 @@ func channelMonitorModeV2Guard(settingService *service.SettingService) gin.Handl
 			return
 		}
 		c.Next()
+	}
+}
+
+// registerIMBotRoutes registers /admin/im-bots management endpoints.
+func registerIMBotRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	bots := admin.Group("/im-bots")
+	{
+		bots.GET("", h.Admin.IMBot.List)
+		bots.GET("/platforms", h.Admin.IMBot.Platforms)
+		bots.POST("", h.Admin.IMBot.Create)
+		bots.GET("/:id", h.Admin.IMBot.GetByID)
+		bots.PUT("/:id", h.Admin.IMBot.Update)
+		bots.DELETE("/:id", h.Admin.IMBot.Delete)
+		bots.POST("/:id/test", h.Admin.IMBot.Test)
+		bots.POST("/:id/enable", h.Admin.IMBot.Enable)
+		bots.POST("/:id/disable", h.Admin.IMBot.Disable)
+		bots.POST("/:id/pair-codes", h.Admin.IMBot.GeneratePairCode)
+		bots.GET("/:id/chats", h.Admin.IMBot.ListChats)
+		bots.GET("/:id/chats/:chatId/messages", h.Admin.IMBot.ListChatMessages)
+		bots.PUT("/:id/chats/:chatId", h.Admin.IMBot.UpdateChat)
+		bots.DELETE("/:id/chats/:chatId", h.Admin.IMBot.DeleteChat)
 	}
 }

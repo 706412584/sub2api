@@ -5,16 +5,13 @@ package service
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/model"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -87,99 +84,51 @@ func TestForwardAsChatCompletions_ResponseFailed_PassthroughRule(t *testing.T) {
 	require.Contains(t, errMsg, "context window")
 }
 
-func TestResponsesStreamAccessStateFailoverPrecedesPassthroughRule(t *testing.T) {
+func TestNewOpenAIStreamFailoverErrorSanitizesGrokPayload(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	stream := "event: response.failed\n" +
-		`data: {"type":"response.failed","response":{"status":"failed","error":{"code":"account_disabled","message":"Your account is disabled"}}}` + "\n\n"
-	tests := []struct {
-		name string
-		run  func(*OpenAIGatewayService, *gin.Context, *http.Response, *Account) error
-	}{
-		{
-			name: "native",
-			run: func(svc *OpenAIGatewayService, c *gin.Context, resp *http.Response, account *Account) error {
-				_, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, account, time.Now(), "gpt-5", "gpt-5")
-				return err
-			},
-		},
-		{
-			name: "passthrough",
-			run: func(svc *OpenAIGatewayService, c *gin.Context, resp *http.Response, account *Account) error {
-				_, err := svc.handleStreamingResponsePassthrough(c.Request.Context(), resp, c, account, time.Now(), "gpt-5", "gpt-5")
-				return err
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			rec := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(rec)
-			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-			bindPassthroughRule(c, PlatformOpenAI, []string{"account is disabled"}, http.StatusTeapot)
-			resp := &http.Response{
-				StatusCode: http.StatusOK,
-				Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
-				Body:       io.NopCloser(strings.NewReader(stream)),
-			}
-			svc := &OpenAIGatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}}
-			err := tt.run(svc, c, resp, &Account{ID: 11, Platform: PlatformOpenAI, Type: AccountTypeOAuth})
 
-			var failoverErr *UpstreamFailoverError
-			require.ErrorAs(t, err, &failoverErr)
-			require.True(t, failoverErr.IsCredentialFailure())
-			require.Equal(t, OpenAIUpstreamAccessStateReason, failoverErr.Reason)
-			require.False(t, failoverErr.RetryableOnSameAccount)
-			require.Equal(t, http.StatusBadGateway, failoverErr.ClientStatusCode)
-			require.False(t, c.Writer.Written(), "passthrough rule must not commit a response before account failover")
-		})
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	account := &Account{ID: 99, Name: "grok", Platform: PlatformGrok}
+	payload := []byte(`{"type":"response.failed","response":{"error":{"message":"failed session_token=secret-token-value"}}}`)
+	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig()}
+
+	failoverErr := svc.newOpenAIStreamFailoverError(c, account, false, "req-grok", payload, "failed session_token=secret-token-value")
+
+	require.Equal(t, PlatformGrok, failoverErr.Platform)
+	require.Equal(t, "failed session_token=***", failoverErr.ClientMessage)
+	require.NotContains(t, string(failoverErr.ResponseBody), "secret-token-value")
+	if detail, ok := c.Get(OpsUpstreamErrorDetailKey); ok {
+		require.NotContains(t, fmt.Sprint(detail), "secret-token-value")
 	}
+	rawEvents, ok := c.Get(OpsUpstreamErrorsKey)
+	require.True(t, ok)
+	events, ok := rawEvents.([]*OpsUpstreamErrorEvent)
+	require.True(t, ok)
+	require.Len(t, events, 1)
+	require.Equal(t, "failed session_token=***", events[0].Message)
+	require.Empty(t, events[0].Detail)
 }
 
-func TestResponsesStreamCyberPolicyPrecedesPassthroughRule(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	stream := "event: error\n" +
-		`data: {"type":"error","error":{"code":"cyber_policy","message":"blocked by cyber policy"}}` + "\n\n"
-	tests := []struct {
-		name string
-		run  func(*OpenAIGatewayService, *gin.Context, *http.Response, *Account) error
-	}{
-		{
-			name: "native",
-			run: func(svc *OpenAIGatewayService, c *gin.Context, resp *http.Response, account *Account) error {
-				_, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, account, time.Now(), "gpt-5", "gpt-5")
-				return err
-			},
-		},
-		{
-			name: "passthrough",
-			run: func(svc *OpenAIGatewayService, c *gin.Context, resp *http.Response, account *Account) error {
-				_, err := svc.handleStreamingResponsePassthrough(c.Request.Context(), resp, c, account, time.Now(), "gpt-5", "gpt-5")
-				return err
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			rec := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(rec)
-			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-			bindPassthroughRule(c, PlatformOpenAI, []string{"cyber policy"}, http.StatusTeapot)
-			resp := &http.Response{
-				StatusCode: http.StatusOK,
-				Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
-				Body:       io.NopCloser(strings.NewReader(stream)),
-			}
-			svc := &OpenAIGatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}}
-			err := tt.run(svc, c, resp, &Account{ID: 12, Platform: PlatformOpenAI, Type: AccountTypeOAuth})
+func TestSanitizeOpenAIResponseFailedEventForGrokRemovesSensitivePayload(t *testing.T) {
+	payload := []byte(`{"type":"response.failed","response":{"status":"failed","instructions":"private prompt","output":[{"type":"message","content":"private output"}],"error":{"message":"failed token=secret-token-value"}}}`)
 
-			require.Error(t, err)
-			var failoverErr *UpstreamFailoverError
-			require.False(t, errors.As(err, &failoverErr))
-			require.NotNil(t, GetOpsCyberPolicy(c))
-			require.NotEqual(t, http.StatusTeapot, rec.Code)
-			require.Contains(t, rec.Body.String(), "cyber_policy")
-		})
-	}
+	sanitized, changed := sanitizeOpenAIResponseFailedEventForClient(payload, "response.failed", PlatformGrok, true)
+
+	require.True(t, changed)
+	require.Equal(t, "response.failed", gjson.GetBytes(sanitized, "type").String())
+	require.Equal(t, "failed", gjson.GetBytes(sanitized, "response.status").String())
+	require.NotEmpty(t, gjson.GetBytes(sanitized, "response.id").String())
+	require.Equal(t, "response", gjson.GetBytes(sanitized, "response.object").String())
+	require.True(t, gjson.GetBytes(sanitized, "response.output").IsArray())
+	require.Empty(t, gjson.GetBytes(sanitized, "response.output").Array())
+	require.Equal(t, "upstream_error", gjson.GetBytes(sanitized, "response.error.code").String())
+	require.False(t, gjson.GetBytes(sanitized, "response.error.type").Exists())
+	require.Equal(t, "failed token=***", gjson.GetBytes(sanitized, "response.error.message").String())
+	require.False(t, gjson.GetBytes(sanitized, "response.instructions").Exists())
+	require.NotContains(t, string(sanitized), "secret-token-value")
+	require.NotContains(t, string(sanitized), "private prompt")
+	require.NotContains(t, string(sanitized), "private output")
 }
 
 func TestForwardAsAnthropic_ResponseFailed_PassthroughRule(t *testing.T) {

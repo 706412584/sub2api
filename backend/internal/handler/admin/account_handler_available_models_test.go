@@ -43,6 +43,18 @@ type syncUpstreamHTTPUpstream struct {
 	err       error
 }
 
+type modelsCacheInvalidatorRecorder struct {
+	calls    int
+	groupID  *int64
+	platform string
+}
+
+func (r *modelsCacheInvalidatorRecorder) InvalidateAvailableModelsCache(groupID *int64, platform string) {
+	r.calls++
+	r.groupID = groupID
+	r.platform = platform
+}
+
 func (u *syncUpstreamHTTPUpstream) Do(req *http.Request, proxyURL string, accountID int64, accountConcurrency int) (*http.Response, error) {
 	if u.err != nil {
 		return nil, u.err
@@ -60,6 +72,10 @@ func (u *syncUpstreamHTTPUpstream) DoWithTLS(req *http.Request, proxyURL string,
 }
 
 func setupSyncUpstreamModelsRouter(adminSvc service.AdminService, upstream service.HTTPUpstream) *gin.Engine {
+	return setupSyncUpstreamModelsRouterWithCacheInvalidator(adminSvc, upstream, nil)
+}
+
+func setupSyncUpstreamModelsRouterWithCacheInvalidator(adminSvc service.AdminService, upstream service.HTTPUpstream, invalidator availableModelsCacheInvalidator) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	accountTestSvc := service.NewAccountTestService(
@@ -73,6 +89,7 @@ func setupSyncUpstreamModelsRouter(adminSvc service.AdminService, upstream servi
 		nil,
 	)
 	handler := NewAccountHandler(adminSvc, nil, nil, nil, nil, nil, nil, nil, accountTestSvc, nil, nil, nil, nil, nil)
+	handler.SetAvailableModelsCacheInvalidator(invalidator)
 	router.POST("/api/v1/admin/accounts/:id/models/sync-upstream", handler.SyncUpstreamModels)
 	router.POST("/api/v1/admin/accounts/models/sync-upstream-preview", handler.SyncUpstreamModelsPreview)
 	return router
@@ -294,40 +311,81 @@ func TestAccountHandlerGetAvailableModels_OpenAISparkShadowReturnsMappingModels(
 	}, ids, "影子可用模型由 model_mapping 派生（非写死）")
 }
 
-func TestAccountHandlerGetAvailableModels_GeminiGoogleOneUsesConservativeCatalog(t *testing.T) {
-	svc := &availableModelsAdminService{
-		stubAdminService: newStubAdminService(),
-		account: service.Account{
-			ID:       45,
-			Name:     "google-one",
-			Platform: service.PlatformGemini,
-			Type:     service.AccountTypeOAuth,
-			Status:   service.StatusActive,
-			Credentials: map[string]any{
-				"oauth_type": "google_one",
-			},
+func TestAccountHandlerGetAvailableModels_KiroSyncsMissingMapping(t *testing.T) {
+	t.Parallel()
+
+	stub := newStubAdminService()
+	account := service.Account{
+		ID: 47, Name: "kiro-existing", Platform: service.PlatformKiro,
+		Type: service.AccountTypeAPIKey, Status: service.StatusActive, Concurrency: 3,
+		Credentials: map[string]any{
+			"kiro_api_key": "ksk_test-value", "auth_method": "api_key", "endpoint": "cli", "api_region": "us-east-1",
 		},
 	}
-	router := setupAvailableModelsRouter(svc)
+	stub.getAccountResult = &account
+	upstream := &syncUpstreamHTTPUpstream{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(`{"models":[{"modelId":"claude-sonnet-5"},{"modelId":"gpt-5.6-sol"}]}`)),
+	}}
+	accountTestSvc := service.NewAccountTestService(nil, nil, nil, nil, nil, upstream, &config.Config{
+		Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}},
+	}, nil)
+	handler := NewAccountHandler(stub, nil, nil, nil, nil, nil, nil, nil, accountTestSvc, nil, nil, nil, nil, nil)
+	router := gin.New()
+	router.GET("/api/v1/admin/accounts/:id/models", handler.GetAvailableModels)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts/45/models", nil)
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts/47/models", nil))
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, 1, stub.updateAccountCalls)
+	require.Contains(t, rec.Body.String(), "claude-sonnet-5")
+	require.Contains(t, rec.Body.String(), "gpt-5.6-sol")
+	require.NotContains(t, rec.Body.String(), "claude-haiku-4.5")
+}
+
+func TestAccountHandlerSyncUpstreamModels_KiroPersistsModelMapping(t *testing.T) {
+	t.Parallel()
+
+	stub := newStubAdminService()
+	account := service.Account{
+		ID:          46,
+		Name:        "kiro-apikey",
+		Platform:    service.PlatformKiro,
+		Type:        service.AccountTypeAPIKey,
+		Status:      service.StatusActive,
+		Concurrency: 3,
+		Credentials: map[string]any{
+			"kiro_api_key": "ksk_test-value",
+			"auth_method":  "api_key",
+			"endpoint":     "cli",
+			"api_region":   "us-east-1",
+		},
+	}
+	stub.getAccountResult = &account
+	upstream := &syncUpstreamHTTPUpstream{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(`{"models":[{"modelId":"claude-sonnet-5"},{"modelId":"gpt-5.6-sol"}]}`)),
+	}}
+	cacheInvalidator := &modelsCacheInvalidatorRecorder{}
+	router := setupSyncUpstreamModelsRouterWithCacheInvalidator(stub, upstream, cacheInvalidator)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/46/models/sync-upstream", nil)
 	router.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	var resp struct {
-		Data []struct {
-			ID string `json:"id"`
-		} `json:"data"`
-	}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-	ids := make([]string, 0, len(resp.Data))
-	for _, model := range resp.Data {
-		ids = append(ids, model.ID)
-	}
-	require.ElementsMatch(t, []string{"gemini-2.0-flash", "gemini-2.5-flash", "gemini-2.5-pro"}, ids)
-	require.NotContains(t, ids, "gemini-3.5-flash")
-	require.NotContains(t, ids, "gemini-2.5-flash-image")
+	require.Equal(t, 1, stub.updateAccountCalls)
+	require.NotNil(t, stub.lastUpdateAccountInput)
+	require.Equal(t, map[string]any{
+		"claude-sonnet-5": "claude-sonnet-5",
+		"gpt-5.6-sol":     "gpt-5.6-sol",
+	}, stub.lastUpdateAccountInput.Credentials["model_mapping"])
+	require.Equal(t, "ksk_test-value", stub.lastUpdateAccountInput.Credentials["kiro_api_key"])
+	require.Equal(t, 1, cacheInvalidator.calls)
+	require.Nil(t, cacheInvalidator.groupID)
+	require.Equal(t, service.PlatformKiro, cacheInvalidator.platform)
 }
 
 func TestAccountHandlerSyncUpstreamModels_ConfigErrorReturnsBadRequest(t *testing.T) {
@@ -525,4 +583,59 @@ func TestAccountHandlerSyncUpstreamModels_MetadataEnrichmentFailureReturnsWarnin
 	require.Equal(t, []string{"x-preview-f-free"}, resp.Data.Models)
 	require.Len(t, resp.Data.Warnings, 1)
 	require.Equal(t, "upstream_model_metadata_incomplete", resp.Data.Warnings[0].Code)
+}
+
+// Antigravity 账号的可用模型列表必须按账号映射过滤：
+// 上游按账号灰度开放档位（如 3.8 只有 tiered），返回全量默认列表会让
+// 用户选到 not in whitelist 的档位变体。
+func TestAccountHandlerGetAvailableModels_AntigravityFiltersByMapping(t *testing.T) {
+	svc := &availableModelsAdminService{
+		stubAdminService: newStubAdminService(),
+		account: service.Account{
+			ID:       47,
+			Name:     "ag-oauth",
+			Platform: service.PlatformAntigravity,
+			Type:     service.AccountTypeOAuth,
+			Status:   service.StatusActive,
+			Credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"claude-sonnet-4-6":       "claude-sonnet-4-6",
+					"gemini-3.8-flash":        "gemini-3.8-flash",
+					"gemini-3.8-flash-tiered": "gemini-3.8-flash-tiered",
+				},
+			},
+		},
+	}
+	router := setupAvailableModelsRouter(svc)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts/47/models", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var resp struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	ids := make([]string, 0, len(resp.Data))
+	for _, m := range resp.Data {
+		ids = append(ids, m.ID)
+	}
+	// GetModelMapping 运行时会注入裸名透传（gemini-3-flash / 3.1-pro-* / 3.6 / 3.8 裸名）
+	// 有裸名入口的家族（3.6 / 3.8）档位变体被折叠，只剩裸名
+	require.ElementsMatch(t, []string{
+		"claude-sonnet-4-6",
+		"gemini-3.8-flash",
+		"gemini-3-flash",
+		"gemini-3.1-pro-high",
+		"gemini-3.1-pro-low",
+		"gemini-3.6-flash",
+	}, ids)
+	require.NotContains(t, ids, "gemini-3.8-flash-tiered", "有裸名入口时 tiered 是重复项，应折叠")
+	require.NotContains(t, ids, "gemini-3.8-flash-low", "账号未开放的档位不能出现在列表里")
+	require.NotContains(t, ids, "gemini-3.8-flash-medium", "账号未开放的档位不能出现在列表里")
+	require.NotContains(t, ids, "gemini-3.6-flash-low", "有裸名入口的家族档位变体应折叠")
 }

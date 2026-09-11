@@ -116,6 +116,40 @@
       </div>
     </template>
 
+    <template v-else-if="account.platform === 'kiro'">
+      <div v-if="loading" class="space-y-1.5">
+        <div class="h-4 w-20 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
+        <div class="h-1.5 w-24 animate-pulse rounded-full bg-gray-200 dark:bg-gray-700"></div>
+      </div>
+      <div v-else-if="error" class="text-xs text-red-500">{{ error }}</div>
+      <div v-else-if="usageInfo?.kiro" class="space-y-1">
+        <div class="flex items-center gap-1.5">
+          <span class="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+            {{ usageInfo.kiro.subscription_title || 'Kiro' }}
+          </span>
+          <button
+            type="button"
+            class="text-[10px] text-blue-600 hover:text-blue-700 dark:text-blue-400"
+            :disabled="activeQueryLoading"
+            @click="loadActiveUsage"
+          >
+            {{ t('admin.accounts.usageWindow.activeQuery') }}
+          </button>
+        </div>
+        <UsageProgressBar
+          v-if="usageInfo.kiro.usage_limit > 0"
+          :label="t('admin.accounts.usageWindow.kiroAgentic')"
+          :utilization="kiroUsagePercent"
+          :resets-at="usageInfo.kiro.next_reset_at || null"
+          color="indigo"
+        />
+        <div class="text-[10px] text-gray-500 dark:text-gray-400">
+          {{ formatKiroUsage(usageInfo.kiro.current_usage) }} / {{ formatKiroUsage(usageInfo.kiro.usage_limit) }}
+        </div>
+      </div>
+      <div v-else class="text-xs text-gray-400">-</div>
+    </template>
+
     <!-- OpenAI OAuth accounts: single source from /usage API -->
     <template v-else-if="account.platform === 'openai' && account.type === 'oauth'">
       <div v-if="hasOpenAIUsageFallback" class="space-y-1">
@@ -326,12 +360,45 @@
           color="amber"
         />
 
+        <!-- 分桶配额（retrieveUserQuotaSummary，weekly + 5h 双窗口） -->
+        <UsageProgressBar
+          v-for="(bucket, idx) in antigravityQuotaGroupBuckets"
+          :key="bucket.key"
+          :label="antigravityQuotaBucketLabel(bucket)"
+          :utilization="bucket.utilization"
+          :resets-at="bucket.resetTime"
+          :color="antigravityQuotaBucketColor(idx)"
+        />
+
         <div v-if="aiCreditsDisplay" class="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
           💳 {{ t('admin.accounts.aiCreditsBalance') }}: {{ aiCreditsDisplay }}
         </div>
       </div>
       <div v-else-if="aiCreditsDisplay" class="text-[10px] text-gray-500 dark:text-gray-400">
         💳 {{ t('admin.accounts.aiCreditsBalance') }}: {{ aiCreditsDisplay }}
+      </div>
+      <div v-else class="text-xs text-gray-400">-</div>
+    </template>
+
+    <!-- Grok Console session accounts: real quotas from console.x.ai/v1/usage -->
+    <template v-else-if="account.platform === 'grok' && account.type === 'grok_console'">
+      <div v-if="loading" class="space-y-1.5">
+        <div class="flex items-center gap-1">
+          <div class="h-3 w-[32px] animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
+          <div class="h-1.5 w-8 animate-pulse rounded-full bg-gray-200 dark:bg-gray-700"></div>
+        </div>
+      </div>
+      <div v-else-if="error" class="text-xs text-red-500">{{ error }}</div>
+      <div v-else-if="consoleQuotaBars.length > 0" class="space-y-1">
+        <UsageProgressBar
+          v-for="bar in consoleQuotaBars"
+          :key="bar.kind"
+          :label="bar.kind"
+          :title="t('admin.accounts.usageWindow.consoleQuotaHint', { kind: bar.kind, limit: formatCompactNumber(bar.limit) })"
+          :utilization="bar.utilization"
+          :show-now-when-idle="true"
+          color="emerald"
+        />
       </div>
       <div v-else class="text-xs text-gray-400">-</div>
     </template>
@@ -355,10 +422,35 @@
       </div>
       <div v-else-if="isForbidden" class="space-y-1">
         <span class="inline-block rounded px-1.5 py-0.5 text-[10px] font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">
-          {{ usageInfo?.grok_entitlement_status || t('admin.accounts.forbidden') }}
+          {{ grokEntitlementLabel || t('admin.accounts.forbidden') }}
         </span>
       </div>
       <div v-else-if="usageInfo" class="space-y-1">
+        <div v-if="grokEntitlementLabel" class="mb-0.5">
+          <span class="inline-block rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200">
+            {{ grokEntitlementLabel }}
+          </span>
+        </div>
+        <div v-if="grokLocalUsage" class="mb-0.5 flex items-center">
+          <div class="flex items-center gap-1.5 text-[9px] text-gray-500 dark:text-gray-400">
+            <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
+              {{ formatWindowRequests(grokLocalUsage) }} req
+            </span>
+            <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
+              {{ formatWindowTokens(grokLocalUsage) }}
+            </span>
+            <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800" :title="t('usage.accountBilled')">
+              A ${{ formatWindowCost(grokLocalUsage) }}
+            </span>
+            <span
+              v-if="grokLocalUsage.user_cost != null"
+              class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
+              :title="t('usage.userBilled')"
+            >
+              U ${{ formatWindowUserCost(grokLocalUsage) }}
+            </span>
+          </div>
+        </div>
         <!-- Free: only rolling 24h soft-gate bar. Paid: 7d + 30d + prepaid money. -->
         <template v-if="grokIsFree">
           <UsageProgressBar
@@ -650,6 +742,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
+import type { GrokQuotaProbeResult } from '@/api/admin/grok'
 import type { Account, AccountUsageInfo, GeminiCredentials, WindowStats } from '@/types'
 import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
 import { enqueueUsageRequest } from '@/utils/usageLoadQueue'
@@ -690,9 +783,13 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{
+  'account-patch': [patch: Partial<Account> & { id: number }]
   'account-updated': [account: Account]
   'usage-loaded': [usage: AccountUsageInfo]
 }>()
+
+// 与后端 grokRateLimitFallbackDuration 对齐：无 Retry-After / 窗口 reset 时的兜底冷却
+const GROK_RATE_LIMIT_FALLBACK_MS = 2 * 60 * 1000
 
 const { t } = useI18n()
 const desktopViewportQuery = '(min-width: 768px)'
@@ -722,7 +819,7 @@ let visibilityObserver: IntersectionObserver | null = null
 // Show usage windows for OAuth and Setup Token accounts
 const showUsageWindows = computed(() => {
   // Gemini: we can always compute local usage windows from DB logs (simulated quotas).
-  if (props.account.platform === 'gemini') return true
+  if (props.account.platform === 'gemini' || props.account.platform === 'kiro') return true
   // CN providers: apikey 账号也有滚动用量窗口（coding plan）或余额（payg），
   // 由 CNProviderQuotaCell / CNProviderBalanceCell 自行探测与展示。
   if (
@@ -733,6 +830,7 @@ const showUsageWindows = computed(() => {
   ) {
     return true
   }
+  if (props.account.platform === 'grok' && props.account.type === 'grok_console') return true
   return props.account.type === 'oauth' || props.account.type === 'setup-token'
 })
 
@@ -747,10 +845,15 @@ const shouldFetchUsage = computed(() => {
     return props.account.type === 'oauth'
   }
   if (props.account.platform === 'grok') {
+    // Console 会话账号：真实配额来自 /v1/usage；Web 会话账号暂无上游配额端点。
+    if (props.account.type === 'grok_console') return true
     return props.account.type === 'oauth'
   }
   if (props.account.platform === 'openai') {
     return props.account.type === 'oauth'
+  }
+  if (props.account.platform === 'kiro') {
+    return true
   }
   return false
 })
@@ -780,6 +883,16 @@ const geminiUsageAvailable = computed(() => {
     !!usageInfo.value?.gemini_flash_minute
   )
 })
+
+const kiroUsagePercent = computed(() => {
+  const usage = usageInfo.value?.kiro
+  if (!usage || usage.usage_limit <= 0) return 0
+  return Math.min(100, Math.max(0, (usage.current_usage / usage.usage_limit) * 100))
+})
+
+const formatKiroUsage = (value: number) => {
+  return Number.isInteger(value) ? value.toLocaleString() : value.toLocaleString(undefined, { maximumFractionDigits: 2 })
+}
 
 const hasOpenAIUsageFallback = computed(() => {
   if (props.account.platform !== 'openai' || props.account.type !== 'oauth') return false
@@ -895,6 +1008,61 @@ const aiCreditsDisplay = computed(() => {
   if (total <= 0) return null
   return total.toFixed(0)
 })
+
+// 分桶配额（retrieveUserQuotaSummary）：把 groups/buckets 摊平成渲染行
+interface AntigravityQuotaBucketRow {
+  key: string
+  groupId: string
+  bucketId: string
+  window: string
+  utilization: number
+  resetTime: string | null
+  displayName: string
+  description: string
+}
+
+const antigravityQuotaGroupBuckets = computed<AntigravityQuotaBucketRow[]>(() => {
+  const groups = usageInfo.value?.antigravity_quota_groups
+  if (!groups || groups.length === 0) return []
+  const rows: AntigravityQuotaBucketRow[] = []
+  for (const group of groups) {
+    if (!group.buckets) continue
+    for (const bucket of group.buckets) {
+      rows.push({
+        key: `${group.display_name ?? 'group'}:${bucket.bucket_id}`,
+        groupId: group.display_name ?? '',
+        bucketId: bucket.bucket_id,
+        window: bucket.window,
+        utilization: bucket.utilization,
+        resetTime: bucket.reset_time ?? null,
+        displayName: bucket.display_name ?? '',
+        description: bucket.description ?? group.description ?? ''
+      })
+    }
+  }
+  return rows
+})
+
+// 桶标签：显示名 > bucket_id（去组前缀）+ 窗口标识
+const antigravityQuotaBucketLabel = (bucket: AntigravityQuotaBucketRow): string => {
+  if (bucket.displayName) return bucket.displayName
+  const short = bucket.bucketId.includes('-')
+    ? bucket.bucketId.split('-').slice(1).join('-') || bucket.bucketId
+    : bucket.bucketId
+  const windowLabel =
+    bucket.window === 'weekly'
+      ? t('admin.accounts.usageWindow.quotaWindowWeekly')
+      : bucket.window === '5h'
+        ? t('admin.accounts.usageWindow.quotaWindow5h')
+        : bucket.window
+  return `${short} ${windowLabel}`
+}
+
+// 桶颜色按组轮换（复用 UsageProgressBar 四色枚举）
+const antigravityQuotaBucketColor = (idx: number): 'indigo' | 'emerald' | 'purple' | 'amber' => {
+  const palette: Array<'indigo' | 'emerald' | 'purple' | 'amber'> = ['indigo', 'emerald', 'purple', 'amber']
+  return palette[idx % palette.length]
+}
 
 // Antigravity 账户类型（从 load_code_assist 响应中提取）
 const antigravityTier = computed(() => {
@@ -1229,6 +1397,27 @@ const grokPlanLabelIsFree = (value: string) => value.includes('free') || value.i
 const grokPlanLabelIsPaid = (value: string) => {
   return value !== '' && !grokPlanLabelIsFree(value) && !value.includes('unknown')
 }
+// Console 会话账号的真实配额条（chat/image/video），来自 /v1/usage。
+const consoleQuotaBars = computed(() => {
+  if (props.account.platform !== 'grok' || props.account.type !== 'grok_console') return []
+  const snapshot = usageInfo.value?.console_usage
+  if (!snapshot?.quotas?.length) return []
+  const priority = ['chat', 'image', 'video']
+  return snapshot.quotas
+    .slice()
+    .sort((a, b) => {
+      const ia = priority.indexOf(a.kind), ib = priority.indexOf(b.kind)
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib)
+    })
+    .filter((q) => q.limit > 0)
+    .map((q) => ({
+      kind: q.kind,
+      limit: q.limit,
+      // UsageProgressBar 期望 0-100+ 的百分比
+      utilization: q.limit > 0 ? (q.used / q.limit) * 100 : 0,
+    }))
+})
+
 const grokIsFree = computed(() => {
   if (props.account.platform !== 'grok' || props.account.type !== 'oauth') return false
   const billing = grokBilling.value
@@ -1250,6 +1439,18 @@ const grokIsFree = computed(() => {
   return billing != null
 })
 const grokFreeQuotaUsage = computed(() => usageInfo.value?.grok_local_usage_24h || null)
+// Local usage chips are probe-sourced only: the compact list render must stay
+// free of chips until a manual quota probe fills in the windowed stats.
+const grokLocalUsage = computed(() => {
+  if (grokIsFree.value) return grokFreeQuotaUsage.value
+  return usageInfo.value?.grok_local_usage_7d ||
+    usageInfo.value?.grok_local_usage_monthly ||
+    null
+})
+const grokEntitlementLabel = computed(() => {
+  const status = (usageInfo.value?.grok_entitlement_status || '').trim()
+  return status || null
+})
 const grokFreeTokenBar = computed(() => {
   if (!grokIsFree.value || !grokFreeQuotaUsage.value) return null
   const limit = usageInfo.value?.grok_free_token_limit
@@ -1279,6 +1480,11 @@ const grokRetryAfterLabel = computed(() => {
   const minutes = Math.ceil(seconds / 60)
   return `${minutes}m`
 })
+
+const formatWindowRequests = (stats: WindowStats) => formatCompactNumber(stats.requests, { allowBillions: false })
+const formatWindowTokens = (stats: WindowStats) => formatCompactNumber(stats.tokens)
+const formatWindowCost = (stats: WindowStats) => stats.cost.toFixed(2)
+const formatWindowUserCost = (stats: WindowStats) => (stats.user_cost ?? 0).toFixed(2)
 
 // 账户类型显示标签
 const antigravityTierLabel = computed(() => {
@@ -1409,6 +1615,7 @@ const loadUsage = async (options?: { source?: 'passive' | 'active'; bypassCache?
     if (!unmounted.value) {
       usageInfo.value = result
       _usageCache.set(props.account.id, { data: result, ts: Date.now() })
+      syncGrokRateLimitBadgeFromUsage(result)
     }
   } catch (e: any) {
     if (!unmounted.value) {
@@ -1481,10 +1688,181 @@ const loadActiveUsage = async () => {
   }
 }
 
-// The probe persists upstream quota state; refresh this cell so its compact
-// bars and entitlement status reflect the newly observed snapshot.
-const handleGrokProbed = async () => {
-  await loadUsage({ source: 'active', bypassCache: true })
+const isAccountRateLimitActive = (resetAt: string | null | undefined): boolean => {
+  if (!resetAt) return false
+  const ts = Date.parse(resetAt)
+  return Number.isFinite(ts) && ts > Date.now()
+}
+
+type GrokRateLimitDerivation = {
+  resetAt: string
+  /** 有 Retry-After / 窗口 reset 时可延长已有限流；纯 429 兜底只在当前未限流时补徽章 */
+  authoritative: boolean
+}
+
+const deriveGrokRateLimitResetAt = (usage: AccountUsageInfo): GrokRateLimitDerivation | null => {
+  // billing 接口 429 不暂停模型调度（与后端 ProbeBilling 一致）；仅 active/hybrid 快照或窗口耗尽才同步徽章
+  const hasRetryAfter = usage.grok_retry_after_seconds != null && usage.grok_retry_after_seconds > 0
+  const hasActiveQuotaSignal =
+    hasRetryAfter ||
+    usage.grok_request_quota != null ||
+    usage.grok_token_quota != null ||
+    Boolean(usage.grok_last_headers_seen_at) ||
+    usage.grok_quota_snapshot_state === 'observed' ||
+    usage.grok_quota_snapshot_state === 'no_headers'
+  const windowExhausted = [usage.grok_request_quota, usage.grok_token_quota].some(
+    (window) => window != null && window.remaining != null && window.remaining <= 0
+  )
+  const modelPath429 =
+    usage.grok_last_status_code === 429 && hasActiveQuotaSignal
+  const limited = hasRetryAfter || windowExhausted || modelPath429
+  if (!limited) return null
+
+  const now = Date.now()
+  if (hasRetryAfter && usage.grok_retry_after_seconds != null) {
+    return {
+      resetAt: new Date(now + usage.grok_retry_after_seconds * 1000).toISOString(),
+      authoritative: true
+    }
+  }
+  for (const window of [usage.grok_request_quota, usage.grok_token_quota]) {
+    if (window == null) continue
+    if (window.remaining != null && window.remaining > 0) continue
+    if (!window.reset_at) continue
+    const resetTs = Date.parse(window.reset_at)
+    if (Number.isFinite(resetTs) && resetTs > now) {
+      return {
+        resetAt: new Date(resetTs).toISOString(),
+        authoritative: true
+      }
+    }
+  }
+  return {
+    resetAt: new Date(now + GROK_RATE_LIMIT_FALLBACK_MS).toISOString(),
+    authoritative: false
+  }
+}
+
+/** 额度格已显示 429 时，同步状态列「限流中」（AccountStatusIndicator 只读 rate_limit_reset_at） */
+const syncGrokRateLimitBadgeFromUsage = (usage: AccountUsageInfo) => {
+  if (props.account.platform !== 'grok') return
+
+  const derived = deriveGrokRateLimitResetAt(usage)
+  if (!derived) return
+
+  const currentReset = props.account.rate_limit_reset_at
+  const currentActive = isAccountRateLimitActive(currentReset)
+  if (!currentActive) {
+    emit('account-patch', {
+      id: props.account.id,
+      rate_limit_reset_at: derived.resetAt,
+      rate_limited_at: props.account.rate_limited_at || new Date().toISOString()
+    })
+    return
+  }
+  if (
+    derived.authoritative &&
+    currentReset != null &&
+    Date.parse(derived.resetAt) > Date.parse(currentReset)
+  ) {
+    emit('account-patch', {
+      id: props.account.id,
+      rate_limit_reset_at: derived.resetAt,
+      rate_limited_at: props.account.rate_limited_at || new Date().toISOString()
+    })
+  }
+}
+
+const syncGrokRateLimitBadgeAfterProbe = (
+  usage: AccountUsageInfo,
+  probeSucceeded: boolean
+) => {
+  if (props.account.platform !== 'grok') return
+  if (probeSucceeded && isAccountRateLimitActive(props.account.rate_limit_reset_at)) {
+    emit('account-patch', {
+      id: props.account.id,
+      rate_limit_reset_at: null,
+      rate_limited_at: null
+    })
+    return
+  }
+  syncGrokRateLimitBadgeFromUsage(usage)
+}
+
+const patchGrokProbeStatusSnapshot = (result: GrokQuotaProbeResult) => {
+  const snapshot = result.snapshot
+  const statusCode = snapshot?.status_code ?? result.status_code
+  if (statusCode !== 402 && statusCode !== 502) return
+  emit('account-patch', {
+    id: props.account.id,
+    extra: {
+      ...(props.account.extra || {}),
+      grok_usage_snapshot: {
+        ...((props.account.extra?.grok_usage_snapshot as Record<string, unknown> | undefined) || {}),
+        ...(snapshot || {}),
+        status_code: statusCode
+      }
+    }
+  })
+}
+
+const handleGrokProbed = (result: GrokQuotaProbeResult) => {
+  patchGrokProbeStatusSnapshot(result)
+  const current = usageInfo.value
+  if (!current) return
+  const snapshot = result.snapshot
+  const statusCode = snapshot?.status_code ?? result.status_code
+  const hasActiveProbeSnapshot = snapshot != null && (
+    result.source === 'active_probe' ||
+    result.source === 'hybrid_probe' ||
+    snapshot.observation_source === 'active_probe'
+  )
+  const probeSucceeded = hasActiveProbeSnapshot &&
+    statusCode != null && statusCode >= 200 && statusCode < 300
+  const snapshotEntitlement = snapshot?.entitlement_status?.trim()
+  const currentEntitlement = current.grok_entitlement_status?.trim()
+  const entitlementStatus = snapshotEntitlement || (
+    probeSucceeded && currentEntitlement?.toLowerCase() === 'forbidden'
+      ? undefined
+      : current.grok_entitlement_status
+  )
+  const nextStatusCode = result.status_code ?? snapshot?.status_code ?? current.grok_last_status_code
+  const merged: AccountUsageInfo = {
+    ...current,
+    grok_billing: result.billing ?? current.grok_billing,
+    grok_local_usage_24h: result.local_usage_24h ?? current.grok_local_usage_24h,
+    grok_local_usage_7d: result.local_usage_7d ?? current.grok_local_usage_7d,
+    grok_local_usage_monthly: result.local_usage_monthly ?? current.grok_local_usage_monthly,
+    grok_request_quota: snapshot?.requests ?? current.grok_request_quota,
+    grok_token_quota: snapshot?.tokens ?? current.grok_token_quota,
+    grok_retry_after_seconds: snapshot?.retry_after_seconds ?? current.grok_retry_after_seconds,
+    grok_entitlement_status: entitlementStatus,
+    grok_quota_snapshot_state: result.billing
+      ? 'billing_observed'
+      : snapshot?.headers_observed
+        ? 'observed'
+        : current.grok_quota_snapshot_state,
+    grok_last_quota_probe_at: result.billing?.fetched_at ?? snapshot?.last_probe_at ?? current.grok_last_quota_probe_at,
+    grok_last_headers_seen_at: snapshot?.last_headers_seen_at ?? current.grok_last_headers_seen_at,
+    grok_last_status_code: nextStatusCode,
+    is_forbidden: probeSucceeded ? false : current.is_forbidden,
+    forbidden_reason: probeSucceeded ? undefined : current.forbidden_reason,
+    forbidden_type: probeSucceeded ? undefined : current.forbidden_type,
+    validation_url: probeSucceeded ? undefined : current.validation_url,
+    needs_verify: probeSucceeded ? false : current.needs_verify,
+    is_banned: probeSucceeded ? false : current.is_banned,
+    error: result.billing || snapshot ? undefined : current.error,
+    error_code: probeSucceeded
+      ? undefined
+      : nextStatusCode === 429
+        ? 'rate_limited'
+        : result.billing || snapshot
+          ? undefined
+          : current.error_code
+  }
+  usageInfo.value = merged
+  _usageCache.set(props.account.id, { data: merged, ts: Date.now() })
+  syncGrokRateLimitBadgeAfterProbe(merged, probeSucceeded)
 }
 
 // ===== API Key quota progress bars =====

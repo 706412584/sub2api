@@ -103,7 +103,44 @@ type Config struct {
 	Idempotency             IdempotencyConfig             `mapstructure:"idempotency"`
 	BatchImage              BatchImageConfig              `mapstructure:"batch_image"`
 	ImageStorage            ImageStorageConfig            `mapstructure:"image_storage"`
+	ProxySubscription       ProxySubscriptionConfig       `mapstructure:"proxy_subscription"`
 	Plugins                 PluginConfig                  `mapstructure:"plugins"`
+	IM                      IMConfig                      `mapstructure:"im"`
+}
+
+// IMConfig configures the built-in IM chat bots (Telegram/Feishu/... adapters
+// that proxy private chats through the local gateway).
+type IMConfig struct {
+	// Enabled is the feature flag for the whole IM bot subsystem.
+	Enabled bool `mapstructure:"enabled"`
+	// BaseURL is the gateway endpoint adapters self-call for /v1/messages.
+	// Empty defaults to http://127.0.0.1:{server.port}. Override when the
+	// server listens behind a reverse proxy or in containers.
+	BaseURL string `mapstructure:"base_url"`
+	// MaxInboundBytes caps one inbound chat message.
+	MaxInboundBytes int `mapstructure:"max_inbound_bytes"`
+	// MaxHistoryBytes caps the rebuilt context window sent upstream.
+	MaxHistoryBytes int `mapstructure:"max_history_bytes"`
+	// DefaultMaxTokens is the per-turn generation cap.
+	DefaultMaxTokens int `mapstructure:"default_max_tokens"`
+	// MessageRetentionDays: chat messages older than this are swept daily.
+	MessageRetentionDays int `mapstructure:"message_retention_days"`
+	// PairingCodeTTLSeconds is how long a pairing code stays valid.
+	PairingCodeTTLSeconds int `mapstructure:"pairing_code_ttl_seconds"`
+}
+
+// ProxySubscriptionConfig controls embedded Clash/share-link subscription sync + in-process mihomo.
+type ProxySubscriptionConfig struct {
+	// MihomoBinary is path or name of the mihomo/clash-meta binary. Empty = look up on PATH.
+	MihomoBinary string `mapstructure:"mihomo_binary"`
+	// DataDir holds per-source config/workdir (default: data/proxy-subscriptions).
+	DataDir string `mapstructure:"data_dir"`
+	// AllowInsecureSubscription permits non-localhost http:// subscription URLs.
+	AllowInsecureSubscription bool `mapstructure:"allow_insecure_subscription"`
+	// AllowNonLocalBind permits bind_address outside loopback.
+	AllowNonLocalBind bool `mapstructure:"allow_non_local_bind"`
+	// RunnerIntervalSec is background due-scan interval (default 30).
+	RunnerIntervalSec int `mapstructure:"runner_interval_sec"`
 }
 
 // PluginConfig 控制管理员手动上传的本地进程插件。
@@ -1789,6 +1826,9 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	// 环境变量支持
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	if err := viper.BindEnv("proxy_subscription.runner_interval_sec", "PROXY_SUBSCRIPTION_RUNNER_INTERVAL_SEC"); err != nil {
+		return nil, fmt.Errorf("bind env PROXY_SUBSCRIPTION_RUNNER_INTERVAL_SEC: %w", err)
+	}
 	if tz, ok := os.LookupEnv("TZ"); ok && strings.TrimSpace(tz) != "" {
 		// AutomaticEnv 会先把 timezone 映射到 TIMEZONE；显式 Set 保证标准 TZ 变量优先。
 		viper.Set("timezone", strings.TrimSpace(tz))
@@ -2244,6 +2284,13 @@ func setDefaults() {
 	viper.SetDefault("image_storage.secret_access_key", "")
 	viper.SetDefault("image_storage.public_base_url", "")
 
+	// Embedded proxy subscription (mihomo in-process)
+	viper.SetDefault("proxy_subscription.mihomo_binary", "")
+	viper.SetDefault("proxy_subscription.data_dir", "data/proxy-subscriptions")
+	viper.SetDefault("proxy_subscription.allow_insecure_subscription", false)
+	viper.SetDefault("proxy_subscription.allow_non_local_bind", false)
+	viper.SetDefault("proxy_subscription.runner_interval_sec", 30)
+
 	// Ops (vNext)
 	viper.SetDefault("ops.enabled", true)
 	viper.SetDefault("ops.use_preaggregated_tables", true)
@@ -2299,6 +2346,22 @@ func setDefaults() {
 	viper.SetDefault("plugins.max_upload_bytes", int64(128*1024*1024))
 	viper.SetDefault("plugins.max_uncompressed_bytes", int64(256*1024*1024))
 	viper.SetDefault("plugins.start_timeout_seconds", 15)
+
+	// IM chat bots
+	viper.SetDefault("im.enabled", false)
+	viper.SetDefault("im.base_url", "")
+	viper.SetDefault("im.max_inbound_bytes", 8000)
+	viper.SetDefault("im.max_history_bytes", 24576)
+	viper.SetDefault("im.default_max_tokens", 4096)
+	viper.SetDefault("im.message_retention_days", 90)
+	viper.SetDefault("im.pairing_code_ttl_seconds", 3600)
+	_ = viper.BindEnv("im.enabled", "IM_ENABLED")
+	_ = viper.BindEnv("im.base_url", "IM_BASE_URL")
+	_ = viper.BindEnv("im.max_inbound_bytes", "IM_MAX_INBOUND_BYTES")
+	_ = viper.BindEnv("im.max_history_bytes", "IM_MAX_HISTORY_BYTES")
+	_ = viper.BindEnv("im.default_max_tokens", "IM_DEFAULT_MAX_TOKENS")
+	_ = viper.BindEnv("im.message_retention_days", "IM_MESSAGE_RETENTION_DAYS")
+	_ = viper.BindEnv("im.pairing_code_ttl_seconds", "IM_PAIRING_CODE_TTL_SECONDS")
 
 	// Timezone (default to Asia/Shanghai for Chinese users)
 	viper.SetDefault("timezone", "Asia/Shanghai")

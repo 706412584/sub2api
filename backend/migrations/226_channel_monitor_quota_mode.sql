@@ -22,7 +22,15 @@ BEGIN
      WHERE t.relname = 'channel_monitors'
        AND c.conname = 'channel_monitors_provider_check';
 
-    IF monitor_constraint_def IS NULL OR position('kimi' IN monitor_constraint_def) = 0 THEN
+    IF monitor_constraint_def IS NULL
+       OR position('openai' IN monitor_constraint_def) = 0
+       OR position('anthropic' IN monitor_constraint_def) = 0
+       OR position('gemini' IN monitor_constraint_def) = 0
+       OR position('grok' IN monitor_constraint_def) = 0
+       OR position('antigravity' IN monitor_constraint_def) = 0
+       OR position('kimi' IN monitor_constraint_def) = 0
+       OR position('zhipu' IN monitor_constraint_def) = 0
+       OR position('deepseek' IN monitor_constraint_def) = 0 THEN
         ALTER TABLE channel_monitors
             DROP CONSTRAINT IF EXISTS channel_monitors_provider_check;
         ALTER TABLE channel_monitors
@@ -38,7 +46,15 @@ BEGIN
      WHERE t.relname = 'channel_monitor_request_templates'
        AND c.conname = 'channel_monitor_request_templates_provider_check';
 
-    IF template_constraint_def IS NULL OR position('kimi' IN template_constraint_def) = 0 THEN
+    IF template_constraint_def IS NULL
+       OR position('openai' IN template_constraint_def) = 0
+       OR position('anthropic' IN template_constraint_def) = 0
+       OR position('gemini' IN template_constraint_def) = 0
+       OR position('grok' IN template_constraint_def) = 0
+       OR position('antigravity' IN template_constraint_def) = 0
+       OR position('kimi' IN template_constraint_def) = 0
+       OR position('zhipu' IN template_constraint_def) = 0
+       OR position('deepseek' IN template_constraint_def) = 0 THEN
         ALTER TABLE channel_monitor_request_templates
             DROP CONSTRAINT IF EXISTS channel_monitor_request_templates_provider_check;
         ALTER TABLE channel_monitor_request_templates
@@ -50,6 +66,9 @@ END $$;
 
 ALTER TABLE channel_monitors
     ADD COLUMN IF NOT EXISTS check_mode VARCHAR(32) NOT NULL DEFAULT 'probe';
+
+ALTER TABLE channel_monitors
+    DROP CONSTRAINT IF EXISTS channel_monitors_check_mode_check;
 
 ALTER TABLE channel_monitors
     ADD CONSTRAINT channel_monitors_check_mode_check

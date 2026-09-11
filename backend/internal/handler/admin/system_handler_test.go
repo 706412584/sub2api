@@ -259,7 +259,7 @@ func TestSystemHandlerRollbackWithVersionCallsRollbackToVersion(t *testing.T) {
 	var body systemUpdateResponseEnvelope
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 	require.Equal(t, 0, body.Code)
-	require.Equal(t, "Rollback completed. Please restart the service.", body.Data.Message)
+	require.Equal(t, "Rollback completed. Service restart initiated.", body.Data.Message)
 }
 
 func TestSystemHandlerRollbackWithDisallowedVersionReturnsBadRequest(t *testing.T) {

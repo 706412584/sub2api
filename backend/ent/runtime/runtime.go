@@ -20,10 +20,14 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorhistory"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorrequesttemplate"
 	"github.com/Wei-Shaw/sub2api/ent/compositemodelroute"
+	"github.com/Wei-Shaw/sub2api/ent/dynamicproxypool"
 	"github.com/Wei-Shaw/sub2api/ent/errorpassthroughrule"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
+	"github.com/Wei-Shaw/sub2api/ent/imbot"
+	"github.com/Wei-Shaw/sub2api/ent/imbotchat"
+	"github.com/Wei-Shaw/sub2api/ent/imbotmessage"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
@@ -31,6 +35,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/promocode"
 	"github.com/Wei-Shaw/sub2api/ent/promocodeusage"
 	"github.com/Wei-Shaw/sub2api/ent/proxy"
+	"github.com/Wei-Shaw/sub2api/ent/proxysubscription"
 	"github.com/Wei-Shaw/sub2api/ent/redeemcode"
 	"github.com/Wei-Shaw/sub2api/ent/schema"
 	"github.com/Wei-Shaw/sub2api/ent/securitysecret"
@@ -927,6 +932,151 @@ func init() {
 	compositemodelrouteDescEnabled := compositemodelrouteFields[7].Descriptor()
 	// compositemodelroute.DefaultEnabled holds the default value on creation for the enabled field.
 	compositemodelroute.DefaultEnabled = compositemodelrouteDescEnabled.Default.(bool)
+	dynamicproxypoolMixin := schema.DynamicProxyPool{}.Mixin()
+	dynamicproxypoolMixinFields0 := dynamicproxypoolMixin[0].Fields()
+	_ = dynamicproxypoolMixinFields0
+	dynamicproxypoolFields := schema.DynamicProxyPool{}.Fields()
+	_ = dynamicproxypoolFields
+	// dynamicproxypoolDescCreatedAt is the schema descriptor for created_at field.
+	dynamicproxypoolDescCreatedAt := dynamicproxypoolMixinFields0[0].Descriptor()
+	// dynamicproxypool.DefaultCreatedAt holds the default value on creation for the created_at field.
+	dynamicproxypool.DefaultCreatedAt = dynamicproxypoolDescCreatedAt.Default.(func() time.Time)
+	// dynamicproxypoolDescUpdatedAt is the schema descriptor for updated_at field.
+	dynamicproxypoolDescUpdatedAt := dynamicproxypoolMixinFields0[1].Descriptor()
+	// dynamicproxypool.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	dynamicproxypool.DefaultUpdatedAt = dynamicproxypoolDescUpdatedAt.Default.(func() time.Time)
+	// dynamicproxypool.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	dynamicproxypool.UpdateDefaultUpdatedAt = dynamicproxypoolDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// dynamicproxypoolDescName is the schema descriptor for name field.
+	dynamicproxypoolDescName := dynamicproxypoolFields[0].Descriptor()
+	// dynamicproxypool.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	dynamicproxypool.NameValidator = func() func(string) error {
+		validators := dynamicproxypoolDescName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name string) error {
+			for _, fn := range fns {
+				if err := fn(name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// dynamicproxypoolDescEnabled is the schema descriptor for enabled field.
+	dynamicproxypoolDescEnabled := dynamicproxypoolFields[1].Descriptor()
+	// dynamicproxypool.DefaultEnabled holds the default value on creation for the enabled field.
+	dynamicproxypool.DefaultEnabled = dynamicproxypoolDescEnabled.Default.(bool)
+	// dynamicproxypoolDescSourceType is the schema descriptor for source_type field.
+	dynamicproxypoolDescSourceType := dynamicproxypoolFields[2].Descriptor()
+	// dynamicproxypool.DefaultSourceType holds the default value on creation for the source_type field.
+	dynamicproxypool.DefaultSourceType = dynamicproxypoolDescSourceType.Default.(string)
+	// dynamicproxypool.SourceTypeValidator is a validator for the "source_type" field. It is called by the builders before save.
+	dynamicproxypool.SourceTypeValidator = dynamicproxypoolDescSourceType.Validators[0].(func(string) error)
+	// dynamicproxypoolDescExtractURL is the schema descriptor for extract_url field.
+	dynamicproxypoolDescExtractURL := dynamicproxypoolFields[4].Descriptor()
+	// dynamicproxypool.DefaultExtractURL holds the default value on creation for the extract_url field.
+	dynamicproxypool.DefaultExtractURL = dynamicproxypoolDescExtractURL.Default.(string)
+	// dynamicproxypool.ExtractURLValidator is a validator for the "extract_url" field. It is called by the builders before save.
+	dynamicproxypool.ExtractURLValidator = dynamicproxypoolDescExtractURL.Validators[0].(func(string) error)
+	// dynamicproxypoolDescProtocol is the schema descriptor for protocol field.
+	dynamicproxypoolDescProtocol := dynamicproxypoolFields[5].Descriptor()
+	// dynamicproxypool.DefaultProtocol holds the default value on creation for the protocol field.
+	dynamicproxypool.DefaultProtocol = dynamicproxypoolDescProtocol.Default.(string)
+	// dynamicproxypool.ProtocolValidator is a validator for the "protocol" field. It is called by the builders before save.
+	dynamicproxypool.ProtocolValidator = dynamicproxypoolDescProtocol.Validators[0].(func(string) error)
+	// dynamicproxypoolDescAuthMode is the schema descriptor for auth_mode field.
+	dynamicproxypoolDescAuthMode := dynamicproxypoolFields[6].Descriptor()
+	// dynamicproxypool.DefaultAuthMode holds the default value on creation for the auth_mode field.
+	dynamicproxypool.DefaultAuthMode = dynamicproxypoolDescAuthMode.Default.(string)
+	// dynamicproxypool.AuthModeValidator is a validator for the "auth_mode" field. It is called by the builders before save.
+	dynamicproxypool.AuthModeValidator = dynamicproxypoolDescAuthMode.Validators[0].(func(string) error)
+	// dynamicproxypoolDescUsername is the schema descriptor for username field.
+	dynamicproxypoolDescUsername := dynamicproxypoolFields[7].Descriptor()
+	// dynamicproxypool.DefaultUsername holds the default value on creation for the username field.
+	dynamicproxypool.DefaultUsername = dynamicproxypoolDescUsername.Default.(string)
+	// dynamicproxypool.UsernameValidator is a validator for the "username" field. It is called by the builders before save.
+	dynamicproxypool.UsernameValidator = dynamicproxypoolDescUsername.Validators[0].(func(string) error)
+	// dynamicproxypoolDescPassword is the schema descriptor for password field.
+	dynamicproxypoolDescPassword := dynamicproxypoolFields[8].Descriptor()
+	// dynamicproxypool.DefaultPassword holds the default value on creation for the password field.
+	dynamicproxypool.DefaultPassword = dynamicproxypoolDescPassword.Default.(string)
+	// dynamicproxypool.PasswordValidator is a validator for the "password" field. It is called by the builders before save.
+	dynamicproxypool.PasswordValidator = dynamicproxypoolDescPassword.Validators[0].(func(string) error)
+	// dynamicproxypoolDescResponseFormat is the schema descriptor for response_format field.
+	dynamicproxypoolDescResponseFormat := dynamicproxypoolFields[9].Descriptor()
+	// dynamicproxypool.DefaultResponseFormat holds the default value on creation for the response_format field.
+	dynamicproxypool.DefaultResponseFormat = dynamicproxypoolDescResponseFormat.Default.(string)
+	// dynamicproxypool.ResponseFormatValidator is a validator for the "response_format" field. It is called by the builders before save.
+	dynamicproxypool.ResponseFormatValidator = dynamicproxypoolDescResponseFormat.Validators[0].(func(string) error)
+	// dynamicproxypoolDescLineSeparator is the schema descriptor for line_separator field.
+	dynamicproxypoolDescLineSeparator := dynamicproxypoolFields[10].Descriptor()
+	// dynamicproxypool.DefaultLineSeparator holds the default value on creation for the line_separator field.
+	dynamicproxypool.DefaultLineSeparator = dynamicproxypoolDescLineSeparator.Default.(string)
+	// dynamicproxypool.LineSeparatorValidator is a validator for the "line_separator" field. It is called by the builders before save.
+	dynamicproxypool.LineSeparatorValidator = dynamicproxypoolDescLineSeparator.Validators[0].(func(string) error)
+	// dynamicproxypoolDescIPFieldPath is the schema descriptor for ip_field_path field.
+	dynamicproxypoolDescIPFieldPath := dynamicproxypoolFields[11].Descriptor()
+	// dynamicproxypool.DefaultIPFieldPath holds the default value on creation for the ip_field_path field.
+	dynamicproxypool.DefaultIPFieldPath = dynamicproxypoolDescIPFieldPath.Default.(string)
+	// dynamicproxypool.IPFieldPathValidator is a validator for the "ip_field_path" field. It is called by the builders before save.
+	dynamicproxypool.IPFieldPathValidator = dynamicproxypoolDescIPFieldPath.Validators[0].(func(string) error)
+	// dynamicproxypoolDescPortFieldPath is the schema descriptor for port_field_path field.
+	dynamicproxypoolDescPortFieldPath := dynamicproxypoolFields[12].Descriptor()
+	// dynamicproxypool.DefaultPortFieldPath holds the default value on creation for the port_field_path field.
+	dynamicproxypool.DefaultPortFieldPath = dynamicproxypoolDescPortFieldPath.Default.(string)
+	// dynamicproxypool.PortFieldPathValidator is a validator for the "port_field_path" field. It is called by the builders before save.
+	dynamicproxypool.PortFieldPathValidator = dynamicproxypoolDescPortFieldPath.Validators[0].(func(string) error)
+	// dynamicproxypoolDescRefreshIntervalSec is the schema descriptor for refresh_interval_sec field.
+	dynamicproxypoolDescRefreshIntervalSec := dynamicproxypoolFields[13].Descriptor()
+	// dynamicproxypool.DefaultRefreshIntervalSec holds the default value on creation for the refresh_interval_sec field.
+	dynamicproxypool.DefaultRefreshIntervalSec = dynamicproxypoolDescRefreshIntervalSec.Default.(int)
+	// dynamicproxypoolDescIPDurationSec is the schema descriptor for ip_duration_sec field.
+	dynamicproxypoolDescIPDurationSec := dynamicproxypoolFields[14].Descriptor()
+	// dynamicproxypool.DefaultIPDurationSec holds the default value on creation for the ip_duration_sec field.
+	dynamicproxypool.DefaultIPDurationSec = dynamicproxypoolDescIPDurationSec.Default.(int)
+	// dynamicproxypoolDescExtractCount is the schema descriptor for extract_count field.
+	dynamicproxypoolDescExtractCount := dynamicproxypoolFields[15].Descriptor()
+	// dynamicproxypool.DefaultExtractCount holds the default value on creation for the extract_count field.
+	dynamicproxypool.DefaultExtractCount = dynamicproxypoolDescExtractCount.Default.(int)
+	// dynamicproxypoolDescMinAlive is the schema descriptor for min_alive field.
+	dynamicproxypoolDescMinAlive := dynamicproxypoolFields[16].Descriptor()
+	// dynamicproxypool.DefaultMinAlive holds the default value on creation for the min_alive field.
+	dynamicproxypool.DefaultMinAlive = dynamicproxypoolDescMinAlive.Default.(int)
+	// dynamicproxypoolDescNamePrefix is the schema descriptor for name_prefix field.
+	dynamicproxypoolDescNamePrefix := dynamicproxypoolFields[17].Descriptor()
+	// dynamicproxypool.DefaultNamePrefix holds the default value on creation for the name_prefix field.
+	dynamicproxypool.DefaultNamePrefix = dynamicproxypoolDescNamePrefix.Default.(string)
+	// dynamicproxypool.NamePrefixValidator is a validator for the "name_prefix" field. It is called by the builders before save.
+	dynamicproxypool.NamePrefixValidator = dynamicproxypoolDescNamePrefix.Validators[0].(func(string) error)
+	// dynamicproxypoolDescLastExtractStatus is the schema descriptor for last_extract_status field.
+	dynamicproxypoolDescLastExtractStatus := dynamicproxypoolFields[19].Descriptor()
+	// dynamicproxypool.DefaultLastExtractStatus holds the default value on creation for the last_extract_status field.
+	dynamicproxypool.DefaultLastExtractStatus = dynamicproxypoolDescLastExtractStatus.Default.(string)
+	// dynamicproxypool.LastExtractStatusValidator is a validator for the "last_extract_status" field. It is called by the builders before save.
+	dynamicproxypool.LastExtractStatusValidator = dynamicproxypoolDescLastExtractStatus.Validators[0].(func(string) error)
+	// dynamicproxypoolDescLastExtractError is the schema descriptor for last_extract_error field.
+	dynamicproxypoolDescLastExtractError := dynamicproxypoolFields[20].Descriptor()
+	// dynamicproxypool.DefaultLastExtractError holds the default value on creation for the last_extract_error field.
+	dynamicproxypool.DefaultLastExtractError = dynamicproxypoolDescLastExtractError.Default.(string)
+	// dynamicproxypoolDescAliveCount is the schema descriptor for alive_count field.
+	dynamicproxypoolDescAliveCount := dynamicproxypoolFields[21].Descriptor()
+	// dynamicproxypool.DefaultAliveCount holds the default value on creation for the alive_count field.
+	dynamicproxypool.DefaultAliveCount = dynamicproxypoolDescAliveCount.Default.(int)
+	// dynamicproxypoolDescHealthCheckIntervalSec is the schema descriptor for health_check_interval_sec field.
+	dynamicproxypoolDescHealthCheckIntervalSec := dynamicproxypoolFields[22].Descriptor()
+	// dynamicproxypool.DefaultHealthCheckIntervalSec holds the default value on creation for the health_check_interval_sec field.
+	dynamicproxypool.DefaultHealthCheckIntervalSec = dynamicproxypoolDescHealthCheckIntervalSec.Default.(int)
+	// dynamicproxypoolDescGrokReasoningCheckEnabled is the schema descriptor for grok_reasoning_check_enabled field.
+	dynamicproxypoolDescGrokReasoningCheckEnabled := dynamicproxypoolFields[23].Descriptor()
+	// dynamicproxypool.DefaultGrokReasoningCheckEnabled holds the default value on creation for the grok_reasoning_check_enabled field.
+	dynamicproxypool.DefaultGrokReasoningCheckEnabled = dynamicproxypoolDescGrokReasoningCheckEnabled.Default.(bool)
+	// dynamicproxypoolDescGrokReasoningCheckIntervalSec is the schema descriptor for grok_reasoning_check_interval_sec field.
+	dynamicproxypoolDescGrokReasoningCheckIntervalSec := dynamicproxypoolFields[25].Descriptor()
+	// dynamicproxypool.DefaultGrokReasoningCheckIntervalSec holds the default value on creation for the grok_reasoning_check_interval_sec field.
+	dynamicproxypool.DefaultGrokReasoningCheckIntervalSec = dynamicproxypoolDescGrokReasoningCheckIntervalSec.Default.(int)
 	errorpassthroughruleMixin := schema.ErrorPassthroughRule{}.Mixin()
 	errorpassthroughruleMixinFields0 := errorpassthroughruleMixin[0].Fields()
 	_ = errorpassthroughruleMixinFields0
@@ -1134,95 +1284,324 @@ func init() {
 	// group.DefaultClaudeCodeOnly holds the default value on creation for the claude_code_only field.
 	group.DefaultClaudeCodeOnly = groupDescClaudeCodeOnly.Default.(bool)
 	// groupDescModelRoutingEnabled is the schema descriptor for model_routing_enabled field.
-	groupDescModelRoutingEnabled := groupFields[42].Descriptor()
+	groupDescModelRoutingEnabled := groupFields[43].Descriptor()
 	// group.DefaultModelRoutingEnabled holds the default value on creation for the model_routing_enabled field.
 	group.DefaultModelRoutingEnabled = groupDescModelRoutingEnabled.Default.(bool)
 	// groupDescMcpXMLInject is the schema descriptor for mcp_xml_inject field.
-	groupDescMcpXMLInject := groupFields[43].Descriptor()
+	groupDescMcpXMLInject := groupFields[44].Descriptor()
 	// group.DefaultMcpXMLInject holds the default value on creation for the mcp_xml_inject field.
 	group.DefaultMcpXMLInject = groupDescMcpXMLInject.Default.(bool)
 	// groupDescSupportedModelScopes is the schema descriptor for supported_model_scopes field.
-	groupDescSupportedModelScopes := groupFields[44].Descriptor()
+	groupDescSupportedModelScopes := groupFields[45].Descriptor()
 	// group.DefaultSupportedModelScopes holds the default value on creation for the supported_model_scopes field.
 	group.DefaultSupportedModelScopes = groupDescSupportedModelScopes.Default.([]string)
 	// groupDescSortOrder is the schema descriptor for sort_order field.
-	groupDescSortOrder := groupFields[45].Descriptor()
+	groupDescSortOrder := groupFields[46].Descriptor()
 	// group.DefaultSortOrder holds the default value on creation for the sort_order field.
 	group.DefaultSortOrder = groupDescSortOrder.Default.(int)
 	// groupDescAllowMessagesDispatch is the schema descriptor for allow_messages_dispatch field.
-	groupDescAllowMessagesDispatch := groupFields[46].Descriptor()
+	groupDescAllowMessagesDispatch := groupFields[47].Descriptor()
 	// group.DefaultAllowMessagesDispatch holds the default value on creation for the allow_messages_dispatch field.
 	group.DefaultAllowMessagesDispatch = groupDescAllowMessagesDispatch.Default.(bool)
 	// groupDescAllowLive is the schema descriptor for allow_live field.
-	groupDescAllowLive := groupFields[47].Descriptor()
+	groupDescAllowLive := groupFields[48].Descriptor()
 	// group.DefaultAllowLive holds the default value on creation for the allow_live field.
 	group.DefaultAllowLive = groupDescAllowLive.Default.(bool)
+	// groupDescGrokMessagesProtocol is the schema descriptor for grok_messages_protocol field.
+	groupDescGrokMessagesProtocol := groupFields[49].Descriptor()
+	// group.DefaultGrokMessagesProtocol holds the default value on creation for the grok_messages_protocol field.
+	group.DefaultGrokMessagesProtocol = groupDescGrokMessagesProtocol.Default.(string)
+	// group.GrokMessagesProtocolValidator is a validator for the "grok_messages_protocol" field. It is called by the builders before save.
+	group.GrokMessagesProtocolValidator = groupDescGrokMessagesProtocol.Validators[0].(func(string) error)
+	// groupDescGrokReasoningVisibilityMode is the schema descriptor for grok_reasoning_visibility_mode field.
+	groupDescGrokReasoningVisibilityMode := groupFields[50].Descriptor()
+	// group.DefaultGrokReasoningVisibilityMode holds the default value on creation for the grok_reasoning_visibility_mode field.
+	group.DefaultGrokReasoningVisibilityMode = groupDescGrokReasoningVisibilityMode.Default.(string)
+	// group.GrokReasoningVisibilityModeValidator is a validator for the "grok_reasoning_visibility_mode" field. It is called by the builders before save.
+	group.GrokReasoningVisibilityModeValidator = groupDescGrokReasoningVisibilityMode.Validators[0].(func(string) error)
+	// groupDescGrokReasoningProbeTTLSec is the schema descriptor for grok_reasoning_probe_ttl_sec field.
+	groupDescGrokReasoningProbeTTLSec := groupFields[51].Descriptor()
+	// group.DefaultGrokReasoningProbeTTLSec holds the default value on creation for the grok_reasoning_probe_ttl_sec field.
+	group.DefaultGrokReasoningProbeTTLSec = groupDescGrokReasoningProbeTTLSec.Default.(int)
+	// groupDescGrokReasoningQuarantineSec is the schema descriptor for grok_reasoning_quarantine_sec field.
+	groupDescGrokReasoningQuarantineSec := groupFields[52].Descriptor()
+	// group.DefaultGrokReasoningQuarantineSec holds the default value on creation for the grok_reasoning_quarantine_sec field.
+	group.DefaultGrokReasoningQuarantineSec = groupDescGrokReasoningQuarantineSec.Default.(int)
 	// groupDescForceOpenaiFast is the schema descriptor for force_openai_fast field.
-	groupDescForceOpenaiFast := groupFields[48].Descriptor()
+	groupDescForceOpenaiFast := groupFields[53].Descriptor()
 	// group.DefaultForceOpenaiFast holds the default value on creation for the force_openai_fast field.
 	group.DefaultForceOpenaiFast = groupDescForceOpenaiFast.Default.(bool)
 	// groupDescFreeOpenaiFast is the schema descriptor for free_openai_fast field.
-	groupDescFreeOpenaiFast := groupFields[49].Descriptor()
+	groupDescFreeOpenaiFast := groupFields[54].Descriptor()
 	// group.DefaultFreeOpenaiFast holds the default value on creation for the free_openai_fast field.
 	group.DefaultFreeOpenaiFast = groupDescFreeOpenaiFast.Default.(bool)
 	// groupDescRequireOauthOnly is the schema descriptor for require_oauth_only field.
-	groupDescRequireOauthOnly := groupFields[50].Descriptor()
+	groupDescRequireOauthOnly := groupFields[55].Descriptor()
 	// group.DefaultRequireOauthOnly holds the default value on creation for the require_oauth_only field.
 	group.DefaultRequireOauthOnly = groupDescRequireOauthOnly.Default.(bool)
 	// groupDescRequirePrivacySet is the schema descriptor for require_privacy_set field.
-	groupDescRequirePrivacySet := groupFields[51].Descriptor()
+	groupDescRequirePrivacySet := groupFields[56].Descriptor()
 	// group.DefaultRequirePrivacySet holds the default value on creation for the require_privacy_set field.
 	group.DefaultRequirePrivacySet = groupDescRequirePrivacySet.Default.(bool)
 	// groupDescDefaultMappedModel is the schema descriptor for default_mapped_model field.
-	groupDescDefaultMappedModel := groupFields[52].Descriptor()
+	groupDescDefaultMappedModel := groupFields[57].Descriptor()
 	// group.DefaultDefaultMappedModel holds the default value on creation for the default_mapped_model field.
 	group.DefaultDefaultMappedModel = groupDescDefaultMappedModel.Default.(string)
 	// group.DefaultMappedModelValidator is a validator for the "default_mapped_model" field. It is called by the builders before save.
 	group.DefaultMappedModelValidator = groupDescDefaultMappedModel.Validators[0].(func(string) error)
 	// groupDescMessagesDispatchModelConfig is the schema descriptor for messages_dispatch_model_config field.
-	groupDescMessagesDispatchModelConfig := groupFields[53].Descriptor()
+	groupDescMessagesDispatchModelConfig := groupFields[58].Descriptor()
 	// group.DefaultMessagesDispatchModelConfig holds the default value on creation for the messages_dispatch_model_config field.
 	group.DefaultMessagesDispatchModelConfig = groupDescMessagesDispatchModelConfig.Default.(domain.OpenAIMessagesDispatchModelConfig)
 	// groupDescModelAllowlist is the schema descriptor for model_allowlist field.
-	groupDescModelAllowlist := groupFields[54].Descriptor()
+	groupDescModelAllowlist := groupFields[59].Descriptor()
 	// group.DefaultModelAllowlist holds the default value on creation for the model_allowlist field.
 	group.DefaultModelAllowlist = groupDescModelAllowlist.Default.(domain.GroupModelAllowlist)
 	// groupDescCodexModelsManifestConfig is the schema descriptor for codex_models_manifest_config field.
-	groupDescCodexModelsManifestConfig := groupFields[55].Descriptor()
+	groupDescCodexModelsManifestConfig := groupFields[60].Descriptor()
 	// group.DefaultCodexModelsManifestConfig holds the default value on creation for the codex_models_manifest_config field.
 	group.DefaultCodexModelsManifestConfig = groupDescCodexModelsManifestConfig.Default.(domain.GroupCodexModelsManifestConfig)
+	// groupDescPromptPolicy is the schema descriptor for prompt_policy field.
+	groupDescPromptPolicy := groupFields[61].Descriptor()
+	// group.DefaultPromptPolicy holds the default value on creation for the prompt_policy field.
+	group.DefaultPromptPolicy = groupDescPromptPolicy.Default.(domain.GroupPromptPolicy)
 	// groupDescRpmLimit is the schema descriptor for rpm_limit field.
-	groupDescRpmLimit := groupFields[56].Descriptor()
+	groupDescRpmLimit := groupFields[62].Descriptor()
 	// group.DefaultRpmLimit holds the default value on creation for the rpm_limit field.
 	group.DefaultRpmLimit = groupDescRpmLimit.Default.(int)
 	// groupDescMaxReasoningEffort is the schema descriptor for max_reasoning_effort field.
-	groupDescMaxReasoningEffort := groupFields[57].Descriptor()
+	groupDescMaxReasoningEffort := groupFields[63].Descriptor()
 	// group.DefaultMaxReasoningEffort holds the default value on creation for the max_reasoning_effort field.
 	group.DefaultMaxReasoningEffort = groupDescMaxReasoningEffort.Default.(string)
 	// group.MaxReasoningEffortValidator is a validator for the "max_reasoning_effort" field. It is called by the builders before save.
 	group.MaxReasoningEffortValidator = groupDescMaxReasoningEffort.Validators[0].(func(string) error)
 	// groupDescMaxReasoningEffortOverLimit is the schema descriptor for max_reasoning_effort_over_limit field.
-	groupDescMaxReasoningEffortOverLimit := groupFields[58].Descriptor()
+	groupDescMaxReasoningEffortOverLimit := groupFields[64].Descriptor()
 	// group.DefaultMaxReasoningEffortOverLimit holds the default value on creation for the max_reasoning_effort_over_limit field.
 	group.DefaultMaxReasoningEffortOverLimit = groupDescMaxReasoningEffortOverLimit.Default.(string)
 	// group.MaxReasoningEffortOverLimitValidator is a validator for the "max_reasoning_effort_over_limit" field. It is called by the builders before save.
 	group.MaxReasoningEffortOverLimitValidator = groupDescMaxReasoningEffortOverLimit.Validators[0].(func(string) error)
 	// groupDescReasoningEffortMappings is the schema descriptor for reasoning_effort_mappings field.
-	groupDescReasoningEffortMappings := groupFields[59].Descriptor()
+	groupDescReasoningEffortMappings := groupFields[65].Descriptor()
 	// group.DefaultReasoningEffortMappings holds the default value on creation for the reasoning_effort_mappings field.
 	group.DefaultReasoningEffortMappings = groupDescReasoningEffortMappings.Default.([]domain.ReasoningEffortMapping)
 	// groupDescProfitControlEnabled is the schema descriptor for profit_control_enabled field.
-	groupDescProfitControlEnabled := groupFields[60].Descriptor()
+	groupDescProfitControlEnabled := groupFields[66].Descriptor()
 	// group.DefaultProfitControlEnabled holds the default value on creation for the profit_control_enabled field.
 	group.DefaultProfitControlEnabled = groupDescProfitControlEnabled.Default.(bool)
 	// groupDescProfitMinMargin is the schema descriptor for profit_min_margin field.
-	groupDescProfitMinMargin := groupFields[61].Descriptor()
+	groupDescProfitMinMargin := groupFields[67].Descriptor()
 	// group.DefaultProfitMinMargin holds the default value on creation for the profit_min_margin field.
 	group.DefaultProfitMinMargin = groupDescProfitMinMargin.Default.(float64)
 	// groupDescProfitSafetyBuffer is the schema descriptor for profit_safety_buffer field.
-	groupDescProfitSafetyBuffer := groupFields[62].Descriptor()
+	groupDescProfitSafetyBuffer := groupFields[68].Descriptor()
 	// group.DefaultProfitSafetyBuffer holds the default value on creation for the profit_safety_buffer field.
 	group.DefaultProfitSafetyBuffer = groupDescProfitSafetyBuffer.Default.(float64)
+	imbotMixin := schema.IMBot{}.Mixin()
+	imbotMixinHooks1 := imbotMixin[1].Hooks()
+	imbot.Hooks[0] = imbotMixinHooks1[0]
+	imbotMixinInters1 := imbotMixin[1].Interceptors()
+	imbot.Interceptors[0] = imbotMixinInters1[0]
+	imbotMixinFields0 := imbotMixin[0].Fields()
+	_ = imbotMixinFields0
+	imbotFields := schema.IMBot{}.Fields()
+	_ = imbotFields
+	// imbotDescCreatedAt is the schema descriptor for created_at field.
+	imbotDescCreatedAt := imbotMixinFields0[0].Descriptor()
+	// imbot.DefaultCreatedAt holds the default value on creation for the created_at field.
+	imbot.DefaultCreatedAt = imbotDescCreatedAt.Default.(func() time.Time)
+	// imbotDescUpdatedAt is the schema descriptor for updated_at field.
+	imbotDescUpdatedAt := imbotMixinFields0[1].Descriptor()
+	// imbot.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	imbot.DefaultUpdatedAt = imbotDescUpdatedAt.Default.(func() time.Time)
+	// imbot.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	imbot.UpdateDefaultUpdatedAt = imbotDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// imbotDescName is the schema descriptor for name field.
+	imbotDescName := imbotFields[0].Descriptor()
+	// imbot.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	imbot.NameValidator = func() func(string) error {
+		validators := imbotDescName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name string) error {
+			for _, fn := range fns {
+				if err := fn(name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// imbotDescPlatform is the schema descriptor for platform field.
+	imbotDescPlatform := imbotFields[1].Descriptor()
+	// imbot.PlatformValidator is a validator for the "platform" field. It is called by the builders before save.
+	imbot.PlatformValidator = func() func(string) error {
+		validators := imbotDescPlatform.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(platform string) error {
+			for _, fn := range fns {
+				if err := fn(platform); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// imbotDescModelOverride is the schema descriptor for model_override field.
+	imbotDescModelOverride := imbotFields[4].Descriptor()
+	// imbot.DefaultModelOverride holds the default value on creation for the model_override field.
+	imbot.DefaultModelOverride = imbotDescModelOverride.Default.(string)
+	// imbot.ModelOverrideValidator is a validator for the "model_override" field. It is called by the builders before save.
+	imbot.ModelOverrideValidator = imbotDescModelOverride.Validators[0].(func(string) error)
+	// imbotDescSystemPrompt is the schema descriptor for system_prompt field.
+	imbotDescSystemPrompt := imbotFields[5].Descriptor()
+	// imbot.DefaultSystemPrompt holds the default value on creation for the system_prompt field.
+	imbot.DefaultSystemPrompt = imbotDescSystemPrompt.Default.(string)
+	// imbotDescStatus is the schema descriptor for status field.
+	imbotDescStatus := imbotFields[6].Descriptor()
+	// imbot.DefaultStatus holds the default value on creation for the status field.
+	imbot.DefaultStatus = imbotDescStatus.Default.(string)
+	// imbot.StatusValidator is a validator for the "status" field. It is called by the builders before save.
+	imbot.StatusValidator = imbotDescStatus.Validators[0].(func(string) error)
+	// imbotDescMaxConcurrency is the schema descriptor for max_concurrency field.
+	imbotDescMaxConcurrency := imbotFields[7].Descriptor()
+	// imbot.DefaultMaxConcurrency holds the default value on creation for the max_concurrency field.
+	imbot.DefaultMaxConcurrency = imbotDescMaxConcurrency.Default.(int)
+	// imbotDescHistoryMaxMessages is the schema descriptor for history_max_messages field.
+	imbotDescHistoryMaxMessages := imbotFields[8].Descriptor()
+	// imbot.DefaultHistoryMaxMessages holds the default value on creation for the history_max_messages field.
+	imbot.DefaultHistoryMaxMessages = imbotDescHistoryMaxMessages.Default.(int)
+	// imbotDescPairingEnabled is the schema descriptor for pairing_enabled field.
+	imbotDescPairingEnabled := imbotFields[9].Descriptor()
+	// imbot.DefaultPairingEnabled holds the default value on creation for the pairing_enabled field.
+	imbot.DefaultPairingEnabled = imbotDescPairingEnabled.Default.(bool)
+	// imbotDescLastError is the schema descriptor for last_error field.
+	imbotDescLastError := imbotFields[10].Descriptor()
+	// imbot.DefaultLastError holds the default value on creation for the last_error field.
+	imbot.DefaultLastError = imbotDescLastError.Default.(string)
+	imbotchatMixin := schema.IMBotChat{}.Mixin()
+	imbotchatMixinFields0 := imbotchatMixin[0].Fields()
+	_ = imbotchatMixinFields0
+	imbotchatFields := schema.IMBotChat{}.Fields()
+	_ = imbotchatFields
+	// imbotchatDescCreatedAt is the schema descriptor for created_at field.
+	imbotchatDescCreatedAt := imbotchatMixinFields0[0].Descriptor()
+	// imbotchat.DefaultCreatedAt holds the default value on creation for the created_at field.
+	imbotchat.DefaultCreatedAt = imbotchatDescCreatedAt.Default.(func() time.Time)
+	// imbotchatDescUpdatedAt is the schema descriptor for updated_at field.
+	imbotchatDescUpdatedAt := imbotchatMixinFields0[1].Descriptor()
+	// imbotchat.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	imbotchat.DefaultUpdatedAt = imbotchatDescUpdatedAt.Default.(func() time.Time)
+	// imbotchat.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	imbotchat.UpdateDefaultUpdatedAt = imbotchatDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// imbotchatDescChatID is the schema descriptor for chat_id field.
+	imbotchatDescChatID := imbotchatFields[1].Descriptor()
+	// imbotchat.ChatIDValidator is a validator for the "chat_id" field. It is called by the builders before save.
+	imbotchat.ChatIDValidator = func() func(string) error {
+		validators := imbotchatDescChatID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(chat_id string) error {
+			for _, fn := range fns {
+				if err := fn(chat_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// imbotchatDescPlatformUserID is the schema descriptor for platform_user_id field.
+	imbotchatDescPlatformUserID := imbotchatFields[2].Descriptor()
+	// imbotchat.DefaultPlatformUserID holds the default value on creation for the platform_user_id field.
+	imbotchat.DefaultPlatformUserID = imbotchatDescPlatformUserID.Default.(string)
+	// imbotchat.PlatformUserIDValidator is a validator for the "platform_user_id" field. It is called by the builders before save.
+	imbotchat.PlatformUserIDValidator = imbotchatDescPlatformUserID.Validators[0].(func(string) error)
+	// imbotchatDescDisplayName is the schema descriptor for display_name field.
+	imbotchatDescDisplayName := imbotchatFields[3].Descriptor()
+	// imbotchat.DefaultDisplayName holds the default value on creation for the display_name field.
+	imbotchat.DefaultDisplayName = imbotchatDescDisplayName.Default.(string)
+	// imbotchat.DisplayNameValidator is a validator for the "display_name" field. It is called by the builders before save.
+	imbotchat.DisplayNameValidator = imbotchatDescDisplayName.Validators[0].(func(string) error)
+	// imbotchatDescSessionUUID is the schema descriptor for session_uuid field.
+	imbotchatDescSessionUUID := imbotchatFields[4].Descriptor()
+	// imbotchat.SessionUUIDValidator is a validator for the "session_uuid" field. It is called by the builders before save.
+	imbotchat.SessionUUIDValidator = func() func(string) error {
+		validators := imbotchatDescSessionUUID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(session_uuid string) error {
+			for _, fn := range fns {
+				if err := fn(session_uuid); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// imbotchatDescModelOverride is the schema descriptor for model_override field.
+	imbotchatDescModelOverride := imbotchatFields[5].Descriptor()
+	// imbotchat.DefaultModelOverride holds the default value on creation for the model_override field.
+	imbotchat.DefaultModelOverride = imbotchatDescModelOverride.Default.(string)
+	// imbotchat.ModelOverrideValidator is a validator for the "model_override" field. It is called by the builders before save.
+	imbotchat.ModelOverrideValidator = imbotchatDescModelOverride.Validators[0].(func(string) error)
+	// imbotchatDescStatus is the schema descriptor for status field.
+	imbotchatDescStatus := imbotchatFields[6].Descriptor()
+	// imbotchat.DefaultStatus holds the default value on creation for the status field.
+	imbotchat.DefaultStatus = imbotchatDescStatus.Default.(string)
+	// imbotchat.StatusValidator is a validator for the "status" field. It is called by the builders before save.
+	imbotchat.StatusValidator = imbotchatDescStatus.Validators[0].(func(string) error)
+	// imbotchatDescPairedAt is the schema descriptor for paired_at field.
+	imbotchatDescPairedAt := imbotchatFields[7].Descriptor()
+	// imbotchat.DefaultPairedAt holds the default value on creation for the paired_at field.
+	imbotchat.DefaultPairedAt = imbotchatDescPairedAt.Default.(func() time.Time)
+	imbotmessageMixin := schema.IMBotMessage{}.Mixin()
+	imbotmessageMixinFields0 := imbotmessageMixin[0].Fields()
+	_ = imbotmessageMixinFields0
+	imbotmessageFields := schema.IMBotMessage{}.Fields()
+	_ = imbotmessageFields
+	// imbotmessageDescCreatedAt is the schema descriptor for created_at field.
+	imbotmessageDescCreatedAt := imbotmessageMixinFields0[0].Descriptor()
+	// imbotmessage.DefaultCreatedAt holds the default value on creation for the created_at field.
+	imbotmessage.DefaultCreatedAt = imbotmessageDescCreatedAt.Default.(func() time.Time)
+	// imbotmessageDescUpdatedAt is the schema descriptor for updated_at field.
+	imbotmessageDescUpdatedAt := imbotmessageMixinFields0[1].Descriptor()
+	// imbotmessage.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	imbotmessage.DefaultUpdatedAt = imbotmessageDescUpdatedAt.Default.(func() time.Time)
+	// imbotmessage.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	imbotmessage.UpdateDefaultUpdatedAt = imbotmessageDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// imbotmessageDescRole is the schema descriptor for role field.
+	imbotmessageDescRole := imbotmessageFields[2].Descriptor()
+	// imbotmessage.RoleValidator is a validator for the "role" field. It is called by the builders before save.
+	imbotmessage.RoleValidator = func() func(string) error {
+		validators := imbotmessageDescRole.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(role string) error {
+			for _, fn := range fns {
+				if err := fn(role); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// imbotmessageDescRequestID is the schema descriptor for request_id field.
+	imbotmessageDescRequestID := imbotmessageFields[4].Descriptor()
+	// imbotmessage.DefaultRequestID holds the default value on creation for the request_id field.
+	imbotmessage.DefaultRequestID = imbotmessageDescRequestID.Default.(string)
+	// imbotmessage.RequestIDValidator is a validator for the "request_id" field. It is called by the builders before save.
+	imbotmessage.RequestIDValidator = imbotmessageDescRequestID.Validators[0].(func(string) error)
 	idempotencyrecordMixin := schema.IdempotencyRecord{}.Mixin()
 	idempotencyrecordMixinFields0 := idempotencyrecordMixin[0].Fields()
 	_ = idempotencyrecordMixinFields0
@@ -1714,9 +2093,124 @@ func init() {
 	// proxy.FallbackModeValidator is a validator for the "fallback_mode" field. It is called by the builders before save.
 	proxy.FallbackModeValidator = proxyDescFallbackMode.Validators[0].(func(string) error)
 	// proxyDescExpiryWarnDays is the schema descriptor for expiry_warn_days field.
-	proxyDescExpiryWarnDays := proxyFields[10].Descriptor()
+	proxyDescExpiryWarnDays := proxyFields[11].Descriptor()
 	// proxy.DefaultExpiryWarnDays holds the default value on creation for the expiry_warn_days field.
 	proxy.DefaultExpiryWarnDays = proxyDescExpiryWarnDays.Default.(int)
+	proxysubscriptionMixin := schema.ProxySubscription{}.Mixin()
+	proxysubscriptionMixinFields0 := proxysubscriptionMixin[0].Fields()
+	_ = proxysubscriptionMixinFields0
+	proxysubscriptionFields := schema.ProxySubscription{}.Fields()
+	_ = proxysubscriptionFields
+	// proxysubscriptionDescCreatedAt is the schema descriptor for created_at field.
+	proxysubscriptionDescCreatedAt := proxysubscriptionMixinFields0[0].Descriptor()
+	// proxysubscription.DefaultCreatedAt holds the default value on creation for the created_at field.
+	proxysubscription.DefaultCreatedAt = proxysubscriptionDescCreatedAt.Default.(func() time.Time)
+	// proxysubscriptionDescUpdatedAt is the schema descriptor for updated_at field.
+	proxysubscriptionDescUpdatedAt := proxysubscriptionMixinFields0[1].Descriptor()
+	// proxysubscription.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	proxysubscription.DefaultUpdatedAt = proxysubscriptionDescUpdatedAt.Default.(func() time.Time)
+	// proxysubscription.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	proxysubscription.UpdateDefaultUpdatedAt = proxysubscriptionDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// proxysubscriptionDescName is the schema descriptor for name field.
+	proxysubscriptionDescName := proxysubscriptionFields[0].Descriptor()
+	// proxysubscription.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	proxysubscription.NameValidator = func() func(string) error {
+		validators := proxysubscriptionDescName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name string) error {
+			for _, fn := range fns {
+				if err := fn(name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// proxysubscriptionDescEnabled is the schema descriptor for enabled field.
+	proxysubscriptionDescEnabled := proxysubscriptionFields[1].Descriptor()
+	// proxysubscription.DefaultEnabled holds the default value on creation for the enabled field.
+	proxysubscription.DefaultEnabled = proxysubscriptionDescEnabled.Default.(bool)
+	// proxysubscriptionDescSourceType is the schema descriptor for source_type field.
+	proxysubscriptionDescSourceType := proxysubscriptionFields[2].Descriptor()
+	// proxysubscription.DefaultSourceType holds the default value on creation for the source_type field.
+	proxysubscription.DefaultSourceType = proxysubscriptionDescSourceType.Default.(string)
+	// proxysubscription.SourceTypeValidator is a validator for the "source_type" field. It is called by the builders before save.
+	proxysubscription.SourceTypeValidator = proxysubscriptionDescSourceType.Validators[0].(func(string) error)
+	// proxysubscriptionDescSubscriptionURL is the schema descriptor for subscription_url field.
+	proxysubscriptionDescSubscriptionURL := proxysubscriptionFields[3].Descriptor()
+	// proxysubscription.DefaultSubscriptionURL holds the default value on creation for the subscription_url field.
+	proxysubscription.DefaultSubscriptionURL = proxysubscriptionDescSubscriptionURL.Default.(string)
+	// proxysubscription.SubscriptionURLValidator is a validator for the "subscription_url" field. It is called by the builders before save.
+	proxysubscription.SubscriptionURLValidator = proxysubscriptionDescSubscriptionURL.Validators[0].(func(string) error)
+	// proxysubscriptionDescInlineBody is the schema descriptor for inline_body field.
+	proxysubscriptionDescInlineBody := proxysubscriptionFields[4].Descriptor()
+	// proxysubscription.DefaultInlineBody holds the default value on creation for the inline_body field.
+	proxysubscription.DefaultInlineBody = proxysubscriptionDescInlineBody.Default.(string)
+	// proxysubscriptionDescNamePrefix is the schema descriptor for name_prefix field.
+	proxysubscriptionDescNamePrefix := proxysubscriptionFields[5].Descriptor()
+	// proxysubscription.DefaultNamePrefix holds the default value on creation for the name_prefix field.
+	proxysubscription.DefaultNamePrefix = proxysubscriptionDescNamePrefix.Default.(string)
+	// proxysubscription.NamePrefixValidator is a validator for the "name_prefix" field. It is called by the builders before save.
+	proxysubscription.NamePrefixValidator = proxysubscriptionDescNamePrefix.Validators[0].(func(string) error)
+	// proxysubscriptionDescProtocol is the schema descriptor for protocol field.
+	proxysubscriptionDescProtocol := proxysubscriptionFields[6].Descriptor()
+	// proxysubscription.DefaultProtocol holds the default value on creation for the protocol field.
+	proxysubscription.DefaultProtocol = proxysubscriptionDescProtocol.Default.(string)
+	// proxysubscription.ProtocolValidator is a validator for the "protocol" field. It is called by the builders before save.
+	proxysubscription.ProtocolValidator = proxysubscriptionDescProtocol.Validators[0].(func(string) error)
+	// proxysubscriptionDescBindAddress is the schema descriptor for bind_address field.
+	proxysubscriptionDescBindAddress := proxysubscriptionFields[7].Descriptor()
+	// proxysubscription.DefaultBindAddress holds the default value on creation for the bind_address field.
+	proxysubscription.DefaultBindAddress = proxysubscriptionDescBindAddress.Default.(string)
+	// proxysubscription.BindAddressValidator is a validator for the "bind_address" field. It is called by the builders before save.
+	proxysubscription.BindAddressValidator = proxysubscriptionDescBindAddress.Validators[0].(func(string) error)
+	// proxysubscriptionDescBasePort is the schema descriptor for base_port field.
+	proxysubscriptionDescBasePort := proxysubscriptionFields[8].Descriptor()
+	// proxysubscription.DefaultBasePort holds the default value on creation for the base_port field.
+	proxysubscription.DefaultBasePort = proxysubscriptionDescBasePort.Default.(int)
+	// proxysubscriptionDescMaxPorts is the schema descriptor for max_ports field.
+	proxysubscriptionDescMaxPorts := proxysubscriptionFields[9].Descriptor()
+	// proxysubscription.DefaultMaxPorts holds the default value on creation for the max_ports field.
+	proxysubscription.DefaultMaxPorts = proxysubscriptionDescMaxPorts.Default.(int)
+	// proxysubscriptionDescSyncIntervalSec is the schema descriptor for sync_interval_sec field.
+	proxysubscriptionDescSyncIntervalSec := proxysubscriptionFields[10].Descriptor()
+	// proxysubscription.DefaultSyncIntervalSec holds the default value on creation for the sync_interval_sec field.
+	proxysubscription.DefaultSyncIntervalSec = proxysubscriptionDescSyncIntervalSec.Default.(int)
+	// proxysubscriptionDescNodeAllowContains is the schema descriptor for node_allow_contains field.
+	proxysubscriptionDescNodeAllowContains := proxysubscriptionFields[11].Descriptor()
+	// proxysubscription.DefaultNodeAllowContains holds the default value on creation for the node_allow_contains field.
+	proxysubscription.DefaultNodeAllowContains = proxysubscriptionDescNodeAllowContains.Default.([]string)
+	// proxysubscriptionDescNodeIdentityAllowlist is the schema descriptor for node_identity_allowlist field.
+	proxysubscriptionDescNodeIdentityAllowlist := proxysubscriptionFields[12].Descriptor()
+	// proxysubscription.DefaultNodeIdentityAllowlist holds the default value on creation for the node_identity_allowlist field.
+	proxysubscription.DefaultNodeIdentityAllowlist = proxysubscriptionDescNodeIdentityAllowlist.Default.([]string)
+	// proxysubscriptionDescLastSyncStatus is the schema descriptor for last_sync_status field.
+	proxysubscriptionDescLastSyncStatus := proxysubscriptionFields[14].Descriptor()
+	// proxysubscription.DefaultLastSyncStatus holds the default value on creation for the last_sync_status field.
+	proxysubscription.DefaultLastSyncStatus = proxysubscriptionDescLastSyncStatus.Default.(string)
+	// proxysubscription.LastSyncStatusValidator is a validator for the "last_sync_status" field. It is called by the builders before save.
+	proxysubscription.LastSyncStatusValidator = proxysubscriptionDescLastSyncStatus.Validators[0].(func(string) error)
+	// proxysubscriptionDescLastSyncError is the schema descriptor for last_sync_error field.
+	proxysubscriptionDescLastSyncError := proxysubscriptionFields[15].Descriptor()
+	// proxysubscription.DefaultLastSyncError holds the default value on creation for the last_sync_error field.
+	proxysubscription.DefaultLastSyncError = proxysubscriptionDescLastSyncError.Default.(string)
+	// proxysubscriptionDescLastConfigHash is the schema descriptor for last_config_hash field.
+	proxysubscriptionDescLastConfigHash := proxysubscriptionFields[16].Descriptor()
+	// proxysubscription.DefaultLastConfigHash holds the default value on creation for the last_config_hash field.
+	proxysubscription.DefaultLastConfigHash = proxysubscriptionDescLastConfigHash.Default.(string)
+	// proxysubscription.LastConfigHashValidator is a validator for the "last_config_hash" field. It is called by the builders before save.
+	proxysubscription.LastConfigHashValidator = proxysubscriptionDescLastConfigHash.Validators[0].(func(string) error)
+	// proxysubscriptionDescDesiredCount is the schema descriptor for desired_count field.
+	proxysubscriptionDescDesiredCount := proxysubscriptionFields[17].Descriptor()
+	// proxysubscription.DefaultDesiredCount holds the default value on creation for the desired_count field.
+	proxysubscription.DefaultDesiredCount = proxysubscriptionDescDesiredCount.Default.(int)
+	// proxysubscriptionDescCreatedBy is the schema descriptor for created_by field.
+	proxysubscriptionDescCreatedBy := proxysubscriptionFields[18].Descriptor()
+	// proxysubscription.DefaultCreatedBy holds the default value on creation for the created_by field.
+	proxysubscription.DefaultCreatedBy = proxysubscriptionDescCreatedBy.Default.(int64)
 	redeemcodeFields := schema.RedeemCode{}.Fields()
 	_ = redeemcodeFields
 	// redeemcodeDescCode is the schema descriptor for code field.

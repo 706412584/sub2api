@@ -523,6 +523,28 @@ func TestExtractOpenAIUsage_CapturesImageInputTokens(t *testing.T) {
 	require.Zero(t, tu.ImageInputTokens)
 }
 
+func TestExtractOpenAIUsage_CapturesReasoningTokens(t *testing.T) {
+	// Chat Completions style
+	body := []byte(`{"usage":{"prompt_tokens":10,"completion_tokens":50,"completion_tokens_details":{"reasoning_tokens":32},"total_tokens":60}}`)
+	usage, ok := extractOpenAIUsageFromJSONBytes(body)
+	require.True(t, ok)
+	require.Equal(t, 10, usage.InputTokens)
+	require.Equal(t, 50, usage.OutputTokens)
+	require.Equal(t, 32, usage.ReasoningTokens)
+
+	// Responses API style
+	respStyle := []byte(`{"usage":{"input_tokens":12,"output_tokens":80,"output_tokens_details":{"reasoning_tokens":45,"image_tokens":0}}}`)
+	ru, ok := extractOpenAIUsageFromJSONBytes(respStyle)
+	require.True(t, ok)
+	require.Equal(t, 45, ru.ReasoningTokens)
+
+	// No reasoning details
+	textOnly := []byte(`{"usage":{"input_tokens":5,"output_tokens":7}}`)
+	tu, ok := extractOpenAIUsageFromJSONBytes(textOnly)
+	require.True(t, ok)
+	require.Zero(t, tu.ReasoningTokens)
+}
+
 func TestExtractOpenAIUsage_ReadsClineDataEnvelope(t *testing.T) {
 	body := []byte(`{"data":{"choices":[{"message":{"content":"OK"}}],"usage":{"prompt_tokens":8,"completion_tokens":27,"total_tokens":35,"prompt_tokens_details":{"cached_tokens":4}}},"success":true}`)
 
@@ -3635,6 +3657,20 @@ func TestExtractCodexFinalResponse_SampleReplay(t *testing.T) {
 	require.Contains(t, string(finalResp), `"input_tokens":11`)
 }
 
+func rawChatCompletionsTestAccount() *Account {
+	return &Account{
+		ID:          101,
+		Name:        "raw-openai-apikey",
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "http://upstream.example",
+		},
+	}
+}
+
 func TestHandleSSEToJSON_CompletedEventReturnsJSON(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()
@@ -3652,7 +3688,7 @@ func TestHandleSSEToJSON_CompletedEventReturnsJSON(t *testing.T) {
 		`data: [DONE]`,
 	}, "\n"))
 
-	usage, err := svc.handleSSEToJSON(resp, c, nil, body, "gpt-4o", "gpt-4o")
+	usage, err := svc.handleSSEToJSON(resp, c, rawChatCompletionsTestAccount(), body, "gpt-4o", "gpt-4o")
 	require.NoError(t, err)
 	require.NotNil(t, usage)
 	require.Equal(t, 7, usage.InputTokens)
@@ -3771,7 +3807,7 @@ func TestHandleSSEToJSON_ReconstructsImageGenerationOutputItemDone(t *testing.T)
 		`data: [DONE]`,
 	}, "\n"))
 
-	usage, err := svc.handleSSEToJSON(resp, c, nil, body, "gpt-5.4", "gpt-5.4")
+	usage, err := svc.handleSSEToJSON(resp, c, rawChatCompletionsTestAccount(), body, "gpt-5.4", "gpt-5.4")
 	require.NoError(t, err)
 	require.NotNil(t, usage)
 	require.Equal(t, 4, usage.ImageOutputTokens)
@@ -3798,7 +3834,7 @@ func TestHandleSSEToJSON_NoFinalResponseKeepsSSEBody(t *testing.T) {
 		`data: [DONE]`,
 	}, "\n"))
 
-	usage, err := svc.handleSSEToJSON(resp, c, nil, body, "gpt-4o", "gpt-4o")
+	usage, err := svc.handleSSEToJSON(resp, c, rawChatCompletionsTestAccount(), body, "gpt-4o", "gpt-4o")
 	require.NoError(t, err)
 	require.NotNil(t, usage)
 	require.Equal(t, 0, usage.InputTokens)

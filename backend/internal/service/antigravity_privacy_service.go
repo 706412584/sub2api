@@ -20,7 +20,7 @@ const (
 //  2. fetchUserInfo 二次验证隐私是否已生效（需要 project_id）
 //
 // 返回 privacy_mode 值："privacy_set" 成功，"privacy_set_failed" 失败，空串表示无法执行。
-func setAntigravityPrivacy(ctx context.Context, accessToken, projectID, proxyURL string) string {
+func setAntigravityPrivacy(ctx context.Context, accessToken, projectID, proxyURL, egressURL string) string {
 	if accessToken == "" {
 		return ""
 	}
@@ -28,7 +28,7 @@ func setAntigravityPrivacy(ctx context.Context, accessToken, projectID, proxyURL
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	client, err := antigravity.NewClient(proxyURL)
+	client, err := antigravity.NewClientWithEgress(proxyURL, egressURL)
 	if err != nil {
 		slog.Warn("antigravity_privacy_client_error", "error", err.Error())
 		return AntigravityPrivacyFailed

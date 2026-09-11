@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"log/slog"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	httppool "github.com/Wei-Shaw/sub2api/internal/pkg/httpclient"
+	kiroprotocol "github.com/Wei-Shaw/sub2api/internal/pkg/kiro"
 	openaipkg "github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
@@ -160,6 +162,23 @@ type AntigravityModelQuota struct {
 	ResetTime   string `json:"reset_time"`  // 重置时间 ISO8601
 }
 
+// AntigravityQuotaBucket retrieveUserQuotaSummary 中的单个配额桶（weekly / 5h 窗口）
+type AntigravityQuotaBucket struct {
+	BucketID    string `json:"bucket_id"`            // 如 "gemini-weekly" / "gemini-5h" / "3p-weekly" / "3p-5h"
+	Window      string `json:"window"`               // "weekly" / "5h"
+	Utilization int    `json:"utilization"`          // 使用率 0-100（由 remainingFraction 换算）
+	ResetTime   string `json:"reset_time,omitempty"` // 重置时间 ISO8601
+	DisplayName string `json:"display_name,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+// AntigravityQuotaGroup retrieveUserQuotaSummary 中的模型组（如 Gemini Models / Claude and GPT models）
+type AntigravityQuotaGroup struct {
+	DisplayName string                    `json:"display_name,omitempty"`
+	Description string                    `json:"description,omitempty"`
+	Buckets     []*AntigravityQuotaBucket `json:"buckets"`
+}
+
 // AntigravityModelDetail Antigravity 单个模型的详细能力信息
 type AntigravityModelDetail struct {
 	DisplayName        string          `json:"display_name,omitempty"`
@@ -180,6 +199,16 @@ type AICredit struct {
 }
 
 // UsageInfo 账号使用量信息
+type KiroUsageInfo struct {
+	SubscriptionTitle string     `json:"subscription_title,omitempty"`
+	CurrentUsage      float64    `json:"current_usage"`
+	UsageLimit        float64    `json:"usage_limit"`
+	NextResetAt       *time.Time `json:"next_reset_at,omitempty"`
+	Email             string     `json:"email,omitempty"`
+	OverageEnabled    *bool      `json:"overage_enabled,omitempty"`
+	OverageCapable    *bool      `json:"overage_capable,omitempty"`
+}
+
 type UsageInfo struct {
 	Source             string         `json:"source,omitempty"`               // "passive" or "active"
 	UpdatedAt          *time.Time     `json:"updated_at,omitempty"`           // 更新时间
@@ -215,12 +244,20 @@ type UsageInfo struct {
 	ThirtyDay   *UsageProgress      `json:"thirty_day,omitempty"`
 	GrokBilling *xai.BillingSummary `json:"grok_billing,omitempty"`
 
+	// Grok Console 会话账号的真实配额（console.x.ai/v1/usage）
+	ConsoleUsage *ConsoleUsageSnapshot `json:"console_usage,omitempty"`
+
+	Kiro *KiroUsageInfo `json:"kiro,omitempty"`
+
 	// Antigravity 账号级信息
 	SubscriptionTier    string `json:"subscription_tier,omitempty"`     // 归一化订阅等级: FREE/PRO/ULTRA/UNKNOWN
 	SubscriptionTierRaw string `json:"subscription_tier_raw,omitempty"` // 上游原始订阅等级名称
 
 	// Antigravity 模型详细能力信息（与 antigravity_quota 同 key）
 	AntigravityQuotaDetails map[string]*AntigravityModelDetail `json:"antigravity_quota_details,omitempty"`
+
+	// Antigravity 分桶配额摘要（retrieveUserQuotaSummary，weekly + 5h 双窗口）
+	AntigravityQuotaGroups []*AntigravityQuotaGroup `json:"antigravity_quota_groups,omitempty"`
 
 	// Antigravity AI Credits 余额
 	AICredits []AICredit `json:"ai_credits,omitempty"`
@@ -297,7 +334,9 @@ type AccountUsageService struct {
 	antigravityQuotaFetcher *AntigravityQuotaFetcher
 	grokQuotaFetcher        *GrokQuotaFetcher
 	grokQuotaService        *GrokQuotaService
+	consoleDPoPProvider     *GrokConsoleDPoPProvider
 	openAIQuotaService      *OpenAIQuotaService
+	kiroGatewayService      *KiroGatewayService
 	cache                   *UsageCache
 	identityCache           IdentityCache
 	tlsFPProfileService     *TLSFingerprintProfileService
@@ -315,6 +354,7 @@ func NewAccountUsageService(
 	grokQuotaFetcher *GrokQuotaFetcher,
 	grokQuotaService *GrokQuotaService,
 	openAIQuotaService *OpenAIQuotaService,
+	kiroGatewayService *KiroGatewayService,
 	cache *UsageCache,
 	identityCache IdentityCache,
 	tlsFPProfileService *TLSFingerprintProfileService,
@@ -328,6 +368,7 @@ func NewAccountUsageService(
 		grokQuotaFetcher:        grokQuotaFetcher,
 		grokQuotaService:        grokQuotaService,
 		openAIQuotaService:      openAIQuotaService,
+		kiroGatewayService:      kiroGatewayService,
 		cache:                   cache,
 		identityCache:           identityCache,
 		tlsFPProfileService:     tlsFPProfileService,
@@ -336,6 +377,82 @@ func NewAccountUsageService(
 
 func supportsAnthropicPassiveUsage(account *Account) bool {
 	return account != nil && account.IsAnthropicOAuthOrSetupToken()
+}
+
+// SetConsoleDPoPProvider 注入 Console DPoP provider（Console 用量探测用）。
+func (s *AccountUsageService) SetConsoleDPoPProvider(p *GrokConsoleDPoPProvider) {
+	if s != nil {
+		s.consoleDPoPProvider = p
+	}
+}
+
+// getGrokConsoleUsage 获取 Console 会话账号的真实配额（/v1/usage），
+// 并附带本地 24h 用量统计。探测失败降级为仅本地用量，不阻塞列表渲染。
+// 快照带 TTL 缓存：TTL 内直接返回上次探测结果，避免 1077 账号列表渲染时
+// 对 console.x.ai 发起探测风暴，也保证节流期内配额可见（而非空白）。
+func (s *AccountUsageService) getGrokConsoleUsage(ctx context.Context, account *Account, force bool) (*UsageInfo, error) {
+	now := time.Now()
+	usage := &UsageInfo{UpdatedAt: &now}
+
+	if s.consoleDPoPProvider != nil {
+		cached, fresh := loadConsoleUsageCache(account.ID, now)
+		if !force && fresh && cached != nil {
+			usage.ConsoleUsage = cached
+		} else {
+			snapshot, err := s.consoleDPoPProvider.FetchConsoleUsage(ctx, account.ID, account.ProxyID)
+			if err == nil && snapshot != nil {
+				usage.ConsoleUsage = snapshot
+				storeConsoleUsageCache(account.ID, snapshot, now)
+			} else if cached != nil {
+				// 探测失败但有旧快照：返回旧值，避免列表突然空白
+				usage.ConsoleUsage = cached
+				if err != nil {
+					usage.Error = err.Error()
+				}
+			} else if err != nil {
+				usage.Error = err.Error()
+			}
+		}
+	} else {
+		usage.GrokQuotaSnapshotState = "unknown_until_first_response"
+	}
+
+	// 本地统计与 Build 保持同构，便于前端复用展示。
+	if s.usageLogRepo != nil {
+		if stats, err := s.usageLogRepo.GetAccountTodayStats(ctx, account.ID); err == nil && stats != nil {
+			usage.GrokLocalUsage = windowStatsFromAccountStats(stats)
+		}
+		resetAt := time.Now().UTC().Truncate(24 * time.Hour).Add(24 * time.Hour)
+		usage.GrokLocalUsage24h = grokLocalUsage24hFrom(ctx, s.usageLogRepo, account.ID, time.Now().UTC(), resetAt)
+	}
+	return usage, nil
+}
+
+// consoleUsageCacheEntry 缓存一次 /v1/usage 探测结果。
+type consoleUsageCacheEntry struct {
+	snapshot *ConsoleUsageSnapshot
+	at       time.Time
+}
+
+// consoleUsageCache 每账号缓存最近一次配额快照。
+var consoleUsageCache sync.Map // accountID -> consoleUsageCacheEntry
+
+const consoleUsageCacheTTL = 2 * time.Minute
+
+func loadConsoleUsageCache(accountID int64, now time.Time) (*ConsoleUsageSnapshot, bool) {
+	v, ok := consoleUsageCache.Load(accountID)
+	if !ok {
+		return nil, false
+	}
+	entry, ok := v.(consoleUsageCacheEntry)
+	if !ok {
+		return nil, false
+	}
+	return entry.snapshot, now.Sub(entry.at) < consoleUsageCacheTTL
+}
+
+func storeConsoleUsageCache(accountID int64, snapshot *ConsoleUsageSnapshot, now time.Time) {
+	consoleUsageCache.Store(accountID, consoleUsageCacheEntry{snapshot: snapshot, at: now})
 }
 
 func batchUsageErrorMessage(err error) string {
@@ -389,6 +506,10 @@ func (s *AccountUsageService) getUsageForAccount(ctx context.Context, account *A
 			s.tryClearRecoverableAccountError(ctx, account)
 		}
 		return usage, err
+	}
+
+	if account.Platform == PlatformKiro {
+		return s.getKiroUsage(ctx, account)
 	}
 
 	// 只有oauth类型账号可以通过API获取usage（有profile scope）
@@ -486,6 +607,54 @@ func (s *AccountUsageService) getUsageForAccount(ctx context.Context, account *A
 
 	// API Key账号不支持usage查询
 	return nil, fmt.Errorf("account type %s does not support usage query", account.Type)
+}
+
+func (s *AccountUsageService) getKiroUsage(ctx context.Context, account *Account) (*UsageInfo, error) {
+	if s.kiroGatewayService == nil {
+		return nil, errors.New("kiro usage service is not configured")
+	}
+	limits, err := s.kiroGatewayService.FetchUsageLimits(ctx, account)
+	if err != nil {
+		return nil, fmt.Errorf("fetch Kiro usage failed: %w", err)
+	}
+
+	now := time.Now().UTC()
+	usage := buildKiroUsageInfo(limits)
+
+	if s.accountRepo != nil {
+		snapshot := SnapshotUsageToAccountExtra(nil, limits)["kiro_usage"]
+		if err := s.accountRepo.UpdateExtra(ctx, account.ID, map[string]any{"kiro_usage": snapshot}); err != nil {
+			slog.Warn("kiro_usage_snapshot_update_failed", "account_id", account.ID, "error", err)
+		}
+	}
+	return &UsageInfo{UpdatedAt: &now, Kiro: usage}, nil
+}
+
+func buildKiroUsageInfo(limits *kiroprotocol.UsageLimitsResponse) *KiroUsageInfo {
+	if limits == nil {
+		return nil
+	}
+	usage := &KiroUsageInfo{
+		SubscriptionTitle: limits.SubscriptionTitle(),
+		CurrentUsage:      limits.CurrentUsage(),
+		UsageLimit:        limits.UsageLimit(),
+		Email:             limits.Email(),
+	}
+	if enabled, ok := limits.OverageEnabled(); ok {
+		usage.OverageEnabled = &enabled
+	}
+	if capable, ok := limits.OverageCapable(); ok {
+		usage.OverageCapable = &capable
+	}
+	resetAt := limits.NextDateReset
+	if len(limits.UsageBreakdownList) > 0 && limits.UsageBreakdownList[0].NextDateReset != nil {
+		resetAt = limits.UsageBreakdownList[0].NextDateReset
+	}
+	if resetAt != nil && *resetAt > 0 {
+		value := time.Unix(int64(*resetAt), 0).UTC()
+		usage.NextResetAt = &value
+	}
+	return usage
 }
 
 // GetUsage 获取账号使用量
@@ -1104,6 +1273,10 @@ func (s *AccountUsageService) getGrokUsage(ctx context.Context, account *Account
 		now := time.Now()
 		return &UsageInfo{UpdatedAt: &now}, nil
 	}
+	// Console 会话账号：真实配额来自 console.x.ai/v1/usage，不走 Build header/billing 探测。
+	if account != nil && account.Type == AccountTypeGrokConsole {
+		return s.getGrokConsoleUsage(ctx, account, force)
+	}
 	var billingProbeResult *GrokQuotaProbeResult
 	if account != nil && account.IsGrokOAuth() && s.grokQuotaService != nil && (force || grokBillingSnapshotNeedsRefresh(account, time.Now())) && s.shouldProbeGrokBilling(account.ID, time.Now(), force) {
 		result, err := s.grokQuotaService.ProbeBilling(ctx, account.ID)
@@ -1138,6 +1311,14 @@ func (s *AccountUsageService) getGrokUsage(ctx context.Context, account *Account
 				ctx, s.usageLogRepo, account.ID, usage.GrokBilling, time.Now().UTC(),
 			)
 		}
+		if s.usageLogRepo != nil {
+			if resetAt := grokFreeProgressResetAtFromExtra(account.Extra); !resetAt.IsZero() {
+				usage.GrokLocalUsage24h = grokLocalUsage24hFrom(ctx, s.usageLogRepo, account.ID, time.Now().UTC(), resetAt)
+			}
+		}
+		// 若 extra 已有模型路径 429/耗尽快照但 rate_limit_reset_at 缺失，补写调度限流，
+		// 保证列表刷新后状态列与额度格一致。billing 429 不在此路径（见 ProbeBilling 测试）。
+		reconcileGrokRateLimitFromSnapshot(ctx, s.accountRepo, account)
 		// Attach local window stats to official 7d/30d progress bars.
 		if usage.SevenDay != nil && usage.GrokLocalUsage7d != nil {
 			usage.SevenDay.WindowStats = usage.GrokLocalUsage7d
@@ -1149,6 +1330,34 @@ func (s *AccountUsageService) getGrokUsage(ctx context.Context, account *Account
 
 	enrichUsageWithAccountError(usage, account)
 	return usage, nil
+}
+
+// reconcileGrokRateLimitFromSnapshot backfills RateLimitResetAt from a persisted
+// grok_usage_snapshot when model traffic already observed a 429/exhausted window
+// but the account row is still missing an active rate-limit cooldown.
+func reconcileGrokRateLimitFromSnapshot(ctx context.Context, repo AccountRepository, account *Account) {
+	if repo == nil || account == nil || !account.IsGrokOAuth() {
+		return
+	}
+	now := time.Now()
+	if account.RateLimitResetAt != nil && account.RateLimitResetAt.After(now) {
+		return
+	}
+	snapshot, err := grokQuotaSnapshotFromExtra(account.Extra)
+	if err != nil || snapshot == nil {
+		return
+	}
+	resetAt, limited := grokRateLimitResetAtForAccountWithPolicy(account, snapshot, now, DefaultOpenAIGrok429ExhaustionSettings(), 0)
+	if !limited || !resetAt.After(now) {
+		return
+	}
+	persistGrokRateLimit(ctx, repo, account, resetAt)
+	// Keep the in-memory account consistent for any same-request consumers.
+	account.RateLimitResetAt = &resetAt
+	if account.RateLimitedAt == nil {
+		limitedAt := now
+		account.RateLimitedAt = &limitedAt
+	}
 }
 
 func grokLocalUsageForQuota(
@@ -1166,16 +1375,44 @@ func grokLocalUsageForQuota(
 }
 
 func grokLocalUsage24h(ctx context.Context, repo UsageLogRepository, accountID int64, now time.Time) *WindowStats {
+	return grokLocalUsage24hFrom(ctx, repo, accountID, now, time.Time{})
+}
+
+// grokLocalUsage24hFrom computes Free rolling usage from max(now-24h, progressResetAt).
+// progressResetAt is written when a prior 429 rate-limit is cleared by a successful probe/request.
+func grokLocalUsage24hFrom(ctx context.Context, repo UsageLogRepository, accountID int64, now, progressResetAt time.Time) *WindowStats {
 	if repo == nil || accountID <= 0 {
 		return nil
 	}
 	start := now.UTC().Add(-grokFreeQuotaWindow)
+	if !progressResetAt.IsZero() && progressResetAt.After(start) {
+		start = progressResetAt.UTC()
+	}
 	stats, err := repo.GetAccountWindowStats(ctx, accountID, start)
 	if err != nil {
 		slog.Warn("grok_rolling_24h_usage_query_failed", "account_id", accountID, "window_start", start, "error", err)
 		return nil
 	}
 	return windowStatsFromAccountStats(stats)
+}
+
+func grokFreeProgressResetAtFromExtra(extra map[string]any) time.Time {
+	if extra == nil {
+		return time.Time{}
+	}
+	raw, ok := extra[grokFreeProgressResetAtExtraKey]
+	if !ok || raw == nil {
+		return time.Time{}
+	}
+	switch v := raw.(type) {
+	case string:
+		if parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(v)); err == nil {
+			return parsed
+		}
+	case time.Time:
+		return v
+	}
+	return time.Time{}
 }
 
 func grokLocalUsageForBilling(

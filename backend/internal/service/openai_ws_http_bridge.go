@@ -346,6 +346,10 @@ func (c *openAIWSToolCallReplayCollector) addItem(item gjson.Result) {
 }
 
 func buildOpenAIWSHTTPBridgeErrorEvent(statusCode int, message string) []byte {
+	return buildOpenAIWSHTTPBridgeErrorEventWithCode(statusCode, "", message)
+}
+
+func buildOpenAIWSHTTPBridgeErrorEventWithCode(statusCode int, code, message string) []byte {
 	message = strings.TrimSpace(message)
 	if message == "" {
 		message = http.StatusText(statusCode)
@@ -353,13 +357,17 @@ func buildOpenAIWSHTTPBridgeErrorEvent(statusCode int, message string) []byte {
 	if message == "" {
 		message = "upstream request failed"
 	}
+	errorBody := map[string]any{
+		"type":    "upstream_error",
+		"message": message,
+	}
+	if code = strings.TrimSpace(code); code != "" {
+		errorBody["code"] = code
+	}
 	event := map[string]any{
 		"type":   "error",
 		"status": statusCode,
-		"error": map[string]any{
-			"type":    "upstream_error",
-			"message": message,
-		},
+		"error":  errorBody,
 	}
 	body, err := json.Marshal(event)
 	if err != nil {
@@ -587,13 +595,15 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		}
 
 		upstreamMsg := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(respBody)))
-		if upstreamMsg == "" {
+		if account.Platform == PlatformGrok {
+			upstreamMsg = safeGrokUpstreamErrorMessage(resp.StatusCode, respBody, upstreamMsg, http.StatusText(resp.StatusCode))
+		} else if upstreamMsg == "" {
 			upstreamMsg = http.StatusText(resp.StatusCode)
 		}
 		shouldFailover := s.shouldFailoverOpenAIUpstreamResponse(account, resp.StatusCode, upstreamMsg, respBody)
 		if account.Platform == PlatformGrok {
 			shouldFailover = s.shouldFailoverGrokUpstreamError(resp.StatusCode, respBody)
-			s.handleGrokAccountUpstreamError(withGrokTeamRateLimitModel(ctx, resolveGrokWSUpstreamModel(account, body, originalModel)), account, resp.StatusCode, resp.Header, respBody)
+			s.handleGrokAccountUpstreamError(withGrokTeamRateLimitModel(ctx, resolveGrokWSUpstreamModel(account, body, originalModel)), account, resp.StatusCode, resp.Header, respBody, originalModel)
 			if shouldFailover && (turn == 1 || resp.StatusCode == http.StatusTooManyRequests) {
 				return nil, newOpenAIUpstreamFailoverError(resp.StatusCode, resp.Header, respBody, upstreamMsg, false)
 			}
@@ -756,6 +766,20 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 			upstreamMessage = normalized
 		}
 		eventType, eventResponseID, _ := parseOpenAIWSEventEnvelope(upstreamMessage)
+		if account.Platform == PlatformGrok {
+			switch eventType {
+			case "response.failed":
+				if sanitized, changed := sanitizeOpenAIResponseFailedEventForClient(upstreamMessage, eventType, PlatformGrok, wroteDownstream); changed {
+					upstreamMessage = sanitized
+					eventType, eventResponseID, _ = parseOpenAIWSEventEnvelope(upstreamMessage)
+				}
+			case "error":
+				code, errType, message := parseOpenAIWSErrorEventFields(upstreamMessage)
+				safeMessage := safeGrokUpstreamErrorMessage(http.StatusBadGateway, upstreamMessage, message, "Upstream request failed")
+				upstreamMessage = buildOpenAIWSHTTPBridgeErrorEventWithCode(openAIWSErrorHTTPStatusFromRaw(code, errType), code, safeMessage)
+				eventType, eventResponseID, _ = parseOpenAIWSEventEnvelope(upstreamMessage)
+			}
+		}
 		responseModelObserver.ObserveOpenAI(upstreamMessage, eventType)
 		if responseID == "" && eventResponseID != "" {
 			responseID = eventResponseID
@@ -831,7 +855,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 					shouldFailover = false
 				} else {
 					shouldFailover = s.shouldFailoverGrokUpstreamError(statusCode, upstreamMessage)
-					s.handleGrokAccountUpstreamError(ctx, account, statusCode, resp.Header, upstreamMessage)
+					s.handleGrokAccountUpstreamError(ctx, account, statusCode, resp.Header, upstreamMessage, originalModel)
 				}
 			}
 			if !wroteDownstream && shouldFailover && (turn == 1 || statusCode == http.StatusTooManyRequests) {

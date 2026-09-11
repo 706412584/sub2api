@@ -262,10 +262,16 @@ func newOpenAISilentRefusalFailoverError(c *gin.Context, account *Account, upstr
 	if strings.TrimSpace(upstreamRequestID) != "" {
 		headers.Set("x-request-id", strings.TrimSpace(upstreamRequestID))
 	}
+	clientMessage := ""
+	if platform == PlatformGrok {
+		clientMessage = openAISilentRefusalUpstreamMessage
+	}
 	return &UpstreamFailoverError{
 		StatusCode:      http.StatusBadGateway,
 		ResponseBody:    openAISilentRefusalErrorBody(),
 		ResponseHeaders: headers,
+		Platform:        platform,
+		ClientMessage:   clientMessage,
 	}
 }
 

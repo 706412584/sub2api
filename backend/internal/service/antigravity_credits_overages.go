@@ -25,12 +25,36 @@ const (
 	antigravity429Unknown        antigravity429Category = "unknown"
 	antigravity429RateLimited    antigravity429Category = "rate_limited"
 	antigravity429QuotaExhausted antigravity429Category = "quota_exhausted"
+	// antigravity429ModelCapacity 模型容量耗尽：所有账号共享的上游容量池，
+	// 账号级切号无意义，不能与配额耗尽混淆（对齐参考项目 model_capacity 优先判定）。
+	antigravity429ModelCapacity antigravity429Category = "model_capacity"
 )
 
 var (
 	antigravityQuotaExhaustedKeywords = []string{
 		"quota_exhausted",
 		"quota exhausted",
+	}
+
+	// antigravityRateLimitedKeywords 分钟级/短时限流关键词（对齐参考项目
+	// classify_rate_limit_reason 的 rate limit 词组；命中走短冷却而非配额退避）。
+	antigravityRateLimitedKeywords = []string{
+		"rate limit",
+		"rate_limit",
+		"too many requests",
+		"per minute",
+		"quotaresetdelay",
+		"quota reset",
+		"quota limit",
+		"per day",
+		"daily quota",
+	}
+
+	// antigravityModelCapacityKeywords 模型容量耗尽关键词（优先级最高，
+	// 命中时永不被关键词误判为账号级配额耗尽）。
+	antigravityModelCapacityKeywords = []string{
+		"model_capacity",
+		"capacity on this model",
 	}
 
 	creditsExhaustedKeywords = []string{
@@ -99,6 +123,13 @@ func classifyAntigravity429(body []byte) antigravity429Category {
 		return antigravity429Unknown
 	}
 	lowerBody := strings.ToLower(string(body))
+	// model_capacity 优先判定（对齐参考项目）：容量耗尽是全账号共享的上游容量池，
+	// 必须先于其他关键词检查，避免被 "resource has been exhausted" 类字样误判。
+	for _, keyword := range antigravityModelCapacityKeywords {
+		if strings.Contains(lowerBody, keyword) {
+			return antigravity429ModelCapacity
+		}
+	}
 	for _, keyword := range antigravityQuotaExhaustedKeywords {
 		if strings.Contains(lowerBody, keyword) {
 			return antigravity429QuotaExhausted
@@ -106,6 +137,12 @@ func classifyAntigravity429(body []byte) antigravity429Category {
 	}
 	if info := parseAntigravitySmartRetryInfo(body); info != nil && !info.IsModelCapacityExhausted {
 		return antigravity429RateLimited
+	}
+	// 无结构化 RetryInfo 时的关键词兜底（参考项目 classify_rate_limit_reason）
+	for _, keyword := range antigravityRateLimitedKeywords {
+		if strings.Contains(lowerBody, keyword) {
+			return antigravity429RateLimited
+		}
 	}
 	return antigravity429Unknown
 }

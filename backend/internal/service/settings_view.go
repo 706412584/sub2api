@@ -12,6 +12,10 @@ func firstNonEmpty(values ...string) string {
 }
 
 type SystemSettings struct {
+	// UpdateProxyURL (SettingKeyUpdateProxyURL) configures the proxy used for
+	// GitHub release checks/downloads. Empty means use the startup config
+	// update.proxy_url (or direct connection).
+	UpdateProxyURL                      string
 	RegistrationEnabled                 bool
 	EmailVerifyEnabled                  bool
 	RegistrationEmailSuffixWhitelist    []string
@@ -240,6 +244,7 @@ type SystemSettings struct {
 	EnableClientDatelineNormalization      bool   // 是否对 Anthropic OAuth/SetupToken 请求体做客户端 dateline 归一化（默认 true）
 	RewriteMessageCacheControl             bool   // 是否改写 messages[*].content[*].cache_control（默认 false）
 	AntigravityUserAgentVersion            string // Antigravity 上游 User-Agent 版本号；空值使用配置/默认值
+	AntigravityClientFingerprintEnabled    bool   // Antigravity 上游客户端指纹头开关（默认 false）
 	OpenAICodexUserAgent                   string // OpenAI Codex 上游完整 User-Agent；空值由 Codex 客户端版本号拼出标准 TUI UA
 	OpenAICodexClientVersion               string // 出站声明的 Codex 客户端版本号（管理员覆写）；空值跟随自动同步值
 	OpenAICodexClientVersionSynced         string // 自动同步到的官方最新稳定版版本号（只读展示）
@@ -506,6 +511,43 @@ func DefaultStreamTimeoutSettings() *StreamTimeoutSettings {
 	}
 }
 
+// GrokReasoningVisibilitySettings 网关级 Grok 思考明文调度配置。
+// 分组字段为 inherit 时回落到这里的 Mode。
+type GrokReasoningVisibilitySettings struct {
+	// Mode 网关默认模式: "off" | "soft" | "enforce"
+	Mode string `json:"mode"`
+	// ProbeTTLSec 探测结果复用时长（秒）。0 表示每次建链前都实时探测。
+	ProbeTTLSec int `json:"probe_ttl_sec"`
+	// QuarantineSec enforce 探测失败后的临时不可调度冷却秒数。
+	// 0=不写 temp-unsched（仅本轮排除）；N=冷却 N 秒。网关级不允许负数。
+	QuarantineSec int `json:"quarantine_sec"`
+	// ProbeAccountFallback 为 true 时，enforce 模式下若全组账号都不可见思考，
+	// 允许放行最近一次探测的账号，避免整组不可用。
+	ProbeAccountFallback bool `json:"probe_account_fallback"`
+}
+
+// GrokReasoningVisibilityProbeTTLMaxSec 限制探测复用时长上限（24h）。
+const GrokReasoningVisibilityProbeTTLMaxSec = 86400
+
+// GrokReasoningVisibilityQuarantineMaxSec 限制冷却秒数上限（24h）。
+const GrokReasoningVisibilityQuarantineMaxSec = 86400
+
+// GrokReasoningVisibilityQuarantineDefaultSec 网关默认冷却（与历史硬编码 2 分钟一致）。
+const GrokReasoningVisibilityQuarantineDefaultSec = 120
+
+// GrokReasoningQuarantinePauseSchedulable 分组级特殊值：探测失败后将账号设为暂停调度。
+const GrokReasoningQuarantinePauseSchedulable = -2
+
+// DefaultGrokReasoningVisibilitySettings 返回默认配置（保持现状：仅软降权）。
+func DefaultGrokReasoningVisibilitySettings() *GrokReasoningVisibilitySettings {
+	return &GrokReasoningVisibilitySettings{
+		Mode:                 GrokReasoningVisibilityModeOff,
+		ProbeTTLSec:          0,
+		QuarantineSec:        GrokReasoningVisibilityQuarantineDefaultSec,
+		ProbeAccountFallback: false,
+	}
+}
+
 // RectifierSettings 请求整流器配置
 type RectifierSettings struct {
 	Enabled                  bool     `json:"enabled"`                    // 总开关
@@ -568,6 +610,36 @@ type RateLimit429CooldownSettings struct {
 	CooldownSeconds int `json:"cooldown_seconds"`
 }
 
+// OpenAIGrok429ExhaustionSettings GPT/Grok 429 立即限流（额度耗尽语义）配置。
+// 默认开启；关闭后 GPT/Grok 回退到旧的 429 处理策略。
+type OpenAIGrok429ExhaustionSettings struct {
+	// Enabled 是否对 GPT/Grok 的 429 立即写入 rate_limit_reset_at 并踢出调度
+	Enabled bool `json:"enabled"`
+	// FreeFullDurationHours Free 账号进度条满且 429 时的限流时长（小时）
+	FreeFullDurationHours int `json:"free_full_duration_hours"`
+	// FreeFullThresholdPercent 判定 Free 进度条“已满”的阈值（0-100）
+	FreeFullThresholdPercent float64 `json:"free_full_threshold_percent"`
+	// NoResetDurationMinutes 无上游 reset 时 GPT/Grok 的默认限流时长（分钟）
+	NoResetDurationMinutes int `json:"no_reset_duration_minutes"`
+}
+
+// AccountPoolProbeSettings 号池全局异步探测配置。
+// 设计目标：最小代价、不影响请求主路径；低并发 + 账号级冷却锁避免与手动探测打架。
+type AccountPoolProbeSettings struct {
+	// Enabled 是否启用全局定时探测（默认关闭）
+	Enabled bool `json:"enabled"`
+	// IntervalMinutes 探测周期（分钟），建议 10-20
+	IntervalMinutes int `json:"interval_minutes"`
+	// BatchSize 每轮最多探测账号数
+	BatchSize int `json:"batch_size"`
+	// MaxConcurrency 每轮探测并发上限（保持很低）
+	MaxConcurrency int `json:"max_concurrency"`
+	// AccountCooldownMinutes 单号探测冷却锁（分钟），期间自动探测跳过该号；手动探测不受阻
+	AccountCooldownMinutes int `json:"account_cooldown_minutes"`
+	// Platforms 参与探测的平台（默认 openai,grok）
+	Platforms []string `json:"platforms"`
+}
+
 // OpenAIImagesOAuthUnavailableCooldownSettings controls how long an OAuth account's image capability is paused when unavailable.
 type OpenAIImagesOAuthUnavailableCooldownSettings struct {
 	CooldownMinutes int `json:"cooldown_minutes"`
@@ -609,6 +681,70 @@ func DefaultRateLimit429CooldownSettings() *RateLimit429CooldownSettings {
 		Enabled:         true,
 		CooldownSeconds: 5,
 	}
+}
+
+// DefaultOpenAIGrok429ExhaustionSettings GPT/Grok 429 立即限流默认配置。
+func DefaultOpenAIGrok429ExhaustionSettings() *OpenAIGrok429ExhaustionSettings {
+	return &OpenAIGrok429ExhaustionSettings{
+		Enabled:                  true,
+		FreeFullDurationHours:    24,
+		FreeFullThresholdPercent: 98,
+		NoResetDurationMinutes:   60,
+	}
+}
+
+// DefaultAccountPoolProbeSettings 号池全局探测默认配置（低成本）。
+// 默认关闭，避免新环境自动真实打上游模型；已落库配置不受影响。
+func DefaultAccountPoolProbeSettings() *AccountPoolProbeSettings {
+	return &AccountPoolProbeSettings{
+		Enabled:                false,
+		IntervalMinutes:        15,
+		BatchSize:              20,
+		MaxConcurrency:         2,
+		AccountCooldownMinutes: 20,
+		Platforms:              []string{PlatformOpenAI, PlatformGrok},
+	}
+}
+
+// GrokOpsProxySettings Grok 运维/测活专用出口配置。
+// 不改写账号绑定代理；live 请求仍走 account.proxy_id。
+// ProxyID: nil=未配置（保持绑定）；0=强制直连；>0=指定代理。
+type GrokOpsProxySettings struct {
+	Enabled        bool   `json:"enabled"`
+	ProxyID        *int64 `json:"proxy_id"`
+	ApplyToRefresh bool   `json:"apply_to_refresh"`
+}
+
+// DefaultGrokOpsProxySettings 默认关闭；未配置时测活/探测沿用账号绑定代理。
+func DefaultGrokOpsProxySettings() *GrokOpsProxySettings {
+	return &GrokOpsProxySettings{
+		Enabled:        false,
+		ProxyID:        nil,
+		ApplyToRefresh: false,
+	}
+}
+
+// GrokCLIIdentitySettings is the persisted operator override for Grok CLI identity.
+// Empty Version clears the override (env / compile default apply).
+type GrokCLIIdentitySettings struct {
+	Version string `json:"version"`
+}
+
+// DefaultGrokCLIIdentitySettings means no settings override.
+func DefaultGrokCLIIdentitySettings() *GrokCLIIdentitySettings {
+	return &GrokCLIIdentitySettings{Version: ""}
+}
+
+// GrokCLIIdentityStatus is the admin-facing view of effective CLI identity.
+type GrokCLIIdentityStatus struct {
+	EffectiveVersion string `json:"effective_version"`
+	PinnedDefault    string `json:"pinned_default"`
+	SettingsOverride string `json:"settings_override,omitempty"`
+	EnvOverride      string `json:"env_override,omitempty"`
+	Source           string `json:"source"` // settings | env | default
+	LatestVersion    string `json:"latest_version,omitempty"`
+	LatestCheckedAt  string `json:"latest_checked_at,omitempty"`
+	UpdateAvailable  bool   `json:"update_available,omitempty"`
 }
 
 func DefaultOpenAIImagesOAuthUnavailableCooldownSettings() *OpenAIImagesOAuthUnavailableCooldownSettings {

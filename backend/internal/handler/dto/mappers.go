@@ -161,6 +161,10 @@ func GroupFromServiceAdmin(g *service.Group) *AdminGroup {
 		MessagesDispatchModelConfig: g.MessagesDispatchModelConfig,
 		ModelAllowlist:              g.ModelAllowlist,
 		CodexModelsManifestConfig:   g.CodexModelsManifestConfig,
+		GrokMessagesProtocol:        g.GrokMessagesProtocol,
+		GrokReasoningVisibilityMode: g.GrokReasoningVisibilityMode,
+		GrokReasoningProbeTTLSec:    g.GrokReasoningProbeTTLSec,
+		GrokReasoningQuarantineSec:  g.GrokReasoningQuarantineSec,
 		SupportedModelScopes:        g.SupportedModelScopes,
 		AccountCount:                g.AccountCount,
 		ActiveAccountCount:          g.ActiveAccountCount,
@@ -218,6 +222,7 @@ func groupFromServiceBase(g *service.Group) Group {
 		ClaudeCodeOnly:                  g.ClaudeCodeOnly,
 		FallbackGroupID:                 g.FallbackGroupID,
 		FallbackGroupIDOnInvalidRequest: g.FallbackGroupIDOnInvalidRequest,
+		DefaultProxyID:                  g.DefaultProxyID,
 		AllowMessagesDispatch:           g.AllowMessagesDispatch,
 		AllowLive:                       g.AllowLive,
 		RequireOAuthOnly:                g.RequireOAuthOnly,
@@ -226,6 +231,7 @@ func groupFromServiceBase(g *service.Group) Group {
 		MaxReasoningEffort:              g.MaxReasoningEffort,
 		MaxReasoningEffortOverLimit:     g.MaxReasoningEffortOverLimit,
 		ReasoningEffortMappings:         g.ReasoningEffortMappings,
+		PromptPolicy:                    g.PromptPolicy,
 		CreatedAt:                       g.CreatedAt,
 		UpdatedAt:                       g.UpdatedAt,
 	}
@@ -528,6 +534,7 @@ func ProxyFromService(p *service.Proxy) *Proxy {
 		ExpiresAt:      p.ExpiresAt,
 		FallbackMode:   p.FallbackMode,
 		BackupProxyID:  p.BackupProxyID,
+		EgressProxyID:  p.EgressProxyID,
 		ExpiryWarnDays: p.ExpiryWarnDays,
 	}
 }
@@ -698,6 +705,7 @@ func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
 		OutputTokens:              l.OutputTokens,
 		CacheCreationTokens:       l.CacheCreationTokens,
 		CacheReadTokens:           l.CacheReadTokens,
+		ReasoningTokens:           l.ReasoningTokens,
 		CacheCreation5mTokens:     l.CacheCreation5mTokens,
 		CacheCreation1hTokens:     l.CacheCreation1hTokens,
 		InputCost:                 l.InputCost,

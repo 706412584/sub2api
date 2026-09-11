@@ -150,6 +150,52 @@ const cyberSessionBlockRuntimeCacheTTL = 60 * time.Second
 const cyberSessionBlockRuntimeErrorTTL = 5 * time.Second
 const cyberSessionBlockRuntimeDBTimeout = 5 * time.Second
 
+// cachedGrokReasoningVisibilitySettings 网关级 Grok 思考明文调度配置进程内缓存。
+// 该配置在每个 Grok 账号的调度候选过滤上被读取，禁止在热路径上直接访问 DB。
+type cachedGrokReasoningVisibilitySettings struct {
+	value     GrokReasoningVisibilitySettings
+	expiresAt int64 // unix nano
+}
+
+const grokReasoningVisibilityCacheTTL = 30 * time.Second
+const grokReasoningVisibilityDBTimeout = 5 * time.Second
+
+// GetGrokReasoningVisibilityRuntime 返回网关级 Grok 思考明文调度配置，进程内缓存 ~30s。
+// 调度热路径专用：读取失败时回退默认（off），保证不会因配置读不到而误杀账号。
+func (s *SettingService) GetGrokReasoningVisibilityRuntime(ctx context.Context) GrokReasoningVisibilitySettings {
+	if s == nil {
+		return *DefaultGrokReasoningVisibilitySettings()
+	}
+	if cached, ok := s.grokReasoningVisibilityCache.Load().(*cachedGrokReasoningVisibilitySettings); ok && cached != nil {
+		if time.Now().UnixNano() < cached.expiresAt {
+			return cached.value
+		}
+	}
+	result, _, _ := s.grokReasoningVisibilitySF.Do("grok_reasoning_visibility", func() (any, error) {
+		if cached, ok := s.grokReasoningVisibilityCache.Load().(*cachedGrokReasoningVisibilitySettings); ok && cached != nil {
+			if time.Now().UnixNano() < cached.expiresAt {
+				return cached.value, nil
+			}
+		}
+		dbCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), grokReasoningVisibilityDBTimeout)
+		defer cancel()
+
+		settings := *DefaultGrokReasoningVisibilitySettings()
+		if loaded, err := s.GetGrokReasoningVisibilitySettings(dbCtx); err == nil && loaded != nil {
+			settings = *loaded
+		}
+		s.grokReasoningVisibilityCache.Store(&cachedGrokReasoningVisibilitySettings{
+			value:     settings,
+			expiresAt: time.Now().Add(grokReasoningVisibilityCacheTTL).UnixNano(),
+		})
+		return settings, nil
+	})
+	if settings, ok := result.(GrokReasoningVisibilitySettings); ok {
+		return settings
+	}
+	return *DefaultGrokReasoningVisibilitySettings()
+}
+
 const openAIQuotaAutoPauseSettingsCacheTTL = 60 * time.Second
 const openAIQuotaAutoPauseSettingsErrorTTL = 5 * time.Second
 const openAIQuotaAutoPauseSettingsDBTimeout = 5 * time.Second
@@ -259,6 +305,63 @@ func (s *SettingService) GetAntigravityUserAgentVersion(ctx context.Context) str
 		return version
 	}
 	return fallback
+}
+
+// cachedAntigravityFingerprint 缓存 Antigravity 客户端指纹开关（进程内缓存，60s TTL）
+type cachedAntigravityFingerprint struct {
+	enabled   bool
+	expiresAt int64
+}
+
+// GetAntigravityClientFingerprintEnabled 返回 Antigravity 上游客户端指纹头开关。
+// 后台设置优先；缺失或读取失败时回退环境变量 ANTIGRAVITY_CLIENT_FINGERPRINT / 默认关闭。
+func (s *SettingService) GetAntigravityClientFingerprintEnabled(ctx context.Context) bool {
+	if s == nil || s.settingRepo == nil {
+		return false
+	}
+	if cached, ok := s.antigravityFingerprintCache.Load().(*cachedAntigravityFingerprint); ok && cached != nil {
+		if time.Now().UnixNano() < cached.expiresAt {
+			return cached.enabled
+		}
+	}
+
+	result, _, _ := s.antigravityFingerprintSF.Do("antigravity_client_fingerprint", func() (any, error) {
+		if cached, ok := s.antigravityFingerprintCache.Load().(*cachedAntigravityFingerprint); ok && cached != nil {
+			if time.Now().UnixNano() < cached.expiresAt {
+				return cached.enabled, nil
+			}
+		}
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		dbCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), antigravityUserAgentVersionDBTimeout)
+		defer cancel()
+		value, err := s.settingRepo.GetValue(dbCtx, SettingKeyAntigravityClientFingerprint)
+		if err != nil && !errors.Is(err, ErrSettingNotFound) {
+			slog.Warn("failed to get antigravity client fingerprint setting", "error", err)
+			return false, nil
+		}
+		enabled := isTruthySettingValue(value)
+		s.antigravityFingerprintCache.Store(&cachedAntigravityFingerprint{
+			enabled:   enabled,
+			expiresAt: time.Now().Add(antigravityUserAgentVersionCacheTTL).UnixNano(),
+		})
+		return enabled, nil
+	})
+	if enabled, ok := result.(bool); ok {
+		return enabled
+	}
+	return false
+}
+
+// isTruthySettingValue 判断设置值是否为真（"1"/"true" 等）。
+func isTruthySettingValue(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 // GetOpenAICodexUserAgent 返回 OpenAI Codex 上游请求使用的 User-Agent。

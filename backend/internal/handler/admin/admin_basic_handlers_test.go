@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +19,7 @@ func setupAdminRouter() (*gin.Engine, *stubAdminService) {
 
 	userHandler := NewUserHandler(adminSvc, nil, nil, nil, nil, nil, nil)
 	groupHandler := NewGroupHandler(adminSvc, nil, nil)
-	proxyHandler := NewProxyHandler(adminSvc)
+	proxyHandler := NewProxyHandler(adminSvc, &service.GrokReasoningProbeService{})
 	redeemHandler := NewRedeemHandler(adminSvc, nil)
 
 	router.GET("/api/v1/admin/users", userHandler.List)
@@ -55,6 +56,7 @@ func setupAdminRouter() (*gin.Engine, *stubAdminService) {
 	router.POST("/api/v1/admin/proxies/batch-delete", proxyHandler.BatchDelete)
 	router.POST("/api/v1/admin/proxies/:id/test", proxyHandler.Test)
 	router.POST("/api/v1/admin/proxies/:id/quality-check", proxyHandler.CheckQuality)
+	router.POST("/api/v1/admin/proxies/:id/grok-reasoning-probe", proxyHandler.ProbeGrokReasoning)
 	router.GET("/api/v1/admin/proxies/:id/stats", proxyHandler.GetStats)
 	router.GET("/api/v1/admin/proxies/:id/accounts", proxyHandler.GetProxyAccounts)
 
@@ -318,6 +320,24 @@ func TestProxyHandlerEndpoints(t *testing.T) {
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/admin/proxies/4/quality-check", nil)
 	router.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/admin/proxies/not-an-id/grok-reasoning-probe", bytes.NewBufferString(`{"account_id":1,"confirm_quota_cost":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/admin/proxies/4/grok-reasoning-probe", bytes.NewBufferString(`{`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/admin/proxies/4/grok-reasoning-probe", bytes.NewBufferString(`{"account_id":1}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
 
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/admin/proxies/4/stats", nil)

@@ -154,6 +154,8 @@ func (h *SettingHandler) UpdateRateLimit429CooldownSettings(c *gin.Context) {
 	})
 }
 
+// GetOpenAIImagesOAuthUnavailableCooldownSettings 获取 OpenAI OAuth 图片工具不可用冷却配置
+// GET /api/v1/admin/settings/openai-images-oauth-unavailable-cooldown
 func (h *SettingHandler) GetOpenAIImagesOAuthUnavailableCooldownSettings(c *gin.Context) {
 	settings, err := h.settingService.GetOpenAIImagesOAuthUnavailableCooldownSettings(c.Request.Context())
 	if err != nil {
@@ -179,6 +181,270 @@ func (h *SettingHandler) UpdateOpenAIImagesOAuthUnavailableCooldownSettings(c *g
 		return
 	}
 	response.Success(c, dto.OpenAIImagesOAuthUnavailableCooldownSettings{CooldownMinutes: settings.CooldownMinutes})
+}
+
+// GetOpenAIGrok429ExhaustionSettings 获取 GPT/Grok 429 立即限流配置
+// GET /api/v1/admin/settings/openai-grok-429-exhaustion
+func (h *SettingHandler) GetOpenAIGrok429ExhaustionSettings(c *gin.Context) {
+	settings, err := h.settingService.GetOpenAIGrok429ExhaustionSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dto.OpenAIGrok429ExhaustionSettings{
+		Enabled:                  settings.Enabled,
+		FreeFullDurationHours:    settings.FreeFullDurationHours,
+		FreeFullThresholdPercent: settings.FreeFullThresholdPercent,
+		NoResetDurationMinutes:   settings.NoResetDurationMinutes,
+	})
+}
+
+// UpdateOpenAIGrok429ExhaustionSettingsRequest 更新 GPT/Grok 429 立即限流配置请求
+type UpdateOpenAIGrok429ExhaustionSettingsRequest struct {
+	Enabled                  bool    `json:"enabled"`
+	FreeFullDurationHours    int     `json:"free_full_duration_hours"`
+	FreeFullThresholdPercent float64 `json:"free_full_threshold_percent"`
+	NoResetDurationMinutes   int     `json:"no_reset_duration_minutes"`
+}
+
+// UpdateOpenAIGrok429ExhaustionSettings 更新 GPT/Grok 429 立即限流配置
+// PUT /api/v1/admin/settings/openai-grok-429-exhaustion
+func (h *SettingHandler) UpdateOpenAIGrok429ExhaustionSettings(c *gin.Context) {
+	var req UpdateOpenAIGrok429ExhaustionSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	settings := &service.OpenAIGrok429ExhaustionSettings{
+		Enabled:                  req.Enabled,
+		FreeFullDurationHours:    req.FreeFullDurationHours,
+		FreeFullThresholdPercent: req.FreeFullThresholdPercent,
+		NoResetDurationMinutes:   req.NoResetDurationMinutes,
+	}
+	if err := h.settingService.SetOpenAIGrok429ExhaustionSettings(c.Request.Context(), settings); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	updated, err := h.settingService.GetOpenAIGrok429ExhaustionSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dto.OpenAIGrok429ExhaustionSettings{
+		Enabled:                  updated.Enabled,
+		FreeFullDurationHours:    updated.FreeFullDurationHours,
+		FreeFullThresholdPercent: updated.FreeFullThresholdPercent,
+		NoResetDurationMinutes:   updated.NoResetDurationMinutes,
+	})
+}
+
+// GetAccountPoolProbeSettings 获取号池全局异步探测配置
+// GET /api/v1/admin/settings/account-pool-probe
+func (h *SettingHandler) GetAccountPoolProbeSettings(c *gin.Context) {
+	settings, err := h.settingService.GetAccountPoolProbeSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	platforms := settings.Platforms
+	if platforms == nil {
+		platforms = []string{}
+	}
+	response.Success(c, dto.AccountPoolProbeSettings{
+		Enabled:                settings.Enabled,
+		IntervalMinutes:        settings.IntervalMinutes,
+		BatchSize:              settings.BatchSize,
+		MaxConcurrency:         settings.MaxConcurrency,
+		AccountCooldownMinutes: settings.AccountCooldownMinutes,
+		Platforms:              platforms,
+	})
+}
+
+// UpdateAccountPoolProbeSettingsRequest 更新号池全局异步探测配置请求
+type UpdateAccountPoolProbeSettingsRequest struct {
+	Enabled                bool     `json:"enabled"`
+	IntervalMinutes        int      `json:"interval_minutes"`
+	BatchSize              int      `json:"batch_size"`
+	MaxConcurrency         int      `json:"max_concurrency"`
+	AccountCooldownMinutes int      `json:"account_cooldown_minutes"`
+	Platforms              []string `json:"platforms"`
+}
+
+// UpdateAccountPoolProbeSettings 更新号池全局异步探测配置
+// PUT /api/v1/admin/settings/account-pool-probe
+func (h *SettingHandler) UpdateAccountPoolProbeSettings(c *gin.Context) {
+	var req UpdateAccountPoolProbeSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	settings := &service.AccountPoolProbeSettings{
+		Enabled:                req.Enabled,
+		IntervalMinutes:        req.IntervalMinutes,
+		BatchSize:              req.BatchSize,
+		MaxConcurrency:         req.MaxConcurrency,
+		AccountCooldownMinutes: req.AccountCooldownMinutes,
+		Platforms:              req.Platforms,
+	}
+	if err := h.settingService.SetAccountPoolProbeSettings(c.Request.Context(), settings); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	updated, err := h.settingService.GetAccountPoolProbeSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	platforms := updated.Platforms
+	if platforms == nil {
+		platforms = []string{}
+	}
+	response.Success(c, dto.AccountPoolProbeSettings{
+		Enabled:                updated.Enabled,
+		IntervalMinutes:        updated.IntervalMinutes,
+		BatchSize:              updated.BatchSize,
+		MaxConcurrency:         updated.MaxConcurrency,
+		AccountCooldownMinutes: updated.AccountCooldownMinutes,
+		Platforms:              platforms,
+	})
+}
+
+// GetGrokOpsProxySettings 获取 Grok ops_proxy 配置
+// GET /api/v1/admin/settings/grok-ops-proxy
+func (h *SettingHandler) GetGrokOpsProxySettings(c *gin.Context) {
+	settings, err := h.settingService.GetGrokOpsProxySettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dto.GrokOpsProxySettings{
+		Enabled:        settings.Enabled,
+		ProxyID:        settings.ProxyID,
+		ApplyToRefresh: settings.ApplyToRefresh,
+	})
+}
+
+// UpdateGrokOpsProxySettingsRequest 更新 Grok ops_proxy 配置请求
+type UpdateGrokOpsProxySettingsRequest struct {
+	Enabled        bool   `json:"enabled"`
+	ProxyID        *int64 `json:"proxy_id"`
+	ApplyToRefresh bool   `json:"apply_to_refresh"`
+}
+
+// UpdateGrokOpsProxySettings 更新 Grok ops_proxy 配置
+// PUT /api/v1/admin/settings/grok-ops-proxy
+func (h *SettingHandler) UpdateGrokOpsProxySettings(c *gin.Context) {
+	var req UpdateGrokOpsProxySettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	settings := &service.GrokOpsProxySettings{
+		Enabled:        req.Enabled,
+		ProxyID:        req.ProxyID,
+		ApplyToRefresh: req.ApplyToRefresh,
+	}
+	if err := h.settingService.SetGrokOpsProxySettings(c.Request.Context(), settings); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	updated, err := h.settingService.GetGrokOpsProxySettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dto.GrokOpsProxySettings{
+		Enabled:        updated.Enabled,
+		ProxyID:        updated.ProxyID,
+		ApplyToRefresh: updated.ApplyToRefresh,
+	})
+}
+
+func dtoGrokCLIIdentityStatus(status *service.GrokCLIIdentityStatus) dto.GrokCLIIdentityStatus {
+	if status == nil {
+		return dto.GrokCLIIdentityStatus{}
+	}
+	return dto.GrokCLIIdentityStatus{
+		EffectiveVersion: status.EffectiveVersion,
+		PinnedDefault:    status.PinnedDefault,
+		SettingsOverride: status.SettingsOverride,
+		EnvOverride:      status.EnvOverride,
+		Source:           status.Source,
+		LatestVersion:    status.LatestVersion,
+		LatestCheckedAt:  status.LatestCheckedAt,
+		UpdateAvailable:  status.UpdateAvailable,
+	}
+}
+
+// GetGrokCLIIdentitySettings 获取 Grok CLI 身份版本状态
+// GET /api/v1/admin/settings/grok-cli-identity
+func (h *SettingHandler) GetGrokCLIIdentitySettings(c *gin.Context) {
+	status, err := h.settingService.GetGrokCLIIdentityStatus(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dtoGrokCLIIdentityStatus(status))
+}
+
+// UpdateGrokCLIIdentitySettingsRequest 更新 Grok CLI 身份版本覆盖
+type UpdateGrokCLIIdentitySettingsRequest struct {
+	Version string `json:"version"`
+}
+
+// UpdateGrokCLIIdentitySettings 设置 Grok CLI 身份版本覆盖（空字符串清除）
+// PUT /api/v1/admin/settings/grok-cli-identity
+func (h *SettingHandler) UpdateGrokCLIIdentitySettings(c *gin.Context) {
+	var req UpdateGrokCLIIdentitySettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := h.settingService.SetGrokCLIIdentitySettings(c.Request.Context(), &service.GrokCLIIdentitySettings{
+		Version: req.Version,
+	}); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	status, err := h.settingService.GetGrokCLIIdentityStatus(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dtoGrokCLIIdentityStatus(status))
+}
+
+// CheckGrokCLIIdentityLatest 检测 npm @xai-official/grok latest
+// POST /api/v1/admin/settings/grok-cli-identity/check
+func (h *SettingHandler) CheckGrokCLIIdentityLatest(c *gin.Context) {
+	status, err := h.settingService.CheckGrokCLIIdentityLatest(c.Request.Context(), true)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dtoGrokCLIIdentityStatus(status))
+}
+
+// ApplyGrokCLIIdentityLatest 检测并将 npm latest 一键写入 settings 覆盖
+// POST /api/v1/admin/settings/grok-cli-identity/apply-latest
+func (h *SettingHandler) ApplyGrokCLIIdentityLatest(c *gin.Context) {
+	status, err := h.settingService.ApplyGrokCLIIdentityLatest(c.Request.Context())
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	response.Success(c, dtoGrokCLIIdentityStatus(status))
+}
+
+// RestoreGrokCLIIdentityDefault 清除 settings 覆盖，恢复编译默认（仍可被 env 覆盖）
+// POST /api/v1/admin/settings/grok-cli-identity/restore-default
+func (h *SettingHandler) RestoreGrokCLIIdentityDefault(c *gin.Context) {
+	status, err := h.settingService.RestoreGrokCLIIdentityDefault(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dtoGrokCLIIdentityStatus(status))
 }
 
 // GetPanelRateLimitSettings 获取面板 API 限流配置
@@ -409,6 +675,108 @@ func (h *SettingHandler) UpdateBetaPolicySettings(c *gin.Context) {
 		outRules[i] = dto.BetaPolicyRule(r)
 	}
 	response.Success(c, dto.BetaPolicySettings{Rules: outRules})
+}
+
+// GetGrokReasoningVisibilitySettings 获取网关级 Grok 思考明文调度配置
+// GET /api/v1/admin/settings/grok-reasoning-visibility
+func (h *SettingHandler) GetGrokReasoningVisibilitySettings(c *gin.Context) {
+	settings, err := h.settingService.GetGrokReasoningVisibilitySettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dto.GrokReasoningVisibilitySettings{
+		Mode:                 settings.Mode,
+		ProbeTTLSec:          settings.ProbeTTLSec,
+		QuarantineSec:        settings.QuarantineSec,
+		ProbeAccountFallback: settings.ProbeAccountFallback,
+	})
+}
+
+// UpdateGrokReasoningVisibilitySettingsRequest 更新 Grok 思考明文调度配置请求
+type UpdateGrokReasoningVisibilitySettingsRequest struct {
+	Mode                 string `json:"mode"`
+	ProbeTTLSec          int    `json:"probe_ttl_sec"`
+	QuarantineSec        int    `json:"quarantine_sec"`
+	ProbeAccountFallback bool   `json:"probe_account_fallback"`
+}
+
+// UpdateGrokReasoningVisibilitySettings 更新网关级 Grok 思考明文调度配置
+// PUT /api/v1/admin/settings/grok-reasoning-visibility
+func (h *SettingHandler) UpdateGrokReasoningVisibilitySettings(c *gin.Context) {
+	var req UpdateGrokReasoningVisibilitySettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	if err := h.settingService.SetGrokReasoningVisibilitySettings(c.Request.Context(), &service.GrokReasoningVisibilitySettings{
+		Mode:                 req.Mode,
+		ProbeTTLSec:          req.ProbeTTLSec,
+		QuarantineSec:        req.QuarantineSec,
+		ProbeAccountFallback: req.ProbeAccountFallback,
+	}); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	updated, err := h.settingService.GetGrokReasoningVisibilitySettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dto.GrokReasoningVisibilitySettings{
+		Mode:                 updated.Mode,
+		ProbeTTLSec:          updated.ProbeTTLSec,
+		QuarantineSec:        updated.QuarantineSec,
+		ProbeAccountFallback: updated.ProbeAccountFallback,
+	})
+}
+
+// GetGrokToolPromptSettings 获取网关级 Grok 工具提示注入配置
+// GET /api/v1/admin/settings/grok-tool-prompt
+func (h *SettingHandler) GetGrokToolPromptSettings(c *gin.Context) {
+	settings, err := h.settingService.GetGrokToolPromptSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, service.GrokToolPromptSettings{
+		Enabled: settings.Enabled,
+		Prompt:  settings.Prompt,
+	})
+}
+
+// UpdateGrokToolPromptSettingsRequest 更新 Grok 工具提示注入配置请求
+type UpdateGrokToolPromptSettingsRequest struct {
+	Enabled bool   `json:"enabled"`
+	Prompt  string `json:"prompt"`
+}
+
+// UpdateGrokToolPromptSettings 更新网关级 Grok 工具提示注入配置
+// PUT /api/v1/admin/settings/grok-tool-prompt
+func (h *SettingHandler) UpdateGrokToolPromptSettings(c *gin.Context) {
+	var req UpdateGrokToolPromptSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := h.settingService.SetGrokToolPromptSettings(c.Request.Context(), &service.GrokToolPromptSettings{
+		Enabled: req.Enabled,
+		Prompt:  req.Prompt,
+	}); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	updated, err := h.settingService.GetGrokToolPromptSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, service.GrokToolPromptSettings{
+		Enabled: updated.Enabled,
+		Prompt:  updated.Prompt,
+	})
 }
 
 // UpdateStreamTimeoutSettingsRequest 更新流超时配置请求

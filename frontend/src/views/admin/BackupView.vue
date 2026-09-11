@@ -11,6 +11,7 @@
               {{ t('admin.backup.s3.descriptionPrefix') }}
               <button type="button" class="text-primary-600 underline hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300" @click="showR2Guide = true">Cloudflare R2</button>
               {{ t('admin.backup.s3.descriptionSuffix') }}
+              {{ t('admin.backup.s3.localFallbackHint') }}
             </p>
           </div>
         </div>
@@ -199,6 +200,7 @@
                 <th class="py-2 pr-4">ID</th>
                 <th class="py-2 pr-4">{{ t('admin.backup.columns.status') }}</th>
                 <th class="py-2 pr-4">{{ t('admin.backup.columns.fileName') }}</th>
+                <th class="py-2 pr-4">{{ t('admin.backup.columns.storage') }}</th>
                 <th class="py-2 pr-4">{{ t('admin.backup.columns.size') }}</th>
                 <th class="py-2 pr-4">{{ t('admin.backup.columns.parts') }}</th>
                 <th class="py-2 pr-4">{{ t('admin.backup.columns.expiresAt') }}</th>
@@ -221,6 +223,9 @@
                   </span>
                 </td>
                 <td class="py-3 pr-4 text-xs">{{ record.file_name }}</td>
+                <td class="py-3 pr-4 text-xs">
+                  {{ record.storage === 'local' ? t('admin.backup.storage.local') : t('admin.backup.storage.s3') }}
+                </td>
                 <td class="py-3 pr-4 text-xs">{{ formatSize(record.size_bytes) }}</td>
                 <td class="py-3 pr-4 text-xs">{{ record.parts?.length || (record.status === 'running' ? '-' : 1) }}</td>
                 <td class="py-3 pr-4 text-xs">
@@ -768,11 +773,33 @@ async function downloadBackup(id: string) {
       downloadPartsModalOpen.value = true
       return
     }
+    if (result.mode === 'presign' && result.url) {
+      // 预签名 URL 带 attachment disposition，同页 anchor 导航直接触发下载；
+      // 不用 window.open：step-up 弹窗 await 会耗尽瞬态用户激活，新标签页会被浏览器拦截。
+      const link = document.createElement('a')
+      link.href = result.url
+      link.rel = 'noopener'
+      link.click()
+      return
+    }
+    if (result.mode === 'proxy' || result.storage === 'local') {
+      // 本地备份：经鉴权代理下载为 blob 后触发浏览器保存
+      const blob = await backupStepUp.run(() => adminAPI.backup.downloadBackupFile(id))
+      const record = backups.value.find((r) => r.id === id)
+      const fileName = record?.file_name || `backup-${id}.sql.gz`
+      const objectUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = fileName
+      link.rel = 'noopener'
+      link.click()
+      window.URL.revokeObjectURL(objectUrl)
+      return
+    }
     if (!result.url) {
       throw new Error(t('admin.backup.actions.downloadFailed'))
     }
-    // 预签名 URL 带 attachment disposition，同页 anchor 导航直接触发下载；
-    // 不用 window.open：step-up 弹窗 await 会耗尽瞬态用户激活，新标签页会被浏览器拦截。
+    // 兼容上游仅返回 url 的 S3 预签名下载
     const link = document.createElement('a')
     link.href = result.url
     link.rel = 'noopener'

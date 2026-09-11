@@ -35,6 +35,8 @@ export default {
     updating: 'Updating...',
     updateComplete: 'Update Complete',
     updateFailed: 'Update Failed',
+    updateInProgress: 'Another update is already in progress, please wait for it to finish',
+    updateInProgressCountdown: 'Another update is already in progress, retry in about {seconds}s',
     restartRequired: 'Please restart the service to apply the update',
     restartNow: 'Restart Now',
     restarting: 'Restarting...',

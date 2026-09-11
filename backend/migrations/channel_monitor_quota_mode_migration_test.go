@@ -18,7 +18,12 @@ func TestChannelMonitorQuotaModeMigration(t *testing.T) {
 	require.Contains(t, sql, "channel_monitor_request_templates_provider_check")
 	require.Contains(t, sql, "CHECK (provider IN ('openai', 'anthropic', 'gemini', 'grok', 'antigravity', 'kimi', 'zhipu', 'deepseek'))")
 	require.Contains(t, sql, "position('kimi' IN monitor_constraint_def) = 0")
+	require.Contains(t, sql, "position('zhipu' IN monitor_constraint_def) = 0")
+	require.Contains(t, sql, "position('deepseek' IN monitor_constraint_def) = 0")
 	require.Contains(t, sql, "position('kimi' IN template_constraint_def) = 0")
+	require.Contains(t, sql, "position('zhipu' IN template_constraint_def) = 0")
+	require.Contains(t, sql, "position('deepseek' IN template_constraint_def) = 0")
+	require.Contains(t, sql, "DROP CONSTRAINT IF EXISTS channel_monitors_check_mode_check")
 
 	// check_mode 三态，默认 probe。
 	require.Contains(t, sql, "ADD COLUMN IF NOT EXISTS check_mode VARCHAR(32) NOT NULL DEFAULT 'probe'")

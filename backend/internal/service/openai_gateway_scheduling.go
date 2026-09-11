@@ -290,13 +290,18 @@ func (s *OpenAIGatewayService) SelectAccountForTokenCount(
 // kimi 分组请求只命中 kimi 账号，语义与 openai/grok 一致。
 // （upstream 曾将本函数改为未导出 normalizeOpenAICompatiblePlatform，本分支的
 // handler 调度入口仍需导出，保持导出名。）
-func NormalizeOpenAICompatiblePlatform(platform string) string {
+func normalizeOpenAICompatiblePlatform(platform string) string {
 	switch platform {
 	case PlatformGrok, PlatformKimi, PlatformZhipu, PlatformDeepseek, PlatformMiniMax:
 		return platform
 	default:
 		return PlatformOpenAI
 	}
+}
+
+// NormalizeOpenAICompatiblePlatform exposes platform normalization to gateway handlers.
+func NormalizeOpenAICompatiblePlatform(platform string) string {
+	return normalizeOpenAICompatiblePlatform(platform)
 }
 
 // noAvailableOpenAISelectionError builds the standard "no account available" error
@@ -331,6 +336,32 @@ func (e openAINoAvailableSelectionError) Error() string {
 
 func (e openAINoAvailableSelectionError) Unwrap() error {
 	return ErrNoAvailableAccounts
+}
+
+// grokReasoningFilteredError wraps ErrGrokReasoningFiltered. It is distinct
+// from the generic no-available-accounts error so handlers can emit a 502
+// instead of 503 when the entire pool was excluded by the enforce gate.
+type grokReasoningFilteredError struct {
+	message string
+}
+
+func (e grokReasoningFilteredError) Error() string {
+	return e.message
+}
+
+func (e grokReasoningFilteredError) Unwrap() error {
+	return ErrGrokReasoningFiltered
+}
+
+func newGrokReasoningFilteredError(requestedModel string, details string) error {
+	message := "all Grok accounts filtered by reasoning visibility enforcement"
+	if requestedModel != "" {
+		message = fmt.Sprintf("all Grok accounts supporting model: %s filtered by reasoning visibility enforcement", requestedModel)
+	}
+	if details != "" {
+		message += " (" + details + ")"
+	}
+	return grokReasoningFilteredError{message: message}
 }
 
 // openAICompactSupportTier classifies an OpenAI-compatible account by compact capability.
@@ -879,7 +910,7 @@ func resolveOpenAIErrorSchedulingModel(billingModel, upstreamModel string) strin
 }
 
 func (s *OpenAIGatewayService) selectAccountForModelWithExclusions(ctx context.Context, groupID *int64, platform string, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, requireCompact bool, stickyAccountID int64, requiredCapability OpenAIEndpointCapability, preferLowUpstreamRate bool) (*Account, error) {
-	platform = NormalizeOpenAICompatiblePlatform(platform)
+	platform = normalizeOpenAICompatiblePlatform(platform)
 	if s.checkChannelPricingRestriction(ctx, groupID, requestedModel) {
 		slog.Warn("channel pricing restriction blocked request",
 			"group_id", derefGroupID(groupID),
@@ -932,7 +963,7 @@ func (s *OpenAIGatewayService) tryStickySessionHit(ctx context.Context, groupID 
 	if sessionHash == "" {
 		return nil
 	}
-	platform = NormalizeOpenAICompatiblePlatform(platform)
+	platform = normalizeOpenAICompatiblePlatform(platform)
 
 	accountID := stickyAccountID
 	if accountID <= 0 {
@@ -999,7 +1030,7 @@ func (s *OpenAIGatewayService) tryStickySessionHit(ctx context.Context, groupID 
 // true); the third contains deterministic
 // exclusion diagnostics for the evaluated snapshot.
 func (s *OpenAIGatewayService) selectBestAccount(ctx context.Context, groupID *int64, platform string, accounts []Account, requestedModel string, excludedIDs map[int64]struct{}, requireCompact bool, requiredCapability OpenAIEndpointCapability, preferLowUpstreamRate bool) (*Account, bool, openAISelectionFilterStats) {
-	platform = NormalizeOpenAICompatiblePlatform(platform)
+	platform = normalizeOpenAICompatiblePlatform(platform)
 	compactBlocked := false
 	filterStats := openAISelectionFilterStats{pool: len(accounts)}
 	needsUpstreamCheck := s.needsUpstreamChannelRestrictionCheck(ctx, groupID)
@@ -1112,7 +1143,7 @@ func (s *OpenAIGatewayService) SelectAccountWithLoadAwareness(ctx context.Contex
 }
 
 func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Context, groupID *int64, platform string, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, requireCompact bool, requiredCapability OpenAIEndpointCapability, useUpstreamTokenCost bool) (*AccountSelectionResult, error) {
-	platform = NormalizeOpenAICompatiblePlatform(platform)
+	platform = normalizeOpenAICompatiblePlatform(platform)
 	if s.checkChannelPricingRestriction(ctx, groupID, requestedModel) {
 		slog.Warn("channel pricing restriction blocked request",
 			"group_id", derefGroupID(groupID),
@@ -1470,7 +1501,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 }
 
 func (s *OpenAIGatewayService) listSchedulableAccounts(ctx context.Context, groupID *int64, platform string) ([]Account, error) {
-	platform = NormalizeOpenAICompatiblePlatform(platform)
+	platform = normalizeOpenAICompatiblePlatform(platform)
 	if s.schedulerSnapshot != nil {
 		accounts, _, err := s.schedulerSnapshot.ListSchedulableAccounts(ctx, groupID, platform, false)
 		if err != nil {
@@ -1523,7 +1554,7 @@ func (s *OpenAIGatewayService) resolveFreshSchedulableOpenAIAccountBeforeProfit(
 	if account == nil {
 		return nil
 	}
-	platform = NormalizeOpenAICompatiblePlatform(platform)
+	platform = normalizeOpenAICompatiblePlatform(platform)
 
 	fresh := account
 	if s.schedulerSnapshot != nil {
@@ -1581,7 +1612,7 @@ func (s *OpenAIGatewayService) recheckSelectedOpenAIAccountFromDBBeforeProfit(ct
 	if account == nil {
 		return nil
 	}
-	platform = NormalizeOpenAICompatiblePlatform(platform)
+	platform = normalizeOpenAICompatiblePlatform(platform)
 	if s.schedulerSnapshot == nil || s.accountRepo == nil {
 		if s.openAIGroupRequiresPrivacySet(ctx, groupID) && !account.IsPrivacySet() {
 			return nil

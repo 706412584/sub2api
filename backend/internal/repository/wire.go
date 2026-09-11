@@ -75,6 +75,9 @@ var ProviderSet = wire.NewSet(
 	NewScheduledTestPlanRepository,   // 定时测试计划仓储
 	NewScheduledTestResultRepository, // 定时测试结果仓储
 	NewProxyRepository,
+	NewProxySubscriptionRepository,
+	NewDynamicProxyPoolRepository,
+	NewIMBotRepository,
 	NewRedeemCodeRepository,
 	NewPromoCodeRepository,
 	NewAnnouncementRepository,
@@ -105,12 +108,14 @@ var ProviderSet = wire.NewSet(
 	NewAffiliateRepository,
 	NewUserPlatformQuotaRepository,     // T14: user × platform quota
 	NewUserPlatformQuotaServiceAdapter, // T14: adapter → service.UserPlatformQuotaRepository
+	NewGrokSessionCredentialRepository, // P0: Grok 会话凭据加密存储
 
 	// Cache implementations
 	NewGatewayCache,
 	NewBillingCache,
 	NewAPIKeyCache,
 	NewTempUnschedCache,
+	NewGrokReasoningQualityMarkCache,
 	NewTimeoutCounterCache,
 	NewOpenAI403CounterCache,
 	NewInternal500CounterCache,
@@ -156,10 +161,11 @@ var ProviderSet = wire.NewSet(
 	NewAliyunCaptchaVerifier,
 	ProvidePricingRemoteClient,
 	ProvideGitHubReleaseClient,
-	NewProxyExitInfoProber,
+	NewProxyExitInfoProberWithEgress,
 	NewClaudeUsageFetcher,
 	NewClaudeOAuthClient,
-	NewHTTPUpstream,
+	NewHTTPUpstreamWithEgress,
+	NewEgressProxyResolver,
 	NewOpenAIOAuthClient,
 	NewGrokOAuthClient,
 	NewGeminiOAuthClient,

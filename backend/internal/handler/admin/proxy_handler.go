@@ -15,13 +15,15 @@ import (
 
 // ProxyHandler handles admin proxy management
 type ProxyHandler struct {
-	adminService service.AdminService
+	adminService          service.AdminService
+	grokReasoningProbeSvc *service.GrokReasoningProbeService
 }
 
 // NewProxyHandler creates a new admin proxy handler
-func NewProxyHandler(adminService service.AdminService) *ProxyHandler {
+func NewProxyHandler(adminService service.AdminService, grokReasoningProbeSvc *service.GrokReasoningProbeService) *ProxyHandler {
 	return &ProxyHandler{
-		adminService: adminService,
+		adminService:          adminService,
+		grokReasoningProbeSvc: grokReasoningProbeSvc,
 	}
 }
 
@@ -36,6 +38,7 @@ type CreateProxyRequest struct {
 	ExpiresAt      *int64 `json:"expires_at"`
 	FallbackMode   string `json:"fallback_mode" binding:"omitempty,oneof=none proxy direct"`
 	BackupProxyID  *int64 `json:"backup_proxy_id"`
+	EgressProxyID  *int64 `json:"egress_proxy_id"`
 	ExpiryWarnDays int    `json:"expiry_warn_days" binding:"omitempty,min=0"`
 }
 
@@ -51,6 +54,7 @@ type UpdateProxyRequest struct {
 	ExpiresAt      dto.NullableInt64Field `json:"expires_at"`
 	FallbackMode   string                 `json:"fallback_mode" binding:"omitempty,oneof=none proxy direct"`
 	BackupProxyID  dto.NullableInt64Field `json:"backup_proxy_id"`
+	EgressProxyID  dto.NullableInt64Field `json:"egress_proxy_id"`
 	ExpiryWarnDays *int                   `json:"expiry_warn_days" binding:"omitempty,min=0"`
 }
 
@@ -158,6 +162,7 @@ func (h *ProxyHandler) Create(c *gin.Context) {
 			ExpiresAt:      expiresAt,
 			FallbackMode:   strings.TrimSpace(req.FallbackMode),
 			BackupProxyID:  req.BackupProxyID,
+			EgressProxyID:  req.EgressProxyID,
 			ExpiryWarnDays: req.ExpiryWarnDays,
 		})
 		if err != nil {
@@ -200,6 +205,8 @@ func (h *ProxyHandler) Update(c *gin.Context) {
 		FallbackMode:   strings.TrimSpace(req.FallbackMode),
 		BackupProxyID:  req.BackupProxyID.Value,
 		ClearBackupID:  req.BackupProxyID.Set && req.BackupProxyID.Value == nil,
+		EgressProxyID:  req.EgressProxyID.Value,
+		ClearEgressID:  req.EgressProxyID.Set && req.EgressProxyID.Value == nil,
 		ExpiryWarnDays: req.ExpiryWarnDays,
 	})
 	if err != nil {
@@ -283,6 +290,34 @@ func (h *ProxyHandler) CheckQuality(c *gin.Context) {
 		return
 	}
 
+	response.Success(c, result)
+}
+
+// ProbeGrokReasoning runs an opt-in real Grok OAuth Responses probe through the
+// given proxy egress to detect visible vs encrypted-only reasoning.
+// POST /api/v1/admin/proxies/:id/grok-reasoning-probe
+func (h *ProxyHandler) ProbeGrokReasoning(c *gin.Context) {
+	proxyID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid proxy ID")
+		return
+	}
+	if h.grokReasoningProbeSvc == nil {
+		response.InternalError(c, "Grok reasoning probe service is not configured")
+		return
+	}
+
+	var req service.GrokReasoningProbeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request body")
+		return
+	}
+
+	result, err := h.grokReasoningProbeSvc.Probe(c.Request.Context(), proxyID, req)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
 	response.Success(c, result)
 }
 
@@ -395,4 +430,47 @@ func (h *ProxyHandler) BatchCreate(c *gin.Context) {
 		"created": created,
 		"skipped": skipped,
 	})
+}
+
+// GetBoundGroups lists groups that use this proxy as default_proxy_id.
+// GET /api/v1/admin/proxies/:id/bound-groups
+func (h *ProxyHandler) GetBoundGroups(c *gin.Context) {
+	proxyID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid proxy ID")
+		return
+	}
+	ids, err := h.adminService.ListGroupIDsByDefaultProxy(c.Request.Context(), proxyID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"group_ids": ids})
+}
+
+// SetBoundGroups binds groups to use this proxy as their default proxy.
+// PUT /api/v1/admin/proxies/:id/bound-groups
+func (h *ProxyHandler) SetBoundGroups(c *gin.Context) {
+	proxyID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid proxy ID")
+		return
+	}
+	var req struct {
+		GroupIDs []int64 `json:"group_ids"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := h.adminService.SetProxyBoundGroups(c.Request.Context(), proxyID, req.GroupIDs); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	ids, err := h.adminService.ListGroupIDsByDefaultProxy(c.Request.Context(), proxyID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"group_ids": ids})
 }

@@ -221,6 +221,8 @@ func (s *AntigravityGatewayService) prepareAntigravityCompatCall(
 	thinkingEnabled := claudeRequest.Thinking != nil &&
 		(claudeRequest.Thinking.Type == "enabled" || claudeRequest.Thinking.Type == "adaptive")
 	mappedModel = applyThinkingModelSuffix(mappedModel, thinkingEnabled)
+	// 分档 Gemini 模型按 reasoning effort 自动选档（gemini-3.8-flash -> gemini-3.8-flash-high）
+	mappedModel = resolveAntigravityEffortTier(ctx, account, mappedModel)
 
 	if s.tokenProvider == nil {
 		return nil, s.writeAntigravityCompatError(c, http.StatusBadGateway, "api_error", "Antigravity token provider not configured")

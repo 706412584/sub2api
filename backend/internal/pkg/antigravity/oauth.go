@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
 
@@ -407,4 +409,83 @@ func BuildAuthorizationURL(state, codeChallenge string) string {
 	params.Set("include_granted_scopes", "true")
 
 	return fmt.Sprintf("%s?%s", AuthorizeURL, params.Encode())
+}
+
+// ── 客户端指纹（x-machine-id / x-vscode-sessionid）───────────────────────
+
+const (
+	// AntigravityClientFingerprintEnv 是客户端指纹开关的环境变量名（"1"/"true" 开启）。
+	AntigravityClientFingerprintEnv = "ANTIGRAVITY_CLIENT_FINGERPRINT"
+
+	// fingerprintNamespace 是 UUIDv5 派生 namespace（随机固定值，
+	// 仅用于在网关内部从 accountID 确定性派生设备/会话 ID）。
+	fingerprintNamespace = "6f2b1d5e-9a34-4c87-b1e2-8d90f47ac315"
+)
+
+// processStartupUUID 进程启动时生成一次，使 x-vscode-sessionid 呈现
+// "每账号 × 每进程生命周期一个会话" 的语义（贴近真实 IDE 重启行为）。
+var processStartupUUID = func() string {
+	if id, err := uuid.NewRandom(); err == nil {
+		return id.String()
+	}
+	return "00000000-0000-0000-0000-000000000000"
+}()
+
+var (
+	clientFingerprintEnabled bool
+	clientFingerprintMu      sync.RWMutex
+)
+
+// ClientFingerprintEnabledResolver 提供运行时客户端指纹开关覆盖能力。
+type ClientFingerprintEnabledResolver func(ctx context.Context) bool
+
+var clientFingerprintEnabledResolver ClientFingerprintEnabledResolver
+
+func init() {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(AntigravityClientFingerprintEnv))) {
+	case "1", "true", "yes", "on":
+		clientFingerprintEnabled = true
+	}
+}
+
+// SetClientFingerprintEnabledResolver 设置运行时指纹开关解析器（后台 settings 注入）。
+func SetClientFingerprintEnabledResolver(resolver ClientFingerprintEnabledResolver) {
+	clientFingerprintMu.Lock()
+	defer clientFingerprintMu.Unlock()
+	clientFingerprintEnabledResolver = resolver
+}
+
+// ClientFingerprintEnabledForContext 返回当前请求是否启用客户端指纹头。
+// resolver 未注入时回退 env / 默认关闭。
+func ClientFingerprintEnabledForContext(ctx context.Context) bool {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	clientFingerprintMu.RLock()
+	resolver := clientFingerprintEnabledResolver
+	clientFingerprintMu.RUnlock()
+	if resolver != nil {
+		return resolver(ctx)
+	}
+	clientFingerprintMu.RLock()
+	defer clientFingerprintMu.RUnlock()
+	return clientFingerprintEnabled
+}
+
+// DeriveAntigravityMachineID 从账号 ID 确定性派生设备 ID（UUIDv5）。
+// 每账号独立：多账号共享单设备 ID 会向上游提供账号关联封禁信号。
+// manualOverride 非空且为合法 UUID 时优先（供极端风控场景手工指定）。
+func DeriveAntigravityMachineID(accountID int64, manualOverride string) string {
+	if id, err := uuid.Parse(strings.TrimSpace(manualOverride)); err == nil {
+		return id.String()
+	}
+	return uuid.NewSHA1(uuid.MustParse(fingerprintNamespace),
+		[]byte(fmt.Sprintf("antigravity-machine:%d", accountID))).String()
+}
+
+// DeriveAntigravitySessionID 从账号 ID + 进程启动 UUID 确定性派生会话 ID。
+// 语义：每账号一台设备、网关进程生命周期内一个会话、重启换会话。
+func DeriveAntigravitySessionID(accountID int64) string {
+	return uuid.NewSHA1(uuid.MustParse(fingerprintNamespace),
+		[]byte(fmt.Sprintf("antigravity-session:%d:%s", accountID, processStartupUUID))).String()
 }

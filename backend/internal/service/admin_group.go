@@ -492,6 +492,11 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 			return nil, err
 		}
 	}
+	if input.DefaultProxyID != nil && *input.DefaultProxyID > 0 {
+		if err := s.validateDefaultProxyID(ctx, *input.DefaultProxyID); err != nil {
+			return nil, err
+		}
+	}
 	fallbackOnInvalidRequest := input.FallbackGroupIDOnInvalidRequest
 	if fallbackOnInvalidRequest != nil && *fallbackOnInvalidRequest <= 0 {
 		fallbackOnInvalidRequest = nil
@@ -544,6 +549,9 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		}
 	}
 
+	if err := ValidateGroupPromptPolicy(input.PromptPolicy); err != nil {
+		return nil, err
+	}
 	// 白名单在创建路径同样收口：开启但为空、通配位置非法都会 400。
 	modelAllowlist, err := normalizeGroupModelAllowlist(input.ModelAllowlist)
 	if err != nil {
@@ -593,6 +601,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		ClaudeCodeOnly:                  input.ClaudeCodeOnly,
 		FallbackGroupID:                 input.FallbackGroupID,
 		FallbackGroupIDOnInvalidRequest: fallbackOnInvalidRequest,
+		DefaultProxyID:                  input.DefaultProxyID,
 		ModelRouting:                    input.ModelRouting,
 		MCPXMLInject:                    mcpXMLInject,
 		SupportedModelScopes:            input.SupportedModelScopes,
@@ -608,10 +617,15 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		// 固定账号 manifest 配置：账号绑定发生在分组创建之后，创建路径禁止开启，
 		// 成员关系无从校验（前端创建对话框也不展示）。
 		CodexModelsManifestConfig:   normalizeCodexModelsManifestConfig(platform, input.CodexModelsManifestConfig),
+		GrokMessagesProtocol:        input.GrokMessagesProtocol,
+		GrokReasoningVisibilityMode: NormalizeGrokReasoningVisibilityMode(input.GrokReasoningVisibilityMode),
+		GrokReasoningProbeTTLSec:    input.GrokReasoningProbeTTLSec,
+		GrokReasoningQuarantineSec:  input.GrokReasoningQuarantineSec,
 		RPMLimit:                    input.RPMLimit,
 		MaxReasoningEffort:          maxReasoningEffort,
 		MaxReasoningEffortOverLimit: maxReasoningEffortOverLimit,
 		ReasoningEffortMappings:     reasoningEffortMappings,
+		PromptPolicy:                input.PromptPolicy,
 	}
 	sanitizeGroupMessagesDispatchFields(group)
 	sanitizeGroupOpenAIFast(group)
@@ -953,6 +967,20 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	}
 	group.FallbackGroupIDOnInvalidRequest = fallbackOnInvalidRequest
 
+	if input.DefaultProxyID != nil {
+		if *input.DefaultProxyID > 0 {
+			if s.proxyRepo != nil {
+				if _, err := s.proxyRepo.GetByID(ctx, *input.DefaultProxyID); err != nil {
+					return nil, err
+				}
+			}
+			group.DefaultProxyID = input.DefaultProxyID
+		} else {
+			// 0 或负数表示清除
+			group.DefaultProxyID = nil
+		}
+	}
+
 	// 模型路由配置
 	if input.ModelRouting != nil {
 		group.ModelRouting = input.ModelRouting
@@ -1004,6 +1032,18 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	if input.CodexModelsManifestConfig != nil {
 		group.CodexModelsManifestConfig = *input.CodexModelsManifestConfig
 	}
+	if input.GrokMessagesProtocol != nil {
+		group.GrokMessagesProtocol = *input.GrokMessagesProtocol
+	}
+	if input.GrokReasoningVisibilityMode != nil {
+		group.GrokReasoningVisibilityMode = NormalizeGrokReasoningVisibilityMode(*input.GrokReasoningVisibilityMode)
+	}
+	if input.GrokReasoningProbeTTLSec != nil {
+		group.GrokReasoningProbeTTLSec = *input.GrokReasoningProbeTTLSec
+	}
+	if input.GrokReasoningQuarantineSec != nil {
+		group.GrokReasoningQuarantineSec = *input.GrokReasoningQuarantineSec
+	}
 	if input.RPMLimit != nil {
 		group.RPMLimit = *input.RPMLimit
 	}
@@ -1027,6 +1067,12 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 			return nil, infraerrors.Newf(http.StatusBadRequest, "INVALID_REASONING_EFFORT_MAPPING", "%v", err)
 		}
 		group.ReasoningEffortMappings = reasoningEffortMappings
+	}
+	if input.PromptPolicy != nil {
+		if err := ValidateGroupPromptPolicy(*input.PromptPolicy); err != nil {
+			return nil, err
+		}
+		group.PromptPolicy = *input.PromptPolicy
 	}
 	sanitizeGroupMessagesDispatchFields(group)
 	sanitizeGroupOpenAIFast(group)
@@ -1504,4 +1550,61 @@ func (s *adminServiceImpl) ReplaceUserGroup(ctx context.Context, userID, oldGrou
 	}
 
 	return &ReplaceUserGroupResult{MigratedKeys: migrated}, nil
+}
+
+func (s *adminServiceImpl) validateDefaultProxyID(ctx context.Context, proxyID int64) error {
+	if proxyID <= 0 {
+		return nil
+	}
+	if s.proxyRepo == nil {
+		return nil
+	}
+	if _, err := s.proxyRepo.GetByID(ctx, proxyID); err != nil {
+		return err
+	}
+	return nil
+}
+
+// SetProxyBoundGroups binds the given groups to use proxyID as their default proxy.
+// Groups previously bound to this proxy but not listed are cleared.
+func (s *adminServiceImpl) SetProxyBoundGroups(ctx context.Context, proxyID int64, groupIDs []int64) error {
+	if proxyID <= 0 {
+		return infraerrors.BadRequest("INVALID_PROXY_ID", "invalid proxy id")
+	}
+	if _, err := s.proxyRepo.GetByID(ctx, proxyID); err != nil {
+		return err
+	}
+	// de-dup group IDs
+	seen := make(map[int64]struct{}, len(groupIDs))
+	clean := make([]int64, 0, len(groupIDs))
+	for _, id := range groupIDs {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		clean = append(clean, id)
+	}
+	for _, id := range clean {
+		if _, err := s.groupRepo.GetByIDLite(ctx, id); err != nil {
+			return err
+		}
+	}
+	return s.mustAdminGroupRepo().SetDefaultProxyBoundGroups(ctx, proxyID, clean)
+}
+
+func (s *adminServiceImpl) ListGroupIDsByDefaultProxy(ctx context.Context, proxyID int64) ([]int64, error) {
+	if s.groupRepo == nil {
+		return nil, nil
+	}
+	return s.mustAdminGroupRepo().ListGroupIDsByDefaultProxy(ctx, proxyID)
+}
+
+func (s *adminServiceImpl) mustAdminGroupRepo() AdminGroupRepository {
+	if repo, ok := s.groupRepo.(AdminGroupRepository); ok {
+		return repo
+	}
+	panic("group repository does not implement AdminGroupRepository")
 }

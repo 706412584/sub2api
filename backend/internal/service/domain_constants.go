@@ -42,6 +42,7 @@ const (
 	PlatformOpenAI      = domain.PlatformOpenAI
 	PlatformGemini      = domain.PlatformGemini
 	PlatformAntigravity = domain.PlatformAntigravity
+	PlatformKiro        = domain.PlatformKiro
 	PlatformGrok        = domain.PlatformGrok
 	// 国产 OpenAI 兼容供应商（与 grok 一样经 OpenAI 网关转发）。
 	PlatformKimi      = domain.PlatformKimi
@@ -49,9 +50,6 @@ const (
 	PlatformDeepseek  = domain.PlatformDeepseek
 	PlatformMiniMax   = domain.PlatformMiniMax
 	PlatformComposite = domain.PlatformComposite
-	// PlatformKiro is retained for unsupported-platform threshold tests and legacy
-	// account rows. Scheduling-threshold evaluation never pauses kiro accounts.
-	PlatformKiro = "kiro"
 )
 
 // 账号接入模式（国产供应商）：按量付费 vs Coding Plan。
@@ -108,6 +106,7 @@ var AllowedQuotaPlatforms = []string{
 	PlatformOpenAI,
 	PlatformGemini,
 	PlatformAntigravity,
+	PlatformKiro,
 	PlatformGrok,
 	PlatformKimi,
 	PlatformZhipu,
@@ -145,6 +144,8 @@ const (
 	AccountTypeUpstream       = domain.AccountTypeUpstream       // 上游透传类型账号（通过 Base URL + API Key 连接上游）
 	AccountTypeBedrock        = domain.AccountTypeBedrock        // AWS Bedrock 类型账号（通过 SigV4 签名或 API Key 连接 Bedrock，由 credentials.auth_mode 区分）
 	AccountTypeServiceAccount = domain.AccountTypeServiceAccount // Google Service Account 类型账号（用于 Vertex AI）
+	AccountTypeGrokConsole    = domain.AccountTypeGrokConsole    // Grok Console 类型账号（DPoP 会话）
+	AccountTypeGrokWeb        = domain.AccountTypeGrokWeb        // Grok Web 类型账号（浏览器会话）
 )
 
 // Redeem type constants
@@ -416,6 +417,9 @@ const (
 	// 管理员 API Key
 	SettingKeyAdminAPIKey = "admin_api_key" // 全局管理员 API Key（用于外部系统集成）
 
+	// 更新下载代理（UpdateService 访问 GitHub 时使用；空表示用启动时配置 update.proxy_url 或直连）
+	SettingKeyUpdateProxyURL = "update_proxy_url"
+
 	// Gemini 配额策略（JSON）
 	SettingKeyGeminiQuotaPolicy = "gemini_quota_policy"
 
@@ -485,10 +489,7 @@ const (
 	SettingKeyChannelMonitorHideThroughput = "channel_monitor_hide_throughput"
 
 	// SettingKeyChannelMonitorShowQuota controls whether quota/balance snapshots
-	// attached to channel monitors (check_mode=quota/quota_probe) are exposed on
-	// the user-facing monitor APIs and UI. Default false (hidden); parsed
-	// fail-closed (only the literal "true" enables it). Admin endpoints always
-	// keep the full snapshots regardless of this flag.
+	// attached to channel monitors are exposed on user-facing monitor APIs/UI.
 	SettingKeyChannelMonitorShowQuota = "channel_monitor_show_quota"
 	// SettingKeyChannelMonitorHideUserRanking hides the user ranking tab and
 	// /users payload from non-admin channel-monitor v2 viewers.
@@ -552,12 +553,42 @@ const (
 	// SettingKeyOpenAIAPIKeyHealthBreakerSettings stores the opt-in OpenAI pool API-key breaker config.
 	SettingKeyOpenAIAPIKeyHealthBreakerSettings = "openai_apikey_health_breaker_settings"
 
+	// SettingKeyOpenAIGrok429ExhaustionSettings stores JSON config for treating
+	// OpenAI/Grok upstream 429 as immediate scheduling rate-limits (quota exhaustion).
+	SettingKeyOpenAIGrok429ExhaustionSettings = "openai_grok_429_exhaustion_settings"
+
+	// SettingKeyAccountPoolProbeSettings stores JSON config for the global
+	// asynchronous account-pool quota probe runner.
+	SettingKeyAccountPoolProbeSettings = "account_pool_probe_settings"
+
+	// SettingKeyGrokOpsProxy stores JSON config for Grok ops/test egress proxy.
+	// Live traffic keeps account.proxy_id; only test/probe (and optional refresh) use this.
+	SettingKeyGrokOpsProxy = "grok_ops_proxy"
+
+	// SettingKeyGrokCLIIdentity stores the operator override for Grok CLI client
+	// identity version reported to cli-chat-proxy (JSON: {"version":"x.y.z"}).
+	// Empty/missing means fall through to env XAI_GROK_CLI_VERSION then compile default.
+	SettingKeyGrokCLIIdentity = "grok_cli_identity"
+
 	// =========================
 	// Stream Timeout Handling
 	// =========================
 
 	// SettingKeyStreamTimeoutSettings stores JSON config for stream timeout handling.
 	SettingKeyStreamTimeoutSettings = "stream_timeout_settings"
+
+	// =========================
+	// Grok Reasoning Visibility Scheduling
+	// =========================
+
+	// SettingKeyGrokReasoningVisibility stores JSON config for the gateway-level
+	// Grok reasoning visibility scheduling policy.
+	SettingKeyGrokReasoningVisibility = "grok_reasoning_visibility_settings"
+
+	// SettingKeyGrokToolPrompt stores JSON config for the gateway-level Grok
+	// tool-usage system prompt injection (forces real tool_use instead of
+	// text-only "task created" claims).
+	SettingKeyGrokToolPrompt = "grok_tool_prompt_settings"
 
 	// =========================
 	// Request Rectifier (请求整流器)
@@ -661,6 +692,10 @@ const (
 	SettingKeyRewriteMessageCacheControl = "rewrite_message_cache_control"
 	// SettingKeyAntigravityUserAgentVersion Antigravity 上游 User-Agent 版本号（空值使用环境变量/默认值）
 	SettingKeyAntigravityUserAgentVersion = "antigravity_user_agent_version"
+
+	// SettingKeyAntigravityClientFingerprint Antigravity 上游客户端指纹头开关
+	// （x-client-name/x-client-version/x-machine-id/x-vscode-sessionid，默认关闭）
+	SettingKeyAntigravityClientFingerprint = "antigravity_client_fingerprint_enabled"
 	// SettingKeyOpenAICodexUserAgent OpenAI Codex 完整 User-Agent（空值使用内置默认）
 	// 当客户端 UA 被识别为浏览器（Chrome/Firefox/Safari/Edge 等）时，转发给 OpenAI 上游前会替换为此值，
 	// 用于避免 Cloudflare 对浏览器型 UA 的质询拦截。

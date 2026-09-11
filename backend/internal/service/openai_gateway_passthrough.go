@@ -1512,7 +1512,7 @@ func applyOpenAIStreamFailedErrorPassthroughRule(
 ) (status int, errType string, errMsg string, matched bool) {
 	ruleBody := openAIStreamFailedEventPassthroughBody(payload, failedMessage)
 	upstreamStatus := openAIStreamFailedEventSemanticStatus(payload, failedMessage)
-	return applyErrorPassthroughRule(
+	status, errType, errMsg, matched = applyErrorPassthroughRule(
 		c,
 		platform,
 		upstreamStatus,
@@ -1521,6 +1521,10 @@ func applyOpenAIStreamFailedErrorPassthroughRule(
 		"upstream_error",
 		"Upstream request failed",
 	)
+	if matched && platform == PlatformGrok {
+		errMsg = safeGrokUpstreamErrorMessage(upstreamStatus, nil, errMsg, "Upstream request failed")
+	}
+	return status, errType, errMsg, matched
 }
 
 func openAIStreamFailedEventShouldFailover(payload []byte, message string) bool {
@@ -1666,13 +1670,18 @@ func (s *OpenAIGatewayService) recordOpenAIStreamUpstreamError(
 	payload []byte,
 	message string,
 ) string {
-	message = sanitizeUpstreamErrorMessage(strings.TrimSpace(message))
-	if message == "" {
-		message = "OpenAI upstream response failed"
+	isGrok := account != nil && account.Platform == PlatformGrok
+	if isGrok {
+		message = safeGrokUpstreamErrorMessage(http.StatusBadGateway, payload, message, "xAI upstream response failed")
+	} else {
+		message = sanitizeUpstreamErrorMessage(strings.TrimSpace(message))
+		if message == "" {
+			message = "OpenAI upstream response failed"
+		}
 	}
 	statusCode := openAIStreamFailureStatus(payload, message)
 	detail := ""
-	if len(payload) > 0 && s != nil && s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
+	if !isGrok && len(payload) > 0 && s != nil && s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
 		maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
 		if maxBytes <= 0 {
 			maxBytes = 2048
@@ -1724,9 +1733,19 @@ func (s *OpenAIGatewayService) newOpenAIStreamFailoverErrorWithModel(
 	canonicalModel string,
 	responseHeaders ...http.Header,
 ) *UpstreamFailoverError {
-	message = sanitizeUpstreamErrorMessage(strings.TrimSpace(message))
-	if message == "" {
-		message = "OpenAI stream disconnected before completion"
+	// fork 定制保留：Grok 平台使用专用安全错误消息（不泄露内部细节），
+	// 并携带 platform / clientMessage 供 failover 错误结构与客户端消息使用。
+	platform := ""
+	clientMessage := ""
+	if account != nil && account.Platform == PlatformGrok {
+		platform = PlatformGrok
+		clientMessage = safeGrokUpstreamErrorMessage(http.StatusBadGateway, payload, message, "xAI stream disconnected before completion")
+		message = clientMessage
+	} else {
+		message = sanitizeUpstreamErrorMessage(strings.TrimSpace(message))
+		if message == "" {
+			message = "OpenAI stream disconnected before completion"
+		}
 	}
 	var headers http.Header
 	if len(responseHeaders) > 0 && responseHeaders[0] != nil {
@@ -1754,12 +1773,21 @@ func (s *OpenAIGatewayService) newOpenAIStreamFailoverErrorWithModel(
 	if statusCode == http.StatusTooManyRequests {
 		classificationHeaders = nil
 	}
-	failoverErr := s.newOpenAIAccountFailoverErrorWithClassificationHeaders(account, statusCode, headers, classificationHeaders, payload, message, shouldDisable, retryableOnSameAccount)
+	failoverErr := s.newOpenAIAccountFailoverErrorWithClassificationHeaders(
+		account, statusCode, headers, classificationHeaders, payload,
+		firstNonEmpty(clientMessage, message), shouldDisable, retryableOnSameAccount,
+	)
+	if platform != "" {
+		failoverErr.Platform = platform
+	}
 	if failoverErr.IsCredentialFailure() || failoverErr.RequestScopedTransient {
 		return failoverErr
 	}
-	// Preserve the existing generic envelope for unclassified stream failures;
-	// only typed access/capacity failures need the original payload downstream.
+	if clientMessage != "" {
+		failoverErr.ClientMessage = clientMessage
+	}
+	// 流内 failed 事件承载于 HTTP 200：ResponseBody 必须是净化后的 envelope，
+	// 原始 payload 可能含 Grok 会话密钥等敏感信息，禁止原样透传给客户端。
 	failoverErr.ResponseBody = body
 	return failoverErr
 }
@@ -2053,7 +2081,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 				// 再打 cyber 标记，否则 mark 记到的是解析前的 0，导致流式 cyber 按 0 token 计费
 				// 而漏记真实用量。对齐 WS V2 / Chat 流式路径（均先解析 usage 再 Mark）。
 				s.parseSSEUsageBytesWithType(dataBytes, eventType, usage)
-				if hit, code, msg := detectOpenAICyberPolicy(dataBytes); hit {
+				if hit, code, msg := detectOpenAICyberPolicy(dataBytes); hit && account.Platform != PlatformGrok {
 					cyberHit = true
 					MarkOpsCyberPolicy(c, CyberPolicyMark{
 						Code:           code,
@@ -2135,6 +2163,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			if sanitizedData, sanitized := sanitizeOpenAIResponseFailedEventForClient(
 				dataBytes,
 				eventType,
+				account.Platform,
 				openAIStreamClientOutputStarted(c, clientOutputStarted),
 			); sanitized {
 				dataBytes = sanitizedData
@@ -2352,7 +2381,7 @@ func (s *OpenAIGatewayService) handlePassthroughSSEToJSON(resp *http.Response, c
 		if failoverErr := s.nonStreamingTerminalFailureFailover(c, resp, account, true, terminalType, terminalPayload, msg, mappedModel); failoverErr != nil {
 			return nil, failoverErr
 		}
-		return nil, s.writeOpenAINonStreamingProtocolError(resp, c, msg)
+		return nil, s.writeOpenAINonStreamingProtocolError(resp, c, account, terminalPayload, msg)
 	}
 	finalResponse, ok := extractCodexFinalResponse(bodyText)
 
@@ -2384,6 +2413,15 @@ func (s *OpenAIGatewayService) handlePassthroughSSEToJSON(resp *http.Response, c
 		restoredBody = restoreCodexToolNamesFromContext(c, restoredBody)
 		body = restoredBody
 	} else {
+		terminalType2, terminalPayload2, terminalOK2 := extractOpenAISSETerminalEvent(bodyText)
+		if terminalOK2 && (terminalType2 == "response.failed" || terminalType2 == "error") {
+			msg := extractOpenAISSEErrorMessage(terminalPayload2)
+			if msg == "" {
+				msg = "Upstream compact response failed"
+			}
+			return nil, s.writeOpenAINonStreamingProtocolError(resp, c, account, terminalPayload2, msg)
+		}
+		usage = s.parseSSEUsageFromBody(bodyText)
 		if originalModel != "" && mappedModel != "" && originalModel != mappedModel {
 			bodyText = s.replaceModelInSSEBody(bodyText, mappedModel, originalModel)
 		}

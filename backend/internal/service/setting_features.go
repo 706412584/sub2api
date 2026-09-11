@@ -764,6 +764,285 @@ func (s *SettingService) SetRateLimit429CooldownSettings(ctx context.Context, se
 	return s.settingRepo.Set(ctx, SettingKeyRateLimit429CooldownSettings, string(data))
 }
 
+// GetOpenAIGrok429ExhaustionSettings 获取 GPT/Grok 429 立即限流配置。
+func (s *SettingService) GetOpenAIGrok429ExhaustionSettings(ctx context.Context) (*OpenAIGrok429ExhaustionSettings, error) {
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyOpenAIGrok429ExhaustionSettings)
+	if err != nil {
+		if errors.Is(err, ErrSettingNotFound) {
+			return DefaultOpenAIGrok429ExhaustionSettings(), nil
+		}
+		return nil, fmt.Errorf("get openai/grok 429 exhaustion settings: %w", err)
+	}
+	if value == "" {
+		return DefaultOpenAIGrok429ExhaustionSettings(), nil
+	}
+
+	var settings OpenAIGrok429ExhaustionSettings
+	if err := json.Unmarshal([]byte(value), &settings); err != nil {
+		return DefaultOpenAIGrok429ExhaustionSettings(), nil
+	}
+	return normalizeOpenAIGrok429ExhaustionSettings(&settings), nil
+}
+
+// SetOpenAIGrok429ExhaustionSettings 设置 GPT/Grok 429 立即限流配置。
+func (s *SettingService) SetOpenAIGrok429ExhaustionSettings(ctx context.Context, settings *OpenAIGrok429ExhaustionSettings) error {
+	if settings == nil {
+		return fmt.Errorf("settings cannot be nil")
+	}
+	normalized := normalizeOpenAIGrok429ExhaustionSettings(settings)
+	if settings.Enabled {
+		if settings.FreeFullDurationHours < 1 || settings.FreeFullDurationHours > 168 {
+			return fmt.Errorf("free_full_duration_hours must be between 1-168")
+		}
+		if settings.FreeFullThresholdPercent < 50 || settings.FreeFullThresholdPercent > 100 {
+			return fmt.Errorf("free_full_threshold_percent must be between 50-100")
+		}
+		if settings.NoResetDurationMinutes < 1 || settings.NoResetDurationMinutes > 10080 {
+			return fmt.Errorf("no_reset_duration_minutes must be between 1-10080")
+		}
+	}
+	data, err := json.Marshal(normalized)
+	if err != nil {
+		return fmt.Errorf("marshal openai/grok 429 exhaustion settings: %w", err)
+	}
+	return s.settingRepo.Set(ctx, SettingKeyOpenAIGrok429ExhaustionSettings, string(data))
+}
+
+func normalizeOpenAIGrok429ExhaustionSettings(settings *OpenAIGrok429ExhaustionSettings) *OpenAIGrok429ExhaustionSettings {
+	defaults := DefaultOpenAIGrok429ExhaustionSettings()
+	if settings == nil {
+		return defaults
+	}
+	out := *settings
+	if out.FreeFullDurationHours < 1 || out.FreeFullDurationHours > 168 {
+		out.FreeFullDurationHours = defaults.FreeFullDurationHours
+	}
+	if out.FreeFullThresholdPercent < 50 || out.FreeFullThresholdPercent > 100 {
+		out.FreeFullThresholdPercent = defaults.FreeFullThresholdPercent
+	}
+	if out.NoResetDurationMinutes < 1 || out.NoResetDurationMinutes > 10080 {
+		out.NoResetDurationMinutes = defaults.NoResetDurationMinutes
+	}
+	return &out
+}
+
+// GetAccountPoolProbeSettings 获取号池全局异步探测配置。
+func (s *SettingService) GetAccountPoolProbeSettings(ctx context.Context) (*AccountPoolProbeSettings, error) {
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyAccountPoolProbeSettings)
+	if err != nil {
+		if errors.Is(err, ErrSettingNotFound) {
+			return DefaultAccountPoolProbeSettings(), nil
+		}
+		return nil, fmt.Errorf("get account pool probe settings: %w", err)
+	}
+	if value == "" {
+		return DefaultAccountPoolProbeSettings(), nil
+	}
+	var settings AccountPoolProbeSettings
+	if err := json.Unmarshal([]byte(value), &settings); err != nil {
+		return DefaultAccountPoolProbeSettings(), nil
+	}
+	return normalizeAccountPoolProbeSettings(&settings), nil
+}
+
+// SetAccountPoolProbeSettings 设置号池全局异步探测配置。
+func (s *SettingService) SetAccountPoolProbeSettings(ctx context.Context, settings *AccountPoolProbeSettings) error {
+	if settings == nil {
+		return fmt.Errorf("settings cannot be nil")
+	}
+	normalized := normalizeAccountPoolProbeSettings(settings)
+	if settings.Enabled {
+		if settings.IntervalMinutes < 10 || settings.IntervalMinutes > 60 {
+			return fmt.Errorf("interval_minutes must be between 10-60")
+		}
+		if settings.BatchSize < 1 || settings.BatchSize > 200 {
+			return fmt.Errorf("batch_size must be between 1-200")
+		}
+		if settings.MaxConcurrency < 1 || settings.MaxConcurrency > 10 {
+			return fmt.Errorf("max_concurrency must be between 1-10")
+		}
+		if settings.AccountCooldownMinutes < 10 || settings.AccountCooldownMinutes > 240 {
+			return fmt.Errorf("account_cooldown_minutes must be between 10-240")
+		}
+	}
+	data, err := json.Marshal(normalized)
+	if err != nil {
+		return fmt.Errorf("marshal account pool probe settings: %w", err)
+	}
+	return s.settingRepo.Set(ctx, SettingKeyAccountPoolProbeSettings, string(data))
+}
+
+// GetGrokOpsProxySettings 获取 Grok ops_proxy 配置。
+func (s *SettingService) GetGrokOpsProxySettings(ctx context.Context) (*GrokOpsProxySettings, error) {
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyGrokOpsProxy)
+	if err != nil {
+		if errors.Is(err, ErrSettingNotFound) {
+			return DefaultGrokOpsProxySettings(), nil
+		}
+		return nil, fmt.Errorf("get grok ops proxy settings: %w", err)
+	}
+	if value == "" {
+		return DefaultGrokOpsProxySettings(), nil
+	}
+	var settings GrokOpsProxySettings
+	if err := json.Unmarshal([]byte(value), &settings); err != nil {
+		return DefaultGrokOpsProxySettings(), nil
+	}
+	return normalizeGrokOpsProxySettings(&settings), nil
+}
+
+// SetGrokOpsProxySettings 设置 Grok ops_proxy 配置。
+func (s *SettingService) SetGrokOpsProxySettings(ctx context.Context, settings *GrokOpsProxySettings) error {
+	if settings == nil {
+		return fmt.Errorf("settings cannot be nil")
+	}
+	normalized := normalizeGrokOpsProxySettings(settings)
+	if normalized.Enabled && normalized.ProxyID != nil && *normalized.ProxyID < 0 {
+		return fmt.Errorf("proxy_id must be >= 0")
+	}
+	// Optional: validate proxy exists when enabled with positive id.
+	if normalized.Enabled && normalized.ProxyID != nil && *normalized.ProxyID > 0 && s.proxyRepo != nil {
+		proxy, err := s.proxyRepo.GetByID(ctx, *normalized.ProxyID)
+		if err != nil || proxy == nil {
+			return fmt.Errorf("ops proxy %d not found", *normalized.ProxyID)
+		}
+		if !proxy.IsActive() {
+			return fmt.Errorf("ops proxy %d is not active", *normalized.ProxyID)
+		}
+	}
+	data, err := json.Marshal(normalized)
+	if err != nil {
+		return fmt.Errorf("marshal grok ops proxy settings: %w", err)
+	}
+	return s.settingRepo.Set(ctx, SettingKeyGrokOpsProxy, string(data))
+}
+
+func normalizeGrokOpsProxySettings(settings *GrokOpsProxySettings) *GrokOpsProxySettings {
+	defaults := DefaultGrokOpsProxySettings()
+	if settings == nil {
+		return defaults
+	}
+	out := *settings
+	if out.ProxyID != nil && *out.ProxyID < 0 {
+		out.ProxyID = nil
+	}
+	// Disabled settings keep proxy_id for re-enable convenience but have no effect.
+	return &out
+}
+
+// ResolveGrokOpsProxyOverride builds a TestProxyOverride from global Grok ops settings.
+// Returns nil when disabled/unconfigured (caller keeps bound proxy).
+// Explicit caller overrides should be applied before calling this.
+func (s *SettingService) ResolveGrokOpsProxyOverride(ctx context.Context) (*TestProxyOverride, error) {
+	if s == nil {
+		return nil, nil
+	}
+	settings, err := s.GetGrokOpsProxySettings(ctx)
+	if err != nil || settings == nil || !settings.Enabled {
+		return nil, err
+	}
+	if settings.ProxyID == nil {
+		// Enabled but no proxy selected → keep bound (no-op override).
+		return nil, nil
+	}
+	if *settings.ProxyID == 0 {
+		return &TestProxyOverride{ForceDirect: true}, nil
+	}
+	if s.proxyRepo == nil {
+		return nil, fmt.Errorf("proxy repository unavailable")
+	}
+	proxy, err := s.proxyRepo.GetByID(ctx, *settings.ProxyID)
+	if err != nil || proxy == nil {
+		return nil, fmt.Errorf("ops proxy %d not found", *settings.ProxyID)
+	}
+	if !proxy.IsActive() {
+		return nil, fmt.Errorf("ops proxy %d is not active", *settings.ProxyID)
+	}
+	return &TestProxyOverride{Proxy: proxy}, nil
+}
+
+// ResolveGrokOpsProxyURL returns the ops proxy URL for Grok probe/refresh paths.
+// empty string + nil err means "use bound/default"; force-direct is also empty URL.
+// ok=false means settings disabled / no override.
+func (s *SettingService) ResolveGrokOpsProxyURL(ctx context.Context, forRefresh bool) (proxyURL string, forceDirect bool, ok bool, err error) {
+	if s == nil {
+		return "", false, false, nil
+	}
+	settings, err := s.GetGrokOpsProxySettings(ctx)
+	if err != nil {
+		return "", false, false, err
+	}
+	if settings == nil || !settings.Enabled {
+		return "", false, false, nil
+	}
+	if forRefresh && !settings.ApplyToRefresh {
+		return "", false, false, nil
+	}
+	if settings.ProxyID == nil {
+		return "", false, false, nil
+	}
+	if *settings.ProxyID == 0 {
+		return "", true, true, nil
+	}
+	if s.proxyRepo == nil {
+		return "", false, false, fmt.Errorf("proxy repository unavailable")
+	}
+	proxy, err := s.proxyRepo.GetByID(ctx, *settings.ProxyID)
+	if err != nil || proxy == nil {
+		return "", false, false, fmt.Errorf("ops proxy %d not found", *settings.ProxyID)
+	}
+	if !proxy.IsActive() {
+		return "", false, false, fmt.Errorf("ops proxy %d is not active", *settings.ProxyID)
+	}
+	return proxy.URL(), false, true, nil
+}
+
+func normalizeAccountPoolProbeSettings(settings *AccountPoolProbeSettings) *AccountPoolProbeSettings {
+	defaults := DefaultAccountPoolProbeSettings()
+	if settings == nil {
+		return defaults
+	}
+	out := *settings
+	if out.IntervalMinutes < 10 || out.IntervalMinutes > 60 {
+		out.IntervalMinutes = defaults.IntervalMinutes
+	}
+	if out.BatchSize < 1 || out.BatchSize > 200 {
+		out.BatchSize = defaults.BatchSize
+	}
+	if out.MaxConcurrency < 1 || out.MaxConcurrency > 10 {
+		out.MaxConcurrency = defaults.MaxConcurrency
+	}
+	if out.AccountCooldownMinutes < 10 || out.AccountCooldownMinutes > 240 {
+		out.AccountCooldownMinutes = defaults.AccountCooldownMinutes
+	}
+	if len(out.Platforms) == 0 {
+		out.Platforms = append([]string(nil), defaults.Platforms...)
+	} else {
+		allowed := map[string]struct{}{
+			PlatformOpenAI: {},
+			PlatformGrok:   {},
+		}
+		cleaned := make([]string, 0, len(out.Platforms))
+		seen := make(map[string]struct{}, len(out.Platforms))
+		for _, platform := range out.Platforms {
+			platform = strings.ToLower(strings.TrimSpace(platform))
+			if _, ok := allowed[platform]; !ok {
+				continue
+			}
+			if _, dup := seen[platform]; dup {
+				continue
+			}
+			seen[platform] = struct{}{}
+			cleaned = append(cleaned, platform)
+		}
+		if len(cleaned) == 0 {
+			cleaned = append([]string(nil), defaults.Platforms...)
+		}
+		out.Platforms = cleaned
+	}
+	return &out
+}
+
 func (s *SettingService) GetOpenAIImagesOAuthUnavailableCooldownSettings(ctx context.Context) (*OpenAIImagesOAuthUnavailableCooldownSettings, error) {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyOpenAIImagesOAuthUnavailableCooldownSettings)
 	if err != nil {
@@ -1096,6 +1375,97 @@ func (s *SettingService) SetStreamTimeoutSettings(ctx context.Context, settings 
 	return s.settingRepo.Set(ctx, SettingKeyStreamTimeoutSettings, string(data))
 }
 
+// GetGrokReasoningVisibilitySettings 获取网关级 Grok 思考明文调度配置。
+func (s *SettingService) GetGrokReasoningVisibilitySettings(ctx context.Context) (*GrokReasoningVisibilitySettings, error) {
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyGrokReasoningVisibility)
+	if err != nil {
+		if errors.Is(err, ErrSettingNotFound) {
+			return DefaultGrokReasoningVisibilitySettings(), nil
+		}
+		return nil, fmt.Errorf("get grok reasoning visibility settings: %w", err)
+	}
+	if value == "" {
+		return DefaultGrokReasoningVisibilitySettings(), nil
+	}
+
+	// quarantine_sec 用指针区分“旧配置缺省”与“显式 0=仅本轮排除”。
+	var raw struct {
+		Mode                 string `json:"mode"`
+		ProbeTTLSec          int    `json:"probe_ttl_sec"`
+		QuarantineSec        *int   `json:"quarantine_sec"`
+		ProbeAccountFallback bool   `json:"probe_account_fallback"`
+	}
+	if err := json.Unmarshal([]byte(value), &raw); err != nil {
+		return DefaultGrokReasoningVisibilitySettings(), nil
+	}
+
+	settings := GrokReasoningVisibilitySettings{
+		Mode:                 raw.Mode,
+		ProbeTTLSec:          raw.ProbeTTLSec,
+		ProbeAccountFallback: raw.ProbeAccountFallback,
+	}
+	// inherit 在网关级没有上层可继承，归一化为 off 保持现状行为。
+	settings.Mode = NormalizeGrokReasoningVisibilityMode(settings.Mode)
+	if settings.Mode == GrokReasoningVisibilityModeInherit {
+		settings.Mode = GrokReasoningVisibilityModeOff
+	}
+	if settings.ProbeTTLSec < 0 {
+		settings.ProbeTTLSec = 0
+	}
+	if settings.ProbeTTLSec > GrokReasoningVisibilityProbeTTLMaxSec {
+		settings.ProbeTTLSec = GrokReasoningVisibilityProbeTTLMaxSec
+	}
+	// 兼容旧 JSON：缺省 quarantine_sec 时回落默认 120，保持历史 2 分钟冷却。
+	if raw.QuarantineSec == nil {
+		settings.QuarantineSec = GrokReasoningVisibilityQuarantineDefaultSec
+	} else {
+		settings.QuarantineSec = *raw.QuarantineSec
+		if settings.QuarantineSec < 0 {
+			settings.QuarantineSec = GrokReasoningVisibilityQuarantineDefaultSec
+		}
+	}
+	if settings.QuarantineSec > GrokReasoningVisibilityQuarantineMaxSec {
+		settings.QuarantineSec = GrokReasoningVisibilityQuarantineMaxSec
+	}
+
+	return &settings, nil
+}
+
+// SetGrokReasoningVisibilitySettings 设置网关级 Grok 思考明文调度配置。
+func (s *SettingService) SetGrokReasoningVisibilitySettings(ctx context.Context, settings *GrokReasoningVisibilitySettings) error {
+	if settings == nil {
+		return fmt.Errorf("settings cannot be nil")
+	}
+
+	switch settings.Mode {
+	case GrokReasoningVisibilityModeOff, GrokReasoningVisibilityModeSoft, GrokReasoningVisibilityModeEnforce:
+		// valid
+	default:
+		return fmt.Errorf("invalid mode: %s", settings.Mode)
+	}
+	if settings.ProbeTTLSec < 0 || settings.ProbeTTLSec > GrokReasoningVisibilityProbeTTLMaxSec {
+		return fmt.Errorf("probe_ttl_sec must be between 0-%d", GrokReasoningVisibilityProbeTTLMaxSec)
+	}
+	if settings.QuarantineSec < 0 || settings.QuarantineSec > GrokReasoningVisibilityQuarantineMaxSec {
+		return fmt.Errorf("quarantine_sec must be between 0-%d", GrokReasoningVisibilityQuarantineMaxSec)
+	}
+
+	data, err := json.Marshal(settings)
+	if err != nil {
+		return fmt.Errorf("marshal grok reasoning visibility settings: %w", err)
+	}
+
+	if err := s.settingRepo.Set(ctx, SettingKeyGrokReasoningVisibility, string(data)); err != nil {
+		return err
+	}
+	// Write through so the scheduling hot path sees the new value without waiting for TTL.
+	s.grokReasoningVisibilityCache.Store(&cachedGrokReasoningVisibilitySettings{
+		value:     *settings,
+		expiresAt: time.Now().Add(grokReasoningVisibilityCacheTTL).UnixNano(),
+	})
+	return nil
+}
+
 // GetDefaultPlatformQuotas 读取系统全局 platform quota JSON key，返回全部允许平台 x 3 window 的设置。
 // 永远返回包含全部允许 platform key 的 map（值可能为零值/nil 字段，表示"上层未配置 = 不限制"）。
 //
@@ -1215,4 +1585,75 @@ func mergePlatformQuotaDefaults(dst, src *DefaultPlatformQuotaSetting) {
 	if src.MonthlyLimitUSD != nil {
 		dst.MonthlyLimitUSD = src.MonthlyLimitUSD
 	}
+}
+
+// =========================
+// Grok 工具强制系统提示注入（grok_tool_prompt_settings）
+// =========================
+
+// GrokToolPromptSettings 网关级 Grok 工具使用系统提示注入配置。
+type GrokToolPromptSettings struct {
+	Enabled bool   `json:"enabled"`
+	Prompt  string `json:"prompt"`
+}
+
+// DefaultGrokToolPromptSettings 默认配置：开启注入 + 已验证有效的工具强制提示。
+func DefaultGrokToolPromptSettings() *GrokToolPromptSettings {
+	return &GrokToolPromptSettings{
+		Enabled: true,
+		Prompt:  DefaultGrokToolPromptText,
+	}
+}
+
+// DefaultGrokToolPromptText 默认工具强制提示文本（经真实 grok-4.5 对比测试验证，
+// 注入后多轮场景下 TaskCreate 调用次数从 1 次提升到 6 次）。
+const DefaultGrokToolPromptText = "你在一个具备工具执行能力的 Agent 环境中。\n" +
+	"硬性规则：需要创建任务时必须真正调用 TaskCreate（发出 tool_use），" +
+	"严禁只用文字描述任务或声称\"已创建\"而不实际调用工具。规划任务=逐个调用工具。"
+
+// GetGrokToolPromptSettings 读取网关级 Grok 工具提示注入配置。
+func (s *SettingService) GetGrokToolPromptSettings(ctx context.Context) (*GrokToolPromptSettings, error) {
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyGrokToolPrompt)
+	if err != nil {
+		if errors.Is(err, ErrSettingNotFound) {
+			return DefaultGrokToolPromptSettings(), nil
+		}
+		return nil, fmt.Errorf("get grok tool prompt settings: %w", err)
+	}
+	if value == "" {
+		return DefaultGrokToolPromptSettings(), nil
+	}
+	var raw GrokToolPromptSettings
+	if err := json.Unmarshal([]byte(value), &raw); err != nil {
+		return DefaultGrokToolPromptSettings(), nil
+	}
+	return &raw, nil
+}
+
+// SetGrokToolPromptSettings 设置网关级 Grok 工具提示注入配置。
+func (s *SettingService) SetGrokToolPromptSettings(ctx context.Context, settings *GrokToolPromptSettings) error {
+	if settings == nil {
+		return fmt.Errorf("settings cannot be nil")
+	}
+	if len(settings.Prompt) > 4096 {
+		return fmt.Errorf("prompt exceeds 4096 characters")
+	}
+	data, err := json.Marshal(settings)
+	if err != nil {
+		return fmt.Errorf("marshal grok tool prompt settings: %w", err)
+	}
+	return s.settingRepo.Set(ctx, SettingKeyGrokToolPrompt, string(data))
+}
+
+// GrokToolPromptInjection 解析一次请求是否注入工具提示，以及注入文本。
+func (s *SettingService) GrokToolPromptInjection(ctx context.Context) (enabled bool, prompt string) {
+	settings, err := s.GetGrokToolPromptSettings(ctx)
+	if err != nil || settings == nil || !settings.Enabled {
+		return false, ""
+	}
+	prompt = strings.TrimSpace(settings.Prompt)
+	if prompt == "" {
+		return false, ""
+	}
+	return true, prompt
 }

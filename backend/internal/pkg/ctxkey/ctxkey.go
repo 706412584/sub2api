@@ -47,6 +47,10 @@ const (
 	// ThinkingEnabled 标识当前请求是否开启 thinking（用于 Antigravity 最终模型名推导与模型维度限流）
 	ThinkingEnabled Key = "ctx_thinking_enabled"
 
+	// AntigravityClientFingerprint 携带 Antigravity 客户端指纹的账号 ID
+	// （由 antigravityRetryLoop 入口注入，用于派生 x-machine-id / x-vscode-sessionid）
+	AntigravityClientFingerprint Key = "ctx_antigravity_client_fingerprint"
+
 	// OpenAIImageGenerationIntent 标识 OpenAI 请求会触发生图能力（用于图片能力维度限流）
 	OpenAIImageGenerationIntent Key = "ctx_openai_image_generation_intent"
 

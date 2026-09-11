@@ -139,6 +139,8 @@ type Group struct {
 	FallbackGroupID *int64 `json:"fallback_group_id"`
 	// 无效请求兜底分组
 	FallbackGroupIDOnInvalidRequest *int64 `json:"fallback_group_id_on_invalid_request"`
+	// DefaultProxyID 账号入组未指定代理时自动绑定
+	DefaultProxyID *int64 `json:"default_proxy_id"`
 
 	// OpenAI Messages 调度开关（用户侧需要此字段判断是否展示 Claude Code 教程）
 	AllowMessagesDispatch bool `json:"allow_messages_dispatch"`
@@ -157,6 +159,8 @@ type Group struct {
 	MaxReasoningEffortOverLimit string `json:"max_reasoning_effort_over_limit"`
 	// ReasoningEffortMappings Anthropic/OpenAI 推理强度映射，可按模型精确名、前缀或后缀限定。
 	ReasoningEffortMappings []domain.ReasoningEffortMapping `json:"reasoning_effort_mappings"`
+	// PromptPolicy 分组级请求提示词处理策略。
+	PromptPolicy domain.GroupPromptPolicy `json:"prompt_policy"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -191,7 +195,11 @@ type AdminGroup struct {
 	MessagesDispatchModelConfig domain.OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config"`
 	ModelAllowlist              service.GroupModelAllowlist              `json:"model_allowlist"`
 	// 固定账号获取 Codex Model Manifest 配置（仅 openai 平台使用）。
-	CodexModelsManifestConfig domain.GroupCodexModelsManifestConfig `json:"codex_models_manifest_config"`
+	CodexModelsManifestConfig   domain.GroupCodexModelsManifestConfig `json:"codex_models_manifest_config"`
+	GrokMessagesProtocol        string                                `json:"grok_messages_protocol"`
+	GrokReasoningVisibilityMode string                                `json:"grok_reasoning_visibility_mode"`
+	GrokReasoningProbeTTLSec    int                                   `json:"grok_reasoning_probe_ttl_sec"`
+	GrokReasoningQuarantineSec  int                                   `json:"grok_reasoning_quarantine_sec"`
 
 	// 支持的模型系列（仅 antigravity 平台使用）
 	SupportedModelScopes    []string       `json:"supported_model_scopes"`
@@ -445,6 +453,7 @@ type Proxy struct {
 	ExpiresAt      *time.Time `json:"expires_at"`
 	FallbackMode   string     `json:"fallback_mode"`
 	BackupProxyID  *int64     `json:"backup_proxy_id"`
+	EgressProxyID  *int64     `json:"egress_proxy_id"`
 	ExpiryWarnDays int        `json:"expiry_warn_days"`
 }
 
@@ -609,6 +618,8 @@ type UsageLog struct {
 	OutputTokens        int `json:"output_tokens"`
 	CacheCreationTokens int `json:"cache_creation_tokens"`
 	CacheReadTokens     int `json:"cache_read_tokens"`
+	// ReasoningTokens is upstream reasoning/thinking tokens when reported; 0 = unknown.
+	ReasoningTokens int `json:"reasoning_tokens"`
 
 	CacheCreation5mTokens int `json:"cache_creation_5m_tokens"`
 	CacheCreation1hTokens int `json:"cache_creation_1h_tokens"`

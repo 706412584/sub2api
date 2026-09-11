@@ -1,0 +1,297 @@
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - img "Logo" [ref=e7]
+        - generic [ref=e8]:
+          - generic [ref=e9]: Sub2API
+          - button "v0.1.137" [ref=e11] [cursor=pointer]:
+            - generic [ref=e12]: v0.1.137
+      - navigation [ref=e13]:
+        - generic [ref=e14]:
+          - link "仪表盘" [ref=e15] [cursor=pointer]:
+            - /url: /admin/dashboard
+            - img [ref=e16]
+            - generic [ref=e18]: 仪表盘
+          - link "运维监控" [ref=e19] [cursor=pointer]:
+            - /url: /admin/ops
+            - img [ref=e20]
+            - generic [ref=e22]: 运维监控
+          - link "用户管理" [ref=e23] [cursor=pointer]:
+            - /url: /admin/users
+            - img [ref=e24]
+            - generic [ref=e26]: 用户管理
+          - link "分组管理" [ref=e27] [cursor=pointer]:
+            - /url: /admin/groups
+            - img [ref=e28]
+            - generic [ref=e30]: 分组管理
+          - button "渠道管理" [ref=e31] [cursor=pointer]:
+            - img [ref=e32]
+            - generic [ref=e34]:
+              - generic [ref=e35]: 渠道管理
+              - img [ref=e36]
+          - link "订阅管理" [ref=e38] [cursor=pointer]:
+            - /url: /admin/subscriptions
+            - img [ref=e39]
+            - generic [ref=e41]: 订阅管理
+          - link "账号管理" [ref=e42] [cursor=pointer]:
+            - /url: /admin/accounts
+            - img [ref=e43]
+            - generic [ref=e45]: 账号管理
+          - link "公告" [ref=e46] [cursor=pointer]:
+            - /url: /admin/announcements
+            - img [ref=e47]
+            - generic [ref=e49]: 公告
+          - link "IP管理" [ref=e50] [cursor=pointer]:
+            - /url: /admin/proxies
+            - img [ref=e51]
+            - generic [ref=e53]: IP管理
+          - link "兑换码" [ref=e54] [cursor=pointer]:
+            - /url: /admin/redeem
+            - img [ref=e55]
+            - generic [ref=e57]: 兑换码
+          - link "优惠码" [ref=e58] [cursor=pointer]:
+            - /url: /admin/promo-codes
+            - img [ref=e59]
+            - generic [ref=e61]: 优惠码
+          - link "使用记录" [ref=e62] [cursor=pointer]:
+            - /url: /admin/usage
+            - img [ref=e63]
+            - generic [ref=e65]: 使用记录
+          - link "系统设置" [ref=e66] [cursor=pointer]:
+            - /url: /admin/settings
+            - img [ref=e67]
+            - generic [ref=e70]: 系统设置
+        - generic [ref=e71]:
+          - generic [ref=e73]: 我的账户
+          - link "API 密钥" [ref=e74] [cursor=pointer]:
+            - /url: /keys
+            - img [ref=e75]
+            - generic [ref=e77]: API 密钥
+          - link "使用记录" [ref=e78] [cursor=pointer]:
+            - /url: /usage
+            - img [ref=e79]
+            - generic [ref=e81]: 使用记录
+          - link "渠道状态" [ref=e82] [cursor=pointer]:
+            - /url: /monitor
+            - img [ref=e83]
+            - generic [ref=e85]: 渠道状态
+          - link "我的订阅" [ref=e86] [cursor=pointer]:
+            - /url: /subscriptions
+            - img [ref=e87]
+            - generic [ref=e89]: 我的订阅
+          - link "兑换" [ref=e90] [cursor=pointer]:
+            - /url: /redeem
+            - img [ref=e91]
+            - generic [ref=e93]: 兑换
+          - link "个人资料" [ref=e94] [cursor=pointer]:
+            - /url: /profile
+            - img [ref=e95]
+            - generic [ref=e97]: 个人资料
+      - generic [ref=e98]:
+        - button "浅色模式" [ref=e99] [cursor=pointer]:
+          - img [ref=e100]
+          - generic [ref=e102]: 浅色模式
+        - button "收起" [ref=e103] [cursor=pointer]:
+          - img [ref=e104]
+          - generic [ref=e106]: 收起
+    - generic [ref=e107]:
+      - banner [ref=e108]:
+        - generic [ref=e109]:
+          - generic [ref=e111]:
+            - heading "账号管理" [level=1] [ref=e112]
+            - paragraph [ref=e113]: 管理 AI 平台账号和 Cookie
+          - generic [ref=e114]:
+            - button "公告" [ref=e116] [cursor=pointer]:
+              - img [ref=e117]
+            - button "🇨🇳 ZH" [ref=e120] [cursor=pointer]:
+              - generic [ref=e121]: 🇨🇳
+              - generic [ref=e122]: ZH
+              - img [ref=e123]
+            - generic [ref=e125]:
+              - img [ref=e126]
+              - generic [ref=e128]: $0.00
+            - button "User Menu" [ref=e130] [cursor=pointer]:
+              - generic [ref=e132]: AD
+              - generic [ref=e133]:
+                - generic [ref=e134]: admin
+                - generic [ref=e135]: admin
+              - img [ref=e136]
+      - main [ref=e138]:
+        - generic [ref=e139]:
+          - generic [ref=e141]:
+            - generic [ref=e142]:
+              - generic [ref=e143]:
+                - generic:
+                  - img
+                - textbox "搜索账号..." [ref=e144]
+              - button "Select option" [ref=e146] [cursor=pointer]:
+                - generic [ref=e147]: 全部平台
+                - img [ref=e149]
+              - button "Select option" [ref=e152] [cursor=pointer]:
+                - generic [ref=e153]: 全部类型
+                - img [ref=e155]
+              - button "Select option" [ref=e158] [cursor=pointer]:
+                - generic [ref=e159]: 全部状态
+                - img [ref=e161]
+              - button "Select option" [ref=e164] [cursor=pointer]:
+                - generic [ref=e165]: 全部Privacy状态
+                - img [ref=e167]
+              - button "Select option" [ref=e170] [cursor=pointer]:
+                - generic [ref=e171]: 全部分组
+                - img [ref=e173]
+            - generic [ref=e175]:
+              - button [ref=e176] [cursor=pointer]:
+                - img [ref=e177]
+              - button "自动刷新" [ref=e180] [cursor=pointer]:
+                - img [ref=e181]
+                - generic [ref=e183]: 自动刷新
+              - button "更多操作" [ref=e185] [cursor=pointer]:
+                - img [ref=e186]
+                - generic [ref=e188]: 更多操作
+                - img [ref=e189]
+              - button "添加账号" [ref=e191] [cursor=pointer]
+          - generic [ref=e193]:
+            - generic [ref=e194]:
+              - generic [ref=e196]: 批量编辑账号
+              - button "批量更新" [ref=e198] [cursor=pointer]
+            - table [ref=e201]:
+              - rowgroup [ref=e202]:
+                - row "名称 账号ID 平台/类型 容量 状态 调度 分组 用量窗口 最近使用 创建时间 过期时间 操作" [ref=e203]:
+                  - columnheader [ref=e204]:
+                    - checkbox [ref=e205] [cursor=pointer]
+                  - columnheader "名称" [ref=e206] [cursor=pointer]:
+                    - generic [ref=e207]:
+                      - generic [ref=e208]: 名称
+                      - img [ref=e210]
+                  - columnheader "账号ID" [ref=e212] [cursor=pointer]:
+                    - generic [ref=e213]:
+                      - generic [ref=e214]: 账号ID
+                      - img [ref=e216]
+                  - columnheader "平台/类型" [ref=e218]:
+                    - generic [ref=e220]: 平台/类型
+                  - columnheader "容量" [ref=e221]:
+                    - generic [ref=e223]: 容量
+                  - columnheader "状态" [ref=e224] [cursor=pointer]:
+                    - generic [ref=e225]:
+                      - generic [ref=e226]: 状态
+                      - img [ref=e228]
+                  - columnheader "调度" [ref=e230] [cursor=pointer]:
+                    - generic [ref=e231]:
+                      - generic [ref=e232]: 调度
+                      - img [ref=e234]
+                  - columnheader "分组" [ref=e236]:
+                    - generic [ref=e238]: 分组
+                  - columnheader "用量窗口" [ref=e239]:
+                    - generic [ref=e240]:
+                      - generic [ref=e241]: 用量窗口
+                      - img [ref=e243]
+                  - columnheader "最近使用" [ref=e245] [cursor=pointer]:
+                    - generic [ref=e246]:
+                      - generic [ref=e247]: 最近使用
+                      - img [ref=e249]
+                  - columnheader "创建时间" [ref=e251] [cursor=pointer]:
+                    - generic [ref=e252]:
+                      - generic [ref=e253]: 创建时间
+                      - img [ref=e255]
+                  - columnheader "过期时间" [ref=e257] [cursor=pointer]:
+                    - generic [ref=e258]:
+                      - generic [ref=e259]: 过期时间
+                      - img [ref=e261]
+                  - columnheader "操作" [ref=e263]:
+                    - generic [ref=e265]: 操作
+              - rowgroup [ref=e266]:
+                - 'row "PairleeugIrla@hotmail.com PairleeugIrla@hotmail.com #1 Grok OAuth 0 / 3 正常 - - 从未 2026/07/09 05:25:16 - 编辑 删除 更多" [ref=e267]':
+                  - cell [ref=e268]:
+                    - checkbox [ref=e269]
+                  - cell "PairleeugIrla@hotmail.com PairleeugIrla@hotmail.com" [ref=e270]:
+                    - generic [ref=e271]:
+                      - generic [ref=e272]: PairleeugIrla@hotmail.com
+                      - generic "PairleeugIrla@hotmail.com" [ref=e273]
+                  - cell "#1" [ref=e274]
+                  - cell "Grok OAuth" [ref=e275]:
+                    - generic [ref=e279]:
+                      - generic [ref=e280]:
+                        - img [ref=e281]
+                        - generic [ref=e285]: Grok
+                      - generic [ref=e286]:
+                        - img [ref=e287]
+                        - generic [ref=e289]: OAuth
+                  - cell "0 / 3" [ref=e290]:
+                    - generic [ref=e292]:
+                      - img [ref=e293]
+                      - generic [ref=e295]: "0"
+                      - generic [ref=e296]: /
+                      - generic [ref=e297]: "3"
+                  - cell "正常" [ref=e298]:
+                    - generic [ref=e301]: 正常
+                  - cell [ref=e302]:
+                    - button "调度已开启" [ref=e303] [cursor=pointer]
+                  - cell "-" [ref=e304]
+                  - cell "-" [ref=e305]:
+                    - generic [ref=e307]: "-"
+                  - cell "从未" [ref=e308]
+                  - cell "2026/07/09 05:25:16" [ref=e309]
+                  - cell "-" [ref=e310]:
+                    - generic [ref=e312]: "-"
+                  - cell "编辑 删除 更多" [ref=e313]:
+                    - generic [ref=e314]:
+                      - button "编辑" [ref=e315] [cursor=pointer]:
+                        - img [ref=e316]
+                        - generic [ref=e318]: 编辑
+                      - button "删除" [ref=e319] [cursor=pointer]:
+                        - img [ref=e320]
+                        - generic [ref=e322]: 删除
+                      - button "更多" [ref=e323] [cursor=pointer]:
+                        - img [ref=e324]
+                        - generic [ref=e326]: 更多
+          - generic [ref=e329]:
+            - generic [ref=e330]:
+              - paragraph [ref=e331]: 显示 1 至 1 共 1 条结果
+              - generic [ref=e332]:
+                - generic [ref=e333]: "每页:"
+                - button "Select option" [ref=e336] [cursor=pointer]:
+                  - generic [ref=e337]: "20"
+                  - img [ref=e339]
+            - navigation "Pagination" [ref=e341]:
+              - button "上一页" [disabled] [ref=e342]:
+                - img [ref=e343]
+              - button "跳转到第 1 页" [ref=e345] [cursor=pointer]: "1"
+              - button "下一页" [disabled] [ref=e346]:
+                - img [ref=e347]
+  - dialog "测试账号连接" [ref=e367]:
+    - generic [ref=e368]:
+      - generic [ref=e369]:
+        - heading "测试账号连接" [level=3] [ref=e370]
+        - button "Close modal" [active] [ref=e371] [cursor=pointer]:
+          - img [ref=e372]
+      - generic [ref=e375]:
+        - generic [ref=e376]:
+          - generic [ref=e377]:
+            - img [ref=e379]
+            - generic [ref=e381]:
+              - generic [ref=e382]: PairleeugIrla@hotmail.com
+              - generic [ref=e383]:
+                - generic [ref=e384]: oauth
+                - generic [ref=e385]: 账号
+          - generic [ref=e386]: active
+        - generic [ref=e387]:
+          - text: 选择测试模型
+          - button "Select option" [ref=e389] [cursor=pointer]:
+            - generic [ref=e390]: Grok 4
+            - img [ref=e392]
+        - generic [ref=e396]:
+          - img [ref=e397]
+          - generic [ref=e399]: 准备测试。点击"开始测试"按钮开始...
+        - generic [ref=e400]:
+          - generic [ref=e402]:
+            - img [ref=e403]
+            - text: 测试模型
+          - generic [ref=e405]:
+            - img [ref=e406]
+            - text: 提示词："hi"
+      - generic [ref=e409]:
+        - button "关闭" [ref=e410] [cursor=pointer]
+        - button "开始测试" [ref=e411] [cursor=pointer]:
+          - img [ref=e412]
+          - generic [ref=e414]: 开始测试

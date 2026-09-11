@@ -863,6 +863,56 @@ var (
 			},
 		},
 	}
+	// DynamicProxyPoolsColumns holds the columns for the "dynamic_proxy_pools" table.
+	DynamicProxyPoolsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "name", Type: field.TypeString, Size: 100},
+		{Name: "enabled", Type: field.TypeBool, Default: true},
+		{Name: "source_type", Type: field.TypeString, Size: 20, Default: "extract_api"},
+		{Name: "subscription_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "extract_url", Type: field.TypeString, Nullable: true, Size: 2000, Default: ""},
+		{Name: "protocol", Type: field.TypeString, Size: 20, Default: "http"},
+		{Name: "auth_mode", Type: field.TypeString, Size: 20, Default: "none"},
+		{Name: "username", Type: field.TypeString, Nullable: true, Size: 200, Default: ""},
+		{Name: "password", Type: field.TypeString, Nullable: true, Size: 200, Default: ""},
+		{Name: "response_format", Type: field.TypeString, Size: 20, Default: "txt"},
+		{Name: "line_separator", Type: field.TypeString, Size: 20, Default: "\\r\\n"},
+		{Name: "ip_field_path", Type: field.TypeString, Nullable: true, Size: 200, Default: ""},
+		{Name: "port_field_path", Type: field.TypeString, Nullable: true, Size: 200, Default: ""},
+		{Name: "refresh_interval_sec", Type: field.TypeInt, Default: 300},
+		{Name: "ip_duration_sec", Type: field.TypeInt, Default: 300},
+		{Name: "extract_count", Type: field.TypeInt, Default: 1},
+		{Name: "min_alive", Type: field.TypeInt, Default: 1},
+		{Name: "name_prefix", Type: field.TypeString, Size: 40, Default: "dpool-"},
+		{Name: "last_extract_at", Type: field.TypeTime, Nullable: true},
+		{Name: "last_extract_status", Type: field.TypeString, Nullable: true, Size: 40, Default: ""},
+		{Name: "last_extract_error", Type: field.TypeString, Nullable: true, Size: 2147483647, Default: ""},
+		{Name: "alive_count", Type: field.TypeInt, Default: 0},
+		{Name: "health_check_interval_sec", Type: field.TypeInt, Default: 0},
+		{Name: "grok_reasoning_check_enabled", Type: field.TypeBool, Default: false},
+		{Name: "grok_reasoning_check_account_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "grok_reasoning_check_interval_sec", Type: field.TypeInt, Default: 300},
+	}
+	// DynamicProxyPoolsTable holds the schema information for the "dynamic_proxy_pools" table.
+	DynamicProxyPoolsTable = &schema.Table{
+		Name:       "dynamic_proxy_pools",
+		Columns:    DynamicProxyPoolsColumns,
+		PrimaryKey: []*schema.Column{DynamicProxyPoolsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "dynamicproxypool_enabled",
+				Unique:  false,
+				Columns: []*schema.Column{DynamicProxyPoolsColumns[4]},
+			},
+			{
+				Name:    "dynamicproxypool_name_prefix",
+				Unique:  true,
+				Columns: []*schema.Column{DynamicProxyPoolsColumns[20]},
+			},
+		},
+	}
 	// ErrorPassthroughRulesColumns holds the columns for the "error_passthrough_rules" table.
 	ErrorPassthroughRulesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -947,6 +997,7 @@ var (
 		{Name: "claude_code_only", Type: field.TypeBool, Default: false},
 		{Name: "fallback_group_id", Type: field.TypeInt64, Nullable: true},
 		{Name: "fallback_group_id_on_invalid_request", Type: field.TypeInt64, Nullable: true},
+		{Name: "default_proxy_id", Type: field.TypeInt64, Nullable: true},
 		{Name: "model_routing", Type: field.TypeJSON, Nullable: true, SchemaType: map[string]string{"postgres": "jsonb"}},
 		{Name: "model_routing_enabled", Type: field.TypeBool, Default: false},
 		{Name: "mcp_xml_inject", Type: field.TypeBool, Default: true},
@@ -954,6 +1005,10 @@ var (
 		{Name: "sort_order", Type: field.TypeInt, Default: 0},
 		{Name: "allow_messages_dispatch", Type: field.TypeBool, Default: false},
 		{Name: "allow_live", Type: field.TypeBool, Default: false},
+		{Name: "grok_messages_protocol", Type: field.TypeString, Size: 32, Default: "responses"},
+		{Name: "grok_reasoning_visibility_mode", Type: field.TypeString, Size: 16, Default: ""},
+		{Name: "grok_reasoning_probe_ttl_sec", Type: field.TypeInt, Default: -1},
+		{Name: "grok_reasoning_quarantine_sec", Type: field.TypeInt, Default: -1},
 		{Name: "force_openai_fast", Type: field.TypeBool, Default: false},
 		{Name: "free_openai_fast", Type: field.TypeBool, Default: false},
 		{Name: "require_oauth_only", Type: field.TypeBool, Default: false},
@@ -962,6 +1017,7 @@ var (
 		{Name: "messages_dispatch_model_config", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
 		{Name: "model_allowlist", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
 		{Name: "codex_models_manifest_config", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
+		{Name: "prompt_policy", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
 		{Name: "rpm_limit", Type: field.TypeInt, Default: 0},
 		{Name: "max_reasoning_effort", Type: field.TypeString, Size: 20, Default: ""},
 		{Name: "max_reasoning_effort_over_limit", Type: field.TypeString, Size: 20, Default: "downgrade"},
@@ -1004,7 +1060,7 @@ var (
 			{
 				Name:    "group_sort_order",
 				Unique:  false,
-				Columns: []*schema.Column{GroupsColumns[49]},
+				Columns: []*schema.Column{GroupsColumns[50]},
 			},
 			{
 				Name:    "idx_groups_duplicate_operation_id_active",
@@ -1013,6 +1069,128 @@ var (
 				Annotation: &entsql.IndexAnnotation{
 					Where: "duplicate_operation_id IS NOT NULL AND deleted_at IS NULL",
 				},
+			},
+		},
+	}
+	// ImBotsColumns holds the columns for the "im_bots" table.
+	ImBotsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "deleted_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "name", Type: field.TypeString, Size: 100},
+		{Name: "platform", Type: field.TypeString, Size: 32},
+		{Name: "credentials_encrypted", Type: field.TypeString, Size: 2147483647},
+		{Name: "model_override", Type: field.TypeString, Size: 200, Default: ""},
+		{Name: "system_prompt", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "status", Type: field.TypeString, Size: 20, Default: "disabled"},
+		{Name: "max_concurrency", Type: field.TypeInt, Default: 2},
+		{Name: "history_max_messages", Type: field.TypeInt, Default: 40},
+		{Name: "pairing_enabled", Type: field.TypeBool, Default: true},
+		{Name: "last_error", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "api_key_id", Type: field.TypeInt64},
+	}
+	// ImBotsTable holds the schema information for the "im_bots" table.
+	ImBotsTable = &schema.Table{
+		Name:       "im_bots",
+		Columns:    ImBotsColumns,
+		PrimaryKey: []*schema.Column{ImBotsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "im_bots_api_keys_im_bots",
+				Columns:    []*schema.Column{ImBotsColumns[14]},
+				RefColumns: []*schema.Column{APIKeysColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "imbot_status",
+				Unique:  false,
+				Columns: []*schema.Column{ImBotsColumns[9]},
+			},
+			{
+				Name:    "imbot_api_key_id",
+				Unique:  false,
+				Columns: []*schema.Column{ImBotsColumns[14]},
+			},
+		},
+	}
+	// ImBotChatsColumns holds the columns for the "im_bot_chats" table.
+	ImBotChatsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "chat_id", Type: field.TypeString, Size: 255},
+		{Name: "platform_user_id", Type: field.TypeString, Size: 255, Default: ""},
+		{Name: "display_name", Type: field.TypeString, Size: 255, Default: ""},
+		{Name: "session_uuid", Type: field.TypeString, Size: 36},
+		{Name: "model_override", Type: field.TypeString, Size: 200, Default: ""},
+		{Name: "status", Type: field.TypeString, Size: 20, Default: "active"},
+		{Name: "paired_at", Type: field.TypeTime},
+		{Name: "last_message_at", Type: field.TypeTime, Nullable: true},
+		{Name: "bot_id", Type: field.TypeInt64},
+	}
+	// ImBotChatsTable holds the schema information for the "im_bot_chats" table.
+	ImBotChatsTable = &schema.Table{
+		Name:       "im_bot_chats",
+		Columns:    ImBotChatsColumns,
+		PrimaryKey: []*schema.Column{ImBotChatsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "im_bot_chats_im_bots_chats",
+				Columns:    []*schema.Column{ImBotChatsColumns[11]},
+				RefColumns: []*schema.Column{ImBotsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "imbotchat_bot_id_chat_id",
+				Unique:  true,
+				Columns: []*schema.Column{ImBotChatsColumns[11], ImBotChatsColumns[3]},
+			},
+			{
+				Name:    "imbotchat_bot_id_last_message_at",
+				Unique:  false,
+				Columns: []*schema.Column{ImBotChatsColumns[11], ImBotChatsColumns[10]},
+			},
+		},
+	}
+	// ImBotMessagesColumns holds the columns for the "im_bot_messages" table.
+	ImBotMessagesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "bot_id", Type: field.TypeInt64},
+		{Name: "role", Type: field.TypeString, Size: 16},
+		{Name: "content", Type: field.TypeString, Size: 2147483647},
+		{Name: "request_id", Type: field.TypeString, Size: 64, Default: ""},
+		{Name: "chat_id", Type: field.TypeInt64},
+	}
+	// ImBotMessagesTable holds the schema information for the "im_bot_messages" table.
+	ImBotMessagesTable = &schema.Table{
+		Name:       "im_bot_messages",
+		Columns:    ImBotMessagesColumns,
+		PrimaryKey: []*schema.Column{ImBotMessagesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "im_bot_messages_im_bot_chats_messages",
+				Columns:    []*schema.Column{ImBotMessagesColumns[7]},
+				RefColumns: []*schema.Column{ImBotChatsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "imbotmessage_chat_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{ImBotMessagesColumns[7], ImBotMessagesColumns[1]},
+			},
+			{
+				Name:    "imbotmessage_bot_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{ImBotMessagesColumns[3], ImBotMessagesColumns[1]},
 			},
 		},
 	}
@@ -1412,6 +1590,7 @@ var (
 		{Name: "status", Type: field.TypeString, Size: 20, Default: "active"},
 		{Name: "expires_at", Type: field.TypeTime, Nullable: true},
 		{Name: "fallback_mode", Type: field.TypeString, Size: 20, Default: "none"},
+		{Name: "egress_proxy_id", Type: field.TypeInt64, Nullable: true},
 		{Name: "expiry_warn_days", Type: field.TypeInt, Default: 7},
 		{Name: "backup_proxy_id", Type: field.TypeInt64, Nullable: true},
 	}
@@ -1423,7 +1602,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "proxies_proxies_backup_proxy",
-				Columns:    []*schema.Column{ProxiesColumns[14]},
+				Columns:    []*schema.Column{ProxiesColumns[15]},
 				RefColumns: []*schema.Column{ProxiesColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -1447,7 +1626,61 @@ var (
 			{
 				Name:    "proxy_backup_proxy_id",
 				Unique:  false,
-				Columns: []*schema.Column{ProxiesColumns[14]},
+				Columns: []*schema.Column{ProxiesColumns[15]},
+			},
+			{
+				Name:    "proxy_egress_proxy_id",
+				Unique:  false,
+				Columns: []*schema.Column{ProxiesColumns[13]},
+			},
+		},
+	}
+	// ProxySubscriptionsColumns holds the columns for the "proxy_subscriptions" table.
+	ProxySubscriptionsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "name", Type: field.TypeString, Size: 100},
+		{Name: "enabled", Type: field.TypeBool, Default: true},
+		{Name: "source_type", Type: field.TypeString, Size: 20, Default: "url"},
+		{Name: "subscription_url", Type: field.TypeString, Nullable: true, Size: 2000, Default: ""},
+		{Name: "inline_body", Type: field.TypeString, Nullable: true, Size: 2147483647, Default: ""},
+		{Name: "name_prefix", Type: field.TypeString, Size: 40, Default: "sidecar-a-"},
+		{Name: "protocol", Type: field.TypeString, Size: 20, Default: "socks5"},
+		{Name: "bind_address", Type: field.TypeString, Size: 64, Default: "127.0.0.1"},
+		{Name: "base_port", Type: field.TypeInt, Default: 21080},
+		{Name: "max_ports", Type: field.TypeInt, Default: 10},
+		{Name: "sync_interval_sec", Type: field.TypeInt, Default: 300},
+		{Name: "node_allow_contains", Type: field.TypeJSON},
+		{Name: "node_identity_allowlist", Type: field.TypeJSON},
+		{Name: "last_sync_at", Type: field.TypeTime, Nullable: true},
+		{Name: "last_sync_status", Type: field.TypeString, Nullable: true, Size: 40, Default: ""},
+		{Name: "last_sync_error", Type: field.TypeString, Nullable: true, Size: 2147483647, Default: ""},
+		{Name: "last_config_hash", Type: field.TypeString, Nullable: true, Size: 64, Default: ""},
+		{Name: "desired_count", Type: field.TypeInt, Default: 0},
+		{Name: "created_by", Type: field.TypeInt64, Nullable: true, Default: 0},
+		{Name: "next_due_at", Type: field.TypeTime, Nullable: true},
+	}
+	// ProxySubscriptionsTable holds the schema information for the "proxy_subscriptions" table.
+	ProxySubscriptionsTable = &schema.Table{
+		Name:       "proxy_subscriptions",
+		Columns:    ProxySubscriptionsColumns,
+		PrimaryKey: []*schema.Column{ProxySubscriptionsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "proxysubscription_enabled_next_due_at",
+				Unique:  false,
+				Columns: []*schema.Column{ProxySubscriptionsColumns[4], ProxySubscriptionsColumns[22]},
+			},
+			{
+				Name:    "proxysubscription_name_prefix",
+				Unique:  false,
+				Columns: []*schema.Column{ProxySubscriptionsColumns[8]},
+			},
+			{
+				Name:    "proxysubscription_enabled",
+				Unique:  false,
+				Columns: []*schema.Column{ProxySubscriptionsColumns[4]},
 			},
 		},
 	}
@@ -2103,8 +2336,12 @@ var (
 		ChannelMonitorHistoriesTable,
 		ChannelMonitorRequestTemplatesTable,
 		CompositeModelRoutesTable,
+		DynamicProxyPoolsTable,
 		ErrorPassthroughRulesTable,
 		GroupsTable,
+		ImBotsTable,
+		ImBotChatsTable,
+		ImBotMessagesTable,
 		IdempotencyRecordsTable,
 		IdentityAdoptionDecisionsTable,
 		PaymentAuditLogsTable,
@@ -2114,6 +2351,7 @@ var (
 		PromoCodesTable,
 		PromoCodeUsagesTable,
 		ProxiesTable,
+		ProxySubscriptionsTable,
 		RedeemCodesTable,
 		SecuritySecretsTable,
 		SettingsTable,
@@ -2190,11 +2428,26 @@ func init() {
 	CompositeModelRoutesTable.Annotation = &entsql.Annotation{
 		Table: "composite_model_routes",
 	}
+	DynamicProxyPoolsTable.Annotation = &entsql.Annotation{
+		Table: "dynamic_proxy_pools",
+	}
 	ErrorPassthroughRulesTable.Annotation = &entsql.Annotation{
 		Table: "error_passthrough_rules",
 	}
 	GroupsTable.Annotation = &entsql.Annotation{
 		Table: "groups",
+	}
+	ImBotsTable.ForeignKeys[0].RefTable = APIKeysTable
+	ImBotsTable.Annotation = &entsql.Annotation{
+		Table: "im_bots",
+	}
+	ImBotChatsTable.ForeignKeys[0].RefTable = ImBotsTable
+	ImBotChatsTable.Annotation = &entsql.Annotation{
+		Table: "im_bot_chats",
+	}
+	ImBotMessagesTable.ForeignKeys[0].RefTable = ImBotChatsTable
+	ImBotMessagesTable.Annotation = &entsql.Annotation{
+		Table: "im_bot_messages",
 	}
 	IdempotencyRecordsTable.Annotation = &entsql.Annotation{
 		Table: "idempotency_records",
@@ -2229,6 +2482,9 @@ func init() {
 	ProxiesTable.ForeignKeys[0].RefTable = ProxiesTable
 	ProxiesTable.Annotation = &entsql.Annotation{
 		Table: "proxies",
+	}
+	ProxySubscriptionsTable.Annotation = &entsql.Annotation{
+		Table: "proxy_subscriptions",
 	}
 	RedeemCodesTable.ForeignKeys[0].RefTable = GroupsTable
 	RedeemCodesTable.ForeignKeys[1].RefTable = UsersTable

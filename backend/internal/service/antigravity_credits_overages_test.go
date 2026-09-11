@@ -35,7 +35,38 @@ func TestClassifyAntigravity429(t *testing.T) {
 	})
 
 	t.Run("未知429", func(t *testing.T) {
-		body := []byte(`{"error":{"message":"too many requests"}}`)
+		body := []byte(`{"error":{"message":"resource has been exhausted (e.g. check quota). Quota limit 'Tokens per minute' exceeded."}}`)
+		require.Equal(t, antigravity429RateLimited, classifyAntigravity429(body))
+	})
+
+	t.Run("model_capacity 优先于其他关键词", func(t *testing.T) {
+		// 容量耗尽 + resource exhausted 字样共存时必须判容量，不能误判账号级配额
+		body := []byte(`{"error":{"status":"RESOURCE_EXHAUSTED","message":"MODEL_CAPACITY_EXHAUSTED: resource has been exhausted"}}`)
+		require.Equal(t, antigravity429ModelCapacity, classifyAntigravity429(body))
+	})
+
+	t.Run("model_capacity 小写关键词", func(t *testing.T) {
+		body := []byte(`{"error":{"message":"capacity on this model is exhausted"}}`)
+		require.Equal(t, antigravity429ModelCapacity, classifyAntigravity429(body))
+	})
+
+	t.Run("无结构化关键词兜底 per minute", func(t *testing.T) {
+		body := []byte(`{"error":{"message":"Rate limit exceeded for requests per minute"}}`)
+		require.Equal(t, antigravity429RateLimited, classifyAntigravity429(body))
+	})
+
+	t.Run("无结构化关键词兜底 quotaresetdelay", func(t *testing.T) {
+		body := []byte(`{"error":{"message":"quotaResetDelay: 3600s"}}`)
+		require.Equal(t, antigravity429RateLimited, classifyAntigravity429(body))
+	})
+
+	t.Run("quota exhausted 大小写不敏感", func(t *testing.T) {
+		body := []byte(`{"error":{"message":"Quota Exhausted for daily quota"}}`)
+		require.Equal(t, antigravity429QuotaExhausted, classifyAntigravity429(body))
+	})
+
+	t.Run("真正未知429", func(t *testing.T) {
+		body := []byte(`{"error":{"message":"upstream unavailable"}}`)
 		require.Equal(t, antigravity429Unknown, classifyAntigravity429(body))
 	})
 }
@@ -540,5 +571,135 @@ func TestClearCreditsExhausted(t *testing.T) {
 		// 普通模型限流应保留
 		_, exists = rawLimits["claude-sonnet-4-5"]
 		require.True(t, exists, "普通模型限流应保留")
+	})
+}
+
+// TestHandleSmartRetry_KeywordFallback 无结构化 RetryInfo 的 429 走关键词兜底：
+// rate_limited 短冷却切号、quota_exhausted 按现有限流剩余时间升档退避。
+func TestHandleSmartRetry_KeywordFallback(t *testing.T) {
+	newParams := func(account *Account, repo *stubAntigravityAccountRepo) antigravityRetryLoopParams {
+		return antigravityRetryLoopParams{
+			ctx:            context.Background(),
+			prefix:         "[test]",
+			account:        account,
+			accessToken:    "token",
+			action:         "generateContent",
+			body:           []byte(`{"model":"claude-sonnet-4-5","request":{}}`),
+			httpUpstream:   &mockSmartRetryUpstream{},
+			accountRepo:    repo,
+			requestedModel: "claude-sonnet-4-5",
+			handleError: func(ctx context.Context, prefix string, account *Account, statusCode int, headers http.Header, body []byte, requestedModel string, groupID int64, sessionHash string, isStickySession bool) *handleModelRateLimitResult {
+				return nil
+			},
+		}
+	}
+
+	t.Run("rate_limited 关键词兜底短冷却切号", func(t *testing.T) {
+		repo := &stubAntigravityAccountRepo{}
+		account := &Account{
+			ID:       201,
+			Name:     "acc-201",
+			Type:     AccountTypeOAuth,
+			Platform: PlatformAntigravity,
+			Extra:    map[string]any{},
+		}
+		// 无 RetryInfo details、含 per minute 关键词 → rate_limited
+		respBody := []byte(`{"error":{"status":"RESOURCE_EXHAUSTED","message":"Rate limit exceeded for requests per minute"}}`)
+		resp := &http.Response{
+			StatusCode: http.StatusTooManyRequests,
+			Header:     http.Header{},
+			Body:       io.NopCloser(bytes.NewReader(respBody)),
+		}
+		svc := &AntigravityGatewayService{}
+		result := svc.handleSmartRetry(newParams(account, repo), resp, respBody, "https://ag-1.test", 0, []string{"https://ag-1.test"})
+
+		require.NotNil(t, result)
+		require.Equal(t, smartRetryActionBreakWithResp, result.action)
+		require.NotNil(t, result.switchError, "rate_limited 兜底应切号")
+		require.NotEmpty(t, repo.modelRateLimitCalls, "应写入模型限流")
+		resetAt := repo.modelRateLimitCalls[0].resetAt
+		cooldown := time.Until(resetAt)
+		require.True(t, cooldown > 25*time.Second && cooldown <= 31*time.Second, "冷却应约为 30s，实际 %v", cooldown)
+	})
+
+	t.Run("quota_exhausted 首次兜底用第一档 60s", func(t *testing.T) {
+		repo := &stubAntigravityAccountRepo{}
+		account := &Account{
+			ID:       202,
+			Name:     "acc-202",
+			Type:     AccountTypeOAuth,
+			Platform: PlatformAntigravity,
+			Extra:    map[string]any{},
+		}
+		respBody := []byte(`{"error":{"status":"RESOURCE_EXHAUSTED","message":"quota exhausted"}}`)
+		resp := &http.Response{
+			StatusCode: http.StatusTooManyRequests,
+			Header:     http.Header{},
+			Body:       io.NopCloser(bytes.NewReader(respBody)),
+		}
+		svc := &AntigravityGatewayService{}
+		result := svc.handleSmartRetry(newParams(account, repo), resp, respBody, "https://ag-1.test", 0, []string{"https://ag-1.test"})
+
+		require.NotNil(t, result)
+		require.NotNil(t, result.switchError)
+		require.NotEmpty(t, repo.modelRateLimitCalls)
+		cooldown := time.Until(repo.modelRateLimitCalls[0].resetAt)
+		require.True(t, cooldown > 55*time.Second && cooldown <= 61*time.Second, "首次退避应为 60s 第一档，实际 %v", cooldown)
+	})
+
+	t.Run("quota_exhausted 已限流时升档", func(t *testing.T) {
+		repo := &stubAntigravityAccountRepo{}
+		// 模拟当前已处于第一档（60s）限流中（剩余 30s）
+		account := &Account{
+			ID:       203,
+			Name:     "acc-203",
+			Type:     AccountTypeOAuth,
+			Platform: PlatformAntigravity,
+			Extra: map[string]any{
+				modelRateLimitsKey: map[string]any{
+					"claude-sonnet-4-5": map[string]any{
+						"rate_limit_reset_at": time.Now().Add(30 * time.Second).UTC().Format(time.RFC3339),
+					},
+				},
+			},
+		}
+		respBody := []byte(`{"error":{"status":"RESOURCE_EXHAUSTED","message":"quota exhausted"}}`)
+		resp := &http.Response{
+			StatusCode: http.StatusTooManyRequests,
+			Header:     http.Header{},
+			Body:       io.NopCloser(bytes.NewReader(respBody)),
+		}
+		svc := &AntigravityGatewayService{}
+		result := svc.handleSmartRetry(newParams(account, repo), resp, respBody, "https://ag-1.test", 0, []string{"https://ag-1.test"})
+
+		require.NotNil(t, result)
+		require.NotNil(t, result.switchError)
+		require.NotEmpty(t, repo.modelRateLimitCalls)
+		cooldown := time.Until(repo.modelRateLimitCalls[0].resetAt)
+		require.True(t, cooldown > 290*time.Second && cooldown <= 301*time.Second, "已处于第一档时应升到第二档 5m，实际 %v", cooldown)
+	})
+
+	t.Run("model_capacity 兜底不切号不设限流", func(t *testing.T) {
+		repo := &stubAntigravityAccountRepo{}
+		account := &Account{
+			ID:       204,
+			Name:     "acc-204",
+			Type:     AccountTypeOAuth,
+			Platform: PlatformAntigravity,
+			Extra:    map[string]any{},
+		}
+		// MODEL_CAPACITY_EXHAUSTED 但无结构化 details → 关键词命中 model_capacity
+		respBody := []byte(`{"error":{"message":"MODEL_CAPACITY_EXHAUSTED"}}`)
+		resp := &http.Response{
+			StatusCode: http.StatusTooManyRequests,
+			Header:     http.Header{},
+			Body:       io.NopCloser(bytes.NewReader(respBody)),
+		}
+		svc := &AntigravityGatewayService{}
+		result := svc.handleSmartRetry(newParams(account, repo), resp, respBody, "https://ag-1.test", 0, []string{"https://ag-1.test"})
+
+		// model_capacity：不适用兜底，返回 nil 交回通用重试
+		require.Nil(t, result.switchError)
+		require.Empty(t, repo.modelRateLimitCalls, "容量耗尽不应设账号级限流")
 	})
 }

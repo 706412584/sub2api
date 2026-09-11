@@ -265,6 +265,11 @@ func FallbackGroupIDOnInvalidRequest(v int64) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldFallbackGroupIDOnInvalidRequest, v))
 }
 
+// DefaultProxyID applies equality check predicate on the "default_proxy_id" field. It's identical to DefaultProxyIDEQ.
+func DefaultProxyID(v int64) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldDefaultProxyID, v))
+}
+
 // ModelRoutingEnabled applies equality check predicate on the "model_routing_enabled" field. It's identical to ModelRoutingEnabledEQ.
 func ModelRoutingEnabled(v bool) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldModelRoutingEnabled, v))
@@ -288,6 +293,26 @@ func AllowMessagesDispatch(v bool) predicate.Group {
 // AllowLive applies equality check predicate on the "allow_live" field. It's identical to AllowLiveEQ.
 func AllowLive(v bool) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldAllowLive, v))
+}
+
+// GrokMessagesProtocol applies equality check predicate on the "grok_messages_protocol" field. It's identical to GrokMessagesProtocolEQ.
+func GrokMessagesProtocol(v string) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldGrokMessagesProtocol, v))
+}
+
+// GrokReasoningVisibilityMode applies equality check predicate on the "grok_reasoning_visibility_mode" field. It's identical to GrokReasoningVisibilityModeEQ.
+func GrokReasoningVisibilityMode(v string) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldGrokReasoningVisibilityMode, v))
+}
+
+// GrokReasoningProbeTTLSec applies equality check predicate on the "grok_reasoning_probe_ttl_sec" field. It's identical to GrokReasoningProbeTTLSecEQ.
+func GrokReasoningProbeTTLSec(v int) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldGrokReasoningProbeTTLSec, v))
+}
+
+// GrokReasoningQuarantineSec applies equality check predicate on the "grok_reasoning_quarantine_sec" field. It's identical to GrokReasoningQuarantineSecEQ.
+func GrokReasoningQuarantineSec(v int) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldGrokReasoningQuarantineSec, v))
 }
 
 // ForceOpenaiFast applies equality check predicate on the "force_openai_fast" field. It's identical to ForceOpenaiFastEQ.
@@ -2195,6 +2220,56 @@ func FallbackGroupIDOnInvalidRequestNotNil() predicate.Group {
 	return predicate.Group(sql.FieldNotNull(FieldFallbackGroupIDOnInvalidRequest))
 }
 
+// DefaultProxyIDEQ applies the EQ predicate on the "default_proxy_id" field.
+func DefaultProxyIDEQ(v int64) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldDefaultProxyID, v))
+}
+
+// DefaultProxyIDNEQ applies the NEQ predicate on the "default_proxy_id" field.
+func DefaultProxyIDNEQ(v int64) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldDefaultProxyID, v))
+}
+
+// DefaultProxyIDIn applies the In predicate on the "default_proxy_id" field.
+func DefaultProxyIDIn(vs ...int64) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldDefaultProxyID, vs...))
+}
+
+// DefaultProxyIDNotIn applies the NotIn predicate on the "default_proxy_id" field.
+func DefaultProxyIDNotIn(vs ...int64) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldDefaultProxyID, vs...))
+}
+
+// DefaultProxyIDGT applies the GT predicate on the "default_proxy_id" field.
+func DefaultProxyIDGT(v int64) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldDefaultProxyID, v))
+}
+
+// DefaultProxyIDGTE applies the GTE predicate on the "default_proxy_id" field.
+func DefaultProxyIDGTE(v int64) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldDefaultProxyID, v))
+}
+
+// DefaultProxyIDLT applies the LT predicate on the "default_proxy_id" field.
+func DefaultProxyIDLT(v int64) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldDefaultProxyID, v))
+}
+
+// DefaultProxyIDLTE applies the LTE predicate on the "default_proxy_id" field.
+func DefaultProxyIDLTE(v int64) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldDefaultProxyID, v))
+}
+
+// DefaultProxyIDIsNil applies the IsNil predicate on the "default_proxy_id" field.
+func DefaultProxyIDIsNil() predicate.Group {
+	return predicate.Group(sql.FieldIsNull(FieldDefaultProxyID))
+}
+
+// DefaultProxyIDNotNil applies the NotNil predicate on the "default_proxy_id" field.
+func DefaultProxyIDNotNil() predicate.Group {
+	return predicate.Group(sql.FieldNotNull(FieldDefaultProxyID))
+}
+
 // ModelRoutingIsNil applies the IsNil predicate on the "model_routing" field.
 func ModelRoutingIsNil() predicate.Group {
 	return predicate.Group(sql.FieldIsNull(FieldModelRouting))
@@ -2283,6 +2358,216 @@ func AllowLiveEQ(v bool) predicate.Group {
 // AllowLiveNEQ applies the NEQ predicate on the "allow_live" field.
 func AllowLiveNEQ(v bool) predicate.Group {
 	return predicate.Group(sql.FieldNEQ(FieldAllowLive, v))
+}
+
+// GrokMessagesProtocolEQ applies the EQ predicate on the "grok_messages_protocol" field.
+func GrokMessagesProtocolEQ(v string) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldGrokMessagesProtocol, v))
+}
+
+// GrokMessagesProtocolNEQ applies the NEQ predicate on the "grok_messages_protocol" field.
+func GrokMessagesProtocolNEQ(v string) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldGrokMessagesProtocol, v))
+}
+
+// GrokMessagesProtocolIn applies the In predicate on the "grok_messages_protocol" field.
+func GrokMessagesProtocolIn(vs ...string) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldGrokMessagesProtocol, vs...))
+}
+
+// GrokMessagesProtocolNotIn applies the NotIn predicate on the "grok_messages_protocol" field.
+func GrokMessagesProtocolNotIn(vs ...string) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldGrokMessagesProtocol, vs...))
+}
+
+// GrokMessagesProtocolGT applies the GT predicate on the "grok_messages_protocol" field.
+func GrokMessagesProtocolGT(v string) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldGrokMessagesProtocol, v))
+}
+
+// GrokMessagesProtocolGTE applies the GTE predicate on the "grok_messages_protocol" field.
+func GrokMessagesProtocolGTE(v string) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldGrokMessagesProtocol, v))
+}
+
+// GrokMessagesProtocolLT applies the LT predicate on the "grok_messages_protocol" field.
+func GrokMessagesProtocolLT(v string) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldGrokMessagesProtocol, v))
+}
+
+// GrokMessagesProtocolLTE applies the LTE predicate on the "grok_messages_protocol" field.
+func GrokMessagesProtocolLTE(v string) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldGrokMessagesProtocol, v))
+}
+
+// GrokMessagesProtocolContains applies the Contains predicate on the "grok_messages_protocol" field.
+func GrokMessagesProtocolContains(v string) predicate.Group {
+	return predicate.Group(sql.FieldContains(FieldGrokMessagesProtocol, v))
+}
+
+// GrokMessagesProtocolHasPrefix applies the HasPrefix predicate on the "grok_messages_protocol" field.
+func GrokMessagesProtocolHasPrefix(v string) predicate.Group {
+	return predicate.Group(sql.FieldHasPrefix(FieldGrokMessagesProtocol, v))
+}
+
+// GrokMessagesProtocolHasSuffix applies the HasSuffix predicate on the "grok_messages_protocol" field.
+func GrokMessagesProtocolHasSuffix(v string) predicate.Group {
+	return predicate.Group(sql.FieldHasSuffix(FieldGrokMessagesProtocol, v))
+}
+
+// GrokMessagesProtocolEqualFold applies the EqualFold predicate on the "grok_messages_protocol" field.
+func GrokMessagesProtocolEqualFold(v string) predicate.Group {
+	return predicate.Group(sql.FieldEqualFold(FieldGrokMessagesProtocol, v))
+}
+
+// GrokMessagesProtocolContainsFold applies the ContainsFold predicate on the "grok_messages_protocol" field.
+func GrokMessagesProtocolContainsFold(v string) predicate.Group {
+	return predicate.Group(sql.FieldContainsFold(FieldGrokMessagesProtocol, v))
+}
+
+// GrokReasoningVisibilityModeEQ applies the EQ predicate on the "grok_reasoning_visibility_mode" field.
+func GrokReasoningVisibilityModeEQ(v string) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldGrokReasoningVisibilityMode, v))
+}
+
+// GrokReasoningVisibilityModeNEQ applies the NEQ predicate on the "grok_reasoning_visibility_mode" field.
+func GrokReasoningVisibilityModeNEQ(v string) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldGrokReasoningVisibilityMode, v))
+}
+
+// GrokReasoningVisibilityModeIn applies the In predicate on the "grok_reasoning_visibility_mode" field.
+func GrokReasoningVisibilityModeIn(vs ...string) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldGrokReasoningVisibilityMode, vs...))
+}
+
+// GrokReasoningVisibilityModeNotIn applies the NotIn predicate on the "grok_reasoning_visibility_mode" field.
+func GrokReasoningVisibilityModeNotIn(vs ...string) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldGrokReasoningVisibilityMode, vs...))
+}
+
+// GrokReasoningVisibilityModeGT applies the GT predicate on the "grok_reasoning_visibility_mode" field.
+func GrokReasoningVisibilityModeGT(v string) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldGrokReasoningVisibilityMode, v))
+}
+
+// GrokReasoningVisibilityModeGTE applies the GTE predicate on the "grok_reasoning_visibility_mode" field.
+func GrokReasoningVisibilityModeGTE(v string) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldGrokReasoningVisibilityMode, v))
+}
+
+// GrokReasoningVisibilityModeLT applies the LT predicate on the "grok_reasoning_visibility_mode" field.
+func GrokReasoningVisibilityModeLT(v string) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldGrokReasoningVisibilityMode, v))
+}
+
+// GrokReasoningVisibilityModeLTE applies the LTE predicate on the "grok_reasoning_visibility_mode" field.
+func GrokReasoningVisibilityModeLTE(v string) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldGrokReasoningVisibilityMode, v))
+}
+
+// GrokReasoningVisibilityModeContains applies the Contains predicate on the "grok_reasoning_visibility_mode" field.
+func GrokReasoningVisibilityModeContains(v string) predicate.Group {
+	return predicate.Group(sql.FieldContains(FieldGrokReasoningVisibilityMode, v))
+}
+
+// GrokReasoningVisibilityModeHasPrefix applies the HasPrefix predicate on the "grok_reasoning_visibility_mode" field.
+func GrokReasoningVisibilityModeHasPrefix(v string) predicate.Group {
+	return predicate.Group(sql.FieldHasPrefix(FieldGrokReasoningVisibilityMode, v))
+}
+
+// GrokReasoningVisibilityModeHasSuffix applies the HasSuffix predicate on the "grok_reasoning_visibility_mode" field.
+func GrokReasoningVisibilityModeHasSuffix(v string) predicate.Group {
+	return predicate.Group(sql.FieldHasSuffix(FieldGrokReasoningVisibilityMode, v))
+}
+
+// GrokReasoningVisibilityModeEqualFold applies the EqualFold predicate on the "grok_reasoning_visibility_mode" field.
+func GrokReasoningVisibilityModeEqualFold(v string) predicate.Group {
+	return predicate.Group(sql.FieldEqualFold(FieldGrokReasoningVisibilityMode, v))
+}
+
+// GrokReasoningVisibilityModeContainsFold applies the ContainsFold predicate on the "grok_reasoning_visibility_mode" field.
+func GrokReasoningVisibilityModeContainsFold(v string) predicate.Group {
+	return predicate.Group(sql.FieldContainsFold(FieldGrokReasoningVisibilityMode, v))
+}
+
+// GrokReasoningProbeTTLSecEQ applies the EQ predicate on the "grok_reasoning_probe_ttl_sec" field.
+func GrokReasoningProbeTTLSecEQ(v int) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldGrokReasoningProbeTTLSec, v))
+}
+
+// GrokReasoningProbeTTLSecNEQ applies the NEQ predicate on the "grok_reasoning_probe_ttl_sec" field.
+func GrokReasoningProbeTTLSecNEQ(v int) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldGrokReasoningProbeTTLSec, v))
+}
+
+// GrokReasoningProbeTTLSecIn applies the In predicate on the "grok_reasoning_probe_ttl_sec" field.
+func GrokReasoningProbeTTLSecIn(vs ...int) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldGrokReasoningProbeTTLSec, vs...))
+}
+
+// GrokReasoningProbeTTLSecNotIn applies the NotIn predicate on the "grok_reasoning_probe_ttl_sec" field.
+func GrokReasoningProbeTTLSecNotIn(vs ...int) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldGrokReasoningProbeTTLSec, vs...))
+}
+
+// GrokReasoningProbeTTLSecGT applies the GT predicate on the "grok_reasoning_probe_ttl_sec" field.
+func GrokReasoningProbeTTLSecGT(v int) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldGrokReasoningProbeTTLSec, v))
+}
+
+// GrokReasoningProbeTTLSecGTE applies the GTE predicate on the "grok_reasoning_probe_ttl_sec" field.
+func GrokReasoningProbeTTLSecGTE(v int) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldGrokReasoningProbeTTLSec, v))
+}
+
+// GrokReasoningProbeTTLSecLT applies the LT predicate on the "grok_reasoning_probe_ttl_sec" field.
+func GrokReasoningProbeTTLSecLT(v int) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldGrokReasoningProbeTTLSec, v))
+}
+
+// GrokReasoningProbeTTLSecLTE applies the LTE predicate on the "grok_reasoning_probe_ttl_sec" field.
+func GrokReasoningProbeTTLSecLTE(v int) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldGrokReasoningProbeTTLSec, v))
+}
+
+// GrokReasoningQuarantineSecEQ applies the EQ predicate on the "grok_reasoning_quarantine_sec" field.
+func GrokReasoningQuarantineSecEQ(v int) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldGrokReasoningQuarantineSec, v))
+}
+
+// GrokReasoningQuarantineSecNEQ applies the NEQ predicate on the "grok_reasoning_quarantine_sec" field.
+func GrokReasoningQuarantineSecNEQ(v int) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldGrokReasoningQuarantineSec, v))
+}
+
+// GrokReasoningQuarantineSecIn applies the In predicate on the "grok_reasoning_quarantine_sec" field.
+func GrokReasoningQuarantineSecIn(vs ...int) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldGrokReasoningQuarantineSec, vs...))
+}
+
+// GrokReasoningQuarantineSecNotIn applies the NotIn predicate on the "grok_reasoning_quarantine_sec" field.
+func GrokReasoningQuarantineSecNotIn(vs ...int) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldGrokReasoningQuarantineSec, vs...))
+}
+
+// GrokReasoningQuarantineSecGT applies the GT predicate on the "grok_reasoning_quarantine_sec" field.
+func GrokReasoningQuarantineSecGT(v int) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldGrokReasoningQuarantineSec, v))
+}
+
+// GrokReasoningQuarantineSecGTE applies the GTE predicate on the "grok_reasoning_quarantine_sec" field.
+func GrokReasoningQuarantineSecGTE(v int) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldGrokReasoningQuarantineSec, v))
+}
+
+// GrokReasoningQuarantineSecLT applies the LT predicate on the "grok_reasoning_quarantine_sec" field.
+func GrokReasoningQuarantineSecLT(v int) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldGrokReasoningQuarantineSec, v))
+}
+
+// GrokReasoningQuarantineSecLTE applies the LTE predicate on the "grok_reasoning_quarantine_sec" field.
+func GrokReasoningQuarantineSecLTE(v int) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldGrokReasoningQuarantineSec, v))
 }
 
 // ForceOpenaiFastEQ applies the EQ predicate on the "force_openai_fast" field.

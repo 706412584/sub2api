@@ -48,6 +48,16 @@ See [APPLE_CONTAINER.md](./APPLE_CONTAINER.md) for configuration, upgrades, pers
 
 ---
 
+## Proxy subscription (mihomo) in Docker / bare metal
+
+Embedded airport subscriptions (Admin → Proxies → subscription panel) need **mihomo** in the same process host as Sub2API:
+
+- **Official Docker images** bundle mihomo and set `PROXY_SUBSCRIPTION_*` defaults. Keep **one** `sub2api` replica (loopback mixed ports are not multi-instance safe).
+- **Bare metal:** install mihomo on `PATH` or set `PROXY_SUBSCRIPTION_MIHOMO_BINARY`.
+- Details, env vars, and troubleshooting: [DOCKER.md](./DOCKER.md#proxy-subscription-mihomo).
+
+---
+
 ## Docker Deployment (Recommended)
 
 ### Method 1: One-Click Deployment (Recommended)

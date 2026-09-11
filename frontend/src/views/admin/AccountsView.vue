@@ -177,6 +177,8 @@
       <template #table>
         <AccountBulkActionsBar
           :selected-ids="selIds"
+          :has-group-filter="Boolean(params.group)"
+          :group-filter-label="currentGroupFilterLabel"
           :total-results="pagination.total"
           :selecting-all="selectingAllResults"
           :all-results-selected="allResultsSelected"
@@ -184,6 +186,8 @@
           @reset-status="handleBulkResetStatus"
           @refresh-token="handleBulkRefreshToken"
           @probe-upstream-billing="handleBulkProbeUpstreamBilling"
+          @batch-test="openBatchTestSelected"
+          @batch-test-filtered="openBatchTestFiltered"
           @edit-selected="openBulkEditSelected"
           @edit-filtered="openBulkEditFiltered"
           @clear="clearSelection"
@@ -318,6 +322,7 @@
               :today-stats="todayStatsByAccountId[String(row.id)] ?? null"
               :today-stats-loading="todayStatsLoading"
               :manual-refresh-token="usageManualRefreshToken"
+              @account-patch="handleAccountPatch"
               :batched-usage="usageBatchByAccountId[String(row.id)] ?? null"
               :batched-usage-error="usageBatchErrorByAccountId[String(row.id)] ?? null"
               :batched-usage-loading="usageBatchLoadingByAccountId[String(row.id)] === true"
@@ -450,13 +455,34 @@
       </template>
       <template #pagination><Pagination v-if="pagination.total > 0" :page="pagination.page" :total="pagination.total" :page-size="pagination.page_size" @update:page="handlePageChange" @update:pageSize="handlePageSizeChange" /></template>
     </TablePageLayout>
-    <CreateAccountModal :show="showCreate" :proxies="proxies" :groups="groups" @close="showCreate = false" @created="reload" />
+    <CreateAccountModal
+      :show="showCreate"
+      :proxies="proxies"
+      :groups="groups"
+      @close="showCreate = false"
+      @created="reload"
+      @open-kiro-browser-login="handleOpenKiroBrowserLogin"
+    />
+    <KiroBrowserLoginModal
+      :show="showKiroBrowserLogin"
+      :account-defaults="kiroAccountDefaults"
+      @close="showKiroBrowserLogin = false"
+      @created="handleKiroAccountCreated"
+    />
     <EditAccountModal :show="showEdit" :account="edAcc" :proxies="proxies" :groups="groups" @close="showEdit = false" @updated="handleAccountUpdated" />
     <ReAuthAccountModal :show="showReAuth" :account="reAuthAcc" @close="closeReAuthModal" @reauthorized="handleAccountUpdated" />
     <AccountTestModal :show="showTest" :account="testingAcc" @close="closeTestModal" />
+    <KiroAccountDetailsModal :show="showKiroDetails" :account="kiroDetailsAcc" @close="closeKiroDetailsModal" />
+    <AccountBatchTestModal
+      v-model:visible="showBatchTest"
+      :account-ids="batchTestAccountIds"
+      :accounts="batchTestAccounts"
+      @close="closeBatchTestModal"
+      @completed="reload"
+    />
     <AccountStatsModal :show="showStats" :account="statsAcc" @close="closeStatsModal" />
     <ScheduledTestsPanel :show="showSchedulePanel" :account-id="scheduleAcc?.id ?? null" :model-options="scheduleModelOptions" @close="closeSchedulePanel" />
-    <AccountActionMenu :show="menu.show" :account="menu.acc" :anchor-rect="menu.anchorRect" @close="menu.show = false" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @duplicate="handleDuplicateAccount" @reauth="handleReAuth" @refresh-token="handleRefresh" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" @create-spark-shadow="handleCreateSparkShadow" />
+    <AccountActionMenu :show="menu.show" :account="menu.acc" :anchor-rect="menu.anchorRect" @close="menu.show = false" @test="handleTest" @kiro-details="handleKiroDetails" @stats="handleViewStats" @schedule="handleSchedule" @duplicate="handleDuplicateAccount" @reauth="handleReAuth" @refresh-token="handleRefresh" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" @create-spark-shadow="handleCreateSparkShadow" />
     <SyncFromCrsModal :show="showSync" @close="showSync = false" @synced="reload" />
     <ImportDataModal :show="showImportData" @close="showImportData = false" @imported="handleDataImported" />
     <BulkEditAccountModal
@@ -492,6 +518,7 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
+import type { KiroBuilderIDCreateAccountRequest } from '@/api/admin/accounts'
 import { useTableLoader } from '@/composables/useTableLoader'
 import { useSwipeSelect, type SwipeSelectVirtualContext } from '@/composables/useSwipeSelect'
 import { useTableSelection } from '@/composables/useTableSelection'
@@ -511,8 +538,11 @@ import AccountActionMenu from '@/components/admin/account/AccountActionMenu.vue'
 import ImportDataModal from '@/components/admin/account/ImportDataModal.vue'
 import ReAuthAccountModal from '@/components/admin/account/ReAuthAccountModal.vue'
 import AccountTestModal from '@/components/admin/account/AccountTestModal.vue'
+import AccountBatchTestModal from '@/components/admin/account/AccountBatchTestModal.vue'
 import AccountStatsModal from '@/components/admin/account/AccountStatsModal.vue'
 import ScheduledTestsPanel from '@/components/admin/account/ScheduledTestsPanel.vue'
+import KiroBrowserLoginModal from '@/components/admin/account/KiroBrowserLoginModal.vue'
+import KiroAccountDetailsModal from '@/components/admin/account/KiroAccountDetailsModal.vue'
 import type { SelectOption } from '@/components/common/Select.vue'
 import AccountStatusIndicator from '@/components/account/AccountStatusIndicator.vue'
 import AccountUsageCell from '@/components/account/AccountUsageCell.vue'
@@ -587,7 +617,10 @@ const selTypes = computed<AccountType[]>(() => {
   )
   return [...types]
 })
+const selectedAccounts = computed<Account[]>(() => accounts.value.filter(account => isSelected(account.id)))
 const showCreate = ref(false)
+const showKiroBrowserLogin = ref(false)
+const kiroAccountDefaults = ref<Omit<KiroBuilderIDCreateAccountRequest, 'session_id'> | undefined>()
 const showEdit = ref(false)
 const showSync = ref(false)
 const showImportData = ref(false)
@@ -600,6 +633,11 @@ const showDeleteDialog = ref(false)
 const showCreateShadowDialog = ref(false)
 const showReAuth = ref(false)
 const showTest = ref(false)
+const showKiroDetails = ref(false)
+const showBatchTest = ref(false)
+const batchTestAccountIds = ref<number[]>([])
+const batchTestAccounts = ref<Account[]>([])
+const BATCH_TEST_MAX = 100
 const showStats = ref(false)
 const showErrorPassthrough = ref(false)
 const showTLSFingerprintProfiles = ref(false)
@@ -609,6 +647,7 @@ const deletingAcc = ref<Account | null>(null)
 const creatingShadowAcc = ref<Account | null>(null)
 const reAuthAcc = ref<Account | null>(null)
 const testingAcc = ref<Account | null>(null)
+const kiroDetailsAcc = ref<Account | null>(null)
 const statsAcc = ref<Account | null>(null)
 const showSchedulePanel = ref(false)
 const scheduleAcc = ref<Account | null>(null)
@@ -738,7 +777,7 @@ const accountSupportsBatchUsage = (account: Account) => {
   if (account.platform === 'gemini') return true
   if (account.platform === 'antigravity') return account.type === 'oauth'
   if (account.platform === 'openai') return account.type === 'oauth'
-  if (account.platform === 'grok') return account.type === 'oauth'
+  if (account.platform === 'grok') return account.type === 'oauth' || account.type === 'grok_console'
   return false
 }
 
@@ -1083,6 +1122,7 @@ const {
     type: '',
     status: '',
     privacy_mode: '',
+    risk: '',
     group: '',
     search: '',
     lite: '1',
@@ -1366,6 +1406,7 @@ const isAnyModalOpen = computed(() => {
     showDeleteDialog.value ||
     showReAuth.value ||
     showTest.value ||
+    showKiroDetails.value ||
     showStats.value ||
     showSchedulePanel.value ||
     showErrorPassthrough.value ||
@@ -1481,6 +1522,20 @@ const handleManualRefresh = async () => {
   await Promise.all([load(), loadUpstreamBillingProbeGlobalState()])
   // Force usage cells to refetch /usage on explicit user refresh.
   usageManualRefreshToken.value += 1
+}
+
+const handleOpenKiroBrowserLogin = (defaults?: Omit<KiroBuilderIDCreateAccountRequest, 'session_id'>) => {
+  kiroAccountDefaults.value = {
+    ...defaults,
+    skip_default_group_bind: defaults?.skip_default_group_bind ?? true
+  }
+  showKiroBrowserLogin.value = true
+}
+
+const handleKiroAccountCreated = async () => {
+  showKiroBrowserLogin.value = false
+  showCreate.value = false
+  await reload()
 }
 
 const loadUpstreamBillingProbeGlobalState = async () => {
@@ -1645,8 +1700,8 @@ function grok45ResponsesPlanIsHeavy(snapshot: Record<string, any> | undefined): 
 // from grok-4.5 Responses (or a carried 4.5 hint).
 function getAccountPlanType(row: any): string | undefined {
   if (!row) return undefined
+  const extra = (row.extra || {}) as Record<string, any>
   if (row.platform === 'grok') {
-    const extra = (row.extra || {}) as Record<string, any>
     const billing = extra.grok_billing_snapshot as Record<string, any> | undefined
     const usage = extra.grok_usage_snapshot as Record<string, any> | undefined
     const legacyQuota = extra.grok_quota_snapshot as Record<string, any> | undefined
@@ -1675,6 +1730,11 @@ function getAccountPlanType(row: any): string | undefined {
       row.credentials?.plan_type,
       row.parent_plan_type
     )
+  }
+  if (row.platform === 'kiro') {
+    const usage = extra.kiro_usage as Record<string, any> | undefined
+    const subscription = extra.kiro_subscription as Record<string, any> | undefined
+    return usage?.subscription_title || subscription?.title || undefined
   }
   return firstNonBlankString(row.credentials?.plan_type, row.parent_plan_type)
 }
@@ -2054,6 +2114,7 @@ const buildBulkEditFilterSnapshot = () => {
     group: typeof rawParams.group === 'string' ? rawParams.group : '',
     search: typeof rawParams.search === 'string' ? rawParams.search : '',
     privacy_mode: typeof rawParams.privacy_mode === 'string' ? rawParams.privacy_mode : '',
+    risk: typeof rawParams.risk === 'string' ? rawParams.risk : '',
     sort_by: typeof rawParams.sort_by === 'string' ? rawParams.sort_by : '',
     sort_order: sortOrder
   }
@@ -2113,6 +2174,48 @@ const openBulkEditFiltered = async () => {
     selectedTypes
   }
   showBulkEdit.value = true
+}
+
+const currentGroupFilterLabel = computed(() => {
+  const group = String(params.group || '')
+  if (!group) return ''
+  if (group === 'ungrouped') return 'ungrouped'
+  const match = groups.value.find((g) => String(g.id) === group)
+  return match?.name || `#${group}`
+})
+
+const openBatchTestSelected = () => {
+  batchTestAccountIds.value = [...selIds.value]
+  batchTestAccounts.value = selectedAccounts.value
+  showBatchTest.value = true
+}
+
+const openBatchTestFiltered = async () => {
+  const filters = buildBulkEditFilterSnapshot()
+  try {
+    const preview = await adminAPI.accounts.list(1, BATCH_TEST_MAX, filters)
+    if (!preview.items.length) {
+      appStore.showWarning(t('admin.accounts.batchTest.emptyFilter'))
+      return
+    }
+    if (preview.total > BATCH_TEST_MAX) {
+      appStore.showWarning(
+        t('admin.accounts.batchTest.capped', { total: preview.total, count: BATCH_TEST_MAX })
+      )
+    }
+    batchTestAccountIds.value = preview.items.map((account) => account.id)
+    batchTestAccounts.value = preview.items
+    showBatchTest.value = true
+  } catch (error) {
+    console.error('Failed to load filtered accounts for batch test:', error)
+    appStore.showError(t('admin.accounts.batchTest.loadFailed'))
+  }
+}
+
+const closeBatchTestModal = () => {
+  showBatchTest.value = false
+  batchTestAccountIds.value = []
+  batchTestAccounts.value = []
 }
 
 const handleBulkUpdated = () => {
@@ -2177,12 +2280,22 @@ const accountMatchesCurrentFilters = (account: Account) => {
   if (search && !account.name.toLowerCase().includes(search)) return false
   return true
 }
-const mergeRuntimeFields = (oldAccount: Account, updatedAccount: Account): Account => ({
-  ...updatedAccount,
-  current_concurrency: updatedAccount.current_concurrency ?? oldAccount.current_concurrency,
-  current_window_cost: updatedAccount.current_window_cost ?? oldAccount.current_window_cost,
-  active_sessions: updatedAccount.active_sessions ?? oldAccount.active_sessions
-})
+const mergeRuntimeFields = (oldAccount: Account, updatedAccount: Account): Account => {
+  // 刷新/恢复等局部更新若省略 groups/group_ids（omitempty 或 stub），
+  // 直接展开会把列表里的分组显示冲掉，分组筛选下还会被当成“已解绑”移除。
+  const nextGroupIds = updatedAccount.group_ids
+  const nextGroups = updatedAccount.groups
+  const hasGroupIds = Array.isArray(nextGroupIds)
+  const hasGroups = Array.isArray(nextGroups)
+  return {
+    ...updatedAccount,
+    current_concurrency: updatedAccount.current_concurrency ?? oldAccount.current_concurrency,
+    current_window_cost: updatedAccount.current_window_cost ?? oldAccount.current_window_cost,
+    active_sessions: updatedAccount.active_sessions ?? oldAccount.active_sessions,
+    group_ids: hasGroupIds ? nextGroupIds : oldAccount.group_ids,
+    groups: hasGroups ? nextGroups : oldAccount.groups
+  }
+}
 
 const syncPaginationAfterLocalRemoval = () => {
   const nextTotal = Math.max(0, pagination.total - 1)
@@ -2252,6 +2365,13 @@ const handleAccountUpdated = (updatedAccount: Account) => {
   patchAccountInList(updatedAccount)
   enterAutoRefreshSilentWindow()
 }
+
+/** 额度探测/自动 usage 发现 429 时，就地补齐 rate_limit_reset_at 以刷新状态徽章 */
+const handleAccountPatch = (patch: Partial<Account> & { id: number }) => {
+  const account = accounts.value.find(item => item.id === patch.id)
+  if (!account) return
+  patchAccountInList({ ...account, ...patch })
+}
 const formatExportTimestamp = () => {
   const now = new Date()
   const pad2 = (value: number) => String(value).padStart(2, '0')
@@ -2308,6 +2428,7 @@ const handleExportData = async () => {
 }
 const accountExportStepUp = useStepUp()
 const closeTestModal = () => { showTest.value = false; testingAcc.value = null }
+const closeKiroDetailsModal = () => { showKiroDetails.value = false; kiroDetailsAcc.value = null }
 const closeStatsModal = () => { showStats.value = false; statsAcc.value = null }
 const closeReAuthModal = () => { showReAuth.value = false; reAuthAcc.value = null }
 const handleTest = async (a: AccountListItem) => {
@@ -2316,6 +2437,7 @@ const handleTest = async (a: AccountListItem) => {
   testingAcc.value = account
   showTest.value = true
 }
+const handleKiroDetails = (a: Account) => { kiroDetailsAcc.value = a; showKiroDetails.value = true }
 const handleViewStats = async (a: AccountListItem) => {
   const account = await loadAccountDetails(a)
   if (!account) return

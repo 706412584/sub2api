@@ -389,12 +389,17 @@ func TestAPIContracts(t *testing.T) {
 						"allow_live": false,
 						"fallback_group_id": null,
 						"fallback_group_id_on_invalid_request": null,
+						"default_proxy_id": null,
 						"require_oauth_only": false,
 						"require_privacy_set": false,
 						"max_reasoning_effort": "",
 						"max_reasoning_effort_over_limit": "",
 						"reasoning_effort_mappings": null,
-						"rpm_limit": 0,
+							"prompt_policy": {
+								"enabled": false,
+								"rules": null
+							},
+							"rpm_limit": 0,
 						"created_at": "2025-01-02T03:04:05Z",
 						"updated_at": "2025-01-02T03:04:05Z"
 					}
@@ -608,6 +613,7 @@ func TestAPIContracts(t *testing.T) {
 						"total_cost": 0.5,
 						"actual_cost": 0.5,
 						"rate_multiplier": 1,
+						"reasoning_tokens": 0,
 						"long_context_billing_applied": false,
 						"billing_type": 0,
 							"stream": true,
@@ -748,6 +754,7 @@ func TestAPIContracts(t *testing.T) {
 					"smtp_use_tls": true,
 					"turnstile_enabled": true,
 					"turnstile_site_key": "site-key",
+					"update_proxy_url": "",
 					"turnstile_secret_key_configured": true,
 					"tencent_captcha_enabled": false,
 					"tencent_captcha_app_id": "",
@@ -863,7 +870,7 @@ func TestAPIContracts(t *testing.T) {
 					"force_email_on_third_party_signup": false,
 					"default_concurrency": 5,
 					"default_balance": 1.25,
-					"default_platform_quotas": {"anthropic":{"daily":null,"weekly":null,"monthly":null},"antigravity":{"daily":null,"weekly":null,"monthly":null},"deepseek":{"daily":null,"weekly":null,"monthly":null},"gemini":{"daily":null,"weekly":null,"monthly":null},"grok":{"daily":null,"weekly":null,"monthly":null},"kimi":{"daily":null,"weekly":null,"monthly":null},"minimax":{"daily":null,"weekly":null,"monthly":null},"openai":{"daily":null,"weekly":null,"monthly":null},"zhipu":{"daily":null,"weekly":null,"monthly":null}},
+					"default_platform_quotas": {"anthropic":{"daily":null,"weekly":null,"monthly":null},"antigravity":{"daily":null,"weekly":null,"monthly":null},"deepseek":{"daily":null,"weekly":null,"monthly":null},"gemini":{"daily":null,"weekly":null,"monthly":null},"grok":{"daily":null,"weekly":null,"monthly":null},"kimi":{"daily":null,"weekly":null,"monthly":null},"kiro":{"daily":null,"weekly":null,"monthly":null},"minimax":{"daily":null,"weekly":null,"monthly":null},"openai":{"daily":null,"weekly":null,"monthly":null},"zhipu":{"daily":null,"weekly":null,"monthly":null}},
 					"auth_source_default_email_platform_quotas": null,
 					"auth_source_default_github_platform_quotas": null,
 					"auth_source_default_google_platform_quotas": null,
@@ -914,6 +921,7 @@ func TestAPIContracts(t *testing.T) {
 					"rewrite_message_cache_control": false,
 					"enable_client_dateline_normalization": true,
 					"antigravity_user_agent_version": "",
+					"antigravity_client_fingerprint_enabled": false,
 					"enable_fingerprint_unification": true,
 					"enable_metadata_passthrough": false,
 					"web_search_emulation_enabled": false,
@@ -990,8 +998,8 @@ func TestAPIContracts(t *testing.T) {
 					"account_quota_notify_emails": [],
 					"channel_monitor_enabled": true,
 					"channel_monitor_mode": "v1",
+						"channel_monitor_show_quota": false,
 					"channel_monitor_hide_throughput": true,
-					"channel_monitor_show_quota": false,
 					"channel_monitor_hide_user_ranking": false,
 					"channel_monitor_default_interval_seconds": 60,
 					"available_channels_enabled": false,
@@ -1099,6 +1107,7 @@ func TestAPIContracts(t *testing.T) {
 					"smtp_use_tls": false,
 					"turnstile_enabled": false,
 					"turnstile_site_key": "",
+					"update_proxy_url": "",
 					"turnstile_secret_key_configured": false,
 					"tencent_captcha_enabled": false,
 					"tencent_captcha_app_id": "",
@@ -1181,7 +1190,7 @@ func TestAPIContracts(t *testing.T) {
 					"purchase_subscription_url": "",
 					"table_default_page_size": 20,
 					"table_page_size_options": [10, 20, 50],
-					"default_platform_quotas": {"anthropic":{"daily":null,"weekly":null,"monthly":null},"antigravity":{"daily":null,"weekly":null,"monthly":null},"deepseek":{"daily":null,"weekly":null,"monthly":null},"gemini":{"daily":null,"weekly":null,"monthly":null},"grok":{"daily":null,"weekly":null,"monthly":null},"kimi":{"daily":null,"weekly":null,"monthly":null},"minimax":{"daily":null,"weekly":null,"monthly":null},"openai":{"daily":null,"weekly":null,"monthly":null},"zhipu":{"daily":null,"weekly":null,"monthly":null}},
+					"default_platform_quotas": {"anthropic":{"daily":null,"weekly":null,"monthly":null},"antigravity":{"daily":null,"weekly":null,"monthly":null},"deepseek":{"daily":null,"weekly":null,"monthly":null},"gemini":{"daily":null,"weekly":null,"monthly":null},"grok":{"daily":null,"weekly":null,"monthly":null},"kimi":{"daily":null,"weekly":null,"monthly":null},"kiro":{"daily":null,"weekly":null,"monthly":null},"minimax":{"daily":null,"weekly":null,"monthly":null},"openai":{"daily":null,"weekly":null,"monthly":null},"zhipu":{"daily":null,"weekly":null,"monthly":null}},
 					"auth_source_default_email_platform_quotas": null,
 					"auth_source_default_github_platform_quotas": null,
 					"auth_source_default_google_platform_quotas": null,
@@ -1225,6 +1234,7 @@ func TestAPIContracts(t *testing.T) {
 					"rewrite_message_cache_control": false,
 					"enable_client_dateline_normalization": true,
 					"antigravity_user_agent_version": "",
+					"antigravity_client_fingerprint_enabled": false,
 					"min_codex_version": "",
 					"max_codex_version": "",
 					"codex_cli_only_blacklist": "",
@@ -1304,8 +1314,8 @@ func TestAPIContracts(t *testing.T) {
 					"account_quota_notify_emails": [],
 					"channel_monitor_enabled": true,
 					"channel_monitor_mode": "v1",
+						"channel_monitor_show_quota": false,
 					"channel_monitor_hide_throughput": true,
-					"channel_monitor_show_quota": false,
 					"channel_monitor_hide_user_ranking": false,
 					"channel_monitor_default_interval_seconds": 60,
 					"available_channels_enabled": false,
@@ -1850,6 +1860,14 @@ func (stubGroupRepo) CreateFromSource(ctx context.Context, group *service.Group,
 	return errors.New("not implemented")
 }
 
+func (stubGroupRepo) ListGroupIDsByDefaultProxy(ctx context.Context, proxyID int64) ([]int64, error) {
+	return nil, nil
+}
+
+func (stubGroupRepo) SetDefaultProxyBoundGroups(ctx context.Context, proxyID int64, groupIDs []int64) error {
+	return nil
+}
+
 type stubAccountRepo struct {
 	bulkUpdateIDs []int64
 }
@@ -2100,6 +2118,10 @@ func (stubProxyRepo) ListActive(ctx context.Context) ([]service.Proxy, error) {
 }
 
 func (stubProxyRepo) ListActiveWithAccountCount(ctx context.Context) ([]service.ProxyWithAccountCount, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (stubProxyRepo) ListOwnedByPrefix(ctx context.Context, namePrefix string) ([]service.ProxyWithAccountCount, error) {
 	return nil, errors.New("not implemented")
 }
 

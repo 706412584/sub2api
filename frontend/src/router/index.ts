@@ -561,6 +561,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/im-bots',
+    name: 'AdminIMBots',
+    component: () => import('@/views/admin/IMBotsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'IM Bots',
+      titleKey: 'admin.imBots.title',
+      descriptionKey: 'admin.imBots.description'
+    }
+  },
+  {
     path: '/admin/redeem',
     name: 'AdminRedeem',
     component: () => import('@/views/admin/RedeemView.vue'),

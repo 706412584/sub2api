@@ -123,6 +123,9 @@ type AdminService interface {
 	GetProxiesByIDs(ctx context.Context, ids []int64) ([]Proxy, error)
 	CreateProxy(ctx context.Context, input *CreateProxyInput) (*Proxy, error)
 	UpdateProxy(ctx context.Context, id int64, input *UpdateProxyInput) (*Proxy, error)
+	// SetProxyBoundGroups binds groups to use this proxy as default when accounts join.
+	SetProxyBoundGroups(ctx context.Context, proxyID int64, groupIDs []int64) error
+	ListGroupIDsByDefaultProxy(ctx context.Context, proxyID int64) ([]int64, error)
 	DeleteProxy(ctx context.Context, id int64) error
 	BatchDeleteProxies(ctx context.Context, ids []int64) (*ProxyBatchDeleteResult, error)
 	GetProxyAccounts(ctx context.Context, proxyID int64) ([]ProxyAccountSummary, error)
@@ -278,6 +281,8 @@ type CreateGroupInput struct {
 	FallbackGroupID              *int64 // 降级分组 ID
 	// 无效请求兜底分组 ID（仅 anthropic 平台使用）
 	FallbackGroupIDOnInvalidRequest *int64
+	// DefaultProxyID 账号入组未指定代理时自动绑定
+	DefaultProxyID *int64
 	// 模型路由配置（仅 anthropic 平台使用）
 	ModelRouting        map[string][]int64
 	ModelRoutingEnabled bool // 是否启用模型路由
@@ -296,6 +301,13 @@ type CreateGroupInput struct {
 	ModelAllowlist              GroupModelAllowlist
 	// CodexModelsManifestConfig 固定账号 manifest 配置；创建路径禁止开启，仅编辑可配置。
 	CodexModelsManifestConfig GroupCodexModelsManifestConfig
+	GrokMessagesProtocol      string
+	// GrokReasoningVisibilityMode 分组级 Grok 思考明文可见性调度模式。
+	GrokReasoningVisibilityMode string
+	// GrokReasoningProbeTTLSec 分组级探测复用秒数，-1=继承网关
+	GrokReasoningProbeTTLSec int
+	// GrokReasoningQuarantineSec 分组级 enforce 冷却秒数，-1=继承网关
+	GrokReasoningQuarantineSec int
 	// RPMLimit 分组 RPM 上限（0 = 不限制）
 	RPMLimit int
 	// MaxReasoningEffort Anthropic/OpenAI 请求的推理强度上限，空字符串表示不限制。
@@ -304,6 +316,8 @@ type CreateGroupInput struct {
 	MaxReasoningEffortOverLimit string
 	// ReasoningEffortMappings Anthropic/OpenAI 推理强度映射，可按模型精确名、前缀或后缀限定。
 	ReasoningEffortMappings []ReasoningEffortMapping
+	// PromptPolicy 分组级请求提示词处理策略。
+	PromptPolicy GroupPromptPolicy
 	// 分组利润控制（五个 token 平台分组可启用；margin/buffer 为小数，nil 按 0 处理）
 	ProfitControlEnabled bool
 	ProfitMinMargin      *float64
@@ -359,6 +373,8 @@ type UpdateGroupInput struct {
 	FallbackGroupID              *int64 // 降级分组 ID
 	// 无效请求兜底分组 ID（仅 anthropic 平台使用）
 	FallbackGroupIDOnInvalidRequest *int64
+	// DefaultProxyID nil=不修改；0=清除；>0=设置
+	DefaultProxyID *int64
 	// 模型路由配置（仅 anthropic 平台使用）
 	ModelRouting        map[string][]int64
 	ModelRoutingEnabled *bool // 是否启用模型路由
@@ -377,6 +393,13 @@ type UpdateGroupInput struct {
 	ModelAllowlist              *GroupModelAllowlist
 	// CodexModelsManifestConfig nil 表示不修改；非 openai 平台会被归一化为关闭。
 	CodexModelsManifestConfig *GroupCodexModelsManifestConfig
+	GrokMessagesProtocol      *string
+	// GrokReasoningVisibilityMode nil 表示未提供不改动。
+	GrokReasoningVisibilityMode *string
+	// GrokReasoningProbeTTLSec nil 表示未提供不改动。
+	GrokReasoningProbeTTLSec *int
+	// GrokReasoningQuarantineSec nil 表示未提供不改动。
+	GrokReasoningQuarantineSec *int
 	// RPMLimit 分组 RPM 上限（0 = 不限制），nil 表示未提供不改动。
 	RPMLimit *int
 	// MaxReasoningEffort 空字符串表示清除上限；nil 表示未提供不改动。
@@ -385,6 +408,8 @@ type UpdateGroupInput struct {
 	MaxReasoningEffortOverLimit *string
 	// ReasoningEffortMappings nil 表示不修改，空数组表示清空，非空数组表示替换。
 	ReasoningEffortMappings *[]ReasoningEffortMapping
+	// PromptPolicy nil 表示不修改，非 nil 表示完整替换。
+	PromptPolicy *GroupPromptPolicy
 	// 分组利润控制（nil 表示不修改；margin/buffer 为小数）
 	ProfitControlEnabled *bool
 	ProfitMinMargin      *float64
@@ -531,6 +556,7 @@ type CreateProxyInput struct {
 	ExpiresAt      *time.Time
 	FallbackMode   string
 	BackupProxyID  *int64
+	EgressProxyID  *int64
 	ExpiryWarnDays int
 }
 
@@ -549,6 +575,8 @@ type UpdateProxyInput struct {
 	FallbackMode   string
 	BackupProxyID  *int64
 	ClearBackupID  bool
+	EgressProxyID  *int64
+	ClearEgressID  bool
 	ExpiryWarnDays *int
 }
 

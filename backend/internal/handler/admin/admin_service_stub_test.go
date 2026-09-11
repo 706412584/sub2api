@@ -512,7 +512,15 @@ func (s *stubAdminService) CreateAccount(ctx context.Context, input *service.Cre
 	if s.createAccountErr != nil {
 		return nil, s.createAccountErr
 	}
-	account := service.Account{ID: 300, Name: input.Name, Status: service.StatusActive}
+	account := service.Account{
+		ID:          300,
+		Name:        input.Name,
+		Platform:    input.Platform,
+		Type:        input.Type,
+		Credentials: input.Credentials,
+		Extra:       input.Extra,
+		Status:      service.StatusActive,
+	}
 	return &account, nil
 }
 
@@ -655,6 +663,14 @@ func (s *stubAdminService) CreateProxy(ctx context.Context, input *service.Creat
 	s.mu.Unlock()
 	proxy := service.Proxy{ID: 400, Name: input.Name, Status: service.StatusActive}
 	return &proxy, nil
+}
+
+func (s *stubAdminService) SetProxyBoundGroups(ctx context.Context, proxyID int64, groupIDs []int64) error {
+	return nil
+}
+
+func (s *stubAdminService) ListGroupIDsByDefaultProxy(ctx context.Context, proxyID int64) ([]int64, error) {
+	return nil, nil
 }
 
 func (s *stubAdminService) UpdateProxy(ctx context.Context, id int64, input *service.UpdateProxyInput) (*service.Proxy, error) {

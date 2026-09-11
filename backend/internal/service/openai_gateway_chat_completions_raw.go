@@ -193,6 +193,7 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	if resp.StatusCode >= 400 {
 		respBody, upstreamMsg := s.readOpenAIUpstreamError(resp)
 		if account.Platform == PlatformGrok {
+			upstreamMsg = safeGrokUpstreamErrorMessage(resp.StatusCode, respBody, upstreamMsg, fmt.Sprintf("xAI upstream returned status %d", resp.StatusCode))
 			kind := "http_error"
 			if s.shouldFailoverGrokUpstreamError(resp.StatusCode, respBody) {
 				kind = "failover"
@@ -208,13 +209,15 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 				Kind:               kind,
 				Message:            upstreamMsg,
 			})
-			s.handleGrokAccountUpstreamError(withGrokTeamRateLimitModel(ctx, upstreamModel), account, resp.StatusCode, resp.Header, respBody)
+			s.handleGrokAccountUpstreamError(withGrokTeamRateLimitModel(ctx, upstreamModel), account, resp.StatusCode, resp.Header, respBody, originalModel)
 			if s.shouldFailoverGrokUpstreamError(resp.StatusCode, respBody) {
 				retryable, retryDelay, retryDeadline, retryMax := grokSameAccountRetryMetadata(account, resp.StatusCode, respBody)
 				return nil, &UpstreamFailoverError{
 					StatusCode:               resp.StatusCode,
 					ResponseBody:             respBody,
 					ResponseHeaders:          resp.Header.Clone(),
+					Platform:                 PlatformGrok,
+					ClientMessage:            upstreamMsg,
 					RetryableOnSameAccount:   retryable,
 					RequestScopedTransient:   retryable && resp.StatusCode == http.StatusTooManyRequests,
 					SameAccountRetryDelay:    retryDelay,
@@ -326,6 +329,15 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 			)
 		}
 	}
+	writeStreamError := func(message string) {
+		writeLine(strings.TrimSuffix(buildChatStreamErrorSSE("upstream_error", message), "\n\n"))
+		writeLine("")
+		writeLine("data: [DONE]")
+		writeLine("")
+		if !clientDisconnected {
+			c.Writer.Flush()
+		}
+	}
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -334,7 +346,17 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 			trimmedPayload := strings.TrimSpace(payload)
 			terminal.ObserveDataLine(trimmedPayload)
 			if trimmedPayload != "[DONE]" {
-				observer.ObserveOpenAI([]byte(payload), strings.TrimSpace(gjson.Get(payload, "type").String()))
+				payloadBytes := []byte(payload)
+				observer.ObserveOpenAI(payloadBytes, strings.TrimSpace(gjson.Get(payload, "type").String()))
+				// fork 定制保留：Grok 平台流内 error 事件即时失败/换号（不等到流结束）
+				if account.Platform == PlatformGrok && gjson.GetBytes(payloadBytes, "error").Exists() {
+					safeMessage := safeGrokUpstreamErrorMessage(http.StatusBadGateway, payloadBytes, extractUpstreamErrorMessage(payloadBytes), "Upstream request failed")
+					if !clientOutputStarted {
+						return nil, s.newOpenAIStreamFailoverError(c, account, false, requestID, payloadBytes, safeMessage)
+					}
+					writeStreamError(safeMessage)
+					return nil, fmt.Errorf("upstream chat stream error: %s", safeMessage)
+				}
 				usageOnlyChunk := isOpenAIChatUsageOnlyStreamChunk(payload)
 				if u := extractCCStreamUsage(payload); u != nil {
 					usage = *u

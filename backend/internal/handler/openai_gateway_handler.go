@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
@@ -71,11 +72,13 @@ func advanceOpenAIWSCyberBlockState(blocked, pending, marked bool, turnErr error
 
 var errOpenAIWSUnsupportedModelSwitch = errors.New("selected account does not support websocket model switch")
 
+// newOpenAIWSUnsupportedModelSwitchError 将不支持模型切换转换为客户端需重连的协议错误。
 func newOpenAIWSUnsupportedModelSwitchError(model string) error {
 	cause := fmt.Errorf("%w: model %q", errOpenAIWSUnsupportedModelSwitch, strings.TrimSpace(model))
 	return service.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "model switch requires reconnect", cause)
 }
 
+// shouldReportOpenAIWSProxyAccountFailure 排除客户端主动重连导致的账号失败统计。
 func shouldReportOpenAIWSProxyAccountFailure(err error) bool {
 	return err != nil && !errors.Is(err, errOpenAIWSUnsupportedModelSwitch) && !service.IsOpenAIWSSessionPreemptedError(err)
 }
@@ -129,6 +132,7 @@ func openAIWSIngressEndedByClient(err error) bool {
 	return errors.Is(err, context.Canceled)
 }
 
+// openAIWSTurnBillingModel 按映射来源确定 WebSocket 回合的最终计费模型。
 func openAIWSTurnBillingModel(result *service.OpenAIForwardResult, mapping service.ChannelMappingResult, requestedModel, upstreamModel string) string {
 	billingModel := ""
 	if result != nil {
@@ -444,6 +448,17 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	stopCompactKeepalive := service.StartOpenAICompactSSEKeepalive(c, h.openAICompactKeepaliveInterval())
 	defer stopCompactKeepalive()
 
+	// 在安全审计、模型映射和会话粘性前应用分组提示词策略。
+	body, blocked, err := applyGroupPromptPolicy(apiKey, body, domain.GroupPromptPolicyEndpointResponses)
+	if err != nil {
+		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to apply group prompt policy")
+		return
+	}
+	if blocked {
+		h.errorResponse(c, http.StatusForbidden, "permission_error", "Request blocked by group prompt policy")
+		return
+	}
+
 	// 校验请求体 JSON 合法性
 	if !gjson.ValidBytes(body) {
 		logRequestBodyParseFailure(reqLog, body, nil)
@@ -623,7 +638,6 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	sameAccountRetryCount := make(map[int64]int)
 	var lastFailoverErr *service.UpstreamFailoverError
 	var oauth429FailoverState service.OpenAIOAuth429FailoverState
-	var passthroughFailoverState openAIPassthroughFailoverState
 
 	// 生图意图的 /v1/responses 请求必须调度到确实支持 Responses API 的账号，否则
 	// 会在 forward 阶段被静默降级为无法生图的 Chat Completions 直转（#4417）。
@@ -676,6 +690,10 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 				if legacyCompact && errors.Is(err, service.ErrNoAvailableCompactAccounts) {
 					markOpsRoutingCapacityLimitedIfNoAvailable(c, err)
 					h.handleStreamingAwareError(c, http.StatusServiceUnavailable, "compact_not_supported", "No available accounts support /responses/compact", streamStarted)
+					return
+				}
+				if errors.Is(err, service.ErrGrokReasoningFiltered) {
+					h.handleStreamingAwareError(c, http.StatusBadGateway, "grok_reasoning_blocked", "All accounts blocked by reasoning visibility enforcement", streamStarted)
 					return
 				}
 				cls := classifyNoAccountErrorFromGin(c, h.gatewayService, apiKey, reqModel, reqModel, requestPlatform)
@@ -761,17 +779,13 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		// 用扣除非语义心跳字节的口径快照：心跳注释不构成语义响应，
 		// 不能因心跳字节变化而放弃 failover 换号（#3887）。
 		writerSizeBeforeForward := service.OpenAICompactKeepaliveAdjustedWrittenSize(c)
-		// 跨 passthrough 边界的 failover：从 Kiro 等透传账号切到 Bedrock 等非透传账号前，
-		// 从不可变的 canonical forwardBody 派生本次尝试 body 并整块剔除上游私有的加密
-		// reasoning item（含耦合的 id/summary），避免非透传上游 400 拒绝 Kiro reasoning 形态。
-		attemptBody := h.deriveOpenAIForwardAttemptBody(reqLog, forwardBody, account, &passthroughFailoverState)
 		result, err := func() (*service.OpenAIForwardResult, error) {
 			defer func() {
 				if accountReleaseFunc != nil {
 					accountReleaseFunc()
 				}
 			}()
-			return h.gatewayService.Forward(c.Request.Context(), c, account, attemptBody)
+			return h.gatewayService.Forward(c.Request.Context(), c, account, forwardBody)
 		}()
 		var cyberBlockBodyHTTP []byte
 		if service.GetOpsCyberPolicy(c) != nil {
@@ -1182,6 +1196,17 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 		return
 	}
 
+	// Apply the group prompt policy before audit, routing, and session handling.
+	body, blocked, err := applyGroupPromptPolicy(apiKey, body, domain.GroupPromptPolicyEndpointMessages)
+	if err != nil {
+		h.anthropicErrorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to apply group prompt policy")
+		return
+	}
+	if blocked {
+		h.anthropicErrorResponse(c, http.StatusForbidden, "permission_error", "Request blocked by group prompt policy")
+		return
+	}
+
 	modelResult := gjson.GetBytes(body, "model")
 	if !modelResult.Exists() || modelResult.Type != gjson.String || modelResult.String() == "" {
 		h.anthropicErrorResponse(c, http.StatusBadRequest, "invalid_request_error", "model is required")
@@ -1346,13 +1371,20 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 		// 应用渠道模型映射到请求体
 		forwardBody := mappedBodyForMessages(channelMappingMsg.Mapped, channelMappingMsg.MappedModel)
 		writerSizeBeforeForward := c.Writer.Size()
+		var grokMessagesProtocol []string
+		if apiKey.Group != nil {
+			grokMessagesProtocol = []string{apiKey.Group.GrokMessagesProtocol}
+		}
 		result, err := func() (*service.OpenAIForwardResult, error) {
 			defer func() {
 				if accountReleaseFunc != nil {
 					accountReleaseFunc()
 				}
 			}()
-			return h.gatewayService.ForwardAsAnthropic(c.Request.Context(), c, account, forwardBody, promptCacheKey, defaultMappedModel)
+			return h.gatewayService.ForwardAsAnthropic(
+				c.Request.Context(), c, account, forwardBody, promptCacheKey, defaultMappedModel,
+				grokMessagesProtocol...,
+			)
 		}()
 		var cyberBlockBodyMsg []byte
 		if service.GetOpsCyberPolicy(c) != nil {
@@ -2394,7 +2426,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 	previousResponseCanMove := !firstMessageToolCoverage.HasFunctionCallOutput || firstMessageToolCoverage.ContextCoversAllCallIDs
 	reqLog = reqLog.With(
 		zap.Bool("ws_ingress", true),
-		zap.String("session_initial_model", reqModel),
+		zap.String("model", reqModel),
 		zap.Bool("has_previous_response_id", previousResponseID != ""),
 		zap.String("previous_response_id_kind", previousResponseIDKind),
 	)
@@ -2978,6 +3010,9 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		}
 
 		wsFirstMessage := wsAttemptMessage
+		if channelMappingWS.Mapped {
+			wsFirstMessage = h.gatewayService.ReplaceModelInBody(wsFirstMessage, channelMappingWS.MappedModel)
+		}
 		// 切组/会话失配防护：previous_response_id 未在当前分组命中粘连账号（StickyPreviousHit=false），
 		// 说明该会话链不属于本次调度到的账号，原样转发会触发上游会话链鉴权失败（“鉴权失败，请检查 API Key”）。
 		// 故剥离首包里的 previous_response_id，改用首包内 input 重建上下文；带 function_call_output 的
@@ -3348,6 +3383,15 @@ func (h *OpenAIGatewayHandler) handleFailoverExhausted(c *gin.Context, failoverE
 	}
 	statusCode := failoverErr.StatusCode
 	responseBody := failoverErr.ResponseBody
+	platform := strings.TrimSpace(failoverErr.Platform)
+	if platform == "" {
+		apiKey, _ := c.Get("api_key")
+		if resolvedAPIKey, ok := apiKey.(*service.APIKey); ok {
+			platform = openAICompatibleRequestPlatform(c.Request.Context(), resolvedAPIKey)
+		} else {
+			platform = service.PlatformOpenAI
+		}
+	}
 	if statusCode == http.StatusBadRequest && service.IsOpenAICompatibleModelNotFound400(responseBody) && !streamStarted {
 		upstreamMsg := service.SanitizeUpstreamErrorMessage(service.ExtractUpstreamErrorMessage(responseBody))
 		service.SetOpsUpstreamError(c, statusCode, upstreamMsg, "")
@@ -3362,17 +3406,27 @@ func (h *OpenAIGatewayHandler) handleFailoverExhausted(c *gin.Context, failoverE
 
 	// 先检查透传规则
 	if h.errorPassthroughService != nil && len(responseBody) > 0 {
-		if rule := h.errorPassthroughService.MatchRule("openai", statusCode, responseBody); rule != nil {
+		if rule := h.errorPassthroughService.MatchRule(platform, statusCode, responseBody); rule != nil {
 			// 确定响应状态码
 			respCode := statusCode
 			if !rule.PassthroughCode && rule.ResponseCode != nil {
 				respCode = *rule.ResponseCode
 			}
 
-			// 确定响应消息
-			msg := service.ExtractUpstreamErrorMessage(responseBody)
+			// 确定响应消息。Grok 必须显式携带已脱敏消息，禁止回退到原始响应体。
+			msg := failoverErr.ClientMessage
+			if msg == "" && platform != service.PlatformGrok {
+				msg = service.ExtractUpstreamErrorMessage(responseBody)
+			}
 			if !rule.PassthroughBody && rule.CustomMessage != nil {
 				msg = *rule.CustomMessage
+			}
+			if platform == service.PlatformGrok {
+				if safeMessage := service.SanitizeGrokMediaClientErrorMessage(msg); safeMessage != "" {
+					msg = safeMessage
+				} else {
+					msg = "Upstream request failed"
+				}
 			}
 
 			if rule.SkipMonitoring {
@@ -3384,8 +3438,15 @@ func (h *OpenAIGatewayHandler) handleFailoverExhausted(c *gin.Context, failoverE
 		}
 	}
 
-	// 记录原始上游状态码，以便 ops 错误日志捕获真实的上游错误
-	upstreamMsg := service.ExtractUpstreamErrorMessage(responseBody)
+	// 记录真实上游状态码；Grok 缺少安全消息时 fail closed，不读取原始响应体。
+	upstreamMsg := failoverErr.ClientMessage
+	if upstreamMsg == "" {
+		if platform == service.PlatformGrok {
+			upstreamMsg = "Upstream request failed"
+		} else {
+			upstreamMsg = service.ExtractUpstreamErrorMessage(responseBody)
+		}
+	}
 	service.SetOpsUpstreamError(c, statusCode, upstreamMsg, "")
 
 	// 使用默认的错误映射
@@ -3403,6 +3464,9 @@ func credentialFailoverClientResponse(failoverErr *service.UpstreamFailoverError
 	}
 	if failoverErr != nil && failoverErr.Reason == service.AntigravityCredentialRejectedReason {
 		return http.StatusBadGateway, service.AntigravityCredentialRejectedClientMessage
+	}
+	if failoverErr != nil && failoverErr.Platform != "" && failoverErr.Platform != service.PlatformGrok {
+		return http.StatusBadGateway, "Upstream authentication failed, please contact administrator"
 	}
 	return http.StatusServiceUnavailable, service.GrokCredentialUnavailableClientMessage
 }

@@ -91,6 +91,8 @@ func (s *AntigravityGatewayService) ForwardGemini(ctx context.Context, c *gin.Co
 		MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalFeatureGate)
 		return nil, s.writeGoogleError(c, http.StatusForbidden, fmt.Sprintf("model %s not in whitelist", originalModel))
 	}
+	// 分档 Gemini 模型按 reasoning effort 自动选档（gemini-3.8-flash -> gemini-3.8-flash-low）
+	mappedModel = resolveAntigravityEffortTier(ctx, account, mappedModel)
 	forwardedModel := mappedModel
 
 	// 获取 access_token

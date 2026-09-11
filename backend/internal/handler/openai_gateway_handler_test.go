@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/model"
 	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
@@ -256,6 +257,89 @@ func TestOpenAIHandleStreamingAwareError_NonStreaming(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "upstream_error", errorObj["type"])
 	assert.Equal(t, "test error", errorObj["message"])
+}
+
+type failoverPassthroughRepo struct {
+	rules []*model.ErrorPassthroughRule
+}
+
+func (r *failoverPassthroughRepo) List(context.Context) ([]*model.ErrorPassthroughRule, error) {
+	return r.rules, nil
+}
+
+func (r *failoverPassthroughRepo) GetByID(context.Context, int64) (*model.ErrorPassthroughRule, error) {
+	return nil, nil
+}
+
+func (r *failoverPassthroughRepo) Create(context.Context, *model.ErrorPassthroughRule) (*model.ErrorPassthroughRule, error) {
+	return nil, nil
+}
+
+func (r *failoverPassthroughRepo) Update(context.Context, *model.ErrorPassthroughRule) (*model.ErrorPassthroughRule, error) {
+	return nil, nil
+}
+
+func (r *failoverPassthroughRepo) Delete(context.Context, int64) error { return nil }
+
+func TestOpenAIFailoverExhaustedUsesPlatformAndSanitizedClientMessage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+
+	rule := &model.ErrorPassthroughRule{
+		ID:              1,
+		Name:            "grok-500",
+		Enabled:         true,
+		Priority:        1,
+		ErrorCodes:      []int{http.StatusInternalServerError},
+		MatchMode:       model.MatchModeAny,
+		Platforms:       []string{model.PlatformGrok},
+		PassthroughCode: true,
+		PassthroughBody: true,
+	}
+	h := &OpenAIGatewayHandler{
+		errorPassthroughService: service.NewErrorPassthroughService(&failoverPassthroughRepo{rules: []*model.ErrorPassthroughRule{rule}}, nil),
+	}
+	h.handleFailoverExhausted(c, &service.UpstreamFailoverError{
+		StatusCode:    http.StatusInternalServerError,
+		ResponseBody:  []byte(`{"error":"Authorization: Bearer secret.token.value"}`),
+		Platform:      service.PlatformGrok,
+		ClientMessage: "Authorization: Bearer ***",
+	}, false)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+	require.Equal(t, "Authorization: Bearer ***", gjson.GetBytes(w.Body.Bytes(), "error.message").String())
+	require.NotContains(t, w.Body.String(), "secret.token.value")
+}
+
+func TestOpenAIFailoverExhaustedGrokWithoutClientMessageFailsClosed(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	c.Set("api_key", &service.APIKey{Group: &service.Group{Platform: service.PlatformGrok}})
+
+	rule := &model.ErrorPassthroughRule{
+		ID:              2,
+		Name:            "grok-500-fail-closed",
+		Enabled:         true,
+		ErrorCodes:      []int{http.StatusInternalServerError},
+		Platforms:       []string{model.PlatformGrok},
+		PassthroughCode: true,
+		PassthroughBody: true,
+	}
+	h := &OpenAIGatewayHandler{
+		errorPassthroughService: service.NewErrorPassthroughService(&failoverPassthroughRepo{rules: []*model.ErrorPassthroughRule{rule}}, nil),
+	}
+	h.handleFailoverExhausted(c, &service.UpstreamFailoverError{
+		StatusCode:   http.StatusInternalServerError,
+		ResponseBody: []byte(`{"error":"Authorization: Bearer secret.token.value"}`),
+	}, false)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+	require.Equal(t, "Upstream request failed", gjson.GetBytes(w.Body.Bytes(), "error.message").String())
+	require.NotContains(t, w.Body.String(), "secret.token.value")
 }
 
 func TestReadRequestBodyWithPrealloc(t *testing.T) {
@@ -2208,27 +2292,15 @@ func TestOpenAIResponses_APIKeyPassthroughPool5xxRetriesThenExhaustsMaxSwitches(
 	t.Cleanup(billingCacheSvc.Stop)
 	gatewaySvc := service.NewOpenAIGatewayService(
 		accountRepo,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
+		nil, nil, nil, nil, nil, nil,
 		cfg,
-		nil,
-		nil,
+		nil, nil,
 		service.NewBillingService(cfg, nil),
 		nil,
 		billingCacheSvc,
 		upstream,
 		&service.DeferredService{},
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 	h := NewOpenAIGatewayHandler(
 		gatewaySvc,
@@ -2309,27 +2381,15 @@ func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHe
 			t.Cleanup(billingCacheSvc.Stop)
 			gatewaySvc := service.NewOpenAIGatewayService(
 				accountRepo,
-				nil,
-				nil,
-				nil,
-				nil,
-				nil,
-				nil,
+				nil, nil, nil, nil, nil, nil,
 				cfg,
-				nil,
-				nil,
+				nil, nil,
 				service.NewBillingService(cfg, nil),
 				rateLimitSvc,
 				billingCacheSvc,
 				upstream,
 				&service.DeferredService{},
-				nil,
-				nil,
-				nil,
-				nil,
-				nil,
-				nil,
-				nil,
+				nil, nil, nil, nil, nil, nil, nil, nil, nil,
 			)
 			h := NewOpenAIGatewayHandler(
 				gatewaySvc,
@@ -2391,27 +2451,15 @@ func TestOpenAIResponses_APIKeyPassthroughSSERateLimitUsesConfiguredPoolRetry(t 
 	t.Cleanup(billingCacheSvc.Stop)
 	gatewaySvc := service.NewOpenAIGatewayService(
 		accountRepo,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
+		nil, nil, nil, nil, nil, nil,
 		cfg,
-		nil,
-		nil,
+		nil, nil,
 		service.NewBillingService(cfg, nil),
 		nil,
 		billingCacheSvc,
 		upstream,
 		&service.DeferredService{},
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 	h := NewOpenAIGatewayHandler(
 		gatewaySvc,
@@ -2551,27 +2599,15 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
 	gatewaySvc := service.NewOpenAIGatewayService(
 		accountRepo,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
+		nil, nil, nil, nil, nil, nil,
 		cfg,
-		nil,
-		nil,
+		nil, nil,
 		service.NewBillingService(cfg, nil),
 		rateLimitSvc,
 		billingCacheSvc,
 		nil,
 		&service.DeferredService{},
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 
 	cache := &concurrencyCacheMock{
@@ -2760,7 +2796,7 @@ func TestOpenAIResponsesWebSocket_FirstOutputTimeoutWithoutDownstreamReusesClien
 	gatewaySvc := service.NewOpenAIGatewayService(
 		accountRepo, nil, nil, nil, nil, nil, nil, cfg, nil, nil,
 		service.NewBillingService(cfg, nil), rateLimitSvc, billingCacheSvc,
-		nil, &service.DeferredService{}, nil, nil, nil, nil, nil, nil, nil,
+		nil, &service.DeferredService{}, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 	cache := &concurrencyCacheMock{
 		acquireUserSlotFn: func(context.Context, int64, int, string) (bool, error) { return true, nil },
@@ -2967,26 +3003,17 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 	gatewaySvc := service.NewOpenAIGatewayService(
 		accountRepo,
 		usageRepo,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
+		nil, nil, nil, nil, nil,
 		cfg,
-		nil,
-		nil,
+		nil, nil,
 		service.NewBillingService(cfg, nil),
 		nil,
 		billingCacheSvc,
 		nil,
 		&service.DeferredService{},
-		nil,
-		nil,
-		nil,
+		nil, nil, nil, nil, nil,
 		channelSvc,
-		nil,
-		nil,
-		nil, // userPlatformQuotaRepo
+		nil, nil, nil,
 	)
 
 	cache := &concurrencyCacheMock{

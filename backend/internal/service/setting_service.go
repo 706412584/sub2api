@@ -126,6 +126,8 @@ type SettingService struct {
 	webSearchManagerBuilder     WebSearchManagerBuilder
 	antigravityUAVersionCache   atomic.Value // *cachedAntigravityUserAgentVersion
 	antigravityUAVersionSF      singleflight.Group
+	antigravityFingerprintCache atomic.Value // *cachedAntigravityFingerprint
+	antigravityFingerprintSF    singleflight.Group
 	openAICodexUACache          atomic.Value // *cachedOpenAICodexUserAgent
 	openAICodexUASF             singleflight.Group
 	openAICodexVersionCache     atomic.Value // *cachedOpenAICodexClientVersion
@@ -150,6 +152,11 @@ type SettingService struct {
 	openAIQuotaAutoPauseSettingsCache atomic.Value // *cachedOpenAIQuotaAutoPauseSettings
 	openAIQuotaAutoPauseSettingsSF    singleflight.Group
 	openAIAPIKeyHealthBreakerCache    atomic.Value // *cachedOpenAIAPIKeyHealthBreakerSettings
+
+	// grokReasoningVisibilityCache 网关级 Grok 思考明文调度配置进程内缓存。
+	// 每个 Grok 账号的调度候选过滤都会读取，禁止在热路径上直接访问 DB。
+	grokReasoningVisibilityCache atomic.Value // *cachedGrokReasoningVisibilitySettings
+	grokReasoningVisibilitySF    singleflight.Group
 
 	channelMonitorRuntimeListenersMu sync.Mutex
 	channelMonitorRuntimeListeners   []func()

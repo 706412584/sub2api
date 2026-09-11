@@ -82,12 +82,13 @@ export default {
 
     backup: {
       title: '数据库备份',
-      description: '全量数据库备份到 S3 兼容存储，支持定时备份与恢复',
+      description: '全量数据库备份；未配置 S3 时自动使用服务器本地目录，支持定时备份与恢复',
       s3: {
-        title: 'S3 存储配置',
-        description: '配置 S3 兼容存储（支持 Cloudflare R2）',
-        descriptionPrefix: '配置 S3 兼容存储（支持',
+        title: 'S3 存储配置（可选）',
+        description: '配置 S3 兼容存储（支持 Cloudflare R2）；不配置则使用本地目录',
+        descriptionPrefix: '可选配置 S3 兼容存储（支持',
         descriptionSuffix: '）',
+        localFallbackHint: '未配置时，备份将保存到服务器本地 data/backups 目录，可通过管理后台下载。',
         enabled: '启用 S3 存储',
         endpoint: '端点地址',
         region: '区域',
@@ -143,12 +144,17 @@ export default {
       columns: {
         status: '状态',
         fileName: '文件名',
+        storage: '存储位置',
         size: '大小',
         parts: '分卷数',
         expiresAt: '过期时间',
         triggeredBy: '触发方式',
         startedAt: '开始时间',
         actions: '操作'
+      },
+      storage: {
+        s3: 'S3/对象存储',
+        local: '本地目录',
       },
       status: {
         pending: '等待中',
@@ -1159,6 +1165,24 @@ export default {
         fallbackGroup: '降级分组',
         fallbackHint: '非 Claude Code 请求将使用此分组，留空则直接拒绝',
         noFallback: '不降级（直接拒绝）'
+      },
+      grokMessages: {
+        title: 'Anthropic Messages 上游协议',
+        responses: 'Responses（默认原生）',
+        chatCompletions: 'Chat Completions（可选：返回可见思考）',
+        hint: '仅影响此 Grok 分组接收原生 /v1/messages 请求。默认走原生 Responses；仅在选择 Chat Completions 时转换并返回可见思考。'
+      },
+      grokReasoningVisibility: {
+        title: 'Grok 思考明文可见性',
+        inherit: '继承网关设置',
+        off: '关闭',
+        soft: '软执行（仅影响负载均衡评分）',
+        enforce: '强制（排除加密推理账号）',
+        hint: '覆盖网关级别的 Grok 推理可见性模式。inherit = 跟随网关全局设置。',
+        probeTTL: '探测缓存 TTL（秒）',
+        probeTTLHint: '-1=继承网关；0=每次重探测；N=缓存 N 秒',
+        quarantineSec: '探测失败冷却（秒）',
+        quarantineSecHint: '-1=继承网关；-2=暂停调度；0=仅本轮排除；N=临时不可调度 N 秒'
       },
       openaiMessages: {
         title: 'OpenAI Messages 调度配置',

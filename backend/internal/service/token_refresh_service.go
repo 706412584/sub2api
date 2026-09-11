@@ -128,6 +128,7 @@ func NewTokenRefreshService(
 		grokOAuthService = grokOAuthServices[0]
 	}
 	grokRefresher := NewGrokTokenRefresher(grokOAuthService)
+	kiroRefresher := NewKiroTokenRefresher()
 
 	// Each provider is registered exactly once. The same registry supplies both
 	// execution and repository eligibility, preventing future platform drift.
@@ -137,6 +138,7 @@ func NewTokenRefreshService(
 		{platform: PlatformGemini, refresher: geminiRefresher, executor: geminiRefresher},
 		{platform: PlatformAntigravity, refresher: agRefresher, executor: agRefresher},
 		{platform: PlatformGrok, refresher: grokRefresher, executor: grokRefresher},
+		{platform: PlatformKiro, refresher: kiroRefresher, executor: kiroRefresher},
 	}
 
 	return s
@@ -617,6 +619,10 @@ func (s *TokenRefreshService) processCandidatePage(
 		}
 		stats.oauth++
 		if !state.registration.refresher.NeedsRefresh(account, refreshWindow) {
+			continue
+		}
+		// Grok background refresh uses stable per-account due-at jitter to avoid thundering herds.
+		if account.Platform == PlatformGrok && !grokBackgroundRefreshReady(account, refreshWindow, time.Now()) {
 			continue
 		}
 		stats.needsRefresh++
@@ -1501,14 +1507,15 @@ func (s *TokenRefreshService) ensureAntigravityPrivacy(ctx context.Context, acco
 
 	projectID, _ := account.Credentials["project_id"].(string)
 
-	var proxyURL string
+	var proxyURL, egressURL string
 	if account.ProxyID != nil && s.proxyRepo != nil {
 		if p, err := s.proxyRepo.GetByID(ctx, *account.ProxyID); err == nil && p != nil {
 			proxyURL = p.URL()
+			egressURL = p.EgressChainURL(ctx, s.proxyRepo)
 		}
 	}
 
-	mode := setAntigravityPrivacy(ctx, token, projectID, proxyURL)
+	mode := setAntigravityPrivacy(ctx, token, projectID, proxyURL, egressURL)
 	if mode == "" {
 		return
 	}

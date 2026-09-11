@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -82,10 +83,12 @@ func NewGrokQuotaService(
 	}
 }
 
+// SetSettingService injects system settings used by Free-full / 429 exhaustion policy.
 func (s *GrokQuotaService) SetSettingService(settingService *SettingService) {
-	if s != nil {
-		s.settingService = settingService
+	if s == nil {
+		return
 	}
+	s.settingService = settingService
 }
 
 // QueryQuota combines xAI billing data with an active quota-header probe for
@@ -137,6 +140,15 @@ func grokBillingHasAuthoritativeQuota(billing *xai.BillingSummary) bool {
 		strings.TrimSpace(billing.Plan) != ""
 }
 
+func isGrokQuotaProbeDisplayWarningStatus(statusCode int) bool {
+	switch statusCode {
+	case http.StatusPaymentRequired, http.StatusTooManyRequests, http.StatusBadGateway:
+		return true
+	default:
+		return false
+	}
+}
+
 func (s *GrokQuotaService) ProbeUsage(ctx context.Context, accountID int64) (*GrokQuotaProbeResult, error) {
 	return s.runProbeFlight(ctx, "active:"+strconv.FormatInt(accountID, 10), func(sharedCtx context.Context) (*GrokQuotaProbeResult, error) {
 		return s.probeUsage(sharedCtx, accountID)
@@ -181,10 +193,19 @@ func (s *GrokQuotaService) probeUsage(ctx context.Context, accountID int64) (*Gr
 	defer func() { _ = resp.Body.Close() }()
 
 	snapshot := xai.ObserveQuotaHeaders(resp.Header, resp.StatusCode, "active_probe")
+	now := time.Now()
+	exhaustion := resolveOpenAIGrok429ExhaustionSettings(s.settingService)
+	var localTokens int64
+	// Only pay for local 24h stats on Free 429 paths (Free-full duration decision).
+	if s.usageLogRepo != nil && isKnownGrokFreeAccount(account) && snapshot.StatusCode == http.StatusTooManyRequests {
+		if local := grokLocalUsage24h(ctx, s.usageLogRepo, account.ID, now); local != nil {
+			localTokens = local.Tokens
+		}
+	}
 	stampGrokQuotaSnapshotForPlan(account, snapshot, probeModel)
-	resetAt, limited := grokRateLimitResetAtForAccount(account, snapshot, time.Now())
+	resetAt, limited := grokRateLimitResetAtForAccountWithPolicy(account, snapshot, now, exhaustion, localTokens)
 	if limited {
-		normalizeGrokExhaustedWindowResets(snapshot, resetAt, time.Now())
+		normalizeGrokExhaustedWindowResets(snapshot, resetAt, now)
 	}
 	// A failed probe must not erase a previously observed snapshot.  401/403 and
 	// transport/server errors commonly carry no quota headers; only successful
@@ -217,7 +238,25 @@ func (s *GrokQuotaService) probeUsage(ctx context.Context, accountID int64) (*Gr
 		FetchedAt:       time.Now().Unix(),
 		Persisted:       persisted,
 	}
-	if resp.StatusCode == http.StatusTooManyRequests {
+	if resp.StatusCode == http.StatusPaymentRequired {
+		if s.accountRepo != nil {
+			until := time.Now().Add(30 * time.Minute)
+			_ = s.accountRepo.SetTempUnschedulable(ctx, account.ID, until, "grok credits or subscription exhausted")
+		}
+	}
+	if isGrokQuotaProbeDisplayWarningStatus(resp.StatusCode) {
+		if resp.StatusCode >= 400 {
+			_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10))
+		}
+		if resp.StatusCode != http.StatusTooManyRequests {
+			result.ProbeError = fmt.Sprintf("upstream returned %d for probe model %q", resp.StatusCode, probeModel)
+			slog.Warn(
+				"grok_quota_probe_warning_status",
+				"account_id", account.ID,
+				"model", probeModel,
+				"status", resp.StatusCode,
+			)
+		}
 		return result, nil
 	}
 	if resp.StatusCode >= 400 {
@@ -515,6 +554,15 @@ func (s *GrokQuotaService) prepareProbe(ctx context.Context, accountID int64) (*
 }
 
 func (s *GrokQuotaService) resolveProxyURL(ctx context.Context, account *Account) string {
+	// Ops proxy (test/probe egress) wins over bound proxy and is never persisted.
+	if s != nil && s.settingService != nil {
+		if proxyURL, forceDirect, ok, err := s.settingService.ResolveGrokOpsProxyURL(ctx, false); err == nil && ok {
+			if forceDirect {
+				return ""
+			}
+			return proxyURL
+		}
+	}
 	if account == nil || account.ProxyID == nil {
 		return ""
 	}

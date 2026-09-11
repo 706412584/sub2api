@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 )
 
 const (
@@ -93,6 +95,17 @@ func cloneGroupMessagesDispatchModelConfig(value OpenAIMessagesDispatchModelConf
 	return cloned
 }
 
+// cloneGroupPromptPolicy 深拷贝策略切片，避免副本与原分组共享可变配置。
+func cloneGroupPromptPolicy(value GroupPromptPolicy) GroupPromptPolicy {
+	cloned := value
+	cloned.Rules = append([]domain.GroupPromptPolicyRule(nil), value.Rules...)
+	for index := range cloned.Rules {
+		cloned.Rules[index].Endpoints = append([]domain.GroupPromptPolicyEndpoint(nil), value.Rules[index].Endpoints...)
+		cloned.Rules[index].Targets = append([]domain.GroupPromptPolicyTarget(nil), value.Rules[index].Targets...)
+	}
+	return cloned
+}
+
 func cloneGroupForDuplicate(source *Group, operationID string) *Group {
 	return &Group{
 		Name:                            duplicateGroupName(source.Name, 1),
@@ -150,6 +163,10 @@ func cloneGroupForDuplicate(source *Group, operationID string) *Group {
 		RequirePrivacySet:               source.RequirePrivacySet,
 		DefaultMappedModel:              source.DefaultMappedModel,
 		MessagesDispatchModelConfig:     cloneGroupMessagesDispatchModelConfig(source.MessagesDispatchModelConfig),
+		GrokMessagesProtocol:            source.GrokMessagesProtocol,
+		GrokReasoningVisibilityMode:     source.GrokReasoningVisibilityMode,
+		GrokReasoningProbeTTLSec:        source.GrokReasoningProbeTTLSec,
+		GrokReasoningQuarantineSec:      source.GrokReasoningQuarantineSec,
 		ModelAllowlist: GroupModelAllowlist{
 			Enabled: source.ModelAllowlist.Enabled,
 			Models:  append([]string(nil), source.ModelAllowlist.Models...),
@@ -160,6 +177,7 @@ func cloneGroupForDuplicate(source *Group, operationID string) *Group {
 		MaxReasoningEffort:          source.MaxReasoningEffort,
 		MaxReasoningEffortOverLimit: source.MaxReasoningEffortOverLimit,
 		ReasoningEffortMappings:     append([]ReasoningEffortMapping(nil), source.ReasoningEffortMappings...),
+		PromptPolicy:                cloneGroupPromptPolicy(source.PromptPolicy),
 	}
 }
 

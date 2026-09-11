@@ -149,6 +149,19 @@
           </button>
           <button
             type="button"
+            @click="form.platform = 'kiro'"
+            :class="[
+              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              form.platform === 'kiro'
+                ? 'bg-white text-indigo-700 shadow-sm dark:bg-dark-600 dark:text-indigo-300'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+            ]"
+          >
+            <PlatformIcon platform="kiro" size="sm" />
+            Kiro
+          </button>
+          <button
+            type="button"
             @click="form.platform = 'grok'"
             :class="[
               'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
@@ -407,6 +420,82 @@
         </div>
       </div>
 
+      <!-- Account Type Selection (Kiro - OAuth vs API Key) -->
+      <div v-if="form.platform === 'kiro'">
+        <label class="input-label">{{ t('admin.accounts.accountType') }}</label>
+        <div class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2" data-tour="account-form-type">
+          <button
+            type="button"
+            @click="accountCategory = 'oauth-based'"
+            :class="[
+              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+              accountCategory === 'oauth-based'
+                ? 'border-indigo-300 bg-indigo-50 dark:border-indigo-700/60 dark:bg-indigo-900/20'
+                : 'border-gray-200 hover:border-indigo-300 dark:border-dark-600 dark:hover:border-indigo-700'
+            ]"
+          >
+            <div
+              :class="[
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                accountCategory === 'oauth-based'
+                  ? 'bg-indigo-600 text-white dark:bg-indigo-500'
+                  : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
+              ]"
+            >
+              <PlatformIcon platform="kiro" size="sm" />
+            </div>
+            <div>
+              <span class="block text-sm font-medium text-gray-900 dark:text-white">{{ t('admin.accounts.kiroLoginButton') }}</span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.kiroLoginEntryDesc') }}</span>
+            </div>
+          </button>
+          <button
+            type="button"
+            @click="accountCategory = 'apikey'"
+            :class="[
+              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+              accountCategory === 'apikey'
+                ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-700/60 dark:bg-emerald-900/20'
+                : 'border-gray-200 hover:border-emerald-300 dark:border-dark-600 dark:hover:border-emerald-700'
+            ]"
+          >
+            <div
+              :class="[
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                accountCategory === 'apikey'
+                  ? 'bg-emerald-600 text-white dark:bg-emerald-500'
+                  : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
+              ]"
+            >
+              <Icon name="key" size="sm" />
+            </div>
+            <div>
+              <span class="block text-sm font-medium text-gray-900 dark:text-white">{{ t('admin.accounts.kiroApiKeyEntryTitle') }}</span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.kiroApiKeyEntryDesc') }}</span>
+            </div>
+          </button>
+        </div>
+
+        <div
+          v-if="accountCategory === 'oauth-based'"
+          class="mt-3"
+        >
+          <button
+            type="button"
+            @click="handleOpenKiroBrowserLogin"
+            class="flex w-full items-center gap-3 rounded-lg border-2 border-indigo-300 bg-indigo-50 p-3 text-left transition-all hover:border-indigo-400 dark:border-indigo-700/60 dark:bg-indigo-900/20 dark:hover:border-indigo-500"
+          >
+            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white dark:bg-indigo-500">
+              <PlatformIcon platform="kiro" size="sm" />
+            </div>
+            <div>
+              <span class="block text-sm font-medium text-gray-900 dark:text-white">{{ t('admin.accounts.kiroLoginStartButton') }}</span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.kiroLoginDesc') }}</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
       <!-- Account Type Selection (Grok) -->
       <div v-if="form.platform === 'grok'">
         <label class="input-label">{{ t('admin.accounts.accountType') }}</label>
@@ -463,7 +552,137 @@
               <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.types.responsesApi') }}</span>
             </div>
           </button>
+
+          <button
+            type="button"
+            data-testid="grok-account-type-console"
+            @click="accountCategory = 'grok_console'"
+            :class="[
+              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+              accountCategory === 'grok_console'
+                ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20'
+                : 'border-gray-200 hover:border-sky-300 dark:border-dark-600 dark:hover:border-sky-700'
+            ]"
+          >
+            <div
+              :class="[
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                accountCategory === 'grok_console'
+                  ? 'bg-sky-500 text-white'
+                  : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
+              ]"
+            >
+              <Icon name="terminal" size="sm" />
+            </div>
+            <div>
+              <span class="block text-sm font-medium text-gray-900 dark:text-white">Console</span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.types.grokConsole') }}</span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            data-testid="grok-account-type-web"
+            @click="accountCategory = 'grok_web'"
+            :class="[
+              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+              accountCategory === 'grok_web'
+                ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
+                : 'border-gray-200 hover:border-emerald-300 dark:border-dark-600 dark:hover:border-emerald-700'
+            ]"
+          >
+            <div
+              :class="[
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                accountCategory === 'grok_web'
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
+              ]"
+            >
+              <Icon name="globe" size="sm" />
+            </div>
+            <div>
+              <span class="block text-sm font-medium text-gray-900 dark:text-white">Web</span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.types.grokWeb') }}</span>
+            </div>
+          </button>
         </div>
+      </div>
+
+      <!-- Grok Console Session Import -->
+      <div v-if="form.platform === 'grok' && accountCategory === 'grok_console'" class="space-y-3">
+        <div>
+          <label class="input-label">{{ t('admin.accounts.grokSession.ssoToken') }} *</label>
+          <textarea
+            v-model="grokSessionForm.sso_token"
+            rows="3"
+            class="input-field font-mono text-xs"
+            :placeholder="t('admin.accounts.grokSession.ssoPlaceholder')"
+            autocomplete="off"
+          />
+        </div>
+        <div>
+          <label class="input-label">{{ t('admin.accounts.grokSession.userAgent') }} *</label>
+          <input
+            v-model="grokSessionForm.browser_user_agent"
+            type="text"
+            class="input-field font-mono text-xs"
+            :placeholder="t('admin.accounts.grokSession.userAgentPlaceholder')"
+            autocomplete="off"
+          />
+        </div>
+        <div>
+          <label class="input-label">{{ t('admin.accounts.proxy') }} *</label>
+          <select v-model="grokSessionForm.proxy_id" class="input-field" data-testid="grok-session-proxy">
+            <option :value="null" disabled>{{ t('admin.accounts.grokSession.selectProxy') }}</option>
+            <option v-for="proxy in proxies" :key="proxy.id" :value="proxy.id">{{ proxy.name }}</option>
+          </select>
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.grokSession.proxyHint') }}</p>
+        </div>
+        <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.grokSession.consoleHint') }}</p>
+      </div>
+
+      <!-- Grok Web Session Import -->
+      <div v-if="form.platform === 'grok' && accountCategory === 'grok_web'" class="space-y-3">
+        <div>
+          <label class="input-label">{{ t('admin.accounts.grokSession.ssoToken') }} *</label>
+          <textarea
+            v-model="grokSessionForm.sso_token"
+            rows="3"
+            class="input-field font-mono text-xs"
+            :placeholder="t('admin.accounts.grokSession.ssoPlaceholder')"
+            autocomplete="off"
+          />
+        </div>
+        <div>
+          <label class="input-label">{{ t('admin.accounts.grokSession.cfClearance') }} *</label>
+          <textarea
+            v-model="grokSessionForm.cf_clearance"
+            rows="3"
+            class="input-field font-mono text-xs"
+            :placeholder="t('admin.accounts.grokSession.cfPlaceholder')"
+            autocomplete="off"
+          />
+        </div>
+        <div>
+          <label class="input-label">{{ t('admin.accounts.grokSession.userAgent') }} *</label>
+          <input
+            v-model="grokSessionForm.browser_user_agent"
+            type="text"
+            class="input-field font-mono text-xs"
+            :placeholder="t('admin.accounts.grokSession.userAgentPlaceholder')"
+            autocomplete="off"
+          />
+        </div>
+        <div>
+          <label class="input-label">{{ t('admin.accounts.proxy') }} *</label>
+          <select v-model="grokSessionForm.proxy_id" class="input-field" data-testid="grok-session-proxy">
+            <option :value="null" disabled>{{ t('admin.accounts.grokSession.selectProxy') }}</option>
+            <option v-for="proxy in proxies" :key="proxy.id" :value="proxy.id">{{ proxy.name }}</option>
+          </select>
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.grokSession.proxyHint') }}</p>
+        </div>
+        <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.grokSession.webHint') }}</p>
       </div>
 
       <!-- Account Mode Selection (Kimi / Zhipu / DeepSeek) -->
@@ -1291,8 +1510,69 @@
         </div>
       </div>
 
-      <!-- API Key input (only for apikey type, excluding Antigravity which has its own fields) -->
-      <div v-if="form.type === 'apikey' && form.platform !== 'antigravity'" class="space-y-4">
+      <!-- Kiro API Key fields -->
+      <div v-if="form.platform === 'kiro' && accountCategory === 'apikey'" class="space-y-4">
+        <div>
+          <label class="input-label">{{ t('admin.accounts.kiroApiKeyLabel') }}</label>
+          <input
+            v-model="kiroApiKeyValue"
+            type="password"
+            required
+            class="input font-mono"
+            autocomplete="new-password"
+            data-1p-ignore
+            data-lpignore="true"
+            data-bwignore="true"
+            :placeholder="t('admin.accounts.kiroApiKeyPlaceholder')"
+          />
+          <p class="input-hint">{{ t('admin.accounts.kiroApiKeyHint') }}</p>
+        </div>
+        <div>
+          <label class="input-label">{{ t('admin.accounts.kiroEndpoint') }}</label>
+          <select v-model="kiroEndpoint" class="input" disabled>
+            <option value="cli">cli</option>
+          </select>
+          <p class="input-hint">{{ t('admin.accounts.kiroEndpointHint') }}</p>
+        </div>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label class="input-label">{{ t('admin.accounts.kiroApiRegion') }}</label>
+            <select v-model="kiroApiRegion" class="input font-mono">
+              <option value="us-east-1">us-east-1</option>
+              <option value="eu-central-1">eu-central-1</option>
+              <option value="eu-west-1">eu-west-1</option>
+              <option value="eu-west-2">eu-west-2</option>
+              <option value="eu-west-3">eu-west-3</option>
+              <option value="eu-north-1">eu-north-1</option>
+              <option value="ap-northeast-1">ap-northeast-1</option>
+              <option value="ap-southeast-1">ap-southeast-1</option>
+              <option value="ap-southeast-2">ap-southeast-2</option>
+            </select>
+            <p class="input-hint">{{ t('admin.accounts.kiroApiRegionHint') }}</p>
+          </div>
+          <div>
+            <label class="input-label">{{ t('admin.accounts.kiroAuthRegion') }}</label>
+            <select v-model="kiroAuthRegion" class="input font-mono">
+              <option value="us-east-1">us-east-1</option>
+              <option value="eu-central-1">eu-central-1</option>
+              <option value="eu-west-1">eu-west-1</option>
+              <option value="eu-west-2">eu-west-2</option>
+              <option value="eu-west-3">eu-west-3</option>
+              <option value="eu-north-1">eu-north-1</option>
+              <option value="ap-northeast-1">ap-northeast-1</option>
+              <option value="ap-southeast-1">ap-southeast-1</option>
+              <option value="ap-southeast-2">ap-southeast-2</option>
+            </select>
+            <p class="input-hint">{{ t('admin.accounts.kiroAuthRegionHint') }}</p>
+          </div>
+        </div>
+        <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800/40 dark:bg-amber-900/20 dark:text-amber-200">
+          {{ t('admin.accounts.kiroApiKeyNoRefresh') }}
+        </div>
+      </div>
+
+      <!-- API Key input (only for apikey type, excluding Antigravity/Kiro which have their own fields) -->
+      <div v-if="form.type === 'apikey' && form.platform !== 'antigravity' && form.platform !== 'kiro'" class="space-y-4">
         <div v-if="!isCNPlatform || apiProtocol !== 'adaptive'">
           <label class="input-label">{{ t('admin.accounts.baseUrl') }}</label>
           <input
@@ -3828,7 +4108,9 @@ import {
   fetchAntigravityDefaultMappings,
   isValidWildcardPattern
 } from '@/composables/useModelWhitelist'
+import { extractApiErrorMessage } from '@/utils/apiError'
 import { adminAPI } from '@/api/admin'
+import { createKiroAPIKeyAccount } from '@/api/admin/accounts'
 import { useQuotaNotifyState } from '@/composables/useQuotaNotifyState'
 import {
   useAccountOAuth,
@@ -4001,6 +4283,19 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   close: []
   created: []
+  openKiroBrowserLogin: [payload: {
+    name?: string
+    notes?: string
+    group_ids?: number[]
+    proxy_id?: number | null
+    concurrency?: number
+    priority?: number
+    rate_multiplier?: number
+    load_factor?: number | null
+    expires_at?: number | null
+    auto_pause_on_expired?: boolean
+    skip_default_group_bind?: boolean
+  }]
 }>()
 
 const appStore = useAppStore()
@@ -4015,6 +4310,38 @@ const openaiOAuth = useOpenAIOAuth() // For OpenAI OAuth
 const geminiOAuth = useGeminiOAuth() // For Gemini OAuth
 const antigravityOAuth = useAntigravityOAuth() // For Antigravity OAuth
 const grokOAuth = useGrokOAuth() // For Grok OAuth
+
+// Grok Console / Web 会话导入表单。
+// 敏感材料只随请求发送一次，提交成功后立即清空，绝不回显。
+const grokSessionForm = reactive({
+  sso_token: '',
+  cf_clearance: '',
+  browser_user_agent: '',
+  proxy_id: null as number | null,
+})
+
+function resetGrokSessionForm() {
+  grokSessionForm.sso_token = ''
+  grokSessionForm.cf_clearance = ''
+  grokSessionForm.browser_user_agent = ''
+  grokSessionForm.proxy_id = null
+}
+
+const handleOpenKiroBrowserLogin = () => {
+  emit('openKiroBrowserLogin', {
+    name: form.name.trim() || undefined,
+    notes: form.notes.trim() || undefined,
+    group_ids: form.group_ids.length ? [...form.group_ids] : undefined,
+    proxy_id: form.proxy_id,
+    concurrency: form.concurrency,
+    priority: form.priority,
+    rate_multiplier: form.rate_multiplier,
+    load_factor: form.load_factor,
+    expires_at: form.expires_at,
+    auto_pause_on_expired: autoPauseOnExpired.value,
+    skip_default_group_bind: true
+  })
+}
 
 // Computed: current OAuth state for template binding
 const currentAuthUrl = computed(() => {
@@ -4068,10 +4395,14 @@ interface TempUnschedRuleForm {
 // State
 const step = ref(1)
 const submitting = ref(false)
-const accountCategory = ref<'oauth-based' | 'apikey' | 'bedrock' | 'service_account'>('oauth-based') // UI selection for account category
+const accountCategory = ref<'oauth-based' | 'apikey' | 'bedrock' | 'service_account' | 'grok_console' | 'grok_web'>('oauth-based') // UI selection for account category
 const addMethod = ref<AddMethod>('oauth') // For oauth-based: 'oauth' or 'setup-token'
 const apiKeyBaseUrl = ref('https://api.anthropic.com')
 const apiKeyValue = ref('')
+const kiroApiKeyValue = ref('')
+const kiroEndpoint = ref<'cli'>('cli')
+const kiroApiRegion = ref('us-east-1')
+const kiroAuthRegion = ref('us-east-1')
 const upstreamBillingAutoProbeEnabled = ref(true)
 
 // ── 国产供应商（Kimi / Zhipu / DeepSeek）账号类型、API 协议与端点 ──
@@ -4604,6 +4935,10 @@ const form = reactive({
 
 // Helper to check if current type needs OAuth flow
 const isOAuthFlow = computed(() => {
+  // Kiro OAuth 通过专用浏览器登录弹窗完成，不走通用 OAuth step 2
+  if (form.platform === 'kiro') {
+    return false
+  }
   // Antigravity upstream 类型不需要 OAuth 流程
   if (form.platform === 'antigravity' && antigravityAccountType.value === 'upstream') {
     return false
@@ -4688,6 +5023,16 @@ watch(
       form.type = 'bedrock' as AccountType
       return
     }
+    // Grok Console / Web 会话账号：独立类型，凭据走专用会话导入 API
+    if (form.platform === 'grok' && (category === 'grok_console' || category === 'grok_web')) {
+      form.type = category
+      return
+    }
+    // Kiro: OAuth uses builder-id entry; API Key uses apikey
+    if (form.platform === 'kiro') {
+      form.type = category === 'apikey' ? 'apikey' : ('builder-id' as AccountType)
+      return
+    }
     if ((form.platform === 'gemini' || form.platform === 'anthropic') && category === 'service_account') {
       form.type = 'service_account' as AccountType
     } else if (category === 'oauth-based') {
@@ -4735,6 +5080,18 @@ watch(
       antigravityWhitelistModels.value = []
       antigravityModelMappings.value = []
       antigravityModelRestrictionMode.value = 'mapping'
+    }
+    if (newPlatform === 'kiro') {
+      accountCategory.value = 'oauth-based'
+      addMethod.value = 'oauth'
+      modelRestrictionMode.value = 'mapping'
+      form.type = 'builder-id' as AccountType
+      form.concurrency = 1
+      form.load_factor = null
+      kiroApiKeyValue.value = ''
+      kiroEndpoint.value = 'cli'
+      kiroApiRegion.value = 'us-east-1'
+      kiroAuthRegion.value = 'us-east-1'
     }
     if (newPlatform === 'grok') {
       accountCategory.value = 'oauth-based'
@@ -5183,6 +5540,10 @@ const resetForm = () => {
   adaptiveBaseUrls.value = { chat_completions: '', anthropic: '', responses: '' }
   apiKeyBaseUrl.value = 'https://api.anthropic.com'
   apiKeyValue.value = ''
+  kiroApiKeyValue.value = ''
+  kiroEndpoint.value = 'cli'
+  kiroApiRegion.value = 'us-east-1'
+  kiroAuthRegion.value = 'us-east-1'
   upstreamRequestIdHeader.value = ''
   upstreamBillingAutoProbeEnabled.value = true
   editQuotaLimit.value = null
@@ -5486,7 +5847,146 @@ const handleVertexServiceAccountDrop = async (event: DragEvent) => {
   applyVertexServiceAccountJson(await file.text())
 }
 
+const handleCreateKiroAPIKeyAccount = async () => {
+  if (!form.name.trim()) {
+    appStore.showError(t('admin.accounts.pleaseEnterAccountName'))
+    return
+  }
+  const key = kiroApiKeyValue.value.trim()
+  if (!key) {
+    appStore.showError(t('admin.accounts.kiroApiKeyRequired'))
+    return
+  }
+  if (!key.startsWith('ksk_') || key.length <= 'ksk_'.length) {
+    appStore.showError(t('admin.accounts.kiroApiKeyInvalidPrefix'))
+    return
+  }
+
+  submitting.value = true
+  try {
+    const notes = form.notes.trim()
+    const apiRegion = kiroApiRegion.value.trim() || 'us-east-1'
+    const authRegion = kiroAuthRegion.value.trim() || apiRegion
+    await createKiroAPIKeyAccount({
+      name: form.name.trim(),
+      notes: notes ? notes : null,
+      kiro_api_key: key,
+      endpoint: kiroEndpoint.value || 'cli',
+      auth_region: authRegion,
+      api_region: apiRegion,
+      proxy_id: form.proxy_id,
+      concurrency: form.concurrency,
+      priority: form.priority,
+      rate_multiplier: form.rate_multiplier,
+      load_factor: form.load_factor,
+      group_ids: form.group_ids.length ? [...form.group_ids] : undefined,
+      skip_default_group_bind: true
+    })
+    appStore.showSuccess(t('admin.accounts.kiroApiKeyCreateSuccess'))
+    emit('created')
+    handleClose()
+  } catch (error: any) {
+    appStore.showError(
+      error.response?.data?.message ||
+        error.response?.data?.detail ||
+        t('admin.accounts.kiroApiKeyCreateFailed')
+    )
+  } finally {
+    submitting.value = false
+  }
+}
+
+// 创建 Grok Console / Web 会话账号：
+// 1. 通用账号接口创建账号（credentials 仅占位，不含会话材料）
+// 2. 调用专用 session API 导入 SSO / cf_clearance / UA（服务端加密存储）
+// 提交后立即清空表单，敏感材料不回显。
+const handleCreateGrokSessionAccount = async () => {
+  const isConsole = accountCategory.value === 'grok_console'
+  if (!grokSessionForm.sso_token.trim()) {
+    appStore.showError(t('admin.accounts.grokSession.ssoRequired'))
+    return
+  }
+  if (!isConsole && !grokSessionForm.cf_clearance.trim()) {
+    appStore.showError(t('admin.accounts.grokSession.cfRequired'))
+    return
+  }
+  if (!grokSessionForm.browser_user_agent.trim()) {
+    appStore.showError(t('admin.accounts.grokSession.uaRequired'))
+    return
+  }
+  if (grokSessionForm.proxy_id == null) {
+    appStore.showError(t('admin.accounts.grokSession.proxyRequired'))
+    return
+  }
+
+  submitting.value = true
+  let createdAccountId: number | null = null
+  try {
+    const payload = {
+      name: form.name.trim() || `Grok ${isConsole ? 'Console' : 'Web'} Session`,
+      platform: 'grok' as const,
+      type: accountCategory.value as AccountType,
+      credentials: { placeholder: true },
+      proxy_id: grokSessionForm.proxy_id,
+      group_ids: [...form.group_ids],
+      concurrency: form.concurrency,
+      priority: form.priority,
+    }
+    const created = await adminAPI.accounts.create(payload)
+    createdAccountId = (created as { data?: { id?: number } })?.data?.id ?? null
+    if (!createdAccountId) {
+      throw new Error('missing account id')
+    }
+
+    const sessionPayload = {
+      sso_token: grokSessionForm.sso_token.trim(),
+      browser_user_agent: grokSessionForm.browser_user_agent.trim(),
+      proxy_id: grokSessionForm.proxy_id,
+      ...(isConsole
+        ? {}
+        : { cf_clearance: grokSessionForm.cf_clearance.trim() }),
+    }
+    if (isConsole) {
+      await adminAPI.grok.saveConsoleSession(createdAccountId, sessionPayload)
+    } else {
+      await adminAPI.grok.saveWebSession(createdAccountId, sessionPayload)
+    }
+
+    appStore.showSuccess(t('admin.accounts.grokSession.created'))
+    resetGrokSessionForm()
+    handleClose()
+    emit('created')
+  } catch (error) {
+    // 会话导入失败时清理已创建的空壳账号，避免残留不可用账号
+    if (createdAccountId != null) {
+      try {
+        await adminAPI.accounts.delete(createdAccountId)
+      } catch {
+        /* 清理失败不阻塞错误提示 */
+      }
+    }
+    appStore.showError(extractApiErrorMessage(error, t('admin.accounts.grokSession.createFailed')))
+  } finally {
+    submitting.value = false
+  }
+}
+
 const handleSubmit = async () => {
+  if (form.platform === 'kiro') {
+    if (accountCategory.value === 'apikey') {
+      await handleCreateKiroAPIKeyAccount()
+      return
+    }
+    handleOpenKiroBrowserLogin()
+    return
+  }
+
+  // Grok Console / Web 会话账号：先建账号，再导入会话材料（专用 API，不进 credentials）
+  if (form.platform === 'grok' && (accountCategory.value === 'grok_console' || accountCategory.value === 'grok_web')) {
+    await handleCreateGrokSessionAccount()
+    return
+  }
+
   // For OAuth-based type, handle OAuth flow (goes to step 2)
   if (isOAuthFlow.value) {
     if (!isGrokSSOInputMethod.value && !form.name.trim()) {

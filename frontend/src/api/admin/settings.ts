@@ -404,6 +404,7 @@ export interface SystemSettings {
   promo_code_enabled: boolean;
   password_reset_enabled: boolean;
   frontend_url: string;
+  update_proxy_url: string; // 更新下载代理（GitHub 代理；空=用启动配置或直连）
   invitation_code_enabled: boolean;
   totp_enabled: boolean; // TOTP 双因素认证
   totp_encryption_key_configured: boolean; // TOTP 加密密钥是否已配置
@@ -633,6 +634,7 @@ export interface SystemSettings {
   rewrite_message_cache_control: boolean;
   enable_client_dateline_normalization: boolean;
   antigravity_user_agent_version: string;
+  antigravity_client_fingerprint_enabled: boolean;
   openai_codex_user_agent: string;
   openai_codex_client_version: string;
   openai_codex_client_version_synced: string;
@@ -751,6 +753,7 @@ export interface UpdateSettingsRequest {
   promo_code_enabled?: boolean;
   password_reset_enabled?: boolean;
   frontend_url?: string;
+  update_proxy_url?: string; // 更新下载代理
   invitation_code_enabled?: boolean;
   totp_enabled?: boolean; // TOTP 双因素认证
   passkey_enabled?: boolean;
@@ -950,6 +953,7 @@ export interface UpdateSettingsRequest {
   rewrite_message_cache_control?: boolean;
   enable_client_dateline_normalization?: boolean;
   antigravity_user_agent_version?: string;
+  antigravity_client_fingerprint_enabled?: boolean;
   openai_codex_user_agent?: string;
   openai_codex_client_version?: string;
   openai_codex_version_auto_sync_enabled?: boolean;
@@ -1316,6 +1320,186 @@ export async function updateRateLimit429CooldownSettings(
   return data;
 }
 
+// ==================== OpenAI/Grok 429 Exhaustion Settings ====================
+
+export interface OpenAIGrok429ExhaustionSettings {
+  enabled: boolean;
+  free_full_duration_hours: number;
+  free_full_threshold_percent: number;
+  no_reset_duration_minutes: number;
+}
+
+export async function getOpenAIGrok429ExhaustionSettings(): Promise<OpenAIGrok429ExhaustionSettings> {
+  const { data } = await apiClient.get<OpenAIGrok429ExhaustionSettings>(
+    "/admin/settings/openai-grok-429-exhaustion",
+  );
+  return data;
+}
+
+export async function updateOpenAIGrok429ExhaustionSettings(
+  settings: OpenAIGrok429ExhaustionSettings,
+): Promise<OpenAIGrok429ExhaustionSettings> {
+  const { data } = await apiClient.put<OpenAIGrok429ExhaustionSettings>(
+    "/admin/settings/openai-grok-429-exhaustion",
+    settings,
+  );
+  return data;
+}
+
+// ==================== Account Pool Probe Settings ====================
+
+export interface AccountPoolProbeSettings {
+  enabled: boolean;
+  interval_minutes: number;
+  batch_size: number;
+  max_concurrency: number;
+  account_cooldown_minutes: number;
+  platforms: string[];
+}
+
+export async function getAccountPoolProbeSettings(): Promise<AccountPoolProbeSettings> {
+  const { data } = await apiClient.get<AccountPoolProbeSettings>(
+    "/admin/settings/account-pool-probe",
+  );
+  return data;
+}
+
+export async function updateAccountPoolProbeSettings(
+  settings: AccountPoolProbeSettings,
+): Promise<AccountPoolProbeSettings> {
+  const { data } = await apiClient.put<AccountPoolProbeSettings>(
+    "/admin/settings/account-pool-probe",
+    settings,
+  );
+  return data;
+}
+
+// ==================== Grok Ops Proxy Settings ====================
+
+export interface GrokOpsProxySettings {
+  enabled: boolean;
+  proxy_id: number | null;
+  apply_to_refresh: boolean;
+}
+
+export async function getGrokOpsProxySettings(): Promise<GrokOpsProxySettings> {
+  const { data } = await apiClient.get<GrokOpsProxySettings>(
+    "/admin/settings/grok-ops-proxy",
+  );
+  return data;
+}
+
+export async function updateGrokOpsProxySettings(
+  settings: GrokOpsProxySettings,
+): Promise<GrokOpsProxySettings> {
+  const { data } = await apiClient.put<GrokOpsProxySettings>(
+    "/admin/settings/grok-ops-proxy",
+    settings,
+  );
+  return data;
+}
+
+// ==================== Grok Reasoning Visibility Settings ====================
+
+export interface GrokReasoningVisibilitySettings {
+  mode: string;
+  probe_ttl_sec: number;
+  quarantine_sec: number;
+  probe_account_fallback: boolean;
+}
+
+export async function getGrokReasoningVisibilitySettings(): Promise<GrokReasoningVisibilitySettings> {
+  const { data } = await apiClient.get<GrokReasoningVisibilitySettings>(
+    "/admin/settings/grok-reasoning-visibility",
+  );
+  return data;
+}
+
+export async function updateGrokReasoningVisibilitySettings(
+  settings: GrokReasoningVisibilitySettings,
+): Promise<GrokReasoningVisibilitySettings> {
+  const { data } = await apiClient.put<GrokReasoningVisibilitySettings>(
+    "/admin/settings/grok-reasoning-visibility",
+    settings,
+  );
+  return data;
+}
+
+// ==================== Grok Tool Prompt Settings ====================
+
+export interface GrokToolPromptSettings {
+  enabled: boolean;
+  prompt: string;
+}
+
+export async function getGrokToolPromptSettings(): Promise<GrokToolPromptSettings> {
+  const { data } = await apiClient.get<GrokToolPromptSettings>(
+    "/admin/settings/grok-tool-prompt",
+  );
+  return data;
+}
+
+export async function updateGrokToolPromptSettings(
+  settings: GrokToolPromptSettings,
+): Promise<GrokToolPromptSettings> {
+  const { data } = await apiClient.put<GrokToolPromptSettings>(
+    "/admin/settings/grok-tool-prompt",
+    settings,
+  );
+  return data;
+}
+
+// ==================== Grok CLI Identity Settings ====================
+
+export interface GrokCLIIdentityStatus {
+  effective_version: string;
+  pinned_default: string;
+  settings_override?: string;
+  env_override?: string;
+  source: "settings" | "env" | "default" | string;
+  latest_version?: string;
+  latest_checked_at?: string;
+  update_available?: boolean;
+}
+
+export async function getGrokCLIIdentitySettings(): Promise<GrokCLIIdentityStatus> {
+  const { data } = await apiClient.get<GrokCLIIdentityStatus>(
+    "/admin/settings/grok-cli-identity",
+  );
+  return data;
+}
+
+export async function updateGrokCLIIdentitySettings(payload: {
+  version: string;
+}): Promise<GrokCLIIdentityStatus> {
+  const { data } = await apiClient.put<GrokCLIIdentityStatus>(
+    "/admin/settings/grok-cli-identity",
+    payload,
+  );
+  return data;
+}
+
+export async function checkGrokCLIIdentityLatest(): Promise<GrokCLIIdentityStatus> {
+  const { data } = await apiClient.post<GrokCLIIdentityStatus>(
+    "/admin/settings/grok-cli-identity/check",
+  );
+  return data;
+}
+
+export async function applyGrokCLIIdentityLatest(): Promise<GrokCLIIdentityStatus> {
+  const { data } = await apiClient.post<GrokCLIIdentityStatus>(
+    "/admin/settings/grok-cli-identity/apply-latest",
+  );
+  return data;
+}
+
+export async function restoreGrokCLIIdentityDefault(): Promise<GrokCLIIdentityStatus> {
+  const { data } = await apiClient.post<GrokCLIIdentityStatus>(
+    "/admin/settings/grok-cli-identity/restore-default",
+  );
+  return data;
+}
+
 // ==================== Panel Rate Limit Settings ====================
 
 /**
@@ -1575,6 +1759,21 @@ export const settingsAPI = {
   updateOverloadCooldownSettings,
   getRateLimit429CooldownSettings,
   updateRateLimit429CooldownSettings,
+  getOpenAIGrok429ExhaustionSettings,
+  updateOpenAIGrok429ExhaustionSettings,
+  getAccountPoolProbeSettings,
+  updateAccountPoolProbeSettings,
+  getGrokOpsProxySettings,
+  updateGrokOpsProxySettings,
+  getGrokReasoningVisibilitySettings,
+  updateGrokReasoningVisibilitySettings,
+  getGrokToolPromptSettings,
+  updateGrokToolPromptSettings,
+  getGrokCLIIdentitySettings,
+  updateGrokCLIIdentitySettings,
+  checkGrokCLIIdentityLatest,
+  applyGrokCLIIdentityLatest,
+  restoreGrokCLIIdentityDefault,
   getPanelRateLimitSettings,
   updatePanelRateLimitSettings,
   getStreamTimeoutSettings,

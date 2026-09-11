@@ -1,7 +1,48 @@
 <template>
   <AppLayout>
     <TablePageLayout>
-      <template #filters>
+      <template #actions>
+        <div class="flex items-center gap-1 border-b border-gray-200 dark:border-dark-600">
+          <button
+            type="button"
+            :class="[
+              '-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors',
+              activeTab === 'proxies'
+                ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+            ]"
+            @click="activeTab = 'proxies'"
+          >
+            {{ t('admin.proxies.tabs.proxies') }}
+          </button>
+          <button
+            type="button"
+            :class="[
+              '-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors',
+              activeTab === 'subscriptions'
+                ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+            ]"
+            @click="switchToSubscriptions"
+          >
+            {{ t('admin.proxies.tabs.subscriptions') }}
+          </button>
+          <button
+            type="button"
+            :class="[
+              '-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors',
+              activeTab === 'pools'
+                ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+            ]"
+            @click="activeTab = 'pools'"
+          >
+            {{ t('admin.proxies.tabs.pools') }}
+          </button>
+        </div>
+      </template>
+
+      <template v-if="activeTab === 'proxies'" #filters>
         <div class="flex flex-wrap items-center gap-3">
           <!-- Left: Search + Filters -->
           <div class="relative w-full sm:w-64">
@@ -88,7 +129,12 @@
       </template>
 
       <template #table>
-        <div ref="proxyTableRef" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <SubscriptionPanel
+          v-if="activeTab === 'subscriptions'"
+          @synced="onSubscriptionSynced"
+        />
+        <DynamicProxyPoolPanel v-else-if="activeTab === 'pools'" />
+        <div v-else ref="proxyTableRef" class="flex min-h-0 flex-1 flex-col overflow-hidden">
         <DataTable
           :columns="columns"
           :data="proxies"
@@ -354,7 +400,7 @@
         </div>
       </template>
 
-      <template #pagination>
+      <template v-if="activeTab === 'proxies'" #pagination>
         <Pagination
           v-if="pagination.total > 0"
           :page="pagination.page"
@@ -526,6 +572,13 @@
         <div v-if="createForm.fallback_mode === 'proxy'">
           <label class="input-label">{{ t('admin.proxies.backupProxy') }}</label>
           <Select v-model="createForm.backup_proxy_id" :options="backupProxyOptions()" />
+        </div>
+        <div>
+          <label class="input-label">{{ t('admin.proxies.egressProxy') }}</label>
+          <Select v-model="createForm.egress_proxy_id" :options="egressProxyOptions()" />
+          <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
+            {{ t('admin.proxies.egressProxyHint') }}
+          </p>
         </div>
 
       </form>
@@ -760,6 +813,19 @@
           <label class="input-label">{{ t('admin.proxies.backupProxy') }}</label>
           <Select v-model="editForm.backup_proxy_id" :options="backupProxyOptions(editingProxy?.id)" />
         </div>
+        <div>
+          <label class="input-label">{{ t('admin.proxies.egressProxy') }}</label>
+          <Select v-model="editForm.egress_proxy_id" :options="egressProxyOptions(editingProxy?.id)" />
+          <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
+            {{ t('admin.proxies.egressProxyHint') }}
+          </p>
+        </div>
+        <div>
+          <GroupSelector v-model="editBoundGroupIds" :groups="allGroups" searchable />
+          <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
+            {{ t('admin.proxies.boundGroupsHint') }}
+          </p>
+        </div>
 
       </form>
 
@@ -906,6 +972,73 @@
             </tbody>
           </table>
         </div>
+
+        <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800/60 dark:bg-amber-950/30">
+          <div class="text-sm font-medium text-amber-900 dark:text-amber-200">
+            {{ t('admin.proxies.grokReasoningProbeTitle') }}
+          </div>
+          <p class="mt-1 text-xs text-amber-800 dark:text-amber-300">
+            {{ t('admin.proxies.grokReasoningProbeHint') }}
+          </p>
+          <div class="mt-3 space-y-3">
+            <div>
+              <label class="mb-1 block text-xs text-gray-600 dark:text-gray-300">
+                {{ t('admin.proxies.grokReasoningProbeAccount') }}
+              </label>
+              <input
+                v-model="grokProbeAccountSearch"
+                type="search"
+                class="input mb-2 w-full"
+                :placeholder="t('admin.proxies.grokReasoningProbeSearchPlaceholder')"
+                :disabled="grokProbeRunning"
+                @input="onGrokProbeAccountSearchInput"
+                @focus="searchGrokProbeAccounts"
+              />
+              <select
+                v-model.number="grokProbeAccountId"
+                class="input w-full"
+                :disabled="grokProbeRunning"
+              >
+                <option :value="0">{{ t('admin.proxies.grokReasoningProbeAccountPlaceholder') }}</option>
+                <option v-for="account in grokProbeAccounts" :key="account.id" :value="account.id">
+                  #{{ account.id }} {{ account.name }} ({{ account.status }})
+                </option>
+              </select>
+            </div>
+            <label class="flex items-start gap-2 text-xs text-gray-700 dark:text-gray-200">
+              <input
+                v-model="grokProbeConfirmQuota"
+                type="checkbox"
+                class="mt-0.5"
+                :disabled="grokProbeRunning"
+              />
+              <span>{{ t('admin.proxies.grokReasoningProbeConfirm') }}</span>
+            </label>
+            <button
+              class="btn btn-primary"
+              :disabled="grokProbeRunning"
+              @click="handleGrokReasoningProbe"
+            >
+              {{ grokProbeRunning ? t('admin.proxies.grokReasoningProbeRunning') : t('admin.proxies.grokReasoningProbeRun') }}
+            </button>
+            <div
+              v-if="grokProbeResult"
+              class="rounded border border-gray-200 bg-white p-3 text-xs text-gray-700 dark:border-dark-600 dark:bg-dark-900 dark:text-gray-200"
+            >
+              <div class="grid grid-cols-2 gap-2">
+                <div>{{ t('admin.proxies.grokReasoningProbeStatus') }}: {{ grokProbeStatusLabel(grokProbeResult.status) }}</div>
+                <div>{{ t('admin.proxies.grokReasoningProbeModel') }}: {{ grokProbeResult.model || '-' }}</div>
+                <div>{{ t('admin.proxies.grokReasoningProbeAccountUsed') }}: #{{ grokProbeResult.account_id }} {{ grokProbeResult.account_name || '' }}</div>
+                <div>{{ t('admin.proxies.grokReasoningProbeLatency') }}: {{ grokProbeResult.latency_ms }}ms</div>
+                <div>{{ t('admin.proxies.grokReasoningProbeChars') }}: {{ grokProbeResult.visible_reasoning_chars }}</div>
+                <div>{{ t('admin.proxies.grokReasoningProbeTokens') }}: {{ grokProbeResult.reasoning_tokens }}</div>
+                <div>HTTP: {{ grokProbeResult.http_status || '-' }}</div>
+                <div>encrypted: {{ grokProbeResult.has_encrypted_reasoning ? 'yes' : 'no' }}</div>
+              </div>
+              <div class="mt-2">{{ t('admin.proxies.grokReasoningProbeMessage') }}: {{ grokProbeResult.message || '-' }}</div>
+            </div>
+          </div>
+        </div>
       </div>
       <template #footer>
         <div class="flex justify-end">
@@ -968,7 +1101,14 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
-import type { Proxy, ProxyAccountSummary, ProxyProtocol, ProxyQualityCheckResult } from '@/types'
+import type {
+  AdminGroup,
+  GrokReasoningProbeResult,
+  Proxy,
+  ProxyAccountSummary,
+  ProxyProtocol,
+  ProxyQualityCheckResult
+} from '@/types'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
@@ -978,13 +1118,17 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import ImportDataModal from '@/components/admin/proxy/ImportDataModal.vue'
+import SubscriptionPanel from '@/components/admin/proxy/SubscriptionPanel.vue'
+import DynamicProxyPoolPanel from '@/components/admin/proxy/DynamicProxyPoolPanel.vue'
 import Select from '@/components/common/Select.vue'
+import GroupSelector from '@/components/common/GroupSelector.vue'
 import ProxyAdBanner from '@/components/common/ProxyAdBanner.vue'
 import Icon from '@/components/icons/Icon.vue'
 import PlatformTypeBadge from '@/components/common/PlatformTypeBadge.vue'
 import { useClipboard } from '@/composables/useClipboard'
 import { useSwipeSelect } from '@/composables/useSwipeSelect'
 import { useTableSelection } from '@/composables/useTableSelection'
+import { useKeyedDebouncedSearch } from '@/composables/useKeyedDebouncedSearch'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { formatDateTime } from '@/utils/format'
 import { proxyExpiryBadgeClass, proxyExpiryLabelKey } from '@/utils/proxyExpiry'
@@ -992,6 +1136,17 @@ import { proxyExpiryBadgeClass, proxyExpiryLabelKey } from '@/utils/proxyExpiry'
 const { t } = useI18n()
 const appStore = useAppStore()
 const { copyToClipboard } = useClipboard()
+
+const activeTab = ref<'proxies' | 'subscriptions' | 'pools'>('proxies')
+
+function switchToSubscriptions() {
+  activeTab.value = 'subscriptions'
+}
+
+function onSubscriptionSynced() {
+  // Refresh proxy list so newly upserted sidecar-* rows appear when switching back.
+  void loadProxies()
+}
 
 const columns = computed<Column[]>(() => [
   { key: 'select', label: '', sortable: false },
@@ -1103,6 +1258,17 @@ const deletingProxy = ref<Proxy | null>(null)
 const showQualityReportDialog = ref(false)
 const qualityReportProxy = ref<Proxy | null>(null)
 const qualityReport = ref<ProxyQualityCheckResult | null>(null)
+interface GrokProbeAccountOption {
+  id: number
+  name: string
+  status: string
+}
+const grokProbeAccounts = ref<GrokProbeAccountOption[]>([])
+const grokProbeAccountSearch = ref('')
+const grokProbeAccountId = ref(0)
+const grokProbeConfirmQuota = ref(false)
+const grokProbeRunning = ref(false)
+const grokProbeResult = ref<GrokReasoningProbeResult | null>(null)
 
 // Batch import state
 const createMode = ref<'standard' | 'batch'>('standard')
@@ -1131,6 +1297,7 @@ const createForm = reactive({
   expires_at: '' as string,
   fallback_mode: 'none' as 'none' | 'proxy' | 'direct',
   backup_proxy_id: null as number | null,
+  egress_proxy_id: null as number | null,
   expiry_warn_days: 7 as number,
 })
 
@@ -1145,8 +1312,11 @@ const editForm = reactive({
   expires_at: '' as string,
   fallback_mode: 'none' as 'none' | 'proxy' | 'direct',
   backup_proxy_id: null as number | null,
+  egress_proxy_id: null as number | null,
   expiry_warn_days: 7 as number,
 })
+const editBoundGroupIds = ref<number[]>([])
+const allGroups = ref<AdminGroup[]>([])
 
 const allProxiesForBackup = ref<Proxy[]>([])
 const loadBackupProxyOptions = async () => {
@@ -1156,6 +1326,12 @@ const backupProxyOptions = (excludeId?: number) =>
   allProxiesForBackup.value
     .filter(p => p.id !== excludeId)
     .map(p => ({ label: `${p.name} (${p.host}:${p.port})`, value: p.id }))
+const egressProxyOptions = (excludeId?: number) => [
+  { label: t('admin.proxies.noEgressProxy'), value: null },
+  ...allProxiesForBackup.value
+    .filter(p => p.id !== excludeId && p.status === 'active')
+    .map(p => ({ label: `${p.name} (${p.protocol}://${p.host}:${p.port})`, value: p.id }))
+]
 
 let abortController: AbortController | null = null
 
@@ -1260,6 +1436,7 @@ const closeCreateModal = () => {
   createForm.expires_at = ''
   createForm.fallback_mode = 'none'
   createForm.backup_proxy_id = null
+  createForm.egress_proxy_id = null
   createForm.expiry_warn_days = 7
   createPasswordVisible.value = false
   batchInput.value = ''
@@ -1396,6 +1573,7 @@ const handleCreateProxy = async () => {
       expires_at: createForm.expires_at ? Math.floor(new Date(createForm.expires_at).getTime() / 1000) : null,
       fallback_mode: createForm.fallback_mode,
       backup_proxy_id: createForm.fallback_mode === 'proxy' ? createForm.backup_proxy_id : null,
+      egress_proxy_id: createForm.egress_proxy_id,
       expiry_warn_days: createForm.expiry_warn_days,
     })
     appStore.showSuccess(t('admin.proxies.proxyCreated'))
@@ -1409,7 +1587,7 @@ const handleCreateProxy = async () => {
   }
 }
 
-const handleEdit = (proxy: Proxy) => {
+const handleEdit = async (proxy: Proxy) => {
   editingProxy.value = proxy
   editForm.name = proxy.name
   editForm.protocol = proxy.protocol
@@ -1421,9 +1599,24 @@ const handleEdit = (proxy: Proxy) => {
   editForm.expires_at = proxy.expires_at ? proxy.expires_at.slice(0, 10) : ''
   editForm.fallback_mode = proxy.fallback_mode || 'none'
   editForm.backup_proxy_id = proxy.backup_proxy_id ?? null
+  editForm.egress_proxy_id = proxy.egress_proxy_id ?? null
   editForm.expiry_warn_days = proxy.expiry_warn_days ?? 7
   editPasswordVisible.value = false
   editPasswordDirty.value = false
+  editBoundGroupIds.value = []
+  try {
+    if (allGroups.value.length === 0) {
+      allGroups.value = await adminAPI.groups.getAllIncludingInactive()
+    }
+  } catch {
+    allGroups.value = []
+  }
+  try {
+    const bound = await adminAPI.proxies.getBoundGroups(proxy.id)
+    editBoundGroupIds.value = bound.group_ids || []
+  } catch {
+    editBoundGroupIds.value = []
+  }
   showEditModal.value = true
 }
 
@@ -1461,6 +1654,7 @@ const handleUpdateProxy = async () => {
       expires_at: editForm.expires_at ? Math.floor(new Date(editForm.expires_at).getTime() / 1000) : null,
       fallback_mode: editForm.fallback_mode,
       backup_proxy_id: editForm.fallback_mode === 'proxy' ? editForm.backup_proxy_id : null,
+      egress_proxy_id: editForm.egress_proxy_id,
       expiry_warn_days: editForm.expiry_warn_days,
     }
 
@@ -1470,6 +1664,7 @@ const handleUpdateProxy = async () => {
     }
 
     await adminAPI.proxies.update(editingProxy.value.id, updateData)
+    await adminAPI.proxies.setBoundGroups(editingProxy.value.id, editBoundGroupIds.value)
     appStore.showSuccess(t('admin.proxies.proxyUpdated'))
     closeEditModal()
     loadProxies()
@@ -1594,13 +1789,149 @@ const handleTestConnection = async (proxy: Proxy) => {
   await runProxyTest(proxy.id, true)
 }
 
+let grokProbeController: AbortController | null = null
+let grokProbeOperation = 0
+
+const grokProbeAccountSearchRunner = useKeyedDebouncedSearch<GrokProbeAccountOption[]>({
+  delay: 250,
+  search: async (keyword, { signal }) => {
+    const response = await adminAPI.accounts.list(
+      1,
+      20,
+      {
+        platform: 'grok',
+        type: 'oauth',
+        search: keyword,
+        lite: '1'
+      },
+      { signal }
+    )
+    return response.items.map((account) => ({
+      id: account.id,
+      name: account.name,
+      status: account.status
+    }))
+  },
+  onSuccess: (_key, accounts) => {
+    grokProbeAccounts.value = accounts
+  },
+  onError: () => {
+    grokProbeAccounts.value = []
+    appStore.showError(t('admin.proxies.grokReasoningProbeLoadAccountsFailed'))
+  }
+})
+
+const searchGrokProbeAccounts = () => {
+  grokProbeAccountSearchRunner.trigger('quality-report', grokProbeAccountSearch.value.trim())
+}
+
+const onGrokProbeAccountSearchInput = () => {
+  grokProbeAccountId.value = 0
+  searchGrokProbeAccounts()
+}
+
+const cancelGrokProbeRequest = () => {
+  grokProbeOperation++
+  grokProbeController?.abort()
+  grokProbeController = null
+}
+
+const resetGrokProbeState = () => {
+  cancelGrokProbeRequest()
+  grokProbeAccountSearchRunner.clearAll()
+  grokProbeAccountSearch.value = ''
+  grokProbeAccountId.value = 0
+  grokProbeConfirmQuota.value = false
+  grokProbeRunning.value = false
+  grokProbeResult.value = null
+}
+
+const grokProbeStatusLabel = (status: GrokReasoningProbeResult['status']) => {
+  switch (status) {
+    case 'visible':
+      return t('admin.proxies.grokReasoningProbeVisible')
+    case 'encrypted_only':
+      return t('admin.proxies.grokReasoningProbeEncrypted')
+    case 'no_reasoning':
+      return t('admin.proxies.grokReasoningProbeNone')
+    case 'error':
+      return t('admin.proxies.grokReasoningProbeError')
+  }
+}
+
+const handleGrokReasoningProbe = async () => {
+  const proxy = qualityReportProxy.value
+  if (!proxy) return
+  if (!grokProbeAccountId.value) {
+    appStore.showError(t('admin.proxies.grokReasoningProbeNeedAccount'))
+    return
+  }
+  if (!grokProbeConfirmQuota.value) {
+    appStore.showError(t('admin.proxies.grokReasoningProbeNeedConfirm'))
+    return
+  }
+
+  cancelGrokProbeRequest()
+  const operation = grokProbeOperation
+  const controller = new AbortController()
+  grokProbeController = controller
+  grokProbeRunning.value = true
+  grokProbeResult.value = null
+  try {
+    const result = await adminAPI.proxies.probeGrokReasoning(
+      proxy.id,
+      {
+        account_id: grokProbeAccountId.value,
+        confirm_quota_cost: true
+      },
+      { signal: controller.signal }
+    )
+    if (
+      controller.signal.aborted ||
+      operation !== grokProbeOperation ||
+      qualityReportProxy.value?.id !== proxy.id
+    ) {
+      return
+    }
+    grokProbeResult.value = result
+    if (result.status === 'visible') {
+      appStore.showSuccess(
+        t('admin.proxies.grokReasoningProbeDone', { status: grokProbeStatusLabel(result.status) })
+      )
+    } else {
+      appStore.showError(
+        t('admin.proxies.grokReasoningProbeFailedWithStatus', {
+          status: grokProbeStatusLabel(result.status)
+        })
+      )
+    }
+  } catch (error: any) {
+    if (controller.signal.aborted || operation !== grokProbeOperation) return
+    const message =
+      error.response?.data?.detail ||
+      error.response?.data?.message ||
+      t('admin.proxies.grokReasoningProbeFailed')
+    appStore.showError(message)
+    console.error('Error probing Grok reasoning via proxy:', error)
+  } finally {
+    if (operation === grokProbeOperation) {
+      grokProbeRunning.value = false
+      grokProbeController = null
+    }
+  }
+}
+
 const handleQualityCheck = async (proxy: Proxy) => {
+  cancelGrokProbeRequest()
+  grokProbeRunning.value = false
   startQualityCheckingProxy(proxy.id)
   try {
     const result = await adminAPI.proxies.checkProxyQuality(proxy.id)
     qualityReportProxy.value = proxy
     qualityReport.value = result
+    resetGrokProbeState()
     showQualityReportDialog.value = true
+    searchGrokProbeAccounts()
 
     const baseStep = result.items.find((item) => item.target === 'base_connectivity')
     if (baseStep && baseStep.status === 'pass') {
@@ -1691,6 +2022,8 @@ const closeQualityReportDialog = () => {
   showQualityReportDialog.value = false
   qualityReportProxy.value = null
   qualityReport.value = null
+  resetGrokProbeState()
+  grokProbeAccounts.value = []
 }
 
 const qualityStatusClass = (status: string) => {
@@ -2079,6 +2412,8 @@ onMounted(() => {
 onUnmounted(() => {
   clearTimeout(searchTimeout)
   abortController?.abort()
+  cancelGrokProbeRequest()
+  grokProbeAccountSearchRunner.clearAll()
   document.removeEventListener('click', closeCopyMenu)
 })
 </script>

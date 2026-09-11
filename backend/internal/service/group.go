@@ -14,6 +14,7 @@ import (
 type OpenAIMessagesDispatchModelConfig = domain.OpenAIMessagesDispatchModelConfig
 type GroupCodexModelsManifestConfig = domain.GroupCodexModelsManifestConfig
 type ReasoningEffortMapping = domain.ReasoningEffortMapping
+type GroupPromptPolicy = domain.GroupPromptPolicy
 
 type Group struct {
 	ID             int64
@@ -80,6 +81,8 @@ type Group struct {
 	FallbackGroupID *int64
 	// 无效请求兜底分组（仅 anthropic 平台使用）
 	FallbackGroupIDOnInvalidRequest *int64
+	// DefaultProxyID 账号加入该分组且未显式指定代理时自动绑定
+	DefaultProxyID *int64
 
 	// 模型路由配置
 	// key: 模型匹配模式（支持 * 通配符，如 "claude-opus-*"）
@@ -110,6 +113,18 @@ type Group struct {
 	// CodexModelsManifestConfig 开启后，普通模型列表与 Codex manifest 优先使用
 	// 固定账号列表拉取并合并，不经过调度器（仅 openai 平台）。
 	CodexModelsManifestConfig GroupCodexModelsManifestConfig
+	// GrokMessagesProtocol selects the upstream protocol for native /v1/messages
+	// on Grok groups: "responses" (default, native) or "chat_completions" (opt-in visible thinking).
+	GrokMessagesProtocol string
+	// GrokReasoningVisibilityMode controls how Grok accounts without visible plaintext
+	// reasoning are scheduled: "inherit" (follow gateway setting), "off", "soft", "enforce".
+	GrokReasoningVisibilityMode string
+	// GrokReasoningProbeTTLSec is the probe-result reuse TTL in seconds.
+	// -1 = inherit gateway setting, 0 = probe every time, N = cache N seconds.
+	GrokReasoningProbeTTLSec int
+	// GrokReasoningQuarantineSec is the enforce cooldown in seconds.
+	// -1 = inherit gateway, -2 = pause scheduling, 0 = exclude this round only, N = temp-unsched N seconds.
+	GrokReasoningQuarantineSec int
 
 	// RPMLimit 分组级每分钟请求数上限（0 = 不限制）。
 	// 一旦设置即接管该分组用户的限流（覆盖用户级 rpm_limit），可被 user-group rpm_override 进一步覆盖。
@@ -123,6 +138,9 @@ type Group struct {
 	MaxReasoningEffortOverLimit string
 	// ReasoningEffortMappings rewrites explicit request values before applying the ceiling.
 	ReasoningEffortMappings []ReasoningEffortMapping
+
+	// 分组提示词策略：仅启用时在网关入口处理指定文本字段。
+	PromptPolicy GroupPromptPolicy
 
 	// 分组利润控制（五个 token 计费平台可启用）。
 	// 调度准入条件：账号倍率 U 满足 U <= D*(1-margin-buffer)，

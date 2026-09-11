@@ -1386,7 +1386,8 @@ func ApplyThinkingEnabledFallback(effort *string, body []byte, mappedModel strin
 // reasoning_effort values to the GLM native scale used by z.ai: high/max.
 // It only applies to glm-* mapped models and leaves all other providers untouched.
 func NormalizeGLMOpenAIReasoningEffort(body []byte, mappedModel string) ([]byte, bool) {
-	if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(mappedModel)), "glm-") {
+	lower := strings.ToLower(strings.TrimSpace(mappedModel))
+	if !strings.HasPrefix(lower, "glm-") && !strings.HasPrefix(lower, "z-ai/glm-") {
 		return body, false
 	}
 
@@ -1421,7 +1422,14 @@ func normalizeEffortToken(raw string) string {
 }
 
 func isGLM53Model(model string) bool {
-	return strings.EqualFold(strings.TrimSpace(model), "glm-5.3")
+	trimmed := strings.TrimSpace(model)
+	if strings.EqualFold(trimmed, "glm-5.3") {
+		return true
+	}
+	// 兼容 z-ai/glm-5.3-free、z-ai/glm-5.3-flash 等经 z-ai 前缀的 GLM-5.3 模型：
+	// 这些模型上游多采用相同的 effort 枚举（low/high/max），需要同样做归一化，
+	// 否则 CC 下发 xhigh 会被上游 400 拒绝。
+	return strings.HasPrefix(strings.ToLower(trimmed), "z-ai/glm-5.3")
 }
 
 func normalizeGLMOpenAIReasoningEffort(raw string) string {

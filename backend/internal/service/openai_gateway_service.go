@@ -227,6 +227,10 @@ type OpenAIUsage struct {
 	CacheCreationInputTokens int `json:"cache_creation_input_tokens,omitempty"`
 	CacheReadInputTokens     int `json:"cache_read_input_tokens,omitempty"`
 	ImageOutputTokens        int `json:"image_output_tokens,omitempty"`
+	// ReasoningTokens is the upstream reasoning/thinking token count when reported
+	// (completion_tokens_details.reasoning_tokens / output_tokens_details.reasoning_tokens).
+	// Display-only; billing still uses OutputTokens which may already include reasoning.
+	ReasoningTokens int `json:"reasoning_tokens,omitempty"`
 }
 
 // OpenAIForwardResult represents the result of forwarding
@@ -423,36 +427,48 @@ var defaultOpenAICodexSnapshotPersistThrottle = newAccountWriteThrottle(openAICo
 // needs compact support but no compatible account is available.
 var ErrNoAvailableCompactAccounts = errors.New("no available accounts support /responses/compact")
 
+// ErrGrokReasoningFiltered indicates all Grok accounts in the group were
+// filtered out by the reasoning visibility enforce gate. Handlers SHOULD
+// respond with 502 Bad Gateway so clients can distinguish this from
+// generic 503 "no available accounts" (e.g. rate-limited or paused).
+var ErrGrokReasoningFiltered = errors.New("all Grok accounts filtered by reasoning visibility enforcement")
+
 // OpenAIGatewayService handles OpenAI API gateway operations
 type OpenAIGatewayService struct {
-	accountRepo           AccountRepository
-	usageLogRepo          UsageLogRepository
-	usageBillingRepo      UsageBillingRepository
-	userRepo              UserRepository
-	userSubRepo           UserSubscriptionRepository
-	cache                 GatewayCache
-	cfg                   *config.Config
-	codexDetector         CodexClientRestrictionDetector
-	schedulerSnapshot     *SchedulerSnapshotService
-	concurrencyService    *ConcurrencyService
-	billingService        *BillingService
-	rateLimitService      *RateLimitService
-	billingCacheService   *BillingCacheService
-	userGroupRateResolver *userGroupRateResolver
-	httpUpstream          HTTPUpstream
-	pluginManager         *PluginManager
-	deferredService       *DeferredService
-	openAITokenProvider   *OpenAITokenProvider
-	grokTokenProvider     *GrokTokenProvider
-	toolCorrector         *CodexToolCorrector
-	openaiWSResolver      OpenAIWSProtocolResolver
-	resolver              *ModelPricingResolver
-	channelService        *ChannelService
-	balanceNotifyService  *BalanceNotifyService
-	settingService        *SettingService
-	userPlatformQuotaRepo UserPlatformQuotaRepository
-	liveAttestation       liveattestation.Provider
-	liveAttestationCipher SecretEncryptor
+	accountRepo              AccountRepository
+	usageLogRepo             UsageLogRepository
+	usageBillingRepo         UsageBillingRepository
+	userRepo                 UserRepository
+	userSubRepo              UserSubscriptionRepository
+	cache                    GatewayCache
+	cfg                      *config.Config
+	codexDetector            CodexClientRestrictionDetector
+	schedulerSnapshot        *SchedulerSnapshotService
+	concurrencyService       *ConcurrencyService
+	billingService           *BillingService
+	rateLimitService         *RateLimitService
+	billingCacheService      *BillingCacheService
+	userGroupRateResolver    *userGroupRateResolver
+	httpUpstream             HTTPUpstream
+	pluginManager            *PluginManager
+	deferredService          *DeferredService
+	openAITokenProvider      *OpenAITokenProvider
+	grokTokenProvider        *GrokTokenProvider
+	consoleDPoPProvider      *GrokConsoleDPoPProvider
+	sessionCredentialService GrokSessionCredentialService
+	toolCorrector            *CodexToolCorrector
+	openaiWSResolver         OpenAIWSProtocolResolver
+	resolver                 *ModelPricingResolver
+	channelService           *ChannelService
+	balanceNotifyService     *BalanceNotifyService
+	settingService           *SettingService
+	userPlatformQuotaRepo    UserPlatformQuotaRepository
+	liveAttestation          liveattestation.Provider
+	liveAttestationCipher    SecretEncryptor
+	// Optional Grok reasoning quality marks (account_id keyed) for soft LB deprioritization.
+	grokReasoningQualityMarks GrokReasoningQualityMarkStore
+	// Optional Grok reasoning probe service for real-time probing in enforce mode.
+	grokReasoningProbeSvc *GrokReasoningProbeService
 
 	openaiWSPoolOnce               sync.Once
 	openaiWSStateStoreOnce         sync.Once
@@ -494,6 +510,24 @@ type OpenAIGatewayService struct {
 }
 
 // NewOpenAIGatewayService creates a new OpenAIGatewayService
+
+// SetGrokReasoningQualityMarkStore injects optional account reasoning quality marks for soft scheduling.
+func (s *OpenAIGatewayService) SetGrokReasoningQualityMarkStore(store GrokReasoningQualityMarkStore) {
+	if s == nil {
+		return
+	}
+	s.grokReasoningQualityMarks = store
+}
+
+// SetGrokReasoningProbeService injects the optional real-time reasoning probe
+// service used by the enforce scheduling mode to probe unmarked accounts.
+func (s *OpenAIGatewayService) SetGrokReasoningProbeService(probe *GrokReasoningProbeService) {
+	if s == nil {
+		return
+	}
+	s.grokReasoningProbeSvc = probe
+}
+
 func NewOpenAIGatewayService(
 	accountRepo AccountRepository,
 	usageLogRepo UsageLogRepository,
@@ -512,6 +546,8 @@ func NewOpenAIGatewayService(
 	deferredService *DeferredService,
 	openAITokenProvider *OpenAITokenProvider,
 	grokTokenProvider *GrokTokenProvider,
+	consoleDPoPProvider *GrokConsoleDPoPProvider,
+	sessionCredentialService GrokSessionCredentialService,
 	resolver *ModelPricingResolver,
 	channelService *ChannelService,
 	balanceNotifyService *BalanceNotifyService,
@@ -544,22 +580,24 @@ func NewOpenAIGatewayService(
 			nil,
 			"service.openai_gateway",
 		),
-		httpUpstream:          httpUpstream,
-		deferredService:       deferredService,
-		openAITokenProvider:   openAITokenProvider,
-		grokTokenProvider:     grokTokenProvider,
-		toolCorrector:         NewCodexToolCorrector(),
-		openaiWSResolver:      NewOpenAIWSProtocolResolver(cfg),
-		resolver:              resolver,
-		channelService:        channelService,
-		balanceNotifyService:  balanceNotifyService,
-		settingService:        settingService,
-		userPlatformQuotaRepo: userPlatformQuotaRepo,
-		liveAttestation:       liveattestation.NewProvider(),
-		liveAttestationCipher: newLiveAttestationCipher(cfg),
-		responseHeaderFilter:  compileResponseHeaderFilter(cfg),
-		codexSnapshotThrottle: newAccountWriteThrottle(openAICodexSnapshotPersistMinInterval),
-		openaiModelTransient:  newOpenAIAccountModelTransientState(openAIModelTransientDefaultMax),
+		httpUpstream:             httpUpstream,
+		deferredService:          deferredService,
+		openAITokenProvider:      openAITokenProvider,
+		grokTokenProvider:        grokTokenProvider,
+		consoleDPoPProvider:      consoleDPoPProvider,
+		sessionCredentialService: sessionCredentialService,
+		toolCorrector:            NewCodexToolCorrector(),
+		openaiWSResolver:         NewOpenAIWSProtocolResolver(cfg),
+		resolver:                 resolver,
+		channelService:           channelService,
+		balanceNotifyService:     balanceNotifyService,
+		settingService:           settingService,
+		userPlatformQuotaRepo:    userPlatformQuotaRepo,
+		liveAttestation:          liveattestation.NewProvider(),
+		liveAttestationCipher:    newLiveAttestationCipher(cfg),
+		responseHeaderFilter:     compileResponseHeaderFilter(cfg),
+		codexSnapshotThrottle:    newAccountWriteThrottle(openAICodexSnapshotPersistMinInterval),
+		openaiModelTransient:     newOpenAIAccountModelTransientState(openAIModelTransientDefaultMax),
 	}
 	if rateLimitService != nil {
 		rateLimitService.SetAccountRuntimeBlocker(svc)
@@ -1248,6 +1286,18 @@ func (s *OpenAIGatewayService) GetAccessToken(ctx context.Context, account *Acco
 			return "", "", errors.New("api_key not found in credentials")
 		}
 		return apiKey, "apikey", nil
+	case AccountTypeGrokConsole:
+		if account.Platform != PlatformGrok {
+			return "", "", fmt.Errorf("account type %s is only valid for grok platform", account.Type)
+		}
+		if s.consoleDPoPProvider == nil {
+			return "", "", errors.New("grok console DPoP provider is not configured")
+		}
+		session, err := s.consoleDPoPProvider.GetOrCreateSession(ctx, account.ID, account.ProxyID)
+		if err != nil {
+			return "", "", err
+		}
+		return session.AccessToken, "console_dpop", nil
 	default:
 		return "", "", fmt.Errorf("unsupported account type: %s", account.Type)
 	}

@@ -219,6 +219,39 @@ func TestZhipuQuotaHost(t *testing.T) {
 	require.Equal(t, "https://open.bigmodel.cn/api/monitor/usage/quota/limit", zhipuQuotaURL("https://open.bigmodel.cn/api/paas/v4"))
 }
 
+// TestGetCodingPlanProvider 验证 Coding Plan 供应商识别使用真实的 /coding 路径，
+// 并覆盖默认端点、协议端点和智谱官方域名。
+func TestGetCodingPlanProvider(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		platform string
+		baseURL  string
+		want     string
+	}{
+		{name: "kimi default", platform: PlatformKimi, want: PlatformKimi},
+		{name: "kimi coding anthropic", platform: PlatformKimi, baseURL: "https://api.kimi.com/coding", want: PlatformKimi},
+		{name: "kimi coding openai", platform: PlatformKimi, baseURL: "https://api.kimi.com/coding/v1", want: PlatformKimi},
+		{name: "zhipu bigmodel", platform: PlatformZhipu, baseURL: "https://open.bigmodel.cn/api/coding/paas/v4", want: PlatformZhipu},
+		{name: "zhipu z ai", platform: PlatformZhipu, baseURL: "https://api.z.ai/api/coding/paas/v4", want: PlatformZhipu},
+		{name: "non coding", platform: PlatformKimi, baseURL: "https://api.kimi.com/v1"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			account := &Account{
+				Platform:    tc.platform,
+				Type:        AccountTypeAPIKey,
+				Credentials: map[string]any{"account_mode": AccountModeCoding},
+			}
+			if tc.baseURL != "" {
+				account.Credentials["base_url"] = tc.baseURL
+			}
+			require.Equal(t, tc.want, account.GetCodingPlanProvider())
+		})
+	}
+}
+
 // TestKimiQuotaURL 两种协议默认 base（coding/v1 与 coding）都归一到 /coding/v1/usages
 // （cc-switch 固定端点；无 /v1 的 /coding/usages 实测 404）。
 func TestKimiQuotaURL(t *testing.T) {

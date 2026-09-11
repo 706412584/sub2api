@@ -108,6 +108,8 @@ type Group struct {
 	FallbackGroupID *int64 `json:"fallback_group_id,omitempty"`
 	// 无效请求兜底使用的分组 ID
 	FallbackGroupIDOnInvalidRequest *int64 `json:"fallback_group_id_on_invalid_request,omitempty"`
+	// 分组默认代理：账号入组未指定代理时自动绑定
+	DefaultProxyID *int64 `json:"default_proxy_id,omitempty"`
 	// 模型路由配置：模型模式 -> 优先账号ID列表
 	ModelRouting map[string][]int64 `json:"model_routing,omitempty"`
 	// 是否启用模型路由配置
@@ -122,6 +124,14 @@ type Group struct {
 	AllowMessagesDispatch bool `json:"allow_messages_dispatch,omitempty"`
 	// 是否允许此 OpenAI 分组访问 Live 接口
 	AllowLive bool `json:"allow_live,omitempty"`
+	// Grok 分组处理 /v1/messages 时使用的上游协议：responses（默认原生）或 chat_completions（可选可见思考）
+	GrokMessagesProtocol string `json:"grok_messages_protocol,omitempty"`
+	// Grok 思考明文调度模式：空=继承网关默认，off=不检查，soft=降权，enforce=排除并冷却
+	GrokReasoningVisibilityMode string `json:"grok_reasoning_visibility_mode,omitempty"`
+	// Grok 思考探测复用秒数：-1=继承网关，0=每次探测，N=缓存N秒
+	GrokReasoningProbeTTLSec int `json:"grok_reasoning_probe_ttl_sec,omitempty"`
+	// Grok enforce 冷却秒数：-1=继承网关，-2=暂停调度，0=仅本轮排除，N=临时不可调度N秒
+	GrokReasoningQuarantineSec int `json:"grok_reasoning_quarantine_sec,omitempty"`
 	// 是否强制此 OpenAI/Composite 分组请求使用 service_tier=priority
 	ForceOpenaiFast bool `json:"force_openai_fast,omitempty"`
 	// 是否让此 OpenAI/Composite 分组的 Fast 请求按 Standard 价格计费
@@ -138,6 +148,8 @@ type Group struct {
 	ModelAllowlist domain.GroupModelAllowlist `json:"model_allowlist,omitempty"`
 	// 固定账号获取 Codex Model Manifest 配置；开启后 /models 请求只用选定账号拉取（仅 openai 平台）
 	CodexModelsManifestConfig domain.GroupCodexModelsManifestConfig `json:"codex_models_manifest_config,omitempty"`
+	// Group prompt policy
+	PromptPolicy domain.GroupPromptPolicy `json:"prompt_policy,omitempty"`
 	// 分组 RPM 上限，0 表示不限制；设置后接管该分组用户的限流
 	RpmLimit int `json:"rpm_limit,omitempty"`
 	// OpenAI reasoning effort 上限；可选 minimal/low/medium/high/xhigh/max
@@ -258,15 +270,15 @@ func (*Group) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case group.FieldVideoModelPrices, group.FieldModelPricing, group.FieldModelRouting, group.FieldSupportedModelScopes, group.FieldMessagesDispatchModelConfig, group.FieldModelAllowlist, group.FieldCodexModelsManifestConfig, group.FieldReasoningEffortMappings:
+		case group.FieldVideoModelPrices, group.FieldModelPricing, group.FieldModelRouting, group.FieldSupportedModelScopes, group.FieldMessagesDispatchModelConfig, group.FieldModelAllowlist, group.FieldCodexModelsManifestConfig, group.FieldPromptPolicy, group.FieldReasoningEffortMappings:
 			values[i] = new([]byte)
 		case group.FieldPeakRateEnabled, group.FieldIsExclusive, group.FieldAllowImageGeneration, group.FieldAllowBatchImageGeneration, group.FieldImageRateIndependent, group.FieldVideoRateIndependent, group.FieldLongContextPricingEnabled, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldAllowLive, group.FieldForceOpenaiFast, group.FieldFreeOpenaiFast, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet, group.FieldProfitControlEnabled:
 			values[i] = new(sql.NullBool)
 		case group.FieldRateMultiplier, group.FieldPeakRateMultiplier, group.FieldDailyLimitUsd, group.FieldWeeklyLimitUsd, group.FieldMonthlyLimitUsd, group.FieldImageRateMultiplier, group.FieldImagePrice1k, group.FieldImagePrice2k, group.FieldImagePrice4k, group.FieldBatchImageDiscountMultiplier, group.FieldBatchImageHoldMultiplier, group.FieldVideoRateMultiplier, group.FieldVideoPrice480p, group.FieldVideoPrice720p, group.FieldVideoPrice1080p, group.FieldWebSearchPricePerCall, group.FieldSearchPricePer1k, group.FieldAudioRealtimePricePerMin, group.FieldAudioTtsPricePerMillionChars, group.FieldAudioSttPricePerHour, group.FieldProfitMinMargin, group.FieldProfitSafetyBuffer:
 			values[i] = new(sql.NullFloat64)
-		case group.FieldID, group.FieldDefaultValidityDays, group.FieldFallbackGroupID, group.FieldFallbackGroupIDOnInvalidRequest, group.FieldSortOrder, group.FieldRpmLimit:
+		case group.FieldID, group.FieldDefaultValidityDays, group.FieldFallbackGroupID, group.FieldFallbackGroupIDOnInvalidRequest, group.FieldDefaultProxyID, group.FieldSortOrder, group.FieldGrokReasoningProbeTTLSec, group.FieldGrokReasoningQuarantineSec, group.FieldRpmLimit:
 			values[i] = new(sql.NullInt64)
-		case group.FieldName, group.FieldDescription, group.FieldPeakStart, group.FieldPeakEnd, group.FieldStatus, group.FieldDuplicateOperationID, group.FieldPlatform, group.FieldSubscriptionType, group.FieldDefaultMappedModel, group.FieldMaxReasoningEffort, group.FieldMaxReasoningEffortOverLimit:
+		case group.FieldName, group.FieldDescription, group.FieldPeakStart, group.FieldPeakEnd, group.FieldStatus, group.FieldDuplicateOperationID, group.FieldPlatform, group.FieldSubscriptionType, group.FieldGrokMessagesProtocol, group.FieldGrokReasoningVisibilityMode, group.FieldDefaultMappedModel, group.FieldMaxReasoningEffort, group.FieldMaxReasoningEffortOverLimit:
 			values[i] = new(sql.NullString)
 		case group.FieldCreatedAt, group.FieldUpdatedAt, group.FieldDeletedAt:
 			values[i] = new(sql.NullTime)
@@ -578,6 +590,13 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 				_m.FallbackGroupIDOnInvalidRequest = new(int64)
 				*_m.FallbackGroupIDOnInvalidRequest = value.Int64
 			}
+		case group.FieldDefaultProxyID:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field default_proxy_id", values[i])
+			} else if value.Valid {
+				_m.DefaultProxyID = new(int64)
+				*_m.DefaultProxyID = value.Int64
+			}
 		case group.FieldModelRouting:
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field model_routing", values[i])
@@ -623,6 +642,30 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field allow_live", values[i])
 			} else if value.Valid {
 				_m.AllowLive = value.Bool
+			}
+		case group.FieldGrokMessagesProtocol:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field grok_messages_protocol", values[i])
+			} else if value.Valid {
+				_m.GrokMessagesProtocol = value.String
+			}
+		case group.FieldGrokReasoningVisibilityMode:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field grok_reasoning_visibility_mode", values[i])
+			} else if value.Valid {
+				_m.GrokReasoningVisibilityMode = value.String
+			}
+		case group.FieldGrokReasoningProbeTTLSec:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field grok_reasoning_probe_ttl_sec", values[i])
+			} else if value.Valid {
+				_m.GrokReasoningProbeTTLSec = int(value.Int64)
+			}
+		case group.FieldGrokReasoningQuarantineSec:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field grok_reasoning_quarantine_sec", values[i])
+			} else if value.Valid {
+				_m.GrokReasoningQuarantineSec = int(value.Int64)
 			}
 		case group.FieldForceOpenaiFast:
 			if value, ok := values[i].(*sql.NullBool); !ok {
@@ -676,6 +719,14 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 			} else if value != nil && len(*value) > 0 {
 				if err := json.Unmarshal(*value, &_m.CodexModelsManifestConfig); err != nil {
 					return fmt.Errorf("unmarshal field codex_models_manifest_config: %w", err)
+				}
+			}
+		case group.FieldPromptPolicy:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field prompt_policy", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.PromptPolicy); err != nil {
+					return fmt.Errorf("unmarshal field prompt_policy: %w", err)
 				}
 			}
 		case group.FieldRpmLimit:
@@ -968,6 +1019,11 @@ func (_m *Group) String() string {
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteString(", ")
+	if v := _m.DefaultProxyID; v != nil {
+		builder.WriteString("default_proxy_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
 	builder.WriteString("model_routing=")
 	builder.WriteString(fmt.Sprintf("%v", _m.ModelRouting))
 	builder.WriteString(", ")
@@ -988,6 +1044,18 @@ func (_m *Group) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("allow_live=")
 	builder.WriteString(fmt.Sprintf("%v", _m.AllowLive))
+	builder.WriteString(", ")
+	builder.WriteString("grok_messages_protocol=")
+	builder.WriteString(_m.GrokMessagesProtocol)
+	builder.WriteString(", ")
+	builder.WriteString("grok_reasoning_visibility_mode=")
+	builder.WriteString(_m.GrokReasoningVisibilityMode)
+	builder.WriteString(", ")
+	builder.WriteString("grok_reasoning_probe_ttl_sec=")
+	builder.WriteString(fmt.Sprintf("%v", _m.GrokReasoningProbeTTLSec))
+	builder.WriteString(", ")
+	builder.WriteString("grok_reasoning_quarantine_sec=")
+	builder.WriteString(fmt.Sprintf("%v", _m.GrokReasoningQuarantineSec))
 	builder.WriteString(", ")
 	builder.WriteString("force_openai_fast=")
 	builder.WriteString(fmt.Sprintf("%v", _m.ForceOpenaiFast))
@@ -1012,6 +1080,9 @@ func (_m *Group) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("codex_models_manifest_config=")
 	builder.WriteString(fmt.Sprintf("%v", _m.CodexModelsManifestConfig))
+	builder.WriteString(", ")
+	builder.WriteString("prompt_policy=")
+	builder.WriteString(fmt.Sprintf("%v", _m.PromptPolicy))
 	builder.WriteString(", ")
 	builder.WriteString("rpm_limit=")
 	builder.WriteString(fmt.Sprintf("%v", _m.RpmLimit))

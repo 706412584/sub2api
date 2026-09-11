@@ -41,6 +41,9 @@ type UpdateSettingsRequest struct {
 	LoginAgreementUpdatedAt             string                       `json:"login_agreement_updated_at"`
 	LoginAgreementDocuments             []dto.LoginAgreementDocument `json:"login_agreement_documents"`
 
+	// 更新下载代理（GitHub 访问代理，支持 http/https/socks5/socks5h；空=用启动配置或直连）
+	UpdateProxyURL string `json:"update_proxy_url"`
+
 	// 邮件服务设置
 	SMTPHost     string `json:"smtp_host"`
 	SMTPPort     int    `json:"smtp_port"`
@@ -254,6 +257,7 @@ type UpdateSettingsRequest struct {
 	RewriteMessageCacheControl             *bool   `json:"rewrite_message_cache_control"`
 	EnableClientDatelineNormalization      *bool   `json:"enable_client_dateline_normalization"`
 	AntigravityUserAgentVersion            *string `json:"antigravity_user_agent_version"`
+	AntigravityClientFingerprintEnabled    *bool   `json:"antigravity_client_fingerprint_enabled"`
 	OpenAICodexUserAgent                   *string `json:"openai_codex_user_agent"`
 	OpenAICodexClientVersion               *string `json:"openai_codex_client_version"`
 	OpenAICodexVersionAutoSyncEnabled      *bool   `json:"openai_codex_version_auto_sync_enabled"`
@@ -1507,6 +1511,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		PromoCodeEnabled:                    req.PromoCodeEnabled,
 		PasswordResetEnabled:                req.PasswordResetEnabled,
 		FrontendURL:                         req.FrontendURL,
+		UpdateProxyURL:                      strings.TrimSpace(req.UpdateProxyURL),
 		InvitationCodeEnabled:               req.InvitationCodeEnabled,
 		TotpEnabled:                         req.TotpEnabled,
 		PasskeyEnabled:                      passkeyEnabled,
@@ -1738,6 +1743,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 				return *req.EnableClientDatelineNormalization
 			}
 			return previousSettings.EnableClientDatelineNormalization
+		}(),
+		AntigravityClientFingerprintEnabled: func() bool {
+			if req.AntigravityClientFingerprintEnabled != nil {
+				return *req.AntigravityClientFingerprintEnabled
+			}
+			return previousSettings.AntigravityClientFingerprintEnabled
 		}(),
 		AntigravityUserAgentVersion: func() string {
 			if req.AntigravityUserAgentVersion != nil {
@@ -2142,6 +2153,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		PromoCodeEnabled:                                       updatedSettings.PromoCodeEnabled,
 		PasswordResetEnabled:                                   updatedSettings.PasswordResetEnabled,
 		FrontendURL:                                            updatedSettings.FrontendURL,
+		UpdateProxyURL:                                         updatedSettings.UpdateProxyURL,
 		InvitationCodeEnabled:                                  updatedSettings.InvitationCodeEnabled,
 		TotpEnabled:                                            updatedSettings.TotpEnabled,
 		TotpEncryptionKeyConfigured:                            h.settingService.IsTotpEncryptionKeyConfigured(),

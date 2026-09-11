@@ -43,6 +43,7 @@ type GatewayHandler struct {
 	openAIGatewayService      *service.OpenAIGatewayService
 	geminiCompatService       *service.GeminiMessagesCompatService
 	antigravityGatewayService *service.AntigravityGatewayService
+	kiroGatewayService        *service.KiroGatewayService
 	userService               *service.UserService
 	billingCacheService       *service.BillingCacheService
 	usageService              *service.UsageService
@@ -65,6 +66,7 @@ func NewGatewayHandler(
 	openAIGatewayService *service.OpenAIGatewayService,
 	geminiCompatService *service.GeminiMessagesCompatService,
 	antigravityGatewayService *service.AntigravityGatewayService,
+	kiroGatewayService *service.KiroGatewayService,
 	userService *service.UserService,
 	concurrencyService *service.ConcurrencyService,
 	billingCacheService *service.BillingCacheService,
@@ -101,6 +103,7 @@ func NewGatewayHandler(
 		openAIGatewayService:      openAIGatewayService,
 		geminiCompatService:       geminiCompatService,
 		antigravityGatewayService: antigravityGatewayService,
+		kiroGatewayService:        kiroGatewayService,
 		userService:               userService,
 		billingCacheService:       billingCacheService,
 		usageService:              usageService,
@@ -158,6 +161,19 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 	}
 
 	setOpsRequestContext(c, "", false)
+
+	if apiKey.Group != nil {
+		var blocked bool
+		body, blocked, err = applyGroupPromptPolicy(apiKey, body, domain.GroupPromptPolicyEndpointMessages)
+		if err != nil {
+			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to apply group prompt policy")
+			return
+		}
+		if blocked {
+			h.errorResponse(c, http.StatusForbidden, "permission_error", "Request blocked by group prompt policy")
+			return
+		}
+	}
 
 	bodyRef := service.NewRequestBodyRef(body)
 	parsedReq, err := service.ParseGatewayRequest(bodyRef, domain.PlatformAnthropic)
@@ -891,7 +907,9 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			}
 			// 记录 Forward 前已写入字节数，Forward 后若增加则说明 SSE 内容已发，禁止 failover
 			writerSizeBeforeForward := c.Writer.Size()
-			if account.Platform == service.PlatformAntigravity && account.Type != service.AccountTypeAPIKey {
+			if account.IsKiro() {
+				result, err = h.kiroGatewayService.Forward(requestCtx, c, account, attemptBody, hasBoundSession)
+			} else if account.Platform == service.PlatformAntigravity && account.Type != service.AccountTypeAPIKey {
 				result, err = h.antigravityGatewayService.Forward(requestCtx, c, account, attemptBody, hasBoundSession)
 			} else {
 				result, err = h.gatewayService.Forward(requestCtx, c, account, attemptParsedReq)
@@ -1469,6 +1487,14 @@ func defaultModelIDsForPlatform(platform string) []string {
 		return claude.DefaultModelIDs()
 	case service.PlatformGrok:
 		return xai.DefaultModelIDs()
+	case service.PlatformKiro:
+		// Kiro models are dynamic; expose a small Claude-compatible fallback list.
+		return []string{
+			"claude-sonnet-4.6",
+			"claude-opus-4.6",
+			"claude-haiku-4.5",
+			"auto",
+		}
 	case service.PlatformComposite:
 		ids := make([]string, 0)
 		seen := make(map[string]struct{})
@@ -1879,6 +1905,9 @@ func (h *GatewayHandler) handleConcurrencyError(c *gin.Context, err error, slotT
 func (h *GatewayHandler) handleFailoverExhausted(c *gin.Context, failoverErr *service.UpstreamFailoverError, platform string, streamStarted bool) {
 	statusCode := failoverErr.StatusCode
 	responseBody := failoverErr.ResponseBody
+	if failoverErr.Platform != "" {
+		platform = failoverErr.Platform
+	}
 	if service.IsOpenAISilentRefusalErrorBody(responseBody) {
 		service.SetOpsUpstreamError(c, statusCode, service.OpenAISilentRefusalClientMessage(), "")
 		h.handleStreamingAwareError(c, http.StatusBadGateway, "upstream_error", service.OpenAISilentRefusalClientMessage(), streamStarted)
@@ -1894,10 +1923,20 @@ func (h *GatewayHandler) handleFailoverExhausted(c *gin.Context, failoverErr *se
 				respCode = *rule.ResponseCode
 			}
 
-			// 确定响应消息
-			msg := service.ExtractUpstreamErrorMessage(responseBody)
+			// 确定响应消息。Grok 必须显式携带已脱敏消息，禁止回退到原始响应体。
+			msg := failoverErr.ClientMessage
+			if msg == "" && platform != service.PlatformGrok {
+				msg = service.ExtractUpstreamErrorMessage(responseBody)
+			}
 			if !rule.PassthroughBody && rule.CustomMessage != nil {
 				msg = *rule.CustomMessage
+			}
+			if platform == service.PlatformGrok {
+				if safeMessage := service.SanitizeGrokMediaClientErrorMessage(msg); safeMessage != "" {
+					msg = safeMessage
+				} else {
+					msg = "Upstream request failed"
+				}
 			}
 
 			if rule.SkipMonitoring {
@@ -1909,8 +1948,15 @@ func (h *GatewayHandler) handleFailoverExhausted(c *gin.Context, failoverErr *se
 		}
 	}
 
-	// 记录原始上游状态码，以便 ops 错误日志捕获真实的上游错误
-	upstreamMsg := service.ExtractUpstreamErrorMessage(responseBody)
+	// 记录真实上游状态码；Grok 缺少安全消息时 fail closed，不读取原始响应体。
+	upstreamMsg := failoverErr.ClientMessage
+	if upstreamMsg == "" {
+		if platform == service.PlatformGrok {
+			upstreamMsg = "Upstream request failed"
+		} else {
+			upstreamMsg = service.ExtractUpstreamErrorMessage(responseBody)
+		}
+	}
 	service.SetOpsUpstreamError(c, statusCode, upstreamMsg, "")
 
 	// 使用默认的错误映射

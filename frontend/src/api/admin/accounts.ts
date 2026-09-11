@@ -48,6 +48,7 @@ export async function list(
     group?: string
     search?: string
     privacy_mode?: string
+    risk?: string
     lite?: string
     include_scheduler_score?: string
     sort_by?: string
@@ -457,7 +458,7 @@ export async function resetTempUnschedulable(id: number): Promise<{ message: str
  */
 export async function generateAuthUrl(
   endpoint: string,
-  config: { proxy_id?: number }
+  config: { proxy_id?: number | null }
 ): Promise<{ auth_url: string; session_id: string }> {
   const { data } = await apiClient.post<{ auth_url: string; session_id: string }>(endpoint, config)
   return data
@@ -471,7 +472,7 @@ export async function generateAuthUrl(
  */
 export async function exchangeCode(
   endpoint: string,
-  exchangeData: { session_id: string; code: string; state?: string; proxy_id?: number }
+  exchangeData: { session_id: string; code: string; state?: string; proxy_id?: number | null }
 ): Promise<Record<string, unknown>> {
   const { data } = await apiClient.post<Record<string, unknown>>(endpoint, exchangeData)
   return data
@@ -748,12 +749,46 @@ export async function exportData(options?: {
 export async function importData(payload: {
   data: AdminDataPayload
   skip_default_group_bind?: boolean
+  group_ids?: number[]
+  proxy_id?: number | null
 }): Promise<AdminDataImportResult> {
   const { data } = await apiClient.post<AdminDataImportResult>('/admin/accounts/data', {
     data: payload.data,
-    skip_default_group_bind: payload.skip_default_group_bind
+    skip_default_group_bind: payload.skip_default_group_bind,
+    group_ids: payload.group_ids,
+    proxy_id: payload.proxy_id
   })
   return data
+}
+
+export interface KiroImportResult {
+  total: number
+  created: number
+  failed: number
+  items?: Array<{ index: number; name?: string; action: string; account_id?: number; message?: string }>
+  errors?: Array<{ index: number; name?: string; message: string }>
+}
+
+export async function importKiroCredentials(
+  data: unknown,
+  options?: {
+    group_ids?: number[]
+    proxy_id?: number | null
+    concurrency?: number
+    priority?: number
+    notes?: string
+  }
+): Promise<KiroImportResult> {
+  const { data: result } = await apiClient.post<KiroImportResult>('/admin/accounts/import/kiro', {
+    data,
+    skip_default_group_bind: true,
+    group_ids: options?.group_ids,
+    proxy_id: options?.proxy_id,
+    concurrency: options?.concurrency,
+    priority: options?.priority,
+    notes: options?.notes
+  }, { timeout: 120000 })
+  return result
 }
 
 export async function importCodexSession(payload: CodexSessionImportRequest): Promise<CodexSessionImportResult> {
@@ -765,6 +800,116 @@ export async function importCodexSession(payload: CodexSessionImportRequest): Pr
 
 export async function createOpenAICodexPAT(payload: OpenAICodexPATCreateRequest): Promise<Account> {
   const { data } = await apiClient.post<Account>('/admin/openai/create-from-codex-pat', payload)
+  return data
+}
+
+export interface KiroOAuthNormalizeResponse {
+  name: string
+  credentials: Record<string, unknown>
+  extra: Record<string, unknown>
+}
+
+export interface KiroBuilderIDDeviceFlowStartRequest {
+  region?: string
+}
+
+export interface KiroBuilderIDDeviceFlowStartResponse {
+  session_id: string
+  user_code: string
+  verification_uri: string
+  verification_uri_complete: string
+  expires_in: number
+  interval: number
+  region: string
+}
+
+export interface KiroBuilderIDDeviceFlowPollResponse {
+  status: 'pending' | 'authorized'
+  interval?: number
+  expires_in?: number
+  authorized_at?: number
+}
+
+export interface KiroCreateAccountRequest {
+  data: any
+  name?: string
+  notes?: string
+  group_ids?: number[]
+  proxy_id?: number | null
+  concurrency?: number
+  priority?: number
+  rate_multiplier?: number
+  load_factor?: number | null
+  expires_at?: number | null
+  auto_pause_on_expired?: boolean
+  skip_default_group_bind?: boolean
+  confirm_mixed_channel_risk?: boolean
+}
+
+export interface KiroBuilderIDCreateAccountRequest {
+  session_id: string
+  name?: string
+  notes?: string
+  group_ids?: number[]
+  proxy_id?: number | null
+  concurrency?: number
+  priority?: number
+  rate_multiplier?: number
+  load_factor?: number | null
+  expires_at?: number | null
+  auto_pause_on_expired?: boolean
+  skip_default_group_bind?: boolean
+  confirm_mixed_channel_risk?: boolean
+}
+
+export interface KiroAPIKeyCreateAccountRequest {
+  name: string
+  notes?: string | null
+  kiro_api_key: string
+  endpoint?: string
+  auth_region?: string
+  api_region?: string
+  proxy_id?: number | null
+  concurrency?: number
+  priority?: number
+  rate_multiplier?: number
+  load_factor?: number | null
+  group_ids?: number[]
+  skip_default_group_bind?: boolean
+  confirm_mixed_channel_risk?: boolean
+}
+
+export async function normalizeKiroOAuthCredentials(payload: { data: any }): Promise<KiroOAuthNormalizeResponse> {
+  const { data } = await apiClient.post<KiroOAuthNormalizeResponse>('/admin/kiro/oauth/normalize', payload)
+  return data
+}
+
+export async function createKiroOAuthAccount(payload: KiroCreateAccountRequest): Promise<Account> {
+  const { data } = await apiClient.post<Account>('/admin/kiro/oauth/create-account', payload)
+  return data
+}
+
+export async function createKiroAPIKeyAccount(payload: KiroAPIKeyCreateAccountRequest): Promise<Account> {
+  const { data } = await apiClient.post<Account>('/admin/kiro/api-key/create-account', payload)
+  return data
+}
+
+export async function startKiroBuilderIDDeviceFlow(
+  payload: KiroBuilderIDDeviceFlowStartRequest
+): Promise<KiroBuilderIDDeviceFlowStartResponse> {
+  const { data } = await apiClient.post<KiroBuilderIDDeviceFlowStartResponse>('/admin/kiro/oauth/builder-id/start', payload)
+  return data
+}
+
+export async function pollKiroBuilderIDDeviceFlow(payload: {
+  session_id: string
+}): Promise<KiroBuilderIDDeviceFlowPollResponse> {
+  const { data } = await apiClient.post<KiroBuilderIDDeviceFlowPollResponse>('/admin/kiro/oauth/builder-id/poll', payload)
+  return data
+}
+
+export async function createKiroBuilderIDAccount(payload: KiroBuilderIDCreateAccountRequest): Promise<Account> {
+  const { data } = await apiClient.post<Account>('/admin/kiro/oauth/builder-id/create-account', payload)
   return data
 }
 
@@ -791,7 +936,7 @@ export async function refreshOpenAIToken(
   endpoint: string = '/admin/openai/refresh-token',
   clientId?: string
 ): Promise<Record<string, unknown>> {
-  const payload: { refresh_token: string; proxy_id?: number; client_id?: string } = {
+  const payload: { refresh_token: string; proxy_id?: number | null; client_id?: string } = {
     refresh_token: refreshToken
   }
   if (proxyId) {
@@ -859,6 +1004,42 @@ export async function batchRefresh(accountIds: number[]): Promise<BatchOperation
     account_ids: accountIds,
   }, {
     timeout: 120000  // 120s timeout for large batch refreshes
+  })
+  return data
+}
+
+export interface BatchTestAccountsRequest {
+  account_ids: number[]
+  model_id: string
+  mode?: 'default' | 'compact'
+  /** Temporary egress for this batch only. null/undefined = keep bound proxy; 0 = direct; >0 = proxy id from IP management. */
+  override_proxy_id?: number | null
+  /** @deprecated ignored; previously filtered by bound proxy */
+  proxy_ids?: number[]
+  interval_ms?: number
+  concurrency?: number
+}
+
+export interface BatchTestAccountItem {
+  account_id: number
+  name: string
+  success: boolean
+  status: string
+  latency_ms: number
+  error: string
+}
+
+export interface BatchTestAccountsResponse {
+  total: number
+  success: number
+  failed: number
+  items: BatchTestAccountItem[]
+}
+
+export async function batchTestAccounts(request: BatchTestAccountsRequest, signal?: AbortSignal): Promise<BatchTestAccountsResponse> {
+  const { data } = await apiClient.post<BatchTestAccountsResponse>('/admin/accounts/batch-test', request, {
+    timeout: 330000,
+    signal
   })
   return data
 }
@@ -1107,12 +1288,20 @@ export const accountsAPI = {
   syncFromCrs,
   exportData,
   importData,
+  importKiroCredentials,
   importCodexSession,
   createOpenAICodexPAT,
+  normalizeKiroOAuthCredentials,
+  createKiroOAuthAccount,
+  createKiroAPIKeyAccount,
+  startKiroBuilderIDDeviceFlow,
+  pollKiroBuilderIDDeviceFlow,
+  createKiroBuilderIDAccount,
   getAntigravityDefaultModelMapping,
   batchDelete,
   batchClearError,
   batchRefresh,
+  batchTestAccounts,
   setPrivacy,
   revertProxyFallback,
   refreshOpenAIQuota,

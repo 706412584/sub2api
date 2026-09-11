@@ -184,7 +184,7 @@ func sanitizeUpdateGroupRequestForSimpleMode(req *UpdateGroupRequest) {
 type CreateGroupRequest struct {
 	Name                      string                        `json:"name" binding:"required"`
 	Description               string                        `json:"description"`
-	Platform                  string                        `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity grok kimi zhipu deepseek minimax composite"`
+	Platform                  string                        `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity grok kiro kimi zhipu deepseek minimax composite"`
 	RateMultiplier            float64                       `json:"rate_multiplier"`
 	IsExclusive               bool                          `json:"is_exclusive"`
 	SubscriptionType          string                        `json:"subscription_type" binding:"omitempty,oneof=standard subscription"`
@@ -224,6 +224,7 @@ type CreateGroupRequest struct {
 	ClaudeCodeOnly                  bool                          `json:"claude_code_only"`
 	FallbackGroupID                 *int64                        `json:"fallback_group_id"`
 	FallbackGroupIDOnInvalidRequest *int64                        `json:"fallback_group_id_on_invalid_request"`
+	DefaultProxyID                  *int64                        `json:"default_proxy_id"`
 	// 模型路由配置（仅 anthropic 平台使用）
 	ModelRouting        map[string][]int64 `json:"model_routing"`
 	ModelRoutingEnabled bool               `json:"model_routing_enabled"`
@@ -242,6 +243,13 @@ type CreateGroupRequest struct {
 	ModelAllowlist              service.GroupModelAllowlist               `json:"model_allowlist"`
 	// 固定账号 manifest 配置；创建路径禁止开启，仅编辑可配置。
 	CodexModelsManifestConfig service.GroupCodexModelsManifestConfig `json:"codex_models_manifest_config"`
+	GrokMessagesProtocol      string                                 `json:"grok_messages_protocol"`
+	// Grok 思考明文可见性调度模式：inherit（跟随网关）/off/soft/enforce
+	GrokReasoningVisibilityMode string `json:"grok_reasoning_visibility_mode"`
+	// 分组级探测复用秒数：-1=继承网关，0=每次探测，N=缓存N秒
+	GrokReasoningProbeTTLSec int `json:"grok_reasoning_probe_ttl_sec"`
+	// 分组级 enforce 冷却：-1=继承，-2=暂停调度，0=仅本轮排除，N=冷却N秒
+	GrokReasoningQuarantineSec int `json:"grok_reasoning_quarantine_sec"`
 	// 分组 RPM 上限（0 = 不限制）
 	RPMLimit int `json:"rpm_limit"`
 	// Anthropic/OpenAI 请求推理强度上限，空字符串表示不限制。
@@ -250,6 +258,8 @@ type CreateGroupRequest struct {
 	MaxReasoningEffortOverLimit string `json:"max_reasoning_effort_over_limit"`
 	// Anthropic/OpenAI 推理强度映射，可按模型精确名、前缀或后缀限定。
 	ReasoningEffortMappings []service.ReasoningEffortMapping `json:"reasoning_effort_mappings"`
+	// PromptPolicy 分组级请求提示词处理策略。
+	PromptPolicy service.GroupPromptPolicy `json:"prompt_policy"`
 	// 从指定分组复制账号（创建后自动绑定）
 	CopyAccountsFromGroupIDs []int64 `json:"copy_accounts_from_group_ids"`
 }
@@ -258,7 +268,7 @@ type CreateGroupRequest struct {
 type UpdateGroupRequest struct {
 	Name                      string                         `json:"name"`
 	Description               *string                        `json:"description"`
-	Platform                  string                         `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity grok kimi zhipu deepseek minimax composite"`
+	Platform                  string                         `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity grok kiro kimi zhipu deepseek minimax composite"`
 	RateMultiplier            *float64                       `json:"rate_multiplier"`
 	IsExclusive               *bool                          `json:"is_exclusive"`
 	Status                    string                         `json:"status" binding:"omitempty,oneof=active inactive"`
@@ -299,6 +309,7 @@ type UpdateGroupRequest struct {
 	ClaudeCodeOnly                  *bool                         `json:"claude_code_only"`
 	FallbackGroupID                 *int64                        `json:"fallback_group_id"`
 	FallbackGroupIDOnInvalidRequest *int64                        `json:"fallback_group_id_on_invalid_request"`
+	DefaultProxyID                  *int64                        `json:"default_proxy_id"`
 	// 模型路由配置（仅 anthropic 平台使用）
 	ModelRouting        map[string][]int64 `json:"model_routing"`
 	ModelRoutingEnabled *bool              `json:"model_routing_enabled"`
@@ -317,6 +328,13 @@ type UpdateGroupRequest struct {
 	ModelAllowlist              *service.GroupModelAllowlist               `json:"model_allowlist"`
 	// 固定账号 manifest 配置；nil 表示不修改。
 	CodexModelsManifestConfig *service.GroupCodexModelsManifestConfig `json:"codex_models_manifest_config"`
+	GrokMessagesProtocol      *string                                 `json:"grok_messages_protocol"`
+	// Grok 思考明文可见性调度模式；nil 表示未提供不改动。
+	GrokReasoningVisibilityMode *string `json:"grok_reasoning_visibility_mode"`
+	// 分组级探测复用秒数；nil 表示未提供不改动。
+	GrokReasoningProbeTTLSec *int `json:"grok_reasoning_probe_ttl_sec"`
+	// 分组级 enforce 冷却；nil 表示未提供不改动。
+	GrokReasoningQuarantineSec *int `json:"grok_reasoning_quarantine_sec"`
 	// 分组 RPM 上限（0 = 不限制）；nil 表示未提供不改动
 	RPMLimit *int `json:"rpm_limit"`
 	// Anthropic/OpenAI 请求推理强度上限；空字符串清除，nil 不修改。
@@ -325,6 +343,8 @@ type UpdateGroupRequest struct {
 	MaxReasoningEffortOverLimit *string `json:"max_reasoning_effort_over_limit"`
 	// nil 不修改，空数组清空，非空数组替换。
 	ReasoningEffortMappings *[]service.ReasoningEffortMapping `json:"reasoning_effort_mappings"`
+	// PromptPolicy nil 表示不修改，非 nil 表示完整替换。
+	PromptPolicy *service.GroupPromptPolicy `json:"prompt_policy"`
 	// 从指定分组复制账号（同步操作：先清空当前分组的账号绑定，再绑定源分组的账号）
 	CopyAccountsFromGroupIDs []int64 `json:"copy_accounts_from_group_ids"`
 }
@@ -703,6 +723,7 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		ClaudeCodeOnly:                  req.ClaudeCodeOnly,
 		FallbackGroupID:                 req.FallbackGroupID,
 		FallbackGroupIDOnInvalidRequest: req.FallbackGroupIDOnInvalidRequest,
+		DefaultProxyID:                  req.DefaultProxyID,
 		ModelRouting:                    req.ModelRouting,
 		ModelRoutingEnabled:             req.ModelRoutingEnabled,
 		MCPXMLInject:                    req.MCPXMLInject,
@@ -717,10 +738,15 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		MessagesDispatchModelConfig:     req.MessagesDispatchModelConfig,
 		ModelAllowlist:                  req.ModelAllowlist,
 		CodexModelsManifestConfig:       req.CodexModelsManifestConfig,
+		GrokMessagesProtocol:            req.GrokMessagesProtocol,
+		GrokReasoningVisibilityMode:     req.GrokReasoningVisibilityMode,
+		GrokReasoningProbeTTLSec:        req.GrokReasoningProbeTTLSec,
+		GrokReasoningQuarantineSec:      req.GrokReasoningQuarantineSec,
 		RPMLimit:                        req.RPMLimit,
 		MaxReasoningEffort:              req.MaxReasoningEffort,
 		MaxReasoningEffortOverLimit:     req.MaxReasoningEffortOverLimit,
 		ReasoningEffortMappings:         req.ReasoningEffortMappings,
+		PromptPolicy:                    req.PromptPolicy,
 		CopyAccountsFromGroupIDs:        req.CopyAccountsFromGroupIDs,
 	})
 	if err != nil {
@@ -849,6 +875,7 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		ClaudeCodeOnly:                  req.ClaudeCodeOnly,
 		FallbackGroupID:                 req.FallbackGroupID,
 		FallbackGroupIDOnInvalidRequest: req.FallbackGroupIDOnInvalidRequest,
+		DefaultProxyID:                  req.DefaultProxyID,
 		ModelRouting:                    req.ModelRouting,
 		ModelRoutingEnabled:             req.ModelRoutingEnabled,
 		MCPXMLInject:                    req.MCPXMLInject,
@@ -863,10 +890,15 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		MessagesDispatchModelConfig:     req.MessagesDispatchModelConfig,
 		ModelAllowlist:                  req.ModelAllowlist,
 		CodexModelsManifestConfig:       req.CodexModelsManifestConfig,
+		GrokMessagesProtocol:            req.GrokMessagesProtocol,
+		GrokReasoningVisibilityMode:     req.GrokReasoningVisibilityMode,
+		GrokReasoningProbeTTLSec:        req.GrokReasoningProbeTTLSec,
+		GrokReasoningQuarantineSec:      req.GrokReasoningQuarantineSec,
 		RPMLimit:                        req.RPMLimit,
 		MaxReasoningEffort:              req.MaxReasoningEffort,
 		MaxReasoningEffortOverLimit:     req.MaxReasoningEffortOverLimit,
 		ReasoningEffortMappings:         req.ReasoningEffortMappings,
+		PromptPolicy:                    req.PromptPolicy,
 		CopyAccountsFromGroupIDs:        req.CopyAccountsFromGroupIDs,
 	})
 	if err != nil {

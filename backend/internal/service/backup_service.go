@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -119,35 +120,40 @@ type BackupScheduleConfig struct {
 
 // BackupRecord 备份记录
 type BackupRecord struct {
-	ID            string       `json:"id"`
-	Status        string       `json:"status"`      // pending, running, completed, failed
-	BackupType    string       `json:"backup_type"` // postgres
-	FileName      string       `json:"file_name"`
-	S3Key         string       `json:"s3_key"`
-	Parts         []BackupPart `json:"parts,omitempty"`
-	SizeBytes     int64        `json:"size_bytes"`
-	TriggeredBy   string       `json:"triggered_by"` // manual, scheduled
-	ErrorMsg      string       `json:"error_message,omitempty"`
-	StartedAt     string       `json:"started_at"`
-	FinishedAt    string       `json:"finished_at,omitempty"`
-	ExpiresAt     string       `json:"expires_at,omitempty"`     // 过期时间
-	Progress      string       `json:"progress,omitempty"`       // "dumping", "uploading", ""
-	RestoreStatus string       `json:"restore_status,omitempty"` // "", "running", "completed", "failed"
-	RestoreError  string       `json:"restore_error,omitempty"`
-	RestoredAt    string       `json:"restored_at,omitempty"`
+	ID         string       `json:"id"`
+	Status     string       `json:"status"`      // pending, running, completed, failed
+	BackupType string       `json:"backup_type"` // postgres
+	FileName   string       `json:"file_name"`
+	S3Key      string       `json:"s3_key"`
+	Parts      []BackupPart `json:"parts,omitempty"`
+	// Storage 标识备份落点：s3 或 local。空值兼容旧记录，按 s3 处理。
+	Storage       string `json:"storage,omitempty"`
+	SizeBytes     int64  `json:"size_bytes"`
+	TriggeredBy   string `json:"triggered_by"` // manual, scheduled
+	ErrorMsg      string `json:"error_message,omitempty"`
+	StartedAt     string `json:"started_at"`
+	FinishedAt    string `json:"finished_at,omitempty"`
+	ExpiresAt     string `json:"expires_at,omitempty"`     // 过期时间
+	Progress      string `json:"progress,omitempty"`       // "dumping", "uploading", ""
+	RestoreStatus string `json:"restore_status,omitempty"` // "", "running", "completed", "failed"
+	RestoreError  string `json:"restore_error,omitempty"`
+	RestoredAt    string `json:"restored_at,omitempty"`
 }
 
 // BackupDownloadPart 描述一个可下载的备份分卷。
 type BackupDownloadPart struct {
 	Index     int    `json:"index"`
 	SizeBytes int64  `json:"size_bytes"`
-	URL       string `json:"url"`
+	URL       string `json:"url,omitempty"`
 }
 
-// BackupDownloadResponse 是单文件和分卷下载响应的兼容表示。
-type BackupDownloadResponse struct {
-	URL   string               `json:"url,omitempty"`
-	Parts []BackupDownloadPart `json:"parts,omitempty"`
+// BackupDownloadInfo 描述前端如何取回备份文件。
+// mode=presign 时使用 url；mode=proxy 时走鉴权代理下载接口。
+type BackupDownloadInfo struct {
+	Mode    string               `json:"mode"` // presign | proxy
+	URL     string               `json:"url,omitempty"`
+	Storage string               `json:"storage"`
+	Parts   []BackupDownloadPart `json:"parts,omitempty"`
 }
 
 // BackupService 数据库备份恢复服务
@@ -161,15 +167,18 @@ type BackupService struct {
 	// mode (#4524).
 	encryptionKeyConfigured bool
 	storeFactory            BackupObjectStoreFactory
+	localDir                string
+	localStoreFactory       func(dir string) (BackupObjectStore, error)
 	dumper                  DBDumper
 
 	opMu      sync.Mutex // 保护 backingUp/restoring 标志
 	backingUp bool
 	restoring bool
 
-	storeMu sync.Mutex // 保护 store/s3Cfg 缓存
-	store   BackupObjectStore
-	s3Cfg   *BackupS3Config
+	storeMu   sync.Mutex // 保护 store/s3Cfg/local 缓存
+	store     BackupObjectStore
+	storeKind string // s3 | local
+	s3Cfg     *BackupS3Config
 
 	recordsMu sync.Mutex // 保护 records 的 load/save 操作
 
@@ -200,12 +209,17 @@ func NewBackupService(
 	dumper DBDumper,
 ) *BackupService {
 	bgCtx, bgCancel := context.WithCancel(context.Background())
+	dataDir := "./data"
+	if cfg != nil && strings.TrimSpace(cfg.Pricing.DataDir) != "" {
+		dataDir = strings.TrimSpace(cfg.Pricing.DataDir)
+	}
 	return &BackupService{
 		settingRepo:             settingRepo,
 		dbCfg:                   &cfg.Database,
 		encryptor:               encryptor,
 		encryptionKeyConfigured: cfg.Totp.EncryptionKeyConfigured,
 		storeFactory:            storeFactory,
+		localDir:                filepath.Join(dataDir, "backups"),
 		dumper:                  dumper,
 		bgCtx:                   bgCtx,
 		bgCancel:                bgCancel,
@@ -248,7 +262,7 @@ func (s *BackupService) Start() {
 	}
 }
 
-// recoverStaleRecords 启动时将孤立的 running 记录标记为 failed，并清理已上传对象。
+// recoverStaleRecords 启动时将孤立的 running 记录标记为 failed，并清理已上传对象
 func (s *BackupService) recoverStaleRecords() {
 	loadCtx, loadCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer loadCancel()
@@ -543,7 +557,7 @@ func (s *BackupService) runScheduledBackup() {
 
 // ─── 备份/恢复核心 ───
 
-// CreateBackup 创建全量数据库备份并上传到 S3。
+// CreateBackup 创建全量数据库备份并上传到对象存储（S3 优先，未配置时回退本地目录，流式处理）
 // expireDays: 备份过期天数，0=永不过期，默认14天
 func (s *BackupService) CreateBackup(ctx context.Context, triggeredBy string, expireDays int) (*BackupRecord, error) {
 	if s.shuttingDown.Load() {
@@ -563,23 +577,15 @@ func (s *BackupService) CreateBackup(ctx context.Context, triggeredBy string, ex
 		s.opMu.Unlock()
 	}()
 
-	s3Cfg, err := s.loadS3Config(ctx)
+	objectStore, storage, s3Cfg, err := s.resolveObjectStore(ctx, "")
 	if err != nil {
 		return nil, err
-	}
-	if s3Cfg == nil || !s3Cfg.IsConfigured() {
-		return nil, ErrBackupS3NotConfigured
-	}
-
-	objectStore, err := s.getOrCreateStore(ctx, s3Cfg)
-	if err != nil {
-		return nil, fmt.Errorf("init object store: %w", err)
 	}
 
 	now := time.Now()
 	backupID := uuid.New().String()[:8]
 	fileName := fmt.Sprintf("%s_%s.sql.gz", s.dbCfg.DBName, now.Format("20060102_150405"))
-	s3Key := s.buildS3Key(s3Cfg, fileName)
+	objectKey := s.buildObjectKey(storage, fileName)
 
 	var expiresAt string
 	if expireDays > 0 {
@@ -591,12 +597,14 @@ func (s *BackupService) CreateBackup(ctx context.Context, triggeredBy string, ex
 		Status:      "running",
 		BackupType:  "postgres",
 		FileName:    fileName,
-		S3Key:       s3Key,
+		S3Key:       objectKey,
+		Storage:     storage,
 		TriggeredBy: triggeredBy,
 		StartedAt:   now.Format(time.RFC3339),
 		ExpiresAt:   expiresAt,
 	}
 
+	// 落盘归档：pg_dump -> gzip 临时文件
 	archivePath, sizeBytes, err := s.createCompressedBackupFile(ctx)
 	if err != nil {
 		record.Status = "failed"
@@ -651,24 +659,17 @@ func (s *BackupService) StartBackup(ctx context.Context, triggeredBy string, exp
 		}
 	}()
 
-	// 在返回前加载 S3 配置和创建 store，避免 goroutine 中配置被修改
-	s3Cfg, err := s.loadS3Config(ctx)
+	// 在返回前解析存储目标，避免 goroutine 中配置被修改
+	objectStore, storage, s3Cfg, err := s.resolveObjectStore(ctx, "")
 	if err != nil {
 		return nil, err
 	}
-	if s3Cfg == nil || !s3Cfg.IsConfigured() {
-		return nil, ErrBackupS3NotConfigured
-	}
-
-	objectStore, err := s.getOrCreateStore(ctx, s3Cfg)
-	if err != nil {
-		return nil, fmt.Errorf("init object store: %w", err)
-	}
+	s3CfgCopy := s3Cfg
 
 	now := time.Now()
 	backupID := uuid.New().String()[:8]
 	fileName := fmt.Sprintf("%s_%s.sql.gz", s.dbCfg.DBName, now.Format("20060102_150405"))
-	s3Key := s.buildS3Key(s3Cfg, fileName)
+	objectKey := s.buildObjectKey(storage, fileName)
 
 	var expiresAt string
 	if expireDays > 0 {
@@ -680,7 +681,8 @@ func (s *BackupService) StartBackup(ctx context.Context, triggeredBy string, exp
 		Status:      "running",
 		BackupType:  "postgres",
 		FileName:    fileName,
-		S3Key:       s3Key,
+		S3Key:       objectKey,
+		Storage:     storage,
 		TriggeredBy: triggeredBy,
 		StartedAt:   now.Format(time.RFC3339),
 		ExpiresAt:   expiresAt,
@@ -713,7 +715,7 @@ func (s *BackupService) StartBackup(ctx context.Context, triggeredBy string, exp
 				_ = s.saveRecord(context.Background(), record)
 			}
 		}()
-		s.executeBackup(record, objectStore, s3Cfg)
+		s.executeBackup(record, objectStore, s3CfgCopy)
 	}()
 
 	return &result, nil
@@ -796,6 +798,9 @@ func (s *BackupService) createCompressedBackupFile(ctx context.Context) (string,
 	return archivePath, info.Size(), nil
 }
 
+// uploadBackupArchive 将归档文件上传到对象存储。超过分卷阈值时拆分为多个
+// payload.part-NNNNNN 对象并记录 Parts 计划；否则单文件上传，保留 S3Key。
+// cfg 为 nil 表示本地回退存储（文件系统无单对象大小上限，永不拆分）。
 func (s *BackupService) uploadBackupArchive(ctx context.Context, record *BackupRecord, objectStore BackupObjectStore, cfg *BackupS3Config, archivePath string) error {
 	info, err := os.Stat(archivePath)
 	if err != nil {
@@ -805,7 +810,7 @@ func (s *BackupService) uploadBackupArchive(ctx context.Context, record *BackupR
 	if partSize <= 0 {
 		partSize = defaultBackupPartSizeBytes
 	}
-	if info.Size() <= partSize {
+	if info.Size() <= partSize || cfg == nil {
 		if _, err := objectStore.UploadFile(ctx, record.S3Key, archivePath, "application/gzip"); err != nil {
 			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), backupObjectCleanupTimeout)
 			cleanupErr := deleteBackupObjectKeys(cleanupCtx, objectStore, record)
@@ -827,13 +832,10 @@ func (s *BackupService) uploadBackupArchive(ctx context.Context, record *BackupR
 		}
 		_ = cleanupBackupFiles(paths...)
 	}()
-	if cfg == nil {
-		return errors.New("backup S3 config is unavailable for split upload")
-	}
 
+	partRoot := strings.TrimRight(record.S3Key, "/")
 	record.S3Key = ""
 	record.Parts = make([]BackupPart, 0, len(localParts))
-	partRoot := strings.TrimRight(s.buildS3Key(cfg, record.ID), "/")
 	for _, part := range localParts {
 		record.Parts = append(record.Parts, BackupPart{
 			Index:     part.Index,
@@ -862,7 +864,7 @@ func (s *BackupService) buildBackupPartKey(root string, index int) string {
 	return fmt.Sprintf("%s/payload.part-%06d", strings.TrimRight(root, "/"), index)
 }
 
-// RestoreBackup 从 S3 下载备份并流式恢复到数据库
+// RestoreBackup 从对象存储下载备份并流式恢复到数据库
 func (s *BackupService) RestoreBackup(ctx context.Context, backupID string) error {
 	s.opMu.Lock()
 	if s.restoring {
@@ -885,11 +887,7 @@ func (s *BackupService) RestoreBackup(ctx context.Context, backupID string) erro
 		return infraerrors.BadRequest("BACKUP_NOT_COMPLETED", "can only restore from a completed backup")
 	}
 
-	s3Cfg, err := s.loadS3Config(ctx)
-	if err != nil {
-		return err
-	}
-	objectStore, err := s.getOrCreateStore(ctx, s3Cfg)
+	objectStore, _, _, err := s.resolveObjectStore(ctx, record.Storage)
 	if err != nil {
 		return fmt.Errorf("init object store: %w", err)
 	}
@@ -903,10 +901,10 @@ func (s *BackupService) RestoreBackup(ctx context.Context, backupID string) erro
 		return s.restoreArchive(ctx, archivePath)
 	}
 
-	// 旧记录从 S3 流式下载
+	// 旧记录从对象存储流式下载
 	body, err := objectStore.Download(ctx, record.S3Key)
 	if err != nil {
-		return fmt.Errorf("S3 download failed: %w", err)
+		return fmt.Errorf("backup download failed: %w", err)
 	}
 	defer func() { _ = body.Close() }()
 
@@ -957,11 +955,7 @@ func (s *BackupService) StartRestore(ctx context.Context, backupID string) (*Bac
 		return nil, infraerrors.BadRequest("BACKUP_NOT_COMPLETED", "can only restore from a completed backup")
 	}
 
-	s3Cfg, err := s.loadS3Config(ctx)
-	if err != nil {
-		return nil, err
-	}
-	objectStore, err := s.getOrCreateStore(ctx, s3Cfg)
+	objectStore, _, _, err := s.resolveObjectStore(ctx, record.Storage)
 	if err != nil {
 		return nil, fmt.Errorf("init object store: %w", err)
 	}
@@ -1025,7 +1019,7 @@ func (s *BackupService) executeRestore(record *BackupRecord, objectStore BackupO
 	body, err := objectStore.Download(ctx, record.S3Key)
 	if err != nil {
 		record.RestoreStatus = "failed"
-		record.RestoreError = fmt.Sprintf("S3 download failed: %v", err)
+		record.RestoreError = fmt.Sprintf("backup download failed: %v", err)
 		_ = s.saveRecord(context.Background(), record)
 		return
 	}
@@ -1053,6 +1047,8 @@ func (s *BackupService) executeRestore(record *BackupRecord, objectStore BackupO
 		logger.LegacyPrintf("service.backup", "[Backup] 保存恢复记录失败: %v", err)
 	}
 }
+
+// ─── 备份记录管理 ───
 
 func (s *BackupService) downloadBackupParts(ctx context.Context, objectStore BackupObjectStore, parts []BackupPart) (path string, err error) {
 	if len(parts) == 0 {
@@ -1188,36 +1184,53 @@ func (s *BackupService) DeleteBackup(ctx context.Context, backupID string) error
 	return s.saveRecordsLocked(ctx, remaining)
 }
 
-// GetBackupDownloadURL 获取备份文件预签名下载 URL
-func (s *BackupService) GetBackupDownloadURL(ctx context.Context, backupID string) (BackupDownloadResponse, error) {
-	var download BackupDownloadResponse
+// GetBackupDownloadURL 获取备份文件预签名下载 URL（单文件或分卷）。
+// S3 单文件返回 URL；分卷返回 Parts；本地存储由调用方改走鉴权代理下载。
+func (s *BackupService) GetBackupDownloadURL(ctx context.Context, backupID string) (*BackupDownloadInfo, error) {
+	info, err := s.GetBackupDownloadInfo(ctx, backupID)
+	if err != nil {
+		return nil, err
+	}
+	if info.Mode == "proxy" {
+		return nil, infraerrors.BadRequest("BACKUP_LOCAL_USE_PROXY", "local backups must be downloaded via the authenticated download endpoint")
+	}
+	return info, nil
+}
+
+// GetBackupDownloadInfo 返回前端下载方式：S3 用预签名（单文件或分卷），本地用鉴权代理。
+func (s *BackupService) GetBackupDownloadInfo(ctx context.Context, backupID string) (*BackupDownloadInfo, error) {
 	record, err := s.GetBackupRecord(ctx, backupID)
 	if err != nil {
-		return download, err
+		return nil, err
 	}
 	if record.Status != "completed" {
-		return download, infraerrors.BadRequest("BACKUP_NOT_COMPLETED", "backup is not completed")
+		return nil, infraerrors.BadRequest("BACKUP_NOT_COMPLETED", "backup is not completed")
 	}
 
-	s3Cfg, err := s.loadS3Config(ctx)
-	if err != nil {
-		return download, err
+	storage := normalizeBackupStorage(record.Storage)
+	if storage == "local" {
+		return &BackupDownloadInfo{Mode: "proxy", Storage: "local"}, nil
 	}
-	objectStore, err := s.getOrCreateStore(ctx, s3Cfg)
+
+	objectStore, resolvedStorage, _, err := s.resolveObjectStore(ctx, storage)
 	if err != nil {
-		return download, err
+		return nil, err
+	}
+	if resolvedStorage == "local" {
+		return &BackupDownloadInfo{Mode: "proxy", Storage: "local"}, nil
 	}
 
 	if len(record.Parts) > 0 {
 		parts := append([]BackupPart(nil), record.Parts...)
 		sort.Slice(parts, func(i, j int) bool { return parts[i].Index < parts[j].Index })
+		download := &BackupDownloadInfo{Mode: "presign", Storage: "s3"}
 		for i, part := range parts {
 			if part.Index != i+1 || part.S3Key == "" || part.SizeBytes <= 0 {
-				return download, fmt.Errorf("invalid backup part metadata at index %d", i+1)
+				return nil, fmt.Errorf("invalid backup part metadata at index %d", i+1)
 			}
 			url, presignErr := objectStore.PresignURL(ctx, part.S3Key, 1*time.Hour)
 			if presignErr != nil {
-				return download, fmt.Errorf("presign backup part %d: %w", part.Index, presignErr)
+				return nil, fmt.Errorf("presign backup part %d: %w", part.Index, presignErr)
 			}
 			download.Parts = append(download.Parts, BackupDownloadPart{
 				Index:     part.Index,
@@ -1227,15 +1240,59 @@ func (s *BackupService) GetBackupDownloadURL(ctx context.Context, backupID strin
 		}
 		return download, nil
 	}
-	if record.S3Key == "" {
-		return download, errors.New("backup object key is empty")
-	}
+
 	url, err := objectStore.PresignURL(ctx, record.S3Key, 1*time.Hour)
 	if err != nil {
-		return download, fmt.Errorf("presign url: %w", err)
+		return nil, fmt.Errorf("presign url: %w", err)
 	}
-	download.URL = url
-	return download, nil
+	return &BackupDownloadInfo{Mode: "presign", URL: url, Storage: "s3"}, nil
+}
+
+// OpenBackupDownload 打开已完成备份的只读流，供鉴权下载接口使用。
+// 分卷记录需要先组装归档文件，返回的 ReadCloser 由调用方负责关闭。
+func (s *BackupService) OpenBackupDownload(ctx context.Context, backupID string) (io.ReadCloser, *BackupRecord, error) {
+	record, err := s.GetBackupRecord(ctx, backupID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if record.Status != "completed" {
+		return nil, nil, infraerrors.BadRequest("BACKUP_NOT_COMPLETED", "backup is not completed")
+	}
+	objectStore, _, _, err := s.resolveObjectStore(ctx, record.Storage)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if len(record.Parts) > 0 {
+		archivePath, err := s.downloadBackupParts(ctx, objectStore, record.Parts)
+		if err != nil {
+			return nil, nil, err
+		}
+		f, err := os.Open(archivePath)
+		if err != nil {
+			_ = cleanupBackupFiles(archivePath)
+			return nil, nil, fmt.Errorf("open restore archive: %w", err)
+		}
+		return &trackedArchiveReadCloser{File: f, path: archivePath}, record, nil
+	}
+
+	body, err := objectStore.Download(ctx, record.S3Key)
+	if err != nil {
+		return nil, nil, fmt.Errorf("backup download failed: %w", err)
+	}
+	return body, record, nil
+}
+
+// trackedArchiveReadCloser 关闭时同时清理临时归档文件。
+type trackedArchiveReadCloser struct {
+	*os.File
+	path string
+}
+
+func (t *trackedArchiveReadCloser) Close() error {
+	err := t.File.Close()
+	_ = cleanupBackupFiles(t.path)
+	return err
 }
 
 // ─── 内部方法 ───
@@ -1262,31 +1319,116 @@ func (s *BackupService) loadS3Config(ctx context.Context) (*BackupS3Config, erro
 	return &cfg, nil
 }
 
-func (s *BackupService) getOrCreateStore(ctx context.Context, cfg *BackupS3Config) (BackupObjectStore, error) {
+// resolveObjectStore 按 preferred 选择存储：s3 优先；未配置 S3 时回退本地目录。
+// preferred 为空表示自动选择。
+func (s *BackupService) resolveObjectStore(ctx context.Context, preferred string) (BackupObjectStore, string, *BackupS3Config, error) {
+	preferred = normalizeBackupStorage(preferred)
+
 	s.storeMu.Lock()
 	defer s.storeMu.Unlock()
 
-	if s.store != nil && s.s3Cfg != nil {
+	// 记录指定 local 时强制本地，避免误用缓存的 S3 store。
+	if preferred == "local" {
+		store, err := s.getOrCreateLocalStoreLocked()
+		if err != nil {
+			return nil, "", nil, err
+		}
+		return store, "local", nil, nil
+	}
+
+	if preferred == "s3" || preferred == "" {
+		s3Cfg, err := s.loadS3Config(ctx)
+		if err != nil {
+			return nil, "", nil, err
+		}
+		if s3Cfg != nil && s3Cfg.IsConfigured() {
+			if s.store != nil && s.storeKind == "s3" && s.s3Cfg != nil {
+				return s.store, "s3", s.s3Cfg, nil
+			}
+			if s.storeFactory == nil {
+				return nil, "", nil, ErrBackupS3NotConfigured
+			}
+			store, err := s.storeFactory(ctx, s3Cfg)
+			if err != nil {
+				return nil, "", nil, err
+			}
+			s.store = store
+			s.storeKind = "s3"
+			s.s3Cfg = s3Cfg
+			return store, "s3", s3Cfg, nil
+		}
+		if preferred == "s3" {
+			return nil, "", nil, ErrBackupS3NotConfigured
+		}
+	}
+
+	// 未配置 S3，或 preferred 为空时回退本地。
+	store, err := s.getOrCreateLocalStoreLocked()
+	if err != nil {
+		return nil, "", nil, err
+	}
+	return store, "local", nil, nil
+}
+
+func (s *BackupService) getOrCreateLocalStoreLocked() (BackupObjectStore, error) {
+	if s.store != nil && s.storeKind == "local" {
 		return s.store, nil
 	}
-
-	if cfg == nil {
-		return nil, ErrBackupS3NotConfigured
+	dir := strings.TrimSpace(s.localDir)
+	if dir == "" {
+		dir = filepath.Join("data", "backups")
 	}
-
-	store, err := s.storeFactory(ctx, cfg)
+	var (
+		store BackupObjectStore
+		err   error
+	)
+	if s.localStoreFactory != nil {
+		store, err = s.localStoreFactory(dir)
+	} else {
+		// 延迟绑定 repository，避免 service 包循环依赖；测试可注入 localStoreFactory。
+		store, err = defaultLocalBackupStoreFactory(dir)
+	}
 	if err != nil {
 		return nil, err
 	}
 	s.store = store
-	s.s3Cfg = cfg
+	s.storeKind = "local"
+	s.s3Cfg = nil
 	return store, nil
 }
 
-func (s *BackupService) buildS3Key(cfg *BackupS3Config, fileName string) string {
-	prefix := strings.TrimRight(cfg.Prefix, "/")
-	if prefix == "" {
-		prefix = "backups"
+// defaultLocalBackupStoreFactory 由 repository 在 init 时注入；未注入时返回明确错误。
+var defaultLocalBackupStoreFactory = func(dir string) (BackupObjectStore, error) {
+	return nil, fmt.Errorf("local backup store factory is not registered")
+}
+
+// RegisterLocalBackupStoreFactory 注册本地备份存储工厂（由 repository 包调用）。
+func RegisterLocalBackupStoreFactory(factory func(dir string) (BackupObjectStore, error)) {
+	if factory != nil {
+		defaultLocalBackupStoreFactory = factory
+	}
+}
+
+func normalizeBackupStorage(storage string) string {
+	switch strings.ToLower(strings.TrimSpace(storage)) {
+	case "local":
+		return "local"
+	case "s3":
+		return "s3"
+	default:
+		return ""
+	}
+}
+
+func (s *BackupService) buildObjectKey(storage, fileName string) string {
+	if normalizeBackupStorage(storage) == "local" {
+		return fmt.Sprintf("local/%s/%s", time.Now().Format("2006/01/02"), fileName)
+	}
+	prefix := "backups"
+	if s.s3Cfg != nil {
+		if p := strings.TrimRight(s.s3Cfg.Prefix, "/"); p != "" {
+			prefix = p
+		}
 	}
 	return fmt.Sprintf("%s/%s/%s", prefix, time.Now().Format("2006/01/02"), fileName)
 }
@@ -1448,15 +1590,7 @@ func (s *BackupService) deleteBackupObjects(ctx context.Context, record *BackupR
 	if len(backupObjectKeys(record)) == 0 {
 		return nil
 	}
-	s3Cfg, err := s.loadS3Config(ctx)
-	if err != nil {
-		return err
-	}
-	if s3Cfg == nil || !s3Cfg.IsConfigured() {
-		// 兼容没有配置对象存储的旧记录：记录仍可被删除。
-		return nil
-	}
-	objectStore, err := s.getOrCreateStore(ctx, s3Cfg)
+	objectStore, _, _, err := s.resolveObjectStore(ctx, record.Storage)
 	if err != nil {
 		return err
 	}

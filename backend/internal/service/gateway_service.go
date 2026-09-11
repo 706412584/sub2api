@@ -687,6 +687,7 @@ type UpstreamFailoverError struct {
 	StatusCode               int
 	ResponseBody             []byte        // 上游响应体，用于错误透传规则匹配
 	ResponseHeaders          http.Header   // 上游响应头，用于透传 cf-ray/cf-mitigated/content-type 等诊断信息
+	Platform                 string        // 实际上游平台；为空时由调用方使用当前协议平台
 	ForceCacheBilling        bool          // Antigravity 粘性会话切换时设为 true
 	RetryableOnSameAccount   bool          // 临时性错误（如 Google 间歇性 400、空响应），应在同一账号上重试 N 次再切换
 	SameAccountRetryDelay    time.Duration // 同账号重试的最小间隔；零值使用 handler 默认值
@@ -699,7 +700,7 @@ type UpstreamFailoverError struct {
 	Reason                   GatewayFailureReason
 	NextAccountAction        NextAccountAction
 	ClientStatusCode         int
-	ClientMessage            string
+	ClientMessage            string // 已经平台专用脱敏、可安全返回客户端的错误信息
 }
 
 func (e *UpstreamFailoverError) Error() string {
@@ -1414,6 +1415,9 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 	// Collect unique models from all accounts
 	modelSet := make(map[string]struct{})
 	hasAnyMapping := false
+	// Antigravity 档位变体（gemini-3.8-flash-low/medium/high）由 reasoning effort
+	// 自动选档，对外只暴露裸名，避免客户端模型列表被档位淹没。
+	tierRoots := make(map[string]struct{})
 
 	for _, acc := range accounts {
 		// Passthrough routing accepts models independently of model_mapping. A stale
@@ -1433,6 +1437,11 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 			for model := range mapping {
 				modelSet[model] = struct{}{}
 			}
+			if acc.Platform == PlatformAntigravity {
+				for root := range antigravityTierFamilyRoots(mapping) {
+					tierRoots[root] = struct{}{}
+				}
+			}
 		}
 	}
 
@@ -1451,6 +1460,7 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 		models = append(models, model)
 	}
 	sort.Strings(models)
+	models = collapseAntigravityTierModels(models, tierRoots)
 
 	if platform == PlatformOpenAI {
 		models = supplementUnmappedOpenAIModels(accounts, models)

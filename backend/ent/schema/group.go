@@ -208,6 +208,12 @@ func (Group) Fields() []ent.Field {
 			Nillable().
 			Comment("无效请求兜底使用的分组 ID"),
 
+		// 账号加入该分组且未显式指定代理时，自动绑定此代理（migration 187）
+		field.Int64("default_proxy_id").
+			Optional().
+			Nillable().
+			Comment("分组默认代理：账号入组未指定代理时自动绑定"),
+
 		// 模型路由配置 (added by migration 040)
 		field.JSON("model_routing", map[string][]int64{}).
 			Optional().
@@ -242,6 +248,20 @@ func (Group) Fields() []ent.Field {
 		field.Bool("allow_live").
 			Default(false).
 			Comment("是否允许此 OpenAI 分组访问 Live 接口"),
+		field.String("grok_messages_protocol").
+			MaxLen(32).
+			Default("responses").
+			Comment("Grok 分组处理 /v1/messages 时使用的上游协议：responses（默认原生）或 chat_completions（可选可见思考）"),
+		field.String("grok_reasoning_visibility_mode").
+			MaxLen(16).
+			Default("").
+			Comment("Grok 思考明文调度模式：空=继承网关默认，off=不检查，soft=降权，enforce=排除并冷却"),
+		field.Int("grok_reasoning_probe_ttl_sec").
+			Default(-1).
+			Comment("Grok 思考探测复用秒数：-1=继承网关，0=每次探测，N=缓存N秒"),
+		field.Int("grok_reasoning_quarantine_sec").
+			Default(-1).
+			Comment("Grok enforce 冷却秒数：-1=继承网关，-2=暂停调度，0=仅本轮排除，N=临时不可调度N秒"),
 		field.Bool("force_openai_fast").
 			Default(false).
 			Comment("是否强制此 OpenAI/Composite 分组请求使用 service_tier=priority"),
@@ -270,6 +290,12 @@ func (Group) Fields() []ent.Field {
 			Default(domain.GroupCodexModelsManifestConfig{}).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
 			Comment("固定账号获取 Codex Model Manifest 配置；开启后 /models 请求只用选定账号拉取（仅 openai 平台）"),
+
+		// Prompt policy only changes or blocks request text when enabled.
+		field.JSON("prompt_policy", domain.GroupPromptPolicy{}).
+			Default(domain.GroupPromptPolicy{}).
+			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
+			Comment("Group prompt policy"),
 
 		// 分组级每分钟请求数上限（0 = 不限制）。设置后优先于用户级兜底生效。
 		field.Int("rpm_limit").

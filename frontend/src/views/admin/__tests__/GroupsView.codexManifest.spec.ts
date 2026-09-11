@@ -1,6 +1,7 @@
 import { defineComponent, h, type PropType } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createPinia, setActivePinia } from "pinia";
 
 import type { AdminGroup, CodexModelsManifestConfig } from "@/types";
 import GroupsView from "@/views/admin/GroupsView.vue";
@@ -122,7 +123,6 @@ const sourceGroup = {
   account_count: 1,
   active_account_count: 1,
   rate_limited_account_count: 0,
-  models_list_config: undefined,
   codex_models_manifest_config: {
     enabled: false,
     account_ids: [],
@@ -228,6 +228,7 @@ const mountView = () =>
 
 describe("GroupsView Codex manifest binding", () => {
   beforeEach(() => {
+    setActivePinia(createPinia());
     localStorage.clear();
     listGroups.mockReset();
     getModelsListCandidates.mockReset();

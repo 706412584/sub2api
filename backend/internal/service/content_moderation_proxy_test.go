@@ -69,6 +69,10 @@ func (r *contentModerationTestProxyRepo) ListActiveWithAccountCount(ctx context.
 	panic("not implemented")
 }
 
+func (r *contentModerationTestProxyRepo) ListOwnedByPrefix(ctx context.Context, namePrefix string) ([]ProxyWithAccountCount, error) {
+	panic("not implemented")
+}
+
 func (r *contentModerationTestProxyRepo) ExistsByHostPortAuth(ctx context.Context, host string, port int, username, password string) (bool, error) {
 	panic("not implemented")
 }

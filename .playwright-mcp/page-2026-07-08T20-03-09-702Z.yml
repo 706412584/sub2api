@@ -1,0 +1,227 @@
+- generic [ref=f1e1]:
+  - generic [ref=f1e3]:
+    - complementary [ref=f1e4]:
+      - generic [ref=f1e5]:
+        - img "Logo" [ref=f1e7]
+        - generic [ref=f1e8]:
+          - generic [ref=f1e9]: Sub2API
+          - button "v0.1.137" [ref=f1e11] [cursor=pointer]:
+            - generic [ref=f1e12]: v0.1.137
+      - navigation [ref=f1e13]:
+        - generic [ref=f1e14]:
+          - link "仪表盘" [ref=f1e15] [cursor=pointer]:
+            - /url: /admin/dashboard
+            - img [ref=f1e16]
+            - generic [ref=f1e18]: 仪表盘
+          - link "运维监控" [ref=f1e19] [cursor=pointer]:
+            - /url: /admin/ops
+            - img [ref=f1e20]
+            - generic [ref=f1e22]: 运维监控
+          - link "用户管理" [ref=f1e23] [cursor=pointer]:
+            - /url: /admin/users
+            - img [ref=f1e24]
+            - generic [ref=f1e26]: 用户管理
+          - link "分组管理" [ref=f1e27] [cursor=pointer]:
+            - /url: /admin/groups
+            - img [ref=f1e28]
+            - generic [ref=f1e30]: 分组管理
+          - button "渠道管理" [ref=f1e31] [cursor=pointer]:
+            - img [ref=f1e32]
+            - generic [ref=f1e34]:
+              - generic [ref=f1e35]: 渠道管理
+              - img [ref=f1e36]
+          - link "订阅管理" [ref=f1e38] [cursor=pointer]:
+            - /url: /admin/subscriptions
+            - img [ref=f1e39]
+            - generic [ref=f1e41]: 订阅管理
+          - link "账号管理" [ref=f1e42] [cursor=pointer]:
+            - /url: /admin/accounts
+            - img [ref=f1e43]
+            - generic [ref=f1e45]: 账号管理
+          - link "公告" [ref=f1e46] [cursor=pointer]:
+            - /url: /admin/announcements
+            - img [ref=f1e47]
+            - generic [ref=f1e49]: 公告
+          - link "IP管理" [ref=f1e50] [cursor=pointer]:
+            - /url: /admin/proxies
+            - img [ref=f1e51]
+            - generic [ref=f1e53]: IP管理
+          - link "兑换码" [ref=f1e54] [cursor=pointer]:
+            - /url: /admin/redeem
+            - img [ref=f1e55]
+            - generic [ref=f1e57]: 兑换码
+          - link "优惠码" [ref=f1e58] [cursor=pointer]:
+            - /url: /admin/promo-codes
+            - img [ref=f1e59]
+            - generic [ref=f1e61]: 优惠码
+          - link "使用记录" [ref=f1e62] [cursor=pointer]:
+            - /url: /admin/usage
+            - img [ref=f1e63]
+            - generic [ref=f1e65]: 使用记录
+          - link "系统设置" [ref=f1e66] [cursor=pointer]:
+            - /url: /admin/settings
+            - img [ref=f1e67]
+            - generic [ref=f1e70]: 系统设置
+        - generic [ref=f1e71]:
+          - generic [ref=f1e73]: 我的账户
+          - link "API 密钥" [ref=f1e74] [cursor=pointer]:
+            - /url: /keys
+            - img [ref=f1e75]
+            - generic [ref=f1e77]: API 密钥
+          - link "使用记录" [ref=f1e78] [cursor=pointer]:
+            - /url: /usage
+            - img [ref=f1e79]
+            - generic [ref=f1e81]: 使用记录
+          - link "渠道状态" [ref=f1e82] [cursor=pointer]:
+            - /url: /monitor
+            - img [ref=f1e83]
+            - generic [ref=f1e85]: 渠道状态
+          - link "我的订阅" [ref=f1e86] [cursor=pointer]:
+            - /url: /subscriptions
+            - img [ref=f1e87]
+            - generic [ref=f1e89]: 我的订阅
+          - link "兑换" [ref=f1e90] [cursor=pointer]:
+            - /url: /redeem
+            - img [ref=f1e91]
+            - generic [ref=f1e93]: 兑换
+          - link "个人资料" [ref=f1e94] [cursor=pointer]:
+            - /url: /profile
+            - img [ref=f1e95]
+            - generic [ref=f1e97]: 个人资料
+      - generic [ref=f1e98]:
+        - button "深色模式" [ref=f1e99] [cursor=pointer]:
+          - img [ref=f1e100]
+          - generic [ref=f1e102]: 深色模式
+        - button "收起" [ref=f1e103] [cursor=pointer]:
+          - img [ref=f1e104]
+          - generic [ref=f1e106]: 收起
+    - generic [ref=f1e107]:
+      - banner [ref=f1e108]:
+        - generic [ref=f1e109]:
+          - generic [ref=f1e111]:
+            - heading "账号管理" [level=1] [ref=f1e112]
+            - paragraph [ref=f1e113]: 管理 AI 平台账号和 Cookie
+          - generic [ref=f1e114]:
+            - button "公告" [ref=f1e116] [cursor=pointer]:
+              - img [ref=f1e117]
+            - button "🇨🇳 ZH" [ref=f1e120] [cursor=pointer]:
+              - generic [ref=f1e121]: 🇨🇳
+              - generic [ref=f1e122]: ZH
+              - img [ref=f1e123]
+            - generic [ref=f1e125]:
+              - img [ref=f1e126]
+              - generic [ref=f1e128]: $0.00
+            - button "User Menu" [ref=f1e130] [cursor=pointer]:
+              - generic [ref=f1e132]: AD
+              - generic [ref=f1e133]:
+                - generic [ref=f1e134]: admin
+                - generic [ref=f1e135]: admin
+              - img [ref=f1e136]
+      - main [ref=f1e138]:
+        - generic [ref=f1e139]:
+          - generic [ref=f1e141]:
+            - generic [ref=f1e142]:
+              - generic [ref=f1e143]:
+                - generic:
+                  - img
+                - textbox "搜索账号..." [ref=f1e144]
+              - button "Select option" [ref=f1e146] [cursor=pointer]:
+                - generic [ref=f1e147]: 全部平台
+                - img [ref=f1e149]
+              - button "Select option" [ref=f1e152] [cursor=pointer]:
+                - generic [ref=f1e153]: 全部类型
+                - img [ref=f1e155]
+              - button "Select option" [ref=f1e158] [cursor=pointer]:
+                - generic [ref=f1e159]: 全部状态
+                - img [ref=f1e161]
+              - button "Select option" [ref=f1e164] [cursor=pointer]:
+                - generic [ref=f1e165]: 全部Privacy状态
+                - img [ref=f1e167]
+              - button "Select option" [ref=f1e170] [cursor=pointer]:
+                - generic [ref=f1e171]: 全部分组
+                - img [ref=f1e173]
+            - generic [ref=f1e175]:
+              - button [ref=f1e176] [cursor=pointer]:
+                - img [ref=f1e177]
+              - button "自动刷新" [ref=f1e180] [cursor=pointer]:
+                - img [ref=f1e181]
+                - generic [ref=f1e183]: 自动刷新
+              - button "更多操作" [ref=f1e185] [cursor=pointer]:
+                - img [ref=f1e186]
+                - generic [ref=f1e188]: 更多操作
+                - img [ref=f1e189]
+              - button "添加账号" [ref=f1e191] [cursor=pointer]
+          - generic [ref=f1e193]:
+            - generic [ref=f1e194]:
+              - generic [ref=f1e196]: 批量编辑账号
+              - button "批量更新" [ref=f1e198] [cursor=pointer]
+            - table [ref=f1e201]:
+              - rowgroup [ref=f1e202]:
+                - row "名称 账号ID 平台/类型 容量 状态 调度 分组 用量窗口 最近使用 创建时间 过期时间 操作" [ref=f1e203]:
+                  - columnheader [ref=f1e204]:
+                    - checkbox [ref=f1e205] [cursor=pointer]
+                  - columnheader "名称" [ref=f1e206] [cursor=pointer]:
+                    - generic [ref=f1e207]:
+                      - generic [ref=f1e208]: 名称
+                      - img [ref=f1e210]
+                  - columnheader "账号ID" [ref=f1e212] [cursor=pointer]:
+                    - generic [ref=f1e213]:
+                      - generic [ref=f1e214]: 账号ID
+                      - img [ref=f1e216]
+                  - columnheader "平台/类型" [ref=f1e218]:
+                    - generic [ref=f1e220]: 平台/类型
+                  - columnheader "容量" [ref=f1e221]:
+                    - generic [ref=f1e223]: 容量
+                  - columnheader "状态" [ref=f1e224] [cursor=pointer]:
+                    - generic [ref=f1e225]:
+                      - generic [ref=f1e226]: 状态
+                      - img [ref=f1e228]
+                  - columnheader "调度" [ref=f1e230] [cursor=pointer]:
+                    - generic [ref=f1e231]:
+                      - generic [ref=f1e232]: 调度
+                      - img [ref=f1e234]
+                  - columnheader "分组" [ref=f1e236]:
+                    - generic [ref=f1e238]: 分组
+                  - columnheader "用量窗口" [ref=f1e239]:
+                    - generic [ref=f1e240]:
+                      - generic [ref=f1e241]: 用量窗口
+                      - img [ref=f1e243]
+                  - columnheader "最近使用" [ref=f1e245] [cursor=pointer]:
+                    - generic [ref=f1e246]:
+                      - generic [ref=f1e247]: 最近使用
+                      - img [ref=f1e249]
+                  - columnheader "创建时间" [ref=f1e251] [cursor=pointer]:
+                    - generic [ref=f1e252]:
+                      - generic [ref=f1e253]: 创建时间
+                      - img [ref=f1e255]
+                  - columnheader "过期时间" [ref=f1e257] [cursor=pointer]:
+                    - generic [ref=f1e258]:
+                      - generic [ref=f1e259]: 过期时间
+                      - img [ref=f1e261]
+                  - columnheader "操作" [ref=f1e263]:
+                    - generic [ref=f1e265]: 操作
+              - rowgroup [ref=f1e266]:
+                - row "暂无数据" [ref=f1e267]:
+                  - cell "暂无数据" [ref=f1e268]:
+                    - generic [ref=f1e269]:
+                      - img [ref=f1e270]
+                      - paragraph [ref=f1e272]: 暂无数据
+  - dialog "Grok OAuth 登录" [ref=f1e382]:
+    - generic [ref=f1e383]:
+      - generic [ref=f1e384]:
+        - heading "Grok OAuth 登录" [level=3] [ref=f1e385]
+        - button "Close modal" [active] [ref=f1e386] [cursor=pointer]:
+          - img [ref=f1e387]
+      - generic [ref=f1e390]:
+        - generic [ref=f1e391]: 使用 xAI OAuth 授权码 + PKCE 登录。点击开始登录，在打开的 xAI 页面完成授权后，把回跳地址或 code 粘贴回来创建 Grok OAuth 账号。
+        - generic [ref=f1e392]:
+          - generic [ref=f1e393]: 账号名称
+          - textbox "留空则自动使用 xAI 账号信息" [ref=f1e394]
+        - generic [ref=f1e395]:
+          - generic [ref=f1e396]: 回调地址
+          - textbox [ref=f1e397]: http://localhost:1455/auth/callback
+          - paragraph [ref=f1e398]: 保持默认即可；授权完成后浏览器可能显示无法访问 localhost，复制地址栏完整 URL 粘贴回来。
+        - button "开始 Grok 登录" [ref=f1e399] [cursor=pointer]
+      - generic [ref=f1e401]:
+        - button "取消" [ref=f1e402] [cursor=pointer]
+        - button "创建 Grok 账号" [disabled] [ref=f1e403]

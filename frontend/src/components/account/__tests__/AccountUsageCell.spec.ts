@@ -317,6 +317,76 @@ describe('AccountUsageCell', () => {
     expect(wrapper.text()).toContain('25')
   })
 
+  it('Antigravity 分桶配额会按组渲染 weekly 与 5h 桶', async () => {
+    getUsage.mockResolvedValue({
+      antigravity_quota: {
+        'gemini-3-pro-high': { utilization: 30, reset_time: '2026-03-01T09:00:00Z' }
+      },
+      antigravity_quota_groups: [
+        {
+          display_name: 'Gemini Models',
+          description: 'Gemini family',
+          buckets: [
+            {
+              bucket_id: 'gemini-weekly',
+              window: 'weekly',
+              utilization: 25,
+              reset_time: '2026-03-05T00:00:00Z',
+              display_name: 'Weekly quota'
+            },
+            {
+              bucket_id: 'gemini-5h',
+              window: '5h',
+              utilization: 80,
+              reset_time: '2026-03-01T05:00:00Z'
+            }
+          ]
+        },
+        {
+          display_name: 'Claude and GPT models',
+          buckets: [
+            {
+              bucket_id: '3p-5h',
+              window: '5h',
+              utilization: 60
+            }
+          ]
+        }
+      ]
+    })
+
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 1003,
+          platform: 'antigravity',
+          type: 'oauth',
+          extra: {}
+        })
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: {
+            props: ['label', 'utilization', 'resetsAt', 'color'],
+            template: '<div class="usage-bar">{{ label }}|{{ utilization }}|{{ resetsAt }}</div>'
+          },
+          AccountQuotaInfo: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    const text = wrapper.text()
+    // 显示名优先的桶
+    expect(text).toContain('Weekly quota|25|2026-03-05T00:00:00Z')
+    // 无显示名：bucket_id 去组前缀 + 窗口后缀（i18n 未注册时 t() 返回原始 key）
+    expect(text).toContain(`5h admin.accounts.usageWindow.quotaWindow5h|80|2026-03-01T05:00:00Z`)
+    expect(text).toContain(`5h admin.accounts.usageWindow.quotaWindow5h|60|`)
+    // 既有 per-model 条仍渲染
+    expect(text).toContain('admin.accounts.usageWindow.gemini3Pro|30|2026-03-01T09:00:00Z')
+  })
+
 
   it('OpenAI OAuth 快照已过期时首屏会重新请求 usage', async () => {
     getUsage.mockResolvedValue({
@@ -1452,6 +1522,352 @@ describe('AccountUsageCell', () => {
     expect(prepaidOnly.text()).toContain('$12.5')
     expect(prepaidOnly.text()).not.toContain('admin.accounts.usageWindow.grokUsed')
     expect(prepaidOnly.text()).not.toContain('8.00/0')
+  })
+
+  it('Grok paid manual probes keep the weekly/local summary when 24h usage is returned', async () => {
+    getUsage.mockResolvedValue({
+      grok_quota_snapshot_state: 'no_headers',
+      error: 'stale error',
+      error_code: 'quota_unknown'
+    })
+
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({ id: 4501, platform: 'grok', type: 'oauth', extra: {} })
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: {
+            props: ['label', 'utilization', 'resetsAt'],
+            template: '<div class="usage-bar">{{ label }}|{{ utilization }}|{{ resetsAt }}</div>'
+          },
+          AccountQuotaInfo: true,
+          GrokQuotaProbeCell: {
+            emits: ['probed'],
+            template: `<button class="probe" @click="$emit('probed', {
+              source: 'hybrid_probe',
+              billing: { period_type: 'weekly', usage_percent: 42, period_end: '2026-07-17T00:00:00Z' },
+              snapshot: {
+                headers_observed: true,
+                updated_at: '2026-07-13T00:00:00Z',
+                entitlement_status: 'ACTIVE',
+                requests: { limit: 100, remaining: 20 }
+              },
+              local_usage_24h: { requests: 3, tokens: 750000, cost: 0.75, standard_cost: 0.75, user_cost: 0.25 },
+              local_usage_7d: { requests: 4, tokens: 1000000, cost: 1, standard_cost: 1, user_cost: 0.5 },
+              local_usage_monthly: { requests: 7, tokens: 1500000, cost: 2, standard_cost: 2, user_cost: 1 },
+              status_code: 200,
+              headers_observed: true,
+              reset_supported: false,
+              fetched_at: 1
+            })">probe</button>`
+          }
+        }
+      }
+    })
+
+    await flushPromises()
+    await wrapper.get('.probe').trigger('click')
+
+    expect(wrapper.text()).toContain('7d|42|2026-07-17T00:00:00Z')
+    expect(wrapper.text()).toContain('1.0M')
+    expect(wrapper.text()).not.toContain('750.0K')
+    expect(wrapper.text()).toContain('ACTIVE')
+    expect(wrapper.text()).not.toContain('stale error')
+  })
+
+  it('Grok successful probes immediately clear stale forbidden state', async () => {
+    getUsage.mockResolvedValue({
+      is_forbidden: true,
+      forbidden_reason: 'stale forbidden response',
+      forbidden_type: 'validation',
+      validation_url: 'https://example.com/verify',
+      needs_verify: true,
+      is_banned: true,
+      grok_entitlement_status: 'forbidden',
+      grok_quota_snapshot_state: 'no_headers',
+      error: 'stale forbidden response',
+      error_code: 'forbidden'
+    })
+
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({ id: 4503, platform: 'grok', type: 'oauth', extra: {} })
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: true,
+          AccountQuotaInfo: true,
+          GrokQuotaProbeCell: true
+        }
+      }
+    })
+
+    await flushPromises()
+    expect(wrapper.text()).toContain('forbidden')
+
+    const setupState = wrapper.vm.$.setupState as {
+      handleGrokProbed: (result: Record<string, unknown>) => void
+      usageInfo: Record<string, unknown> | null
+    }
+    setupState.handleGrokProbed({
+      source: 'active_probe',
+      snapshot: {
+        headers_observed: false,
+        updated_at: '2026-07-18T00:00:00Z',
+        status_code: 200
+      },
+      status_code: 200,
+      headers_observed: false,
+      reset_supported: false,
+      fetched_at: 1
+    })
+    await wrapper.vm.$nextTick()
+
+    expect(setupState.usageInfo).toMatchObject({
+      is_forbidden: false,
+      needs_verify: false,
+      is_banned: false,
+      grok_last_status_code: 200
+    })
+    expect(setupState.usageInfo?.forbidden_reason).toBeUndefined()
+    expect(setupState.usageInfo?.forbidden_type).toBeUndefined()
+    expect(setupState.usageInfo?.validation_url).toBeUndefined()
+    expect(setupState.usageInfo?.grok_entitlement_status).toBeUndefined()
+    expect(wrapper.text()).not.toContain('admin.accounts.forbidden')
+  })
+
+  it('Grok successful probes preserve the entitlement reported by the latest snapshot', async () => {
+    getUsage.mockResolvedValue({
+      is_forbidden: true,
+      grok_entitlement_status: 'forbidden'
+    })
+
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({ id: 4504, platform: 'grok', type: 'oauth', extra: {} })
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: true,
+          AccountQuotaInfo: true,
+          GrokQuotaProbeCell: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    const setupState = wrapper.vm.$.setupState as {
+      handleGrokProbed: (result: Record<string, unknown>) => void
+      usageInfo: Record<string, unknown> | null
+    }
+    setupState.handleGrokProbed({
+      source: 'active_probe',
+      snapshot: {
+        headers_observed: true,
+        updated_at: '2026-07-18T00:00:00Z',
+        entitlement_status: 'ACTIVE',
+        status_code: 200
+      },
+      status_code: 200,
+      headers_observed: true,
+      reset_supported: false,
+      fetched_at: 1
+    })
+    await wrapper.vm.$nextTick()
+
+    expect(setupState.usageInfo?.grok_entitlement_status).toBe('ACTIVE')
+    expect(wrapper.text()).toContain('ACTIVE')
+    expect(wrapper.text()).not.toContain('admin.accounts.forbidden')
+  })
+
+  it('Grok billing-only success does not clear an active-probe forbidden state', async () => {
+    getUsage.mockResolvedValue({
+      is_forbidden: true,
+      forbidden_type: 'forbidden',
+      needs_verify: true,
+      is_banned: true,
+      grok_entitlement_status: 'forbidden'
+    })
+
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({ id: 4505, platform: 'grok', type: 'oauth', extra: {} })
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: true,
+          AccountQuotaInfo: true,
+          GrokQuotaProbeCell: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    const setupState = wrapper.vm.$.setupState as {
+      handleGrokProbed: (result: Record<string, unknown>) => void
+      usageInfo: Record<string, unknown> | null
+    }
+    setupState.handleGrokProbed({
+      source: 'billing_probe',
+      billing: {
+        period_type: 'weekly',
+        usage_percent: 10,
+        plan: 'SuperGrok'
+      },
+      status_code: 200,
+      headers_observed: false,
+      reset_supported: false,
+      fetched_at: 1
+    })
+    await wrapper.vm.$nextTick()
+
+    expect(setupState.usageInfo).toMatchObject({
+      is_forbidden: true,
+      forbidden_type: 'forbidden',
+      needs_verify: true,
+      is_banned: true,
+      grok_entitlement_status: 'forbidden'
+    })
+    expect(wrapper.text()).toContain('forbidden')
+  })
+
+  it('Grok Free manual probes merge rolling 24h usage', async () => {
+    getUsage.mockResolvedValue({
+      grok_free_token_limit: 1_000_000,
+      subscription_tier: 'FREE',
+      grok_quota_snapshot_state: 'no_headers'
+    })
+
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({ id: 4502, platform: 'grok', type: 'oauth', extra: {} })
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: {
+            props: ['label', 'utilization'],
+            template: '<div class="usage-bar">{{ label }}|{{ utilization }}</div>'
+          },
+          AccountQuotaInfo: true,
+          GrokQuotaProbeCell: {
+            emits: ['probed'],
+            template: `<button class="probe" @click="$emit('probed', {
+              source: 'hybrid_probe',
+              billing: { period_type: 'weekly', usage_percent: null, plan: '' },
+              local_usage_24h: { requests: 12, tokens: 750000, cost: 0, standard_cost: 0 },
+              headers_observed: false,
+              reset_supported: false,
+              fetched_at: 1
+            })">probe</button>`
+          }
+        }
+      }
+    })
+
+    await flushPromises()
+    await wrapper.get('.probe').trigger('click')
+
+    expect(wrapper.text()).toContain('24h|75')
+    expect(wrapper.text()).toContain('750.0K')
+    expect(wrapper.text()).not.toContain('7d|')
+  })
+
+  it('Grok auto usage 429 patches rate_limit_reset_at for status badge', async () => {
+    getUsage.mockResolvedValue({
+      grok_last_status_code: 429,
+      grok_retry_after_seconds: 90,
+      grok_quota_snapshot_state: 'observed',
+      grok_last_headers_seen_at: '2026-07-13T00:00:00Z',
+      error_code: 'rate_limited'
+    })
+
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 4601,
+          platform: 'grok',
+          type: 'oauth',
+          rate_limit_reset_at: null,
+          extra: {}
+        })
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: true,
+          AccountQuotaInfo: true,
+          GrokQuotaProbeCell: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    const patches = wrapper.emitted('account-patch')
+    expect(patches).toBeTruthy()
+    expect(patches!.length).toBeGreaterThan(0)
+    const patch = patches![0][0] as { id: number; rate_limit_reset_at: string }
+    expect(patch.id).toBe(4601)
+    expect(Date.parse(patch.rate_limit_reset_at)).toBeGreaterThan(Date.now())
+  })
+
+  it('Grok hybrid probe 429 patches rate_limit_reset_at', async () => {
+    getUsage.mockResolvedValue({
+      grok_quota_snapshot_state: 'no_headers'
+    })
+
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 4602,
+          platform: 'grok',
+          type: 'oauth',
+          rate_limit_reset_at: null,
+          extra: {}
+        })
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: true,
+          AccountQuotaInfo: true,
+          GrokQuotaProbeCell: {
+            emits: ['probed'],
+            template: `<button class="probe" @click="$emit('probed', {
+              source: 'hybrid_probe',
+              snapshot: {
+                headers_observed: true,
+                status_code: 429,
+                retry_after_seconds: 60,
+                observation_source: 'active_probe',
+                updated_at: '2026-07-13T00:00:00Z'
+              },
+              status_code: 429,
+              headers_observed: true,
+              reset_supported: false,
+              fetched_at: 1
+            })">probe</button>`
+          }
+        }
+      }
+    })
+
+    await flushPromises()
+    await wrapper.get('.probe').trigger('click')
+
+    const patches = wrapper.emitted('account-patch')
+    expect(patches).toBeTruthy()
+    const limitedPatches = (patches || []).filter(
+      ([payload]) => (payload as { rate_limit_reset_at?: string | null }).rate_limit_reset_at
+    )
+    expect(limitedPatches.length).toBeGreaterThan(0)
+    const patch = limitedPatches[limitedPatches.length - 1][0] as {
+      id: number
+      rate_limit_reset_at: string
+    }
+    expect(patch.id).toBe(4602)
+    expect(Date.parse(patch.rate_limit_reset_at)).toBeGreaterThan(Date.now())
   })
 
   it('Key 账号在 today stats loading 时显示骨架屏', async () => {

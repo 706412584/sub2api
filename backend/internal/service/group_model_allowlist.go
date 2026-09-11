@@ -145,6 +145,11 @@ func groupModelAllowlistCandidates(model string) []string {
 	add(strings.TrimPrefix(model, "models/"))
 	add(claude.NormalizeModelID(strings.TrimSuffix(model, "-thinking")))
 	add(NormalizeOpenAICompatRequestedModel(model))
+	// Antigravity 分档模型在可用列表里被折叠成裸名，管理员显式勾选的档位变体
+	// 仍应放行（映射里依然存在该 key）。
+	if base := TrimAntigravityTierSuffix(model); base != "" {
+		add(base)
+	}
 	return candidates
 }
 
@@ -215,6 +220,15 @@ func allowlistSourcePatternAllowsModel(patterns []string, model string) bool {
 		}
 		if strings.HasSuffix(pattern, "*") && strings.HasPrefix(strings.ToLower(model), strings.ToLower(strings.TrimSuffix(pattern, "*"))) {
 			return true
+		}
+	}
+	// Antigravity 分档模型在可用列表里被折叠成裸名，管理员显式勾选的档位变体
+	// 仍应放行（映射里依然存在该 key）。
+	if base := TrimAntigravityTierSuffix(model); base != "" {
+		for _, pattern := range patterns {
+			if strings.EqualFold(pattern, base) {
+				return true
+			}
 		}
 	}
 	normalizedClaudeModel := claude.NormalizeModelID(strings.TrimSuffix(model, "-thinking"))

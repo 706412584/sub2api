@@ -645,6 +645,7 @@
           v-model:over-limit="createForm.max_reasoning_effort_over_limit"
           v-model:mappings="createForm.reasoning_effort_mappings"
         />
+        <GroupPromptPolicyFields v-model="createForm.prompt_policy" />
         <div
           v-if="createForm.subscription_type !== 'subscription'"
           data-tour="group-form-exclusive"
@@ -1168,6 +1169,42 @@
               </div>
             </div>
           </div>
+        </div>
+
+        <div v-if="createForm.platform === 'grok'" class="border-t pt-4">
+          <label class="input-label">{{ t("admin.groups.grokMessages.title") }}</label>
+          <Select
+            v-model="createForm.grok_messages_protocol"
+            :options="grokMessagesProtocolOptions"
+          />
+          <p class="input-hint">{{ t("admin.groups.grokMessages.hint") }}</p>
+        </div>
+
+        <div v-if="createForm.platform === 'grok'" class="border-t pt-4">
+          <label class="input-label">{{ t("admin.groups.grokReasoningVisibility.title") }}</label>
+          <Select
+            v-model="createForm.grok_reasoning_visibility_mode"
+            :options="grokReasoningVisibilityModeOptions"
+          />
+          <p class="input-hint">{{ t("admin.groups.grokReasoningVisibility.hint") }}</p>
+          <label class="input-label mt-2">{{ t("admin.groups.grokReasoningVisibility.probeTTL") }}</label>
+          <input
+            v-model.number="createForm.grok_reasoning_probe_ttl_sec"
+            type="number"
+            min="-1"
+            class="input w-full"
+            placeholder="-1"
+          />
+          <p class="input-hint">{{ t("admin.groups.grokReasoningVisibility.probeTTLHint") }}</p>
+          <label class="input-label mt-2">{{ t("admin.groups.grokReasoningVisibility.quarantineSec") }}</label>
+          <input
+            v-model.number="createForm.grok_reasoning_quarantine_sec"
+            type="number"
+            min="-2"
+            class="input w-full"
+            placeholder="-1"
+          />
+          <p class="input-hint">{{ t("admin.groups.grokReasoningVisibility.quarantineSecHint") }}</p>
         </div>
 
         <!-- 高峰时段倍率配置（仅订阅类型分组） -->
@@ -2283,6 +2320,7 @@
           v-model:over-limit="editForm.max_reasoning_effort_over_limit"
           v-model:mappings="editForm.reasoning_effort_mappings"
         />
+        <GroupPromptPolicyFields v-model="editForm.prompt_policy" />
         <div v-if="editForm.subscription_type !== 'subscription'">
           <div class="mb-1.5 flex items-center gap-1">
             <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -2808,6 +2846,42 @@
               </div>
             </div>
           </div>
+        </div>
+
+        <div v-if="editForm.platform === 'grok'" class="border-t pt-4">
+          <label class="input-label">{{ t("admin.groups.grokMessages.title") }}</label>
+          <Select
+            v-model="editForm.grok_messages_protocol"
+            :options="grokMessagesProtocolOptions"
+          />
+          <p class="input-hint">{{ t("admin.groups.grokMessages.hint") }}</p>
+        </div>
+
+        <div v-if="editForm.platform === 'grok'" class="border-t pt-4">
+          <label class="input-label">{{ t("admin.groups.grokReasoningVisibility.title") }}</label>
+          <Select
+            v-model="editForm.grok_reasoning_visibility_mode"
+            :options="grokReasoningVisibilityModeOptions"
+          />
+          <p class="input-hint">{{ t("admin.groups.grokReasoningVisibility.hint") }}</p>
+          <label class="input-label mt-2">{{ t("admin.groups.grokReasoningVisibility.probeTTL") }}</label>
+          <input
+            v-model.number="editForm.grok_reasoning_probe_ttl_sec"
+            type="number"
+            min="-1"
+            class="input w-full"
+            placeholder="-1"
+          />
+          <p class="input-hint">{{ t("admin.groups.grokReasoningVisibility.probeTTLHint") }}</p>
+          <label class="input-label mt-2">{{ t("admin.groups.grokReasoningVisibility.quarantineSec") }}</label>
+          <input
+            v-model.number="editForm.grok_reasoning_quarantine_sec"
+            type="number"
+            min="-2"
+            class="input w-full"
+            placeholder="-1"
+          />
+          <p class="input-hint">{{ t("admin.groups.grokReasoningVisibility.quarantineSecHint") }}</p>
         </div>
 
         <!-- 高峰时段倍率配置（仅订阅类型分组） -->
@@ -4276,6 +4350,7 @@ import type {
   CompositeRouteEndpoint,
   CompositeRouteMatchType,
   GroupPlatform,
+  GrokMessagesProtocol,
   SubscriptionType,
 } from "@/types";
 import {
@@ -4298,6 +4373,7 @@ import GroupRateMultipliersModal from "@/components/admin/group/GroupRateMultipl
 import GroupRPMOverridesModal from "@/components/admin/group/GroupRPMOverridesModal.vue";
 import GroupCapacityBadge from "@/components/common/GroupCapacityBadge.vue";
 import ReasoningEffortPolicyFields from "@/components/admin/group/ReasoningEffortPolicyFields.vue";
+import GroupPromptPolicyFields from "@/components/admin/group/GroupPromptPolicyFields.vue";
 import CodexManifestAccountsField from "@/components/admin/group/CodexManifestAccountsField.vue";
 import PricingEntryCard from "@/components/admin/channel/PricingEntryCard.vue";
 import type { PricingFormEntry } from "@/components/admin/channel/types";
@@ -4319,6 +4395,7 @@ import {
   createDefaultMessagesDispatchFormState,
   messagesDispatchConfigToFormState,
   messagesDispatchFormStateToConfig,
+  normalizeGrokMessagesProtocolForPlatform,
   resetMessagesDispatchFormState,
   supportsMessagesDispatchPlatform,
   type MessagesDispatchMappingRow,
@@ -4654,6 +4731,24 @@ const subscriptionTypeOptions = computed(() => [
   { value: "subscription", label: t("admin.groups.subscription.subscription") },
 ]);
 
+const grokMessagesProtocolOptions = computed(() => [
+  {
+    value: "responses",
+    label: t("admin.groups.grokMessages.responses"),
+  },
+  {
+    value: "chat_completions",
+    label: t("admin.groups.grokMessages.chatCompletions"),
+  },
+]);
+
+const grokReasoningVisibilityModeOptions = computed(() => [
+  { value: "inherit", label: t("admin.groups.grokReasoningVisibility.inherit") },
+  { value: "off", label: t("admin.groups.grokReasoningVisibility.off") },
+  { value: "soft", label: t("admin.groups.grokReasoningVisibility.soft") },
+  { value: "enforce", label: t("admin.groups.grokReasoningVisibility.enforce") },
+]);
+
 // 降级分组选项（创建时）- 仅包含 anthropic 平台且未启用 claude_code_only 的分组
 const fallbackGroupOptions = computed(() => {
   const options: { value: number | null; label: string }[] = [
@@ -4976,6 +5071,10 @@ const createForm = reactive({
   fallback_group_id_on_invalid_request: null as number | null,
   // OpenAI Messages 调度配置（仅 openai 平台使用）
   allow_messages_dispatch: false,
+  grok_messages_protocol: "responses" as GrokMessagesProtocol,
+  grok_reasoning_visibility_mode: "inherit",
+  grok_reasoning_probe_ttl_sec: -1,
+  grok_reasoning_quarantine_sec: -1,
   allow_live: false,
   opus_mapped_model: createMessagesDispatchDefaults.opus_mapped_model,
   sonnet_mapped_model: createMessagesDispatchDefaults.sonnet_mapped_model,
@@ -4997,6 +5096,10 @@ const createForm = reactive({
   max_reasoning_effort: "",
   max_reasoning_effort_over_limit: reasoningEffortOverLimitDowngrade,
   reasoning_effort_mappings: [] as ReasoningEffortMappingRow[],
+  prompt_policy: {
+    enabled: false,
+    rules: [],
+  } as import("@/types").GroupPromptPolicy,
 });
 
 // 简单账号类型（用于模型路由选择）
@@ -5341,6 +5444,10 @@ const editForm = reactive({
   fallback_group_id_on_invalid_request: null as number | null,
   // OpenAI Messages 调度配置（仅 openai 平台使用）
   allow_messages_dispatch: false,
+  grok_messages_protocol: "responses" as GrokMessagesProtocol,
+  grok_reasoning_visibility_mode: "inherit",
+  grok_reasoning_probe_ttl_sec: -1,
+  grok_reasoning_quarantine_sec: -1,
   allow_live: false,
   default_mapped_model: '',
   opus_mapped_model: editMessagesDispatchDefaults.opus_mapped_model,
@@ -5363,6 +5470,10 @@ const editForm = reactive({
   max_reasoning_effort: "",
   max_reasoning_effort_over_limit: reasoningEffortOverLimitDowngrade,
   reasoning_effort_mappings: [] as ReasoningEffortMappingRow[],
+  prompt_policy: {
+    enabled: false,
+    rules: [],
+  } as import("@/types").GroupPromptPolicy,
 });
 
 type ImagePricingFormState = {
@@ -5796,6 +5907,10 @@ const closeCreateModal = () => {
   createForm.fallback_group_id = null;
   createForm.fallback_group_id_on_invalid_request = null;
   resetMessagesDispatchFormState(createForm);
+  createForm.grok_messages_protocol = "responses";
+  createForm.grok_reasoning_visibility_mode = "inherit";
+  createForm.grok_reasoning_probe_ttl_sec = -1;
+  createForm.grok_reasoning_quarantine_sec = -1;
   createForm.allow_live = false;
   createForm.require_oauth_only = false;
   createForm.require_privacy_set = false;
@@ -5918,6 +6033,10 @@ const handleCreateGroup = async () => {
       model_allowlist: buildModelAllowlistConfig(createModelAllowlistState),
       // 创建时固定账号 manifest 固定发送关闭状态（后端创建路径禁止开启）
       codex_models_manifest_config: createCodexManifestDefaults(),
+      grok_messages_protocol: normalizeGrokMessagesProtocolForPlatform(
+        createForm.platform,
+        createForm.grok_messages_protocol,
+      ),
       supported_model_scopes: normalizeSupportedModelScopesForPlatform(
         createForm.platform,
         createForm.supported_model_scopes,
@@ -6019,7 +6138,21 @@ const handleCreateGroup = async () => {
   }
 };
 
+// clonePromptPolicy 深拷贝策略，兼容 Vue reactive Proxy（structuredClone 会抛错）。
+const clonePromptPolicy = (
+  policy?: import("@/types").GroupPromptPolicy | null,
+): import("@/types").GroupPromptPolicy => {
+  const source = policy ?? { enabled: false, rules: [] };
+  try {
+    return JSON.parse(JSON.stringify(source)) as import("@/types").GroupPromptPolicy;
+  } catch {
+    return { enabled: false, rules: [] };
+  }
+};
+
 const handleEdit = async (group: AdminGroup) => {
+  try {
+
   editingGroup.value = group;
   editForm.name = group.name;
   editForm.description = group.description || "";
@@ -6082,6 +6215,13 @@ const handleEdit = async (group: AdminGroup) => {
     group.allow_messages_dispatch ||
     messagesDispatchFormState.allow_messages_dispatch;
   editForm.allow_live = group.allow_live ?? false;
+  editForm.grok_messages_protocol = normalizeGrokMessagesProtocolForPlatform(
+    group.platform,
+    group.grok_messages_protocol,
+  );
+  editForm.grok_reasoning_visibility_mode = group.grok_reasoning_visibility_mode || "inherit";
+  editForm.grok_reasoning_probe_ttl_sec = group.grok_reasoning_probe_ttl_sec ?? -1;
+  editForm.grok_reasoning_quarantine_sec = group.grok_reasoning_quarantine_sec ?? -1;
   editForm.opus_mapped_model = messagesDispatchFormState.opus_mapped_model;
   editForm.sonnet_mapped_model = messagesDispatchFormState.sonnet_mapped_model;
   editForm.haiku_mapped_model = messagesDispatchFormState.haiku_mapped_model;
@@ -6109,6 +6249,7 @@ const handleEdit = async (group: AdminGroup) => {
     group.reasoning_effort_mappings,
     group.platform,
   );
+  editForm.prompt_policy = clonePromptPolicy(group.prompt_policy);
   resetModelAllowlistState(editModelAllowlistState, group.model_allowlist);
   // 固定账号 manifest 配置：回显配置并异步解析已存账号名称（失败显示 #<id>）
   const savedCodexManifestConfig =
@@ -6138,6 +6279,12 @@ const handleEdit = async (group: AdminGroup) => {
   );
   loadModelAllowlistCandidates("edit", group.id, group.platform);
   showEditModal.value = true;
+  } catch (error) {
+    console.error("Error opening edit group modal:", error);
+    appStore.showError(
+      error instanceof Error ? error.message : t("admin.groups.failedToCreate"),
+    );
+  }
 };
 
 const closeEditModal = () => {
@@ -6150,6 +6297,7 @@ const closeEditModal = () => {
   editForm.max_reasoning_effort = "";
   editForm.max_reasoning_effort_over_limit = reasoningEffortOverLimitDowngrade;
   editForm.reasoning_effort_mappings = [];
+  editForm.prompt_policy = { enabled: false, rules: [] };
   editReasoningEffortPolicyRef.value?.resetValidation();
   editModelRoutingRules.value = [];
   editForm.copy_accounts_from_group_ids = [];
@@ -6176,6 +6324,10 @@ const closeEditModal = () => {
   editForm.audio_tts_price_per_million_chars = null;
   editForm.audio_stt_price_per_hour = null;
   resetMessagesDispatchFormState(editForm);
+  editForm.grok_messages_protocol = "responses";
+  editForm.grok_reasoning_visibility_mode = "inherit";
+  editForm.grok_reasoning_probe_ttl_sec = -1;
+  editForm.grok_reasoning_quarantine_sec = -1;
   editForm.allow_live = false;
   resetModelAllowlistState(editModelAllowlistState);
   editCodexManifestConfig.value = createCodexManifestDefaults();
@@ -6266,6 +6418,10 @@ const handleUpdateGroup = async () => {
               fallback_to_scheduler: editCodexManifestConfig.value.fallback_to_scheduler,
             }
           : createCodexManifestDefaults(),
+      grok_messages_protocol: normalizeGrokMessagesProtocolForPlatform(
+        editForm.platform,
+        editForm.grok_messages_protocol,
+      ),
       supported_model_scopes: normalizeSupportedModelScopesForPlatform(
         editForm.platform,
         editForm.supported_model_scopes,
@@ -6661,6 +6817,10 @@ watch(
     if (!supportsLivePlatform(newVal)) {
       createForm.allow_live = false;
     }
+createForm.grok_messages_protocol = normalizeGrokMessagesProtocolForPlatform(
+      newVal,
+      createForm.grok_messages_protocol,
+    );
     if (!isProfitControlPlatform(newVal)) {
       createForm.profit_control_enabled = false;
       createForm.profit_min_margin_percent = 0;
@@ -6718,6 +6878,10 @@ watch(
     if (!supportsLivePlatform(newVal)) {
       editForm.allow_live = false;
     }
+editForm.grok_messages_protocol = normalizeGrokMessagesProtocolForPlatform(
+      newVal,
+      editForm.grok_messages_protocol,
+    );
     if (!isProfitControlPlatform(newVal)) {
       editForm.profit_control_enabled = false;
       editForm.profit_min_margin_percent = 0;

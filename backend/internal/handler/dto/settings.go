@@ -34,6 +34,7 @@ type SystemSettings struct {
 	PromoCodeEnabled                    bool                     `json:"promo_code_enabled"`
 	PasswordResetEnabled                bool                     `json:"password_reset_enabled"`
 	FrontendURL                         string                   `json:"frontend_url"`
+	UpdateProxyURL                      string                   `json:"update_proxy_url"`
 	InvitationCodeEnabled               bool                     `json:"invitation_code_enabled"`
 	TotpEnabled                         bool                     `json:"totp_enabled"`                   // TOTP 双因素认证
 	TotpEncryptionKeyConfigured         bool                     `json:"totp_encryption_key_configured"` // TOTP 加密密钥是否已配置
@@ -212,6 +213,7 @@ type SystemSettings struct {
 	RewriteMessageCacheControl             bool   `json:"rewrite_message_cache_control"`
 	EnableClientDatelineNormalization      bool   `json:"enable_client_dateline_normalization"`
 	AntigravityUserAgentVersion            string `json:"antigravity_user_agent_version"`
+	AntigravityClientFingerprintEnabled    bool   `json:"antigravity_client_fingerprint_enabled"`
 	OpenAICodexUserAgent                   string `json:"openai_codex_user_agent"`
 	OpenAICodexClientVersion               string `json:"openai_codex_client_version"`
 	OpenAICodexClientVersionSynced         string `json:"openai_codex_client_version_synced"`
@@ -451,6 +453,43 @@ type RateLimit429CooldownSettings struct {
 	CooldownSeconds int  `json:"cooldown_seconds"`
 }
 
+// OpenAIGrok429ExhaustionSettings GPT/Grok 429 立即限流配置 DTO
+type OpenAIGrok429ExhaustionSettings struct {
+	Enabled                  bool    `json:"enabled"`
+	FreeFullDurationHours    int     `json:"free_full_duration_hours"`
+	FreeFullThresholdPercent float64 `json:"free_full_threshold_percent"`
+	NoResetDurationMinutes   int     `json:"no_reset_duration_minutes"`
+}
+
+// AccountPoolProbeSettings 号池全局异步探测配置 DTO
+type AccountPoolProbeSettings struct {
+	Enabled                bool     `json:"enabled"`
+	IntervalMinutes        int      `json:"interval_minutes"`
+	BatchSize              int      `json:"batch_size"`
+	MaxConcurrency         int      `json:"max_concurrency"`
+	AccountCooldownMinutes int      `json:"account_cooldown_minutes"`
+	Platforms              []string `json:"platforms"`
+}
+
+// GrokOpsProxySettings Grok 运维/测活专用出口配置 DTO
+type GrokOpsProxySettings struct {
+	Enabled        bool   `json:"enabled"`
+	ProxyID        *int64 `json:"proxy_id"`
+	ApplyToRefresh bool   `json:"apply_to_refresh"`
+}
+
+// GrokCLIIdentityStatus Grok CLI 身份版本状态 DTO
+type GrokCLIIdentityStatus struct {
+	EffectiveVersion string `json:"effective_version"`
+	PinnedDefault    string `json:"pinned_default"`
+	SettingsOverride string `json:"settings_override,omitempty"`
+	EnvOverride      string `json:"env_override,omitempty"`
+	Source           string `json:"source"`
+	LatestVersion    string `json:"latest_version,omitempty"`
+	LatestCheckedAt  string `json:"latest_checked_at,omitempty"`
+	UpdateAvailable  bool   `json:"update_available,omitempty"`
+}
+
 type OpenAIImagesOAuthUnavailableCooldownSettings struct {
 	CooldownMinutes int `json:"cooldown_minutes"`
 }
@@ -471,6 +510,14 @@ type StreamTimeoutSettings struct {
 	TempUnschedMinutes     int    `json:"temp_unsched_minutes"`
 	ThresholdCount         int    `json:"threshold_count"`
 	ThresholdWindowMinutes int    `json:"threshold_window_minutes"`
+}
+
+// GrokReasoningVisibilitySettings 网关级 Grok 思考明文调度配置 DTO
+type GrokReasoningVisibilitySettings struct {
+	Mode                 string `json:"mode"`
+	ProbeTTLSec          int    `json:"probe_ttl_sec"`
+	QuarantineSec        int    `json:"quarantine_sec"`
+	ProbeAccountFallback bool   `json:"probe_account_fallback"`
 }
 
 // RectifierSettings 请求整流器配置 DTO

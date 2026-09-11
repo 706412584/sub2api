@@ -23,10 +23,14 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorhistory"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorrequesttemplate"
 	"github.com/Wei-Shaw/sub2api/ent/compositemodelroute"
+	"github.com/Wei-Shaw/sub2api/ent/dynamicproxypool"
 	"github.com/Wei-Shaw/sub2api/ent/errorpassthroughrule"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
+	"github.com/Wei-Shaw/sub2api/ent/imbot"
+	"github.com/Wei-Shaw/sub2api/ent/imbotchat"
+	"github.com/Wei-Shaw/sub2api/ent/imbotmessage"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
@@ -35,6 +39,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/promocode"
 	"github.com/Wei-Shaw/sub2api/ent/promocodeusage"
 	"github.com/Wei-Shaw/sub2api/ent/proxy"
+	"github.com/Wei-Shaw/sub2api/ent/proxysubscription"
 	"github.com/Wei-Shaw/sub2api/ent/redeemcode"
 	"github.com/Wei-Shaw/sub2api/ent/securitysecret"
 	"github.com/Wei-Shaw/sub2api/ent/setting"
@@ -511,6 +516,33 @@ func (f TraverseCompositeModelRoute) Traverse(ctx context.Context, q ent.Query) 
 	return fmt.Errorf("unexpected query type %T. expect *ent.CompositeModelRouteQuery", q)
 }
 
+// The DynamicProxyPoolFunc type is an adapter to allow the use of ordinary function as a Querier.
+type DynamicProxyPoolFunc func(context.Context, *ent.DynamicProxyPoolQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f DynamicProxyPoolFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.DynamicProxyPoolQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.DynamicProxyPoolQuery", q)
+}
+
+// The TraverseDynamicProxyPool type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseDynamicProxyPool func(context.Context, *ent.DynamicProxyPoolQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseDynamicProxyPool) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseDynamicProxyPool) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.DynamicProxyPoolQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.DynamicProxyPoolQuery", q)
+}
+
 // The ErrorPassthroughRuleFunc type is an adapter to allow the use of ordinary function as a Querier.
 type ErrorPassthroughRuleFunc func(context.Context, *ent.ErrorPassthroughRuleQuery) (ent.Value, error)
 
@@ -563,6 +595,87 @@ func (f TraverseGroup) Traverse(ctx context.Context, q ent.Query) error {
 		return f(ctx, q)
 	}
 	return fmt.Errorf("unexpected query type %T. expect *ent.GroupQuery", q)
+}
+
+// The IMBotFunc type is an adapter to allow the use of ordinary function as a Querier.
+type IMBotFunc func(context.Context, *ent.IMBotQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f IMBotFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.IMBotQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.IMBotQuery", q)
+}
+
+// The TraverseIMBot type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseIMBot func(context.Context, *ent.IMBotQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseIMBot) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseIMBot) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.IMBotQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.IMBotQuery", q)
+}
+
+// The IMBotChatFunc type is an adapter to allow the use of ordinary function as a Querier.
+type IMBotChatFunc func(context.Context, *ent.IMBotChatQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f IMBotChatFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.IMBotChatQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.IMBotChatQuery", q)
+}
+
+// The TraverseIMBotChat type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseIMBotChat func(context.Context, *ent.IMBotChatQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseIMBotChat) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseIMBotChat) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.IMBotChatQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.IMBotChatQuery", q)
+}
+
+// The IMBotMessageFunc type is an adapter to allow the use of ordinary function as a Querier.
+type IMBotMessageFunc func(context.Context, *ent.IMBotMessageQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f IMBotMessageFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.IMBotMessageQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.IMBotMessageQuery", q)
+}
+
+// The TraverseIMBotMessage type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseIMBotMessage func(context.Context, *ent.IMBotMessageQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseIMBotMessage) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseIMBotMessage) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.IMBotMessageQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.IMBotMessageQuery", q)
 }
 
 // The IdempotencyRecordFunc type is an adapter to allow the use of ordinary function as a Querier.
@@ -806,6 +919,33 @@ func (f TraverseProxy) Traverse(ctx context.Context, q ent.Query) error {
 		return f(ctx, q)
 	}
 	return fmt.Errorf("unexpected query type %T. expect *ent.ProxyQuery", q)
+}
+
+// The ProxySubscriptionFunc type is an adapter to allow the use of ordinary function as a Querier.
+type ProxySubscriptionFunc func(context.Context, *ent.ProxySubscriptionQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f ProxySubscriptionFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.ProxySubscriptionQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.ProxySubscriptionQuery", q)
+}
+
+// The TraverseProxySubscription type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseProxySubscription func(context.Context, *ent.ProxySubscriptionQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseProxySubscription) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseProxySubscription) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.ProxySubscriptionQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.ProxySubscriptionQuery", q)
 }
 
 // The RedeemCodeFunc type is an adapter to allow the use of ordinary function as a Querier.
@@ -1192,10 +1332,18 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.ChannelMonitorRequestTemplateQuery, predicate.ChannelMonitorRequestTemplate, channelmonitorrequesttemplate.OrderOption]{typ: ent.TypeChannelMonitorRequestTemplate, tq: q}, nil
 	case *ent.CompositeModelRouteQuery:
 		return &query[*ent.CompositeModelRouteQuery, predicate.CompositeModelRoute, compositemodelroute.OrderOption]{typ: ent.TypeCompositeModelRoute, tq: q}, nil
+	case *ent.DynamicProxyPoolQuery:
+		return &query[*ent.DynamicProxyPoolQuery, predicate.DynamicProxyPool, dynamicproxypool.OrderOption]{typ: ent.TypeDynamicProxyPool, tq: q}, nil
 	case *ent.ErrorPassthroughRuleQuery:
 		return &query[*ent.ErrorPassthroughRuleQuery, predicate.ErrorPassthroughRule, errorpassthroughrule.OrderOption]{typ: ent.TypeErrorPassthroughRule, tq: q}, nil
 	case *ent.GroupQuery:
 		return &query[*ent.GroupQuery, predicate.Group, group.OrderOption]{typ: ent.TypeGroup, tq: q}, nil
+	case *ent.IMBotQuery:
+		return &query[*ent.IMBotQuery, predicate.IMBot, imbot.OrderOption]{typ: ent.TypeIMBot, tq: q}, nil
+	case *ent.IMBotChatQuery:
+		return &query[*ent.IMBotChatQuery, predicate.IMBotChat, imbotchat.OrderOption]{typ: ent.TypeIMBotChat, tq: q}, nil
+	case *ent.IMBotMessageQuery:
+		return &query[*ent.IMBotMessageQuery, predicate.IMBotMessage, imbotmessage.OrderOption]{typ: ent.TypeIMBotMessage, tq: q}, nil
 	case *ent.IdempotencyRecordQuery:
 		return &query[*ent.IdempotencyRecordQuery, predicate.IdempotencyRecord, idempotencyrecord.OrderOption]{typ: ent.TypeIdempotencyRecord, tq: q}, nil
 	case *ent.IdentityAdoptionDecisionQuery:
@@ -1214,6 +1362,8 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.PromoCodeUsageQuery, predicate.PromoCodeUsage, promocodeusage.OrderOption]{typ: ent.TypePromoCodeUsage, tq: q}, nil
 	case *ent.ProxyQuery:
 		return &query[*ent.ProxyQuery, predicate.Proxy, proxy.OrderOption]{typ: ent.TypeProxy, tq: q}, nil
+	case *ent.ProxySubscriptionQuery:
+		return &query[*ent.ProxySubscriptionQuery, predicate.ProxySubscription, proxysubscription.OrderOption]{typ: ent.TypeProxySubscription, tq: q}, nil
 	case *ent.RedeemCodeQuery:
 		return &query[*ent.RedeemCodeQuery, predicate.RedeemCode, redeemcode.OrderOption]{typ: ent.TypeRedeemCode, tq: q}, nil
 	case *ent.SecuritySecretQuery:

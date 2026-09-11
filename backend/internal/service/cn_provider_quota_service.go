@@ -89,6 +89,9 @@ func NewCNProviderQuotaService(
 // QueryUsage 探测指定账号的 Coding Plan 滚动窗口用量并落 Extra 快照。
 // 同一账号的并发探测会被 singleflight 合并。
 func (s *CNProviderQuotaService) QueryUsage(ctx context.Context, accountID int64) (*CNProviderQuotaProbeResult, error) {
+	if s == nil || s.accountRepo == nil || s.httpUpstream == nil {
+		return nil, infraerrors.New(http.StatusInternalServerError, "CN_QUOTA_NOT_CONFIGURED", "cn provider quota service is not configured")
+	}
 	account, err := s.loadCodingPlanAccount(ctx, accountID)
 	if err != nil {
 		return nil, err

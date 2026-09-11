@@ -32,6 +32,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	body []byte,
 	promptCacheKey string,
 	defaultMappedModel string,
+	grokMessagesProtocol ...string,
 ) (*OpenAIForwardResult, error) {
 	beginUpstreamResponseModelObservation(c)
 	ClearActualOpenAIUpstreamEndpoint(c)
@@ -43,7 +44,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		return nil, err
 	}
 
-	// 入口分流（国产供应商 Anthropic 协议）：上游为供应商原生 Anthropic 端点时，
+	// 入口分流（国产供应商 Anthropic / adaptive 协议）：上游为供应商原生 Anthropic 端点时，
 	// /v1/messages 请求零转换直通（仅模型名映射 + 少量 body 清洗），完整保留
 	// thinking / tool_use / cache 语义，适配 Claude Code 等原生客户端。
 	// 必须先于 ShouldUseResponsesAPI 分流：Anthropic 协议账号经 probe 落标
@@ -52,9 +53,16 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		return s.forwardAnthropicViaNativeAnthropicEndpoint(ctx, c, account, body, defaultMappedModel)
 	}
 
-	// 固定 chat_completions 的 CN 账号，以及不支持 Responses 的其他 APIKey
-	// 账号，均将 Messages 转为 CC；固定 responses 的 CN 账号不受探针旧值覆盖。
-	if shouldForwardOpenAIResponsesViaRawChatCompletions(account) {
+	// Grok groups can opt into Chat Completions for native /v1/messages.
+	// Default remains responses (native); only explicit chat_completions converts.
+	// Callers that omit the option keep the legacy Responses path.
+	if account.Platform == PlatformGrok && len(grokMessagesProtocol) > 0 {
+		if NormalizeGrokMessagesProtocol(PlatformGrok, grokMessagesProtocol[0]) == GrokMessagesProtocolChatCompletions {
+			return s.forwardAnthropicViaRawChatCompletions(ctx, c, account, body, defaultMappedModel)
+		}
+	} else if shouldForwardOpenAIResponsesViaRawChatCompletions(account) {
+		// 固定 chat_completions 的 CN 账号，以及不支持 Responses 的其他 APIKey
+		// 账号，均将 Messages 转为 CC；固定 responses 的 CN 账号不受探针旧值覆盖。
 		return s.forwardAnthropicViaRawChatCompletions(ctx, c, account, body, defaultMappedModel)
 	}
 
@@ -89,6 +97,20 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		} else if sessionSeed := promptCacheKeyFromAnthropicMetadataSession(&anthropicReq); sessionSeed != "" {
 			promptCacheKey = sessionSeed
 			compatPromptCacheInjected = true
+		}
+	}
+	// Grok OAuth pools rotate accounts; thinking.signature from another
+	// account always 400. Drop signatures once before convert so multi-turn
+	// tool continuations do not thrash strip+retry after failover.
+	if account.Platform == PlatformGrok && account.IsGrokOAuth() && !grokEncryptedContentStripRetried(ctx) {
+		if strippedBody, ok := stripAnthropicThinkingSignatures(body); ok {
+			body = strippedBody
+			if err := json.Unmarshal(body, &anthropicReq); err != nil {
+				return nil, fmt.Errorf("parse anthropic request after thinking signature strip: %w", err)
+			}
+			logger.L().Info("openai messages: proactive Grok thinking signature strip",
+				zap.Int64("account_id", account.ID),
+			)
 		}
 	}
 	if promptCacheKey == "" && shouldAutoInjectPromptCacheKeyForCompat(upstreamModel) {
@@ -302,6 +324,13 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	responsesReq.ServiceTier = normalizedOpenAIServiceTierValue(gjson.GetBytes(responsesBody, "service_tier").String())
 	grokCacheIdentity := ""
 	if account.Platform == PlatformGrok {
+		// 工具强制系统提示注入：与 forwardGrokResponses 保持一致，在解析
+		// cache identity 之前注入，使注入文本参与缓存键计算。
+		if s.settingService != nil {
+			if enabled, prompt := s.settingService.GrokToolPromptInjection(ctx); enabled && prompt != "" {
+				responsesBody = prependGrokInstructions(responsesBody, prompt)
+			}
+		}
 		grokIntentBody := responsesBody
 		grokCacheIdentity = resolveGrokCacheIdentity(c, grokIntentBody, promptCacheKey, upstreamModel)
 		patchedBody, patchErr := patchGrokResponsesBody(grokIntentBody, upstreamModel)
@@ -316,13 +345,28 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		if patchErr != nil {
 			return nil, fmt.Errorf("apply grok Free function-tool cache route: %w", patchErr)
 		}
+		// Same-account sticky may keep encrypted blobs; multi-account OAuth
+		// almost always cannot. Strip before first upstream hop.
+		if account.IsGrokOAuth() {
+			if stripped, changed, stripErr := stripGrokEncryptedReasoningIfPresent(responsesBody); stripErr != nil {
+				return nil, fmt.Errorf("proactive strip Grok encrypted_content: %w", stripErr)
+			} else if changed {
+				responsesBody = stripped
+				logger.L().Info("openai messages: proactive Grok encrypted_content strip",
+					zap.Int64("account_id", account.ID),
+					zap.Bool("cache_identity_present", strings.TrimSpace(grokCacheIdentity) != ""),
+				)
+			}
+		}
 	}
 
 	// 5. Get access token
-	token, _, err := s.getRequestCredential(ctx, c, account)
+	token, credKind, err := s.getRequestCredential(ctx, c, account)
 	if err != nil {
 		return nil, fmt.Errorf("get access token: %w", err)
 	}
+	// Console 会话账号：DPoP proof + SSO Cookie 每请求绑定，需专用构建器。
+	isConsoleRequest := credKind == "console_dpop" && s.consoleDPoPProvider != nil
 
 	// 6. Build upstream request
 	if account.UsesOpenAICodexProtocol() && account.Platform != PlatformGrok {
@@ -333,7 +377,12 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	}
 	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
 	var upstreamReq *http.Request
-	if account.Platform == PlatformGrok {
+	if isConsoleRequest {
+		upstreamReq, err = s.consoleDPoPProvider.BuildConsoleResponsesRequest(upstreamCtx, account.ID, account.ProxyID, responsesBody)
+		if err == nil {
+			applyGrokCacheHeaders(upstreamReq.Header, grokCacheIdentity)
+		}
+	} else if account.Platform == PlatformGrok {
 		upstreamReq, err = buildGrokResponsesRequest(upstreamCtx, c, account, responsesBody, token, grokCacheIdentity, s.cfg, s.settingService)
 	} else {
 		upstreamReq, err = s.buildUpstreamRequest(upstreamCtx, c, account, responsesBody, token, isStream, promptCacheKey, false)
@@ -386,7 +435,14 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 				break
 			}
 			upstreamCtxRetry, releaseRetry := detachUpstreamContext(ctx)
-			upstreamReq, err = buildGrokResponsesRequest(upstreamCtxRetry, c, account, responsesBody, token, grokCacheIdentity, s.cfg, s.settingService)
+			if isConsoleRequest {
+				upstreamReq, err = s.consoleDPoPProvider.BuildConsoleResponsesRequest(upstreamCtxRetry, account.ID, account.ProxyID, responsesBody)
+				if err == nil {
+					applyGrokCacheHeaders(upstreamReq.Header, grokCacheIdentity)
+				}
+			} else {
+				upstreamReq, err = buildGrokResponsesRequest(upstreamCtxRetry, c, account, responsesBody, token, grokCacheIdentity, s.cfg, s.settingService)
+			}
 			releaseRetry()
 			if err != nil {
 				return nil, fmt.Errorf("build grok retry request: %w", err)
@@ -596,7 +652,7 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 
 	if strings.TrimSpace(finalResponse.Status) == "failed" {
 		payload, _ := json.Marshal(gin.H{"type": "response.failed", "response": finalResponse})
-		if hit, code, msg := detectOpenAICyberPolicy(payload); hit {
+		if hit, code, msg := detectOpenAICyberPolicy(payload); hit && account.Platform != PlatformGrok {
 			MarkOpsCyberPolicy(c, CyberPolicyMark{
 				Code:           code,
 				Message:        msg,
@@ -1020,7 +1076,7 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 			// 回写让客户端感知并停止重试（F4），丢弃后续转换输出。
 			if eventType == "response.failed" || isBareErrorEvent {
 				payloadBytes := []byte(payload)
-				if hit, code, msg := detectOpenAICyberPolicy(payloadBytes); hit {
+				if hit, code, msg := detectOpenAICyberPolicy(payloadBytes); hit && account.Platform != PlatformGrok {
 					MarkOpsCyberPolicy(c, CyberPolicyMark{
 						Code:           code,
 						Message:        msg,
@@ -1153,6 +1209,17 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 			)
 		}
 	}
+	writeStreamError := func(message string) {
+		if clientDisconnected {
+			return
+		}
+		writeStreamHeaders()
+		if _, err := fmt.Fprint(c.Writer, buildAnthropicStreamErrorSSE("api_error", message)); err != nil {
+			clientDisconnected = true
+			return
+		}
+		c.Writer.Flush()
+	}
 	missingTerminalErr := func() (*OpenAIForwardResult, error) {
 		result := resultWithUsage()
 		if clientDisconnected {
@@ -1163,6 +1230,7 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 			return result, s.newOpenAIStreamFailoverError(c, account, false, requestID, nil, message)
 		}
 		s.recordOpenAIMessagesStreamUpstreamError(c, account, requestID, "stream_missing_terminal", message)
+		writeStreamError(message)
 		return result, fmt.Errorf("stream usage incomplete: missing terminal event")
 	}
 	processFrame := func(frame openAICompatSSEFrame) bool {
@@ -1194,6 +1262,12 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 		}
 		if err := scanner.Err(); err != nil {
 			handleScanErr(err)
+			message := "OpenAI messages stream disconnected before completion"
+			if !clientOutputStarted {
+				return resultWithUsage(), s.newOpenAIStreamFailoverError(c, account, false, requestID, nil, message)
+			}
+			s.recordOpenAIMessagesStreamUpstreamError(c, account, requestID, "stream_read_error", message)
+			writeStreamError(message)
 			return resultWithUsage(), fmt.Errorf("stream usage incomplete: %w", err)
 		}
 		if frame, ok := parser.Finish(); ok {
@@ -1267,6 +1341,12 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 			}
 			if ev.err != nil {
 				handleScanErr(ev.err)
+				message := "OpenAI messages stream disconnected before completion"
+				if !clientOutputStarted {
+					return resultWithUsage(), s.newOpenAIStreamFailoverError(c, account, false, requestID, nil, message)
+				}
+				s.recordOpenAIMessagesStreamUpstreamError(c, account, requestID, "stream_read_error", message)
+				writeStreamError(message)
 				return resultWithUsage(), fmt.Errorf("stream usage incomplete: %w", ev.err)
 			}
 			lastDataAt = time.Now()
@@ -1360,6 +1440,9 @@ func copyOpenAIUsageFromResponsesUsage(usage *apicompat.ResponsesUsage) OpenAIUs
 	}
 	if usage.InputTokensDetails != nil {
 		result.CacheReadInputTokens = usage.InputTokensDetails.CachedTokens
+	}
+	if usage.OutputTokensDetails != nil {
+		result.ReasoningTokens = usage.OutputTokensDetails.ReasoningTokens
 	}
 	return result
 }
