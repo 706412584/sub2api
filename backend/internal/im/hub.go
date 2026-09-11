@@ -48,13 +48,13 @@ type APIKeySource interface {
 func NewHub(cfg config.IMConfig, repo service.IMBotRepository, keyRepo APIKeySource,
 	enc service.SecretEncryptor, rdb redis.Cmdable, factories []AdapterFactory) *Hub {
 	h := &Hub{
-		cfg:     cfg,
-		repo:    repo,
-		keyRepo: keyRepo,
-		enc:     enc,
-		rdb:     rdb,
-		fwd:     NewForwarder(cfg.BaseURL),
-		bots:    map[int64]*botHandle{},
+		cfg:       cfg,
+		repo:      repo,
+		keyRepo:   keyRepo,
+		enc:       enc,
+		rdb:       rdb,
+		fwd:       NewForwarder(cfg.BaseURL),
+		bots:      map[int64]*botHandle{},
 		factories: map[Platform]AdapterFactory{},
 	}
 	if h.cfg.BaseURL == "" {
