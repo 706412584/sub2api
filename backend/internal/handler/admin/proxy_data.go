@@ -181,10 +181,12 @@ func (h *ProxyHandler) ImportData(c *gin.Context) {
 				updateInput := &service.UpdateProxyInput{
 					Status:         normalizedStatus,
 					ExpiresAt:      existingExpiresAt,
+					ClearExpiresAt: existingExpiresAt == nil,
 					FallbackMode:   existingFallbackMode,
 					BackupProxyID:  existingBackupProxyID,
+					ClearBackupID:  existingBackupProxyID == nil,
 					EgressProxyID:  existingEgressProxyID,
-					ExpiryWarnDays: item.ExpiryWarnDays,
+					ExpiryWarnDays: &item.ExpiryWarnDays,
 					// 保留已存在代理的网络配置字段
 					Name:     existing.Name,
 					Protocol: existing.Protocol,
@@ -271,10 +273,12 @@ func (h *ProxyHandler) ImportData(c *gin.Context) {
 			if _, err := h.adminService.UpdateProxy(ctx, created.ID, &service.UpdateProxyInput{
 				Status:         normalizedStatus,
 				ExpiresAt:      expiresAt,
+				ClearExpiresAt: expiresAt == nil,
 				FallbackMode:   fallbackMode,
 				BackupProxyID:  backupProxyID,
+				ClearBackupID:  backupProxyID == nil,
 				EgressProxyID:  egressProxyID,
-				ExpiryWarnDays: item.ExpiryWarnDays,
+				ExpiryWarnDays: &item.ExpiryWarnDays,
 				Name:           created.Name,
 				Protocol:       created.Protocol,
 				Host:           created.Host,

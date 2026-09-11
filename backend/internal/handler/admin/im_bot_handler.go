@@ -176,12 +176,12 @@ func (h *IMBotHandler) GeneratePairCode(c *gin.Context) {
 		response.Error(c, http.StatusServiceUnavailable, "im hub is not running")
 		return
 	}
-	code, expiresAt, err := h.hubRef.GeneratePairCode(c.Request.Context(), id)
+	code, expiresAt, pairURL, err := h.hubRef.GeneratePairCode(c.Request.Context(), id)
 	if err != nil {
 		mapErr(c, err)
 		return
 	}
-	response.Success(c, gin.H{"code": code, "expires_at": expiresAt})
+	response.Success(c, gin.H{"code": code, "expires_at": expiresAt, "pair_url": pairURL})
 }
 
 // ListChats GET /im-bots/:id/chats

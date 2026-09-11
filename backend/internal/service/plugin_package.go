@@ -107,7 +107,14 @@ func (i *PluginPackageInstaller) Install(ctx context.Context, reader io.Reader, 
 	if err != nil {
 		return nil, fmt.Errorf("插件包不是有效的 ZIP: %w", err)
 	}
-	defer func() { _ = archive.Close() }()
+	archiveClosed := false
+	closeArchive := func() {
+		if !archiveClosed {
+			archiveClosed = true
+			_ = archive.Close()
+		}
+	}
+	defer closeArchive()
 	manifest, _, signatureStatus, err := i.inspectArchive(&archive.Reader)
 	if err != nil {
 		return nil, err
@@ -139,9 +146,7 @@ func (i *PluginPackageInstaller) Install(ctx context.Context, reader io.Reader, 
 	}
 	// Windows 上 rename 打开中的文件会失败（"being used by another process"），
 	// 提交前先释放 zip 句柄；Linux 无影响。
-	if err := archive.Close(); err != nil {
-		return nil, fmt.Errorf("关闭插件包: %w", err)
-	}
+	closeArchive()
 	if err := os.Rename(extractPath, installPath); err != nil {
 		return nil, fmt.Errorf("提交插件安装目录: %w", err)
 	}

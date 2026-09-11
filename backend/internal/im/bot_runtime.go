@@ -198,6 +198,17 @@ func (b *botHandle) stopCurrentTurn(chatID string) {
 	}
 }
 
+// pairingAttemptText normalizes an unpaired chat's first message into a
+// pairing-code attempt: a scan-to-pair deep link makes Telegram auto-send
+// "/start <code>", so the code lives after the slash command. Bare codes
+// (typed by hand) pass through untouched.
+func pairingAttemptText(text string) string {
+	if rest, ok := strings.CutPrefix(text, "/start"); ok {
+		return strings.TrimSpace(rest)
+	}
+	return text
+}
+
 // processMessage runs the full inbound pipeline for one message:
 // gate -> command -> forward -> render -> persist.
 func (b *botHandle) processMessage(parent context.Context, msg InboundMessage) {
@@ -236,8 +247,10 @@ func (b *botHandle) processMessage(parent context.Context, msg InboundMessage) {
 			}
 			return
 		}
-		// treat the text as a pairing code attempt
-		chat, err = b.hub.pairing.Verify(ctx, b.hub.repo, b.bot, msg.Text, msg.PlatformUser, msg.ChatID, msg.DisplayName)
+		// treat the text as a pairing code attempt; "/start <code>" (the
+		// scan-to-pair deep link payload) carries the same code after the slash
+		// command.
+		chat, err = b.hub.pairing.Verify(ctx, b.hub.repo, b.bot, pairingAttemptText(msg.Text), msg.PlatformUser, msg.ChatID, msg.DisplayName)
 		if err != nil {
 			if b.hub.pairing.DenyHintAllowed(ctx, fmt.Sprintf("%d:%s", b.bot.ID, msg.ChatID)) {
 				if strings.Contains(err.Error(), "rate limited") {

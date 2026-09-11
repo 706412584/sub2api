@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/imapi"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/redis/go-redis/v9"
@@ -47,13 +48,14 @@ type APIKeySource interface {
 func NewHub(cfg config.IMConfig, repo service.IMBotRepository, keyRepo APIKeySource,
 	enc service.SecretEncryptor, rdb redis.Cmdable, factories []AdapterFactory) *Hub {
 	h := &Hub{
-		cfg:     cfg,
-		repo:    repo,
-		keyRepo: keyRepo,
-		enc:     enc,
-		rdb:     rdb,
-		fwd:     NewForwarder(cfg.BaseURL),
-		bots:    map[int64]*botHandle{},
+		cfg:       cfg,
+		repo:      repo,
+		keyRepo:   keyRepo,
+		enc:       enc,
+		rdb:       rdb,
+		fwd:       NewForwarder(cfg.BaseURL),
+		bots:      map[int64]*botHandle{},
+		factories: map[Platform]AdapterFactory{},
 	}
 	if h.cfg.BaseURL == "" {
 		h.cfg.BaseURL = "http://127.0.0.1:18080"
@@ -150,9 +152,29 @@ func (h *Hub) StopBot(ctx context.Context, botID int64) error {
 	return nil
 }
 
-// GeneratePairCode issues a fresh pairing code for a bot (admin action).
-func (h *Hub) GeneratePairCode(ctx context.Context, botID int64) (string, time.Time, error) {
-	return h.pairing.Generate(ctx, botID)
+// GeneratePairCode issues a fresh pairing code for a bot (admin action) and,
+// when the platform exposes a public bot handle, the scan-to-pair deep link
+// (e.g. https://t.me/<bot>?start=<code>) for QR rendering.
+func (h *Hub) GeneratePairCode(ctx context.Context, botID int64) (string, time.Time, string, error) {
+	code, expiresAt, err := h.pairing.Generate(ctx, botID)
+	if err != nil {
+		return "", time.Time{}, "", err
+	}
+	link := ""
+	h.mu.Lock()
+	bh := h.bots[botID]
+	h.mu.Unlock()
+	if bh != nil {
+		if pp, ok := bh.adapter.(imapi.ProfileProvider); ok {
+			if username, perr := pp.BotUsername(ctx); perr == nil && username != "" {
+				switch Platform(bh.bot.Platform) {
+				case imapi.PlatformTelegram:
+					link = fmt.Sprintf("https://t.me/%s?start=%s", username, code)
+				}
+			}
+		}
+	}
+	return code, expiresAt, link, nil
 }
 
 // RuntimeStatus implements service.IMBotReloader.

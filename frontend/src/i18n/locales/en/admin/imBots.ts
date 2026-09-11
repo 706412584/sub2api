@@ -45,6 +45,7 @@ export const imBotsEn = {
   pair: {
     title: 'Pair code for "{name}"',
     hint: 'DM this bot on your IM platform and send the code to pair',
+    scanHint: 'Scan with your IM app, or tap the QR code to open the chat and pair automatically',
     expiresAt: 'Valid until {time} (single use)',
     failed: 'Failed to generate pairing code'
   },
