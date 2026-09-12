@@ -136,6 +136,10 @@ func ProvideKiroBuilderIDDeviceFlowService() *KiroBuilderIDDeviceFlowService {
 	return NewKiroBuilderIDDeviceFlowService()
 }
 
+func ProvideCodebuddyLoginService() *CodebuddyLoginService {
+	return NewCodebuddyLoginService()
+}
+
 // ProvideTokenRefreshService creates and starts TokenRefreshService
 func ProvideTokenRefreshService(
 	accountRepo AccountRepository,
@@ -994,6 +998,7 @@ var ProviderSet = wire.NewSet(
 	ProvideGrokConsoleDPoPProvider,      // P2: Console DPoP Provider
 	ProvideConsoleModelCatalog,          // P2: Console 模型目录
 	ProvideKiroBuilderIDDeviceFlowService,
+	ProvideCodebuddyLoginService,
 	NewGeminiOAuthService,
 	NewGeminiQuotaService,
 	NewCompositeTokenCacheInvalidator,
