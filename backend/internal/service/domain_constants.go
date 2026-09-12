@@ -554,6 +554,10 @@ const (
 	// asynchronous account-pool quota probe runner.
 	SettingKeyAccountPoolProbeSettings = "account_pool_probe_settings"
 
+	// SettingKeyCodebuddyMaintenance stores JSON config for CodeBuddy account
+	// maintenance jobs (check-in / activity report / token keepalive).
+	SettingKeyCodebuddyMaintenance = "codebuddy_maintenance_settings"
+
 	// SettingKeyGrokOpsProxy stores JSON config for Grok ops/test egress proxy.
 	// Live traffic keeps account.proxy_id; only test/probe (and optional refresh) use this.
 	SettingKeyGrokOpsProxy = "grok_ops_proxy"

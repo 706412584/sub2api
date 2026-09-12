@@ -643,6 +643,28 @@ type OpenAIImagesOAuthUnavailableCooldownSettings struct {
 	CooldownMinutes int `json:"cooldown_minutes"`
 }
 
+// CodebuddyMaintenanceSettings CodeBuddy 养号任务配置（签到 / 活跃上报 / token 保活）。
+// 仅 CN 区账号参与；Global 区无签到类活动，恒返回 code=10001 噪音，全部跳过。
+// 任务时点为本地小时（0-23），多时点逗号分隔由调用方解析。
+type CodebuddyMaintenanceSettings struct {
+	// Enabled 是否启用养号任务总开关（默认开启）
+	Enabled bool `json:"enabled"`
+	// CheckinEnabled 签到任务开关（默认开启）。签到后查余额，余额>0 自动解冻硬冷却账号
+	CheckinEnabled bool `json:"checkin_enabled"`
+	// CheckinHours 签到触发小时表（默认 [9, 21]）
+	CheckinHours []int `json:"checkin_hours"`
+	// ActivityEnabled 活跃上报开关（默认开启）。点亮 growth 连登
+	ActivityEnabled bool `json:"activity_enabled"`
+	// ActivityHours 活跃上报触发小时表（默认 [10]）
+	ActivityHours []int `json:"activity_hours"`
+	// KeepaliveEnabled token 保活开关（默认开启）。12153 session 死亡自动禁用账号
+	KeepaliveEnabled bool `json:"keepalive_enabled"`
+	// KeepaliveHours 保活触发小时表（默认 [22]）
+	KeepaliveHours []int `json:"keepalive_hours"`
+	// AccountDelayMs 账号间限速（毫秒，默认 800，防上游风控）
+	AccountDelayMs int `json:"account_delay_ms"`
+}
+
 const (
 	openAIImagesOAuthUnavailableDefaultCooldownMinutes = 30
 	openAIImagesOAuthUnavailableMaxCooldownMinutes     = 120
@@ -701,6 +723,21 @@ func DefaultAccountPoolProbeSettings() *AccountPoolProbeSettings {
 		MaxConcurrency:         2,
 		AccountCooldownMinutes: 20,
 		Platforms:              []string{PlatformOpenAI, PlatformGrok},
+	}
+}
+
+// DefaultCodebuddyMaintenanceSettings CodeBuddy 养号默认配置。
+// 与 workbuddy2api 默认时点对齐：签到 9/21 点、活跃 10 点、保活 22 点。
+func DefaultCodebuddyMaintenanceSettings() *CodebuddyMaintenanceSettings {
+	return &CodebuddyMaintenanceSettings{
+		Enabled:          true,
+		CheckinEnabled:   true,
+		CheckinHours:     []int{9, 21},
+		ActivityEnabled:  true,
+		ActivityHours:    []int{10},
+		KeepaliveEnabled: true,
+		KeepaliveHours:   []int{22},
+		AccountDelayMs:   800,
 	}
 }
 

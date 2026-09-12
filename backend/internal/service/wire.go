@@ -754,6 +754,22 @@ func ProvideAccountPoolProbeRunner(
 	return svc
 }
 
+// ProvideCodebuddyMaintenanceRunner creates and starts the CodeBuddy
+// account-maintenance runner (check-in / activity / keepalive, CN region only).
+func ProvideCodebuddyMaintenanceRunner(
+	accountRepo AccountRepository,
+	gatewayService *CodebuddyGatewayService,
+	httpUpstream HTTPUpstream,
+	tlsFPProfileService *TLSFingerprintProfileService,
+	settingService *SettingService,
+	cfg *config.Config,
+) *CodebuddyMaintenanceRunner {
+	refresher := NewCodebuddyTokenRefresher(httpUpstream, tlsFPProfileService)
+	svc := NewCodebuddyMaintenanceRunner(accountRepo, gatewayService, refresher, settingService, cfg)
+	svc.Start()
+	return svc
+}
+
 // ProvideOpsScheduledReportService creates and starts OpsScheduledReportService.
 func ProvideOpsScheduledReportService(
 	opsService *OpsService,
@@ -1057,6 +1073,7 @@ var ProviderSet = wire.NewSet(
 	ProvideScheduledTestService,
 	ProvideScheduledTestRunnerService,
 	ProvideAccountPoolProbeRunner,
+	ProvideCodebuddyMaintenanceRunner,
 	NewGroupCapacityService,
 	NewChannelService,
 	wire.Bind(new(ChannelCacheInvalidator), new(*ChannelService)),
