@@ -202,6 +202,27 @@ const yiModels = [
   'yi-1.5-34b-chat', 'yi-1.5-9b-chat', 'yi-1.5-6b-chat'
 ]
 
+// CodeBuddy（两区静态表并集，准入由后端区域归属判定；自定义模型透传上游）
+const codebuddyModels = [
+  'auto',
+  'glm-5.3',
+  'glm-5.2',
+  'glm-5.1',
+  'glm-5v-turbo',
+  'kimi-k2.7',
+  'kimi-k2.6',
+  'kimi-k2.5',
+  'minimax-m3',
+  'hy3',
+  'hy3-preview',
+  'hy3-preview-agent',
+  'hy4-preview',
+  'hy4-preview-x',
+  'deepseek-v4-pro',
+  'deepseek-v4-flash',
+  'deepseek-v4.1-flash'
+]
+
 // Moonshot/Kimi
 const moonshotModels = [
   'moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k',
@@ -463,6 +484,7 @@ export function getModelsByPlatform(platform: string): string[] {
     case 'grok': return xaiModels
     case 'cohere': return cohereModels
     case 'yi': return yiModels
+    case 'codebuddy': return codebuddyModels
     case 'moonshot':
     case 'kimi': return moonshotModels
     case 'doubao': return doubaoModels

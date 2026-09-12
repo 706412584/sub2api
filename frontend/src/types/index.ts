@@ -531,7 +531,7 @@ export interface PaginationConfig {
 
 // ==================== API Key & Group Types ====================
 
-export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kiro' | 'kimi' | 'zhipu' | 'deepseek' | 'composite'
+export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kiro' | 'codebuddy' | 'kimi' | 'zhipu' | 'deepseek' | 'composite'
 
 export type VideoModelPrices = Record<string, Record<string, number>>
 
@@ -955,7 +955,7 @@ export interface UpdateGroupRequest {
 
 // ==================== Account & Proxy Types ====================
 
-export type AccountPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kiro' | 'kimi' | 'zhipu' | 'deepseek'
+export type AccountPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kiro' | 'codebuddy' | 'kimi' | 'zhipu' | 'deepseek'
 export type AccountType = 'oauth' | 'setup-token' | 'apikey' | 'upstream' | 'bedrock' | 'service_account' | 'builder-id' | 'grok_console' | 'grok_web'
 
 // Grok Console / Web 会话导入与状态
@@ -1552,6 +1552,8 @@ export interface AccountUsageInfo {
     fetched_at: string
   } | null
   kiro?: KiroUsageInfo | null
+  // CodeBuddy 账号当前可花费积分余额（billing meter 聚合）
+  codebuddy_credit_remain?: number | null
   subscription_tier?: string
   subscription_tier_raw?: string
   ai_credits?: Array<{

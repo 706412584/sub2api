@@ -462,12 +462,19 @@
       @close="showCreate = false"
       @created="reload"
       @open-kiro-browser-login="handleOpenKiroBrowserLogin"
+      @open-codebuddy-login="handleOpenCodebuddyLogin"
     />
     <KiroBrowserLoginModal
       :show="showKiroBrowserLogin"
       :account-defaults="kiroAccountDefaults"
       @close="showKiroBrowserLogin = false"
       @created="handleKiroAccountCreated"
+    />
+    <CodebuddyLoginModal
+      :show="showCodebuddyLogin"
+      :account-defaults="codebuddyAccountDefaults"
+      @close="showCodebuddyLogin = false"
+      @created="handleCodebuddyAccountCreated"
     />
     <EditAccountModal :show="showEdit" :account="edAcc" :proxies="proxies" :groups="groups" @close="showEdit = false" @updated="handleAccountUpdated" />
     <ReAuthAccountModal :show="showReAuth" :account="reAuthAcc" @close="closeReAuthModal" @reauthorized="handleAccountUpdated" />
@@ -519,6 +526,7 @@ import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
 import type { KiroBuilderIDCreateAccountRequest } from '@/api/admin/accounts'
+import type { CodebuddyOAuthCreateAccountRequest } from '@/api/admin/accounts'
 import { useTableLoader } from '@/composables/useTableLoader'
 import { useSwipeSelect, type SwipeSelectVirtualContext } from '@/composables/useSwipeSelect'
 import { useTableSelection } from '@/composables/useTableSelection'
@@ -542,6 +550,7 @@ import AccountBatchTestModal from '@/components/admin/account/AccountBatchTestMo
 import AccountStatsModal from '@/components/admin/account/AccountStatsModal.vue'
 import ScheduledTestsPanel from '@/components/admin/account/ScheduledTestsPanel.vue'
 import KiroBrowserLoginModal from '@/components/admin/account/KiroBrowserLoginModal.vue'
+import CodebuddyLoginModal from '@/components/admin/account/CodebuddyLoginModal.vue'
 import KiroAccountDetailsModal from '@/components/admin/account/KiroAccountDetailsModal.vue'
 import type { SelectOption } from '@/components/common/Select.vue'
 import AccountStatusIndicator from '@/components/account/AccountStatusIndicator.vue'
@@ -621,6 +630,8 @@ const selectedAccounts = computed<Account[]>(() => accounts.value.filter(account
 const showCreate = ref(false)
 const showKiroBrowserLogin = ref(false)
 const kiroAccountDefaults = ref<Omit<KiroBuilderIDCreateAccountRequest, 'session_id'> | undefined>()
+const showCodebuddyLogin = ref(false)
+const codebuddyAccountDefaults = ref<Omit<CodebuddyOAuthCreateAccountRequest, 'session_id'> | undefined>()
 const showEdit = ref(false)
 const showSync = ref(false)
 const showImportData = ref(false)
@@ -1534,6 +1545,20 @@ const handleOpenKiroBrowserLogin = (defaults?: Omit<KiroBuilderIDCreateAccountRe
 
 const handleKiroAccountCreated = async () => {
   showKiroBrowserLogin.value = false
+  showCreate.value = false
+  await reload()
+}
+
+const handleOpenCodebuddyLogin = (defaults?: Omit<CodebuddyOAuthCreateAccountRequest, 'session_id'>) => {
+  codebuddyAccountDefaults.value = {
+    ...defaults,
+    skip_default_group_bind: defaults?.skip_default_group_bind ?? true
+  }
+  showCodebuddyLogin.value = true
+}
+
+const handleCodebuddyAccountCreated = async () => {
+  showCodebuddyLogin.value = false
   showCreate.value = false
   await reload()
 }

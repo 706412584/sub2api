@@ -162,6 +162,19 @@
           </button>
           <button
             type="button"
+            @click="form.platform = 'codebuddy'"
+            :class="[
+              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              form.platform === 'codebuddy'
+                ? 'bg-white text-sky-700 shadow-sm dark:bg-dark-600 dark:text-sky-300'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+            ]"
+          >
+            <PlatformIcon platform="codebuddy" size="sm" />
+            CodeBuddy
+          </button>
+          <button
+            type="button"
             @click="form.platform = 'grok'"
             :class="[
               'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
@@ -4279,6 +4292,17 @@ const emit = defineEmits<{
     auto_pause_on_expired?: boolean
     skip_default_group_bind?: boolean
   }]
+  openCodebuddyLogin: [payload: {
+    name?: string
+    notes?: string
+    group_ids?: number[]
+    proxy_id?: number | null
+    concurrency?: number
+    priority?: number
+    rate_multiplier?: number
+    load_factor?: number | null
+    skip_default_group_bind?: boolean
+  }]
 }>()
 
 const appStore = useAppStore()
@@ -4322,6 +4346,20 @@ const handleOpenKiroBrowserLogin = () => {
     load_factor: form.load_factor,
     expires_at: form.expires_at,
     auto_pause_on_expired: autoPauseOnExpired.value,
+    skip_default_group_bind: true
+  })
+}
+
+const handleOpenCodebuddyBrowserLogin = () => {
+  emit('openCodebuddyLogin', {
+    name: form.name.trim() || undefined,
+    notes: form.notes.trim() || undefined,
+    group_ids: form.group_ids.length ? [...form.group_ids] : undefined,
+    proxy_id: form.proxy_id,
+    concurrency: form.concurrency,
+    priority: form.priority,
+    rate_multiplier: form.rate_multiplier,
+    load_factor: form.load_factor,
     skip_default_group_bind: true
   })
 }
@@ -4920,6 +4958,10 @@ const isOAuthFlow = computed(() => {
   if (form.platform === 'kiro') {
     return false
   }
+  // CodeBuddy OAuth 通过专用登录弹窗完成（state 设备流）
+  if (form.platform === 'codebuddy') {
+    return false
+  }
   // Antigravity upstream 类型不需要 OAuth 流程
   if (form.platform === 'antigravity' && antigravityAccountType.value === 'upstream') {
     return false
@@ -5073,6 +5115,14 @@ watch(
       kiroEndpoint.value = 'cli'
       kiroApiRegion.value = 'us-east-1'
       kiroAuthRegion.value = 'us-east-1'
+    }
+    if (newPlatform === 'codebuddy') {
+      accountCategory.value = 'oauth-based'
+      addMethod.value = 'oauth'
+      modelRestrictionMode.value = 'mapping'
+      form.type = 'oauth'
+      form.concurrency = 1
+      form.load_factor = null
     }
     if (newPlatform === 'grok') {
       accountCategory.value = 'oauth-based'
@@ -5959,6 +6009,12 @@ const handleSubmit = async () => {
       return
     }
     handleOpenKiroBrowserLogin()
+    return
+  }
+
+  // CodeBuddy：一律走专用登录弹窗（state 设备流 + auths JSON 批量导入）
+  if (form.platform === 'codebuddy') {
+    handleOpenCodebuddyBrowserLogin()
     return
   }
 

@@ -150,6 +150,33 @@
       <div v-else class="text-xs text-gray-400">-</div>
     </template>
 
+    <!-- CodeBuddy accounts: credit balance from billing meter -->
+    <template v-else-if="account.platform === 'codebuddy'">
+      <div v-if="loading" class="space-y-1.5">
+        <div class="h-4 w-20 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
+      </div>
+      <div v-else-if="error" class="text-xs text-red-500">{{ error }}</div>
+      <div v-else-if="usageInfo?.codebuddy_credit_remain != null" class="space-y-1">
+        <div class="flex items-center gap-1.5">
+          <span class="rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">
+            {{ t('admin.accounts.codebuddyCredits') }}
+          </span>
+          <button
+            type="button"
+            class="text-[10px] text-blue-600 hover:text-blue-700 dark:text-blue-400"
+            :disabled="activeQueryLoading"
+            @click="loadActiveUsage"
+          >
+            {{ t('admin.accounts.usageWindow.activeQuery') }}
+          </button>
+        </div>
+        <div class="text-[10px] text-gray-500 dark:text-gray-400">
+          {{ usageInfo.codebuddy_credit_remain }}
+        </div>
+      </div>
+      <div v-else class="text-xs text-gray-400">-</div>
+    </template>
+
     <!-- OpenAI OAuth accounts: single source from /usage API -->
     <template v-else-if="account.platform === 'openai' && account.type === 'oauth'">
       <div v-if="hasOpenAIUsageFallback" class="space-y-1">
@@ -819,6 +846,8 @@ let visibilityObserver: IntersectionObserver | null = null
 const showUsageWindows = computed(() => {
   // Gemini: we can always compute local usage windows from DB logs (simulated quotas).
   if (props.account.platform === 'gemini' || props.account.platform === 'kiro') return true
+  // CodeBuddy：billing meter 积分余额。
+  if (props.account.platform === 'codebuddy') return true
   // CN providers: apikey 账号也有滚动用量窗口（coding plan）或余额（payg），
   // 由 CNProviderQuotaCell / CNProviderBalanceCell 自行探测与展示。
   if (
@@ -851,6 +880,9 @@ const shouldFetchUsage = computed(() => {
     return props.account.type === 'oauth'
   }
   if (props.account.platform === 'kiro') {
+    return true
+  }
+  if (props.account.platform === 'codebuddy') {
     return true
   }
   return false
