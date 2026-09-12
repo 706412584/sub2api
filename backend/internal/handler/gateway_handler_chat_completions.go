@@ -288,6 +288,16 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 				return
 			}
 			result, err = h.kiroGatewayService.ForwardAsChatCompletions(c.Request.Context(), c, account, forwardBody)
+		} else if account.IsCodebuddy() {
+			// CodeBuddy：上游即 CC 形状（原生透传，流式逐帧规范化）。
+			if h.codebuddyGatewayService == nil {
+				h.chatCompletionsErrorResponse(c, http.StatusBadGateway, "upstream_error", "CodeBuddy gateway service is not configured")
+				if accountReleaseFunc != nil {
+					accountReleaseFunc()
+				}
+				return
+			}
+			result, err = h.codebuddyGatewayService.ForwardAsChatCompletions(c.Request.Context(), c, account, forwardBody)
 		} else if account.Platform == service.PlatformGemini {
 			if h.geminiCompatService == nil {
 				h.chatCompletionsErrorResponse(c, http.StatusBadGateway, "upstream_error", "Gemini compatibility service is not configured")

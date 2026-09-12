@@ -518,6 +518,9 @@ func (s *AccountService) TestCredentials(ctx context.Context, id int64) error {
 	case PlatformKimi, PlatformZhipu, PlatformDeepseek:
 		// 国产 OpenAI 兼容供应商：凭证为 API Key，实际可用性经余额/额度探测与转发路径验证。
 		return nil
+	case PlatformCodebuddy:
+		// CodeBuddy：OAuth 会话凭证，可用性经转发路径与养号任务（保活刷新）验证。
+		return nil
 	default:
 		return fmt.Errorf("unsupported platform: %s", account.Platform)
 	}

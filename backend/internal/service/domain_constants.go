@@ -47,6 +47,7 @@ const (
 	PlatformKimi        = domain.PlatformKimi
 	PlatformZhipu       = domain.PlatformZhipu
 	PlatformDeepseek    = domain.PlatformDeepseek
+	PlatformCodebuddy   = domain.PlatformCodebuddy
 	PlatformComposite   = domain.PlatformComposite
 )
 
@@ -106,6 +107,7 @@ var AllowedQuotaPlatforms = []string{
 	PlatformKimi,
 	PlatformZhipu,
 	PlatformDeepseek,
+	PlatformCodebuddy,
 }
 
 // AllowedSchedulingThresholdPlatforms 是允许设置账号自动停调阈值的平台列表。
@@ -139,6 +141,8 @@ const (
 	AccountTypeServiceAccount = domain.AccountTypeServiceAccount // Google Service Account 类型账号（用于 Vertex AI）
 	AccountTypeGrokConsole    = domain.AccountTypeGrokConsole    // Grok Console 类型账号（DPoP 会话）
 	AccountTypeGrokWeb        = domain.AccountTypeGrokWeb        // Grok Web 类型账号（浏览器会话）
+	AccountTypeCodebuddyCN    = domain.AccountTypeCodebuddyCN    // CodeBuddy 国内区
+	AccountTypeCodebuddyGlob  = domain.AccountTypeCodebuddyGlob  // CodeBuddy 国际区
 )
 
 // Redeem type constants

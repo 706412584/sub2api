@@ -241,6 +241,7 @@ func ProvideAccountUsageService(
 	grokQuotaService *GrokQuotaService,
 	openAIQuotaService *OpenAIQuotaService,
 	kiroGatewayService *KiroGatewayService,
+	codebuddyGatewayService *CodebuddyGatewayService,
 	cache *UsageCache,
 	identityCache IdentityCache,
 	tlsFPProfileService *TLSFingerprintProfileService,
@@ -261,9 +262,21 @@ func ProvideAccountUsageService(
 		identityCache,
 		tlsFPProfileService,
 	)
+	service.SetCodebuddyGatewayService(codebuddyGatewayService)
 	service.agentIdentityWS = openAIGatewayService
 	service.SetConsoleDPoPProvider(consoleDPoPProvider)
 	return service
+}
+
+// ProvideCodebuddyGatewayService wires the CodeBuddy gateway with its
+// config-derived response header filter (nil config → nil filter).
+func ProvideCodebuddyGatewayService(
+	httpUpstream HTTPUpstream,
+	tlsFPProfileService *TLSFingerprintProfileService,
+	settingService *SettingService,
+	cfg *config.Config,
+) *CodebuddyGatewayService {
+	return NewCodebuddyGatewayService(httpUpstream, tlsFPProfileService, settingService, cfg)
 }
 
 // ProvideGrokReasoningProbeService wires the optional reasoning quality mark store
@@ -981,6 +994,7 @@ var ProviderSet = wire.NewSet(
 	ProvideClaudeTokenProvider,
 	NewAntigravityGatewayService,
 	NewKiroGatewayService,
+	ProvideCodebuddyGatewayService,
 	ProvideRateLimitService,
 	ProvideAccountUsageService,
 	ProvideAccountTestService,

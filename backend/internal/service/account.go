@@ -15,6 +15,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/domain"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/codebuddy"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
@@ -278,6 +279,10 @@ func (a *Account) IsGrokOAuth() bool {
 
 func (a *Account) IsKiro() bool {
 	return a != nil && a.Platform == PlatformKiro
+}
+
+func (a *Account) IsCodebuddy() bool {
+	return a != nil && a.Platform == PlatformCodebuddy
 }
 
 func (a *Account) IsKiroOAuth() bool {
@@ -960,6 +965,14 @@ func (a *Account) IsModelSupported(requestedModel string) bool {
 	// model_mapping 白名单错误排除出候选集，导致 no available accounts / 404（issue #4936）。
 	if a.IsOpenAIPassthroughEnabled() {
 		return true
+	}
+	// CodeBuddy：model_mapping 只承担「/v1/models 展示目录」职责，不作准入白名单。
+	// 准入按区域归属判定——本区域已知模型放行、已知属于另一区域的模型拒绝、
+	// 两区均未收录（未知/自定义）放行透传，由上游裁决（code=11102）。
+	// 该短路必须在 GetModelMapping 之前：建号时写入的目录若被当白名单，
+	// 会把用户的自定义模型挡在候选集外。
+	if a.IsCodebuddy() {
+		return codebuddy.ModelAllowedInRegion(a.Type, requestedModel)
 	}
 	mapping := a.GetModelMapping()
 	if len(mapping) == 0 {
