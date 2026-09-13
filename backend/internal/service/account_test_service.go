@@ -28,6 +28,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/codebuddy"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
 	kiroprotocol "github.com/Wei-Shaw/sub2api/internal/pkg/kiro"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
@@ -552,7 +553,105 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 		return s.testKiroAccountConnection(c, account, modelID)
 	}
 
+	if account.IsCodebuddy() {
+		return s.testCodebuddyAccountConnection(c, account, modelID)
+	}
+
 	return s.testClaudeAccountConnection(c, account, modelID)
+}
+
+// testCodebuddyAccountConnection 测试 CodeBuddy 账号连通性：构造最小 chat 请求
+// （上游只接受 stream:true），聚合 SSE 后取 content 回显。
+func (s *AccountTestService) testCodebuddyAccountConnection(c *gin.Context, account *Account, modelID string) error {
+	ctx := c.Request.Context()
+	testModelID := strings.TrimSpace(modelID)
+	if testModelID == "" {
+		testModelID = firstCodebuddyTestModel(account)
+	}
+	testModelID = account.GetMappedModel(testModelID)
+
+	creds := codebuddy.FromCredentialsMap(account.Credentials)
+	if err := creds.Validate(); err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid CodeBuddy credentials: %s", err.Error()))
+	}
+	region := codebuddy.RegionForAccountType(account.Type)
+
+	body, err := json.Marshal(map[string]any{
+		"model":      testModelID,
+		"messages":   []map[string]string{{"role": "user", "content": "hi"}},
+		"max_tokens": 64,
+	})
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to build CodeBuddy request: %s", err.Error()))
+	}
+	request, err := codebuddy.BuildChatRequest(creds, region, codebuddy.PrepareBody(body, nil), codebuddy.EndpointOptions{})
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to build CodeBuddy request: %s", err.Error()))
+	}
+	request = request.WithContext(ctx)
+	account.ApplyHeaderOverrides(request.Header)
+
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("X-Accel-Buffering", "no")
+	c.Writer.Flush()
+	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
+
+	proxyURL := s.resolveTestProxyURL(ctx, account)
+	resp, err := s.httpUpstream.DoWithTLS(request, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("CodeBuddy request failed: %s", err.Error()))
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+		return s.sendErrorAndEnd(c, fmt.Sprintf("CodeBuddy API returned %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody))))
+	}
+	aggregated, err := codebuddy.Aggregate(resp.Body)
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("CodeBuddy stream failed: %s", err.Error()))
+	}
+	if text := strings.TrimSpace(aggregatedContent(aggregated)); text != "" {
+		s.sendEvent(c, TestEvent{Type: "text", Text: text})
+	}
+	s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+	return nil
+}
+
+// aggregatedContent 从 CodeBuddy 聚合响应里取首个 choice 的 delta.content。
+func aggregatedContent(aggregated map[string]any) string {
+	choices, ok := aggregated["choices"].([]any)
+	if !ok || len(choices) == 0 {
+		return ""
+	}
+	choice, ok := choices[0].(map[string]any)
+	if !ok {
+		return ""
+	}
+	delta, ok := choice["delta"].(map[string]any)
+	if !ok {
+		if msg, ok := choice["message"].(map[string]any); ok {
+			delta = msg
+		}
+	}
+	content, _ := delta["content"].(string)
+	return content
+}
+
+// firstCodebuddyTestModel 选测活模型：优先 "auto"（两区共有的公共别名），
+// 否则取账号模型目录首键，最后退回本区域静态表首项。
+func firstCodebuddyTestModel(account *Account) string {
+	if _, ok := account.GetModelMapping()["auto"]; ok {
+		return "auto"
+	}
+	for id := range account.GetModelMapping() {
+		return id
+	}
+	if ids := codebuddy.StaticModelIDs(codebuddy.RegionForAccountType(account.Type)); len(ids) > 0 {
+		return ids[0]
+	}
+	return "auto"
 }
 
 func (s *AccountTestService) testKiroAccountConnection(c *gin.Context, account *Account, modelID string) error {

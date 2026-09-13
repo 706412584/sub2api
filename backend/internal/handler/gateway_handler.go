@@ -1223,6 +1223,12 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 		writeGrokModelsList(c, xai.DefaultModelIDs())
 		return
 	}
+	// CodeBuddy：无账号可推导模型列表时给两区静态并集。漏改会落到下面的
+	// Claude 兜底，表现为 CodeBuddy 分组的 /v1/models 全是 Claude 模型。
+	if platform == service.PlatformCodebuddy {
+		writeModelsList(c, platform, codebuddy.StaticModelsAll())
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"object": "list",

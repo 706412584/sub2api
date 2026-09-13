@@ -55,8 +55,15 @@ func (e *Error) Error() string {
 }
 
 // hardMarkers 余额不足关键词（小写比较 + 中文原文比较双通道）。
+//
+// 单复数必须分别列出：Contains 是子串匹配，词中间插了 's' 就对不上。
+// "insufficient credit" / "no credit" / "out of credit" 恰好是复数形式的前缀，
+// 能直接命中；唯独 "credit exhausted" 的 's' 在词中间，漏了它会让上游的
+// "Credits exhausted"（HTTP 429 + code=14018）落进下面的 429 兜底被判成 soft_rate：
+// 账号只软冷却十分钟就回到池中反复失败，而不会停到次日 04:00 等签到恢复。
 var hardMarkers = []string{
-	"insufficient credit", "no credit", "credit exhausted", "out of credit",
+	"insufficient credit", "no credit", "credit exhausted", "credits exhausted",
+	"out of credit",
 	"quota exceeded", "quota exhaust", "payment required", "credit not enough",
 	"not enough credit",
 	"积分不足", "额度不足", "余额不足", "积分用完", "额度用尽", "没有积分",
