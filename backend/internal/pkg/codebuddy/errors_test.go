@@ -16,6 +16,12 @@ func TestClassify(t *testing.T) {
 		{402, ``, ErrHardCredit},
 		{400, `{"code":1,"msg":"余额不足"}`, ErrHardCredit},
 		{403, `insufficient credits`, ErrHardCredit},
+		// 复数形式里 's' 落在词中间的情形：上游实测 429 + code=14018 返回
+		// "Credits exhausted"。硬冷却词表若只写单数，会被下面的 429 兜底
+		// 误判成 soft_rate —— 账号软冷却十分钟就回池反复失败，而不是停到
+		// 次日签到恢复。这两条是回归锚点。
+		{429, `{"code":14018,"msg":"Credits exhausted"}`, ErrHardCredit},
+		{429, `Credits exhausted, please recharge`, ErrHardCredit},
 		{200, `{"code":10001,"msg":"积分不足，请充值"}`, ErrHardCredit},
 		{400, `{"code":1,"msg":"额度用尽"}`, ErrHardCredit},
 		{429, ``, ErrSoftRate},

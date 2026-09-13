@@ -50,7 +50,6 @@ func (s *CodebuddyGatewayService) Forward(ctx context.Context, c *gin.Context, a
 			Scope:        GatewayFailureScopeAccount,
 		}
 	}
-
 	// Anthropic → CC。
 	chatReq, err := apicompat.AnthropicToChatCompletionsRequest(&anthropicReq)
 	if err != nil {
@@ -82,6 +81,47 @@ func (s *CodebuddyGatewayService) Forward(ctx context.Context, c *gin.Context, a
 	}
 
 	requestID := resp.Header.Get("x-request-id")
+
+	// 非流式：聚合上游 SSE → ChatCompletionsResponse → Anthropic JSON。
+	// 与 CC 端点的非流式分支（ForwardAsChatCompletions）对称。
+	if !clientStream {
+		agg, aggErr := codebuddy.Aggregate(resp.Body)
+		if aggErr != nil {
+			if aggErr == codebuddy.ErrEmptyStream {
+				return nil, &UpstreamFailoverError{
+					StatusCode:             http.StatusBadGateway,
+					ResponseBody:           claudeErrorBody("api_error", "CodeBuddy upstream returned an empty stream"),
+					Platform:               PlatformCodebuddy,
+					RetryableOnSameAccount: true,
+				}
+			}
+			return nil, s.writeClaudeError(c, http.StatusBadGateway, "api_error", "Failed to read upstream response")
+		}
+		aggBody, _ := json.Marshal(agg)
+		var ccResp apicompat.ChatCompletionsResponse
+		if err := json.Unmarshal(aggBody, &ccResp); err != nil {
+			return nil, s.writeClaudeError(c, http.StatusBadGateway, "api_error", "Failed to parse upstream response")
+		}
+		anthropicResp := apicompat.ChatCompletionsResponseToAnthropic(&ccResp, originalModel)
+		if s.responseHeaderFilter != nil {
+			// 过滤后的上游诊断头透传；Content-Type 必须显式覆盖——上游恒
+			// text/event-stream，而这里回给客户端的是 JSON。
+			writeFilteredResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
+		}
+		MarkResponseCommitted(c)
+		c.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		c.JSON(http.StatusOK, anthropicResp)
+		return &ForwardResult{
+			RequestID:       requestID,
+			UpstreamHeaders: resp.Header,
+			Usage:           openAIUsageToClaudeUsage(extractCodebuddyAggregatedUsage(agg)),
+			Model:           originalModel,
+			UpstreamModel:   upstreamModel,
+			Stream:          false,
+			Duration:        time.Since(startTime),
+		}, nil
+	}
+
 	writeStreamHeaders := s.newStreamHeaderWriter(c, resp.Header)
 	anthropicState := apicompat.NewChatCompletionsToAnthropicStreamState(originalModel)
 	clientDisconnected := false
