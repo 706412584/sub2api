@@ -115,7 +115,7 @@ func newMaintenanceTestService(repo *maintenanceAccountRepo, upstream HTTPUpstre
 
 	gateway := NewCodebuddyGatewayService(upstream, nil, nil, nil)
 	refresher := NewCodebuddyTokenRefresher(upstream, nil)
-	runner := NewCodebuddyMaintenanceRunner(repo, gateway, refresher, settingService, nil)
+	runner := NewCodebuddyMaintenanceRunner(repo, gateway, nil, refresher, settingService, nil)
 	return runner, settingService
 }
 

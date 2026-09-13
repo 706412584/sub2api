@@ -362,7 +362,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	batchImageWorkerRuntime := service.ProvideBatchImageWorkerRuntime(batchImageRepository, accountRepository, batchImageQueue, usageBillingRepository, usageLogRepository, batchImageModelPricingResolver, apiKeyAuthCacheInvalidator, configConfig)
 	scheduledTestRunnerService := service.ProvideScheduledTestRunnerService(scheduledTestPlanRepository, scheduledTestService, accountTestService, rateLimitService, configConfig)
 	accountPoolProbeRunner := service.ProvideAccountPoolProbeRunner(accountRepository, settingService, accountUsageService, grokQuotaService, configConfig)
-	codebuddyMaintenanceRunner := service.ProvideCodebuddyMaintenanceRunner(accountRepository, codebuddyGatewayService, httpUpstream, tlsFingerprintProfileService, settingService, configConfig)
+	codebuddyMaintenanceRunner := service.ProvideCodebuddyMaintenanceRunner(accountRepository, codebuddyGatewayService, gatewayService, httpUpstream, tlsFingerprintProfileService, settingService, configConfig)
 	paymentOrderExpiryService := service.ProvidePaymentOrderExpiryService(paymentService, leaderLockCache, db)
 	channelMonitorQuotaFetcher := service.NewChannelMonitorQuotaFetcher(accountUsageService, cnProviderQuotaService, cnProviderBalanceService, accountRepository, configConfig)
 	channelMonitorRunner := service.ProvideChannelMonitorRunner(channelMonitorService, settingService, channelMonitorQuotaFetcher)

@@ -558,6 +558,10 @@ const (
 	// maintenance jobs (check-in / activity report / token keepalive).
 	SettingKeyCodebuddyMaintenance = "codebuddy_maintenance_settings"
 
+	// SettingKeySchedulerWeightedSelection stores JSON config for the weighted
+	// account selection policy (phase B scheduler port from workbuddy2api).
+	SettingKeySchedulerWeightedSelection = "scheduler_weighted_selection_settings"
+
 	// SettingKeyGrokOpsProxy stores JSON config for Grok ops/test egress proxy.
 	// Live traffic keeps account.proxy_id; only test/probe (and optional refresh) use this.
 	SettingKeyGrokOpsProxy = "grok_ops_proxy"

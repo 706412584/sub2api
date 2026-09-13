@@ -1024,6 +1024,9 @@ func filterSchedulerExtra(extra map[string]any) map[string]any {
 		service.UpstreamBillingProbeExtraKey,
 		service.GrokMediaEligibleExtraKey,
 		"grok_billing_snapshot",
+		// CodeBuddy 加权选号（阶段 B）按积分余额占比计算权重，候选投影必须带
+		// 该键；退避冷却本身走 TempUnschedulableUntil 列（投影必带），无需 extra。
+		"codebuddy_credit",
 	}
 	filtered := make(map[string]any)
 	for _, key := range keys {

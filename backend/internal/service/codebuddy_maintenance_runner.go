@@ -39,6 +39,7 @@ const (
 type CodebuddyMaintenanceRunner struct {
 	accountRepo    AccountRepository
 	gatewayService *CodebuddyGatewayService
+	runtimeService *GatewayService
 	refresher      *CodebuddyTokenRefresher
 	settingService *SettingService
 	cfg            *config.Config
@@ -54,6 +55,7 @@ type CodebuddyMaintenanceRunner struct {
 func NewCodebuddyMaintenanceRunner(
 	accountRepo AccountRepository,
 	gatewayService *CodebuddyGatewayService,
+	runtimeService *GatewayService,
 	refresher *CodebuddyTokenRefresher,
 	settingService *SettingService,
 	cfg *config.Config,
@@ -61,6 +63,7 @@ func NewCodebuddyMaintenanceRunner(
 	return &CodebuddyMaintenanceRunner{
 		accountRepo:    accountRepo,
 		gatewayService: gatewayService,
+		runtimeService: runtimeService,
 		refresher:      refresher,
 		settingService: settingService,
 		cfg:            cfg,
@@ -428,7 +431,24 @@ func (s *CodebuddyMaintenanceRunner) unfreezeAccount(ctx context.Context, accoun
 			unfroze = true
 		}
 	}
+	// 解冻清零（阶段 B）：签到恢复即证明账号可用，清退避计数器 + 重置加权统计。
+	if unfroze {
+		s.clearSchedulerBackoff(ctx, account)
+	}
 	return unfroze
+}
+
+// clearSchedulerBackoff 删除 extra 中的退避计数器（null 覆盖 JSONB 键）并清零
+// 内存统计。runtimeService 未注入（旧测试/未装配）时静默跳过。
+func (s *CodebuddyMaintenanceRunner) clearSchedulerBackoff(ctx context.Context, account *Account) {
+	if SchedulerBackoffPresent(account) {
+		RecordSchedulerSuccess(account)
+		_ = s.accountRepo.UpdateExtra(ctx, account.ID, map[string]any{schedulerBackoffExtraKey: nil})
+	}
+	if s.runtimeService != nil && s.runtimeService.schedulerWeighted != nil {
+		s.runtimeService.schedulerWeighted.resetStats(account.ID)
+		s.runtimeService.schedulerWeighted.backoffMark.Delete(account.ID)
+	}
 }
 
 // persistRefreshedCredentials 把刷新后的凭证写回账号。

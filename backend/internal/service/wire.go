@@ -763,13 +763,14 @@ func ProvideAccountPoolProbeRunner(
 func ProvideCodebuddyMaintenanceRunner(
 	accountRepo AccountRepository,
 	gatewayService *CodebuddyGatewayService,
+	runtimeService *GatewayService,
 	httpUpstream HTTPUpstream,
 	tlsFPProfileService *TLSFingerprintProfileService,
 	settingService *SettingService,
 	cfg *config.Config,
 ) *CodebuddyMaintenanceRunner {
 	refresher := NewCodebuddyTokenRefresher(httpUpstream, tlsFPProfileService)
-	svc := NewCodebuddyMaintenanceRunner(accountRepo, gatewayService, refresher, settingService, cfg)
+	svc := NewCodebuddyMaintenanceRunner(accountRepo, gatewayService, runtimeService, refresher, settingService, cfg)
 	svc.Start()
 	return svc
 }
