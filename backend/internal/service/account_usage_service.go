@@ -249,6 +249,9 @@ type UsageInfo struct {
 
 	Kiro *KiroUsageInfo `json:"kiro,omitempty"`
 
+	// CodeBuddy 账号当前可花费积分余额（billing meter 聚合）
+	CodebuddyCreditRemain int64 `json:"codebuddy_credit_remain,omitempty"`
+
 	// Antigravity 账号级信息
 	SubscriptionTier    string `json:"subscription_tier,omitempty"`     // 归一化订阅等级: FREE/PRO/ULTRA/UNKNOWN
 	SubscriptionTierRaw string `json:"subscription_tier_raw,omitempty"` // 上游原始订阅等级名称
@@ -337,11 +340,19 @@ type AccountUsageService struct {
 	consoleDPoPProvider     *GrokConsoleDPoPProvider
 	openAIQuotaService      *OpenAIQuotaService
 	kiroGatewayService      *KiroGatewayService
+	codebuddyGatewayService *CodebuddyGatewayService
 	cache                   *UsageCache
 	identityCache           IdentityCache
 	tlsFPProfileService     *TLSFingerprintProfileService
 	agentIdentityTaskMu     sync.Mutex
 	agentIdentityWS         agentIdentityWSConnectionInvalidator
+}
+
+// SetCodebuddyGatewayService 注入 CodeBuddy 网关服务（余额查询用）。
+func (s *AccountUsageService) SetCodebuddyGatewayService(svc *CodebuddyGatewayService) {
+	if s != nil {
+		s.codebuddyGatewayService = svc
+	}
 }
 
 // NewAccountUsageService 创建AccountUsageService实例
@@ -512,6 +523,10 @@ func (s *AccountUsageService) getUsageForAccount(ctx context.Context, account *A
 		return s.getKiroUsage(ctx, account)
 	}
 
+	if account.IsCodebuddy() {
+		return s.getCodebuddyUsage(ctx, account)
+	}
+
 	// 只有oauth类型账号可以通过API获取usage（有profile scope）
 	if account.CanGetUsage() {
 		var apiResp *ClaudeUsageResponse
@@ -655,6 +670,28 @@ func buildKiroUsageInfo(limits *kiroprotocol.UsageLimitsResponse) *KiroUsageInfo
 		usage.NextResetAt = &value
 	}
 	return usage
+}
+
+// getCodebuddyUsage 查询 CodeBuddy 账号的积分余额（billing meter），
+// 并把快照写入 extra 供前端展示与养号任务参考。
+func (s *AccountUsageService) getCodebuddyUsage(ctx context.Context, account *Account) (*UsageInfo, error) {
+	if s.codebuddyGatewayService == nil {
+		return nil, errors.New("codebuddy usage service is not configured")
+	}
+	remain, err := s.codebuddyGatewayService.FetchCreditRemain(ctx, account)
+	if err != nil {
+		return nil, fmt.Errorf("fetch CodeBuddy credit failed: %w", err)
+	}
+
+	now := time.Now().UTC()
+	if s.accountRepo != nil {
+		if err := s.accountRepo.UpdateExtra(ctx, account.ID, map[string]any{
+			"codebuddy_credit": map[string]any{"remain": remain, "updated_at": now.Format(time.RFC3339)},
+		}); err != nil {
+			slog.Warn("codebuddy_credit_snapshot_update_failed", "account_id", account.ID, "error", err)
+		}
+	}
+	return &UsageInfo{UpdatedAt: &now, CodebuddyCreditRemain: remain}, nil
 }
 
 // GetUsage 获取账号使用量

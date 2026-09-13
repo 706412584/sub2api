@@ -750,6 +750,13 @@ func (s *GatewayService) TempUnscheduleRetryableError(ctx context.Context, accou
 	if failoverErr.RequestScopedTransient {
 		return
 	}
+	// CodeBuddy 软退避（阶段 B，setting 门控）：连续限流指数放大冷却 + 独立
+	// 熔断计数器，两条升级线合并写入 TempUnschedulableUntil；关闭时走下方
+	// 既有分派（对 CodeBuddy 的 400/502 也仅 1m/既有冷却，行为与改动前一致）。
+	if failoverErr.Platform == PlatformCodebuddy && s.schedulerWeightedSelectionEnabled(ctx) {
+		s.tempUnscheduleCodebuddySoftFailure(ctx, accountID, failoverErr)
+		return
+	}
 	// 根据状态码选择封禁策略
 	switch failoverErr.StatusCode {
 	case http.StatusBadRequest:
@@ -757,6 +764,30 @@ func (s *GatewayService) TempUnscheduleRetryableError(ctx context.Context, accou
 	case http.StatusBadGateway:
 		tempUnscheduleEmptyResponse(ctx, s.accountRepo, accountID, "[handler]")
 	}
+}
+
+// tempUnscheduleCodebuddySoftFailure 记录一次 CodeBuddy 软失败（同账号重试用尽）：
+// 软退避 streak 放大 + 熔断计数 → until = max(now+cooldown, breakerUntil) 写
+// TempUnschedulableUntil（SQL 仅向后扩展），退避计数器持久化 extra。
+func (s *GatewayService) tempUnscheduleCodebuddySoftFailure(ctx context.Context, accountID int64, failoverErr *UpstreamFailoverError) {
+	account, err := s.accountRepo.GetByID(ctx, accountID)
+	if err != nil || account == nil {
+		return
+	}
+	s.schedulerWeighted.recordRequestOutcome(accountID, false)
+	cooldown, breakerExtended := RecordSoftRateLimit(account)
+	until := time.Now().Add(cooldown)
+	if breakerExtended != nil && breakerExtended.After(until) {
+		until = *breakerExtended
+	}
+	// 持久化退避计数器（非 neutral 键 → 快照失效重建；scheduler_backoff 进
+	// full payload 供 sticky/GetAccount 路径读 streak）。backoffMark 记录脏
+	// 状态，成功时据此删除 extra 键。
+	if raw, ok := account.Extra[schedulerBackoffExtraKey]; ok && raw != nil {
+		_ = s.accountRepo.UpdateExtra(ctx, accountID, map[string]any{schedulerBackoffExtraKey: raw})
+		s.schedulerWeighted.backoffMark.Store(accountID, struct{}{})
+	}
+	_ = s.accountRepo.SetTempUnschedulable(ctx, accountID, until, "codebuddy soft rate limit")
 }
 
 // GatewayService handles API gateway operations
@@ -789,6 +820,7 @@ type GatewayService struct {
 	modelsListCacheTTL    time.Duration
 	settingService        *SettingService
 	responseHeaderFilter  *responseheaders.CompiledHeaderFilter
+	schedulerWeighted     *schedulerWeightedRuntime
 	debugModelRouting     atomic.Bool
 	debugClaudeMimic      atomic.Bool
 	channelService        *ChannelService
@@ -861,6 +893,7 @@ func NewGatewayService(
 		modelsListCache:       gocache.New(modelsListTTL, time.Minute),
 		modelsListCacheTTL:    modelsListTTL,
 		responseHeaderFilter:  compileResponseHeaderFilter(cfg),
+		schedulerWeighted:     newSchedulerWeightedRuntime(settingService),
 		tlsFPProfileService:   tlsFPProfileService,
 		channelService:        channelService,
 		resolver:              resolver,

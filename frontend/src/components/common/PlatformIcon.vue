@@ -29,6 +29,10 @@
   <svg v-else-if="platform === 'kiro'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
     <path d="M12 2l6 6-6 6-6-6 6-6zm0 8l6 6-6 6-6-6 6-6z" />
   </svg>
+  <!-- CodeBuddy logo (sparkle node) -->
+  <svg v-else-if="platform === 'codebuddy'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 1.5l2.1 5.4L19.5 9l-5.4 2.1L12 16.5l-2.1-5.4L4.5 9l5.4-2.1L12 1.5zm7 12l1 2.6 2.6 1-2.6 1-1 2.6-1-2.6-2.6-1 2.6-1 1-2.6zM6 15l.8 2 2 .8-2 .8L6 21l-.8-2.4L3 17.8l2-.8L6 15z" />
+  </svg>
   <!-- Kimi / Moonshot official logo mark (stylized K) -->
   <svg v-else-if="platform === 'kimi'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
     <path

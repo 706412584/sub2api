@@ -136,6 +136,10 @@ func ProvideKiroBuilderIDDeviceFlowService() *KiroBuilderIDDeviceFlowService {
 	return NewKiroBuilderIDDeviceFlowService()
 }
 
+func ProvideCodebuddyLoginService() *CodebuddyLoginService {
+	return NewCodebuddyLoginService()
+}
+
 // ProvideTokenRefreshService creates and starts TokenRefreshService
 func ProvideTokenRefreshService(
 	accountRepo AccountRepository,
@@ -152,6 +156,8 @@ func ProvideTokenRefreshService(
 	proxyRepo ProxyRepository,
 	refreshAPI *OAuthRefreshAPI,
 	runtimeBlocker AccountRuntimeBlocker,
+	httpUpstream HTTPUpstream,
+	tlsFPProfileService *TLSFingerprintProfileService,
 ) *TokenRefreshService {
 	svc := NewTokenRefreshService(accountRepo, oauthService, openaiOAuthService, geminiOAuthService, antigravityOAuthService, cacheInvalidator, schedulerCache, cfg, tempUnschedCache, grokOAuthService)
 	// 注入 OpenAI privacy opt-out 依赖
@@ -161,6 +167,8 @@ func ProvideTokenRefreshService(
 	// 调用侧显式注入后台刷新策略，避免策略漂移
 	svc.SetRefreshPolicy(DefaultBackgroundRefreshPolicy())
 	svc.SetAccountRuntimeBlocker(runtimeBlocker)
+	// 注入 CodeBuddy 刷新器的网络依赖
+	svc.SetCodebuddyDeps(httpUpstream, tlsFPProfileService)
 	svc.Start()
 	return svc
 }
@@ -241,6 +249,7 @@ func ProvideAccountUsageService(
 	grokQuotaService *GrokQuotaService,
 	openAIQuotaService *OpenAIQuotaService,
 	kiroGatewayService *KiroGatewayService,
+	codebuddyGatewayService *CodebuddyGatewayService,
 	cache *UsageCache,
 	identityCache IdentityCache,
 	tlsFPProfileService *TLSFingerprintProfileService,
@@ -261,9 +270,21 @@ func ProvideAccountUsageService(
 		identityCache,
 		tlsFPProfileService,
 	)
+	service.SetCodebuddyGatewayService(codebuddyGatewayService)
 	service.agentIdentityWS = openAIGatewayService
 	service.SetConsoleDPoPProvider(consoleDPoPProvider)
 	return service
+}
+
+// ProvideCodebuddyGatewayService wires the CodeBuddy gateway with its
+// config-derived response header filter (nil config → nil filter).
+func ProvideCodebuddyGatewayService(
+	httpUpstream HTTPUpstream,
+	tlsFPProfileService *TLSFingerprintProfileService,
+	settingService *SettingService,
+	cfg *config.Config,
+) *CodebuddyGatewayService {
+	return NewCodebuddyGatewayService(httpUpstream, tlsFPProfileService, settingService, cfg)
 }
 
 // ProvideGrokReasoningProbeService wires the optional reasoning quality mark store
@@ -737,6 +758,23 @@ func ProvideAccountPoolProbeRunner(
 	return svc
 }
 
+// ProvideCodebuddyMaintenanceRunner creates and starts the CodeBuddy
+// account-maintenance runner (check-in / activity / keepalive, CN region only).
+func ProvideCodebuddyMaintenanceRunner(
+	accountRepo AccountRepository,
+	gatewayService *CodebuddyGatewayService,
+	runtimeService *GatewayService,
+	httpUpstream HTTPUpstream,
+	tlsFPProfileService *TLSFingerprintProfileService,
+	settingService *SettingService,
+	cfg *config.Config,
+) *CodebuddyMaintenanceRunner {
+	refresher := NewCodebuddyTokenRefresher(httpUpstream, tlsFPProfileService)
+	svc := NewCodebuddyMaintenanceRunner(accountRepo, gatewayService, runtimeService, refresher, settingService, cfg)
+	svc.Start()
+	return svc
+}
+
 // ProvideOpsScheduledReportService creates and starts OpsScheduledReportService.
 func ProvideOpsScheduledReportService(
 	opsService *OpsService,
@@ -961,6 +999,7 @@ var ProviderSet = wire.NewSet(
 	ProvideGrokConsoleDPoPProvider,      // P2: Console DPoP Provider
 	ProvideConsoleModelCatalog,          // P2: Console 模型目录
 	ProvideKiroBuilderIDDeviceFlowService,
+	ProvideCodebuddyLoginService,
 	NewGeminiOAuthService,
 	NewGeminiQuotaService,
 	NewCompositeTokenCacheInvalidator,
@@ -981,6 +1020,7 @@ var ProviderSet = wire.NewSet(
 	ProvideClaudeTokenProvider,
 	NewAntigravityGatewayService,
 	NewKiroGatewayService,
+	ProvideCodebuddyGatewayService,
 	ProvideRateLimitService,
 	ProvideAccountUsageService,
 	ProvideAccountTestService,
@@ -1039,6 +1079,7 @@ var ProviderSet = wire.NewSet(
 	ProvideScheduledTestService,
 	ProvideScheduledTestRunnerService,
 	ProvideAccountPoolProbeRunner,
+	ProvideCodebuddyMaintenanceRunner,
 	NewGroupCapacityService,
 	NewChannelService,
 	wire.Bind(new(ChannelCacheInvalidator), new(*ChannelService)),

@@ -872,6 +872,86 @@ func (s *SettingService) SetAccountPoolProbeSettings(ctx context.Context, settin
 	return s.settingRepo.Set(ctx, SettingKeyAccountPoolProbeSettings, string(data))
 }
 
+// GetCodebuddyMaintenanceSettings 获取 CodeBuddy 养号任务配置。
+func (s *SettingService) GetCodebuddyMaintenanceSettings(ctx context.Context) (*CodebuddyMaintenanceSettings, error) {
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyCodebuddyMaintenance)
+	if err != nil {
+		if errors.Is(err, ErrSettingNotFound) {
+			return DefaultCodebuddyMaintenanceSettings(), nil
+		}
+		return nil, fmt.Errorf("get codebuddy maintenance settings: %w", err)
+	}
+	if value == "" {
+		return DefaultCodebuddyMaintenanceSettings(), nil
+	}
+	var settings CodebuddyMaintenanceSettings
+	if err := json.Unmarshal([]byte(value), &settings); err != nil {
+		return DefaultCodebuddyMaintenanceSettings(), nil
+	}
+	return normalizeCodebuddyMaintenanceSettings(&settings), nil
+}
+
+// SetCodebuddyMaintenanceSettings 设置 CodeBuddy 养号任务配置。
+func (s *SettingService) SetCodebuddyMaintenanceSettings(ctx context.Context, settings *CodebuddyMaintenanceSettings) error {
+	if settings == nil {
+		return fmt.Errorf("settings cannot be nil")
+	}
+	normalized := normalizeCodebuddyMaintenanceSettings(settings)
+	data, err := json.Marshal(normalized)
+	if err != nil {
+		return fmt.Errorf("marshal codebuddy maintenance settings: %w", err)
+	}
+	return s.settingRepo.Set(ctx, SettingKeyCodebuddyMaintenance, string(data))
+}
+
+// normalizeCodebuddyMaintenanceSettings 补全缺省值并校验小时表范围。
+func normalizeCodebuddyMaintenanceSettings(settings *CodebuddyMaintenanceSettings) *CodebuddyMaintenanceSettings {
+	defaults := DefaultCodebuddyMaintenanceSettings()
+	out := *settings
+	if len(out.CheckinHours) == 0 {
+		out.CheckinHours = defaults.CheckinHours
+	}
+	if len(out.ActivityHours) == 0 {
+		out.ActivityHours = defaults.ActivityHours
+	}
+	if len(out.KeepaliveHours) == 0 {
+		out.KeepaliveHours = defaults.KeepaliveHours
+	}
+	if out.AccountDelayMs < 0 {
+		out.AccountDelayMs = defaults.AccountDelayMs
+	}
+	out.CheckinHours = normalizeCodebuddyHourList(out.CheckinHours)
+	out.ActivityHours = normalizeCodebuddyHourList(out.ActivityHours)
+	out.KeepaliveHours = normalizeCodebuddyHourList(out.KeepaliveHours)
+	return &out
+}
+
+// normalizeCodebuddyHourList 去重、排序小时表，并把非法值（<0 或 >23）钳到 0-23。
+func normalizeCodebuddyHourList(hours []int) []int {
+	seen := make(map[int]struct{}, len(hours))
+	out := make([]int, 0, len(hours))
+	for _, h := range hours {
+		if h < 0 {
+			h = 0
+		}
+		if h > 23 {
+			h = 23
+		}
+		if _, ok := seen[h]; ok {
+			continue
+		}
+		seen[h] = struct{}{}
+		out = append(out, h)
+	}
+	// 排序（插入排序，表很小）
+	for i := 1; i < len(out); i++ {
+		for j := i; j > 0 && out[j] < out[j-1]; j-- {
+			out[j], out[j-1] = out[j-1], out[j]
+		}
+	}
+	return out
+}
+
 // GetGrokOpsProxySettings 获取 Grok ops_proxy 配置。
 func (s *SettingService) GetGrokOpsProxySettings(ctx context.Context) (*GrokOpsProxySettings, error) {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyGrokOpsProxy)

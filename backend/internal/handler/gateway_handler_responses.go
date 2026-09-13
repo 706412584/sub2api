@@ -284,6 +284,16 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 				return
 			}
 			result, err = h.kiroGatewayService.ForwardAsResponses(requestCtx, c, account, forwardBody)
+		} else if account.IsCodebuddy() {
+			// CodeBuddy：Responses → CC 桥接由专用网关服务承担。
+			if h.codebuddyGatewayService == nil {
+				h.responsesErrorResponse(c, http.StatusBadGateway, "upstream_error", "CodeBuddy gateway service is not configured")
+				if accountReleaseFunc != nil {
+					accountReleaseFunc()
+				}
+				return
+			}
+			result, err = h.codebuddyGatewayService.ForwardAsResponses(requestCtx, c, account, forwardBody)
 		} else if shouldUseAntigravityCompat(account) {
 			if h.antigravityGatewayService == nil {
 				h.responsesErrorResponse(c, http.StatusBadGateway, "upstream_error", "Antigravity compatibility service is not configured")

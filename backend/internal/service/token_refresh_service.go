@@ -129,6 +129,7 @@ func NewTokenRefreshService(
 	}
 	grokRefresher := NewGrokTokenRefresher(grokOAuthService)
 	kiroRefresher := NewKiroTokenRefresher()
+	codebuddyRefresher := NewCodebuddyTokenRefresher(nil, nil)
 
 	// Each provider is registered exactly once. The same registry supplies both
 	// execution and repository eligibility, preventing future platform drift.
@@ -139,9 +140,25 @@ func NewTokenRefreshService(
 		{platform: PlatformAntigravity, refresher: agRefresher, executor: agRefresher},
 		{platform: PlatformGrok, refresher: grokRefresher, executor: grokRefresher},
 		{platform: PlatformKiro, refresher: kiroRefresher, executor: kiroRefresher},
+		{platform: PlatformCodebuddy, refresher: codebuddyRefresher, executor: codebuddyRefresher},
 	}
 
 	return s
+}
+
+// SetCodebuddyDeps 注入 CodeBuddy 刷新器的网络依赖（HTTPUpstream / TLS 指纹）。
+// NewTokenRefreshService 构造时这些依赖尚不可用，与 SetPrivacyDeps 同一注入时机。
+func (s *TokenRefreshService) SetCodebuddyDeps(httpUpstream HTTPUpstream, tlsFPProfileService *TLSFingerprintProfileService) {
+	for i := range s.registrations {
+		if s.registrations[i].platform != PlatformCodebuddy {
+			continue
+		}
+		if refresher, ok := s.registrations[i].refresher.(*CodebuddyTokenRefresher); ok {
+			refresher.httpUpstream = httpUpstream
+			refresher.tlsFPProfileService = tlsFPProfileService
+			s.registrations[i].executor = refresher
+		}
+	}
 }
 
 func (s *TokenRefreshService) eligiblePlatforms() []string {

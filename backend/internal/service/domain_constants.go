@@ -49,6 +49,7 @@ const (
 	PlatformZhipu     = domain.PlatformZhipu
 	PlatformDeepseek  = domain.PlatformDeepseek
 	PlatformMiniMax   = domain.PlatformMiniMax
+	PlatformCodebuddy = domain.PlatformCodebuddy
 	PlatformComposite = domain.PlatformComposite
 )
 
@@ -112,6 +113,7 @@ var AllowedQuotaPlatforms = []string{
 	PlatformZhipu,
 	PlatformDeepseek,
 	PlatformMiniMax,
+	PlatformCodebuddy,
 }
 
 // AllowedSchedulingThresholdPlatforms 是允许设置账号自动停调阈值的平台列表。
@@ -146,6 +148,8 @@ const (
 	AccountTypeServiceAccount = domain.AccountTypeServiceAccount // Google Service Account 类型账号（用于 Vertex AI）
 	AccountTypeGrokConsole    = domain.AccountTypeGrokConsole    // Grok Console 类型账号（DPoP 会话）
 	AccountTypeGrokWeb        = domain.AccountTypeGrokWeb        // Grok Web 类型账号（浏览器会话）
+	AccountTypeCodebuddyCN    = domain.AccountTypeCodebuddyCN    // CodeBuddy 国内区
+	AccountTypeCodebuddyGlob  = domain.AccountTypeCodebuddyGlob  // CodeBuddy 国际区
 )
 
 // Redeem type constants
@@ -560,6 +564,14 @@ const (
 	// SettingKeyAccountPoolProbeSettings stores JSON config for the global
 	// asynchronous account-pool quota probe runner.
 	SettingKeyAccountPoolProbeSettings = "account_pool_probe_settings"
+
+	// SettingKeyCodebuddyMaintenance stores JSON config for CodeBuddy account
+	// maintenance jobs (check-in / activity report / token keepalive).
+	SettingKeyCodebuddyMaintenance = "codebuddy_maintenance_settings"
+
+	// SettingKeySchedulerWeightedSelection stores JSON config for the weighted
+	// account selection policy (phase B scheduler port from workbuddy2api).
+	SettingKeySchedulerWeightedSelection = "scheduler_weighted_selection_settings"
 
 	// SettingKeyGrokOpsProxy stores JSON config for Grok ops/test egress proxy.
 	// Live traffic keeps account.proxy_id; only test/probe (and optional refresh) use this.
