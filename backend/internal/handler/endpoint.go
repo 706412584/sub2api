@@ -196,6 +196,10 @@ func DeriveUpstreamEndpoint(inbound, rawRequestPath, platform string) string {
 	inbound = strings.TrimSpace(inbound)
 
 	switch platform {
+	case service.PlatformCodebuddy:
+		// CodeBuddy 上游即 Chat Completions 形状（非流式由 delta 聚合）。
+		return EndpointChatCompletions
+
 	case service.PlatformOpenAI, service.PlatformGrok:
 		if inbound == EndpointEmbeddings || inbound == EndpointAlphaSearch || inbound == EndpointResponsesInputTokens || inbound == EndpointImagesGenerations || inbound == EndpointImagesEdits || inbound == EndpointVideosGenerations || inbound == EndpointVideosEdits || inbound == EndpointVideosExtensions || inbound == EndpointVideos {
 			return inbound
@@ -315,7 +319,7 @@ func GetUpstreamEndpoint(c *gin.Context, platform string) string {
 	// OpenAI 转发服务维护独立的运行时端点上下文，覆盖普通入站推导。
 	// 这对 force_chat_completions 的错误路径尤为重要：此时可能没有
 	// ForwardResult，不能把入站 /v1/responses 误报成上游端点。
-	if platform == service.PlatformOpenAI || platform == service.PlatformGrok || service.IsCNProvider(platform) {
+	if platform == service.PlatformOpenAI || platform == service.PlatformGrok || platform == service.PlatformCodebuddy || service.IsCNProvider(platform) {
 		if endpoint := service.GetActualOpenAIUpstreamEndpoint(c); endpoint != "" {
 			return endpoint
 		}

@@ -722,6 +722,10 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	ApplyForwardImageBillingResolution(result)
 	logServiceTierBillingDowngrade("service.gateway", account, result.RequestID, ApplyForwardServiceTierBillingResolution(result))
 
+	// 调度成功清零（阶段 B）：CodeBuddy 请求成功即证明恢复，累计成功统计并按需
+	// 清退避计数器；关闭态/非 CodeBuddy 零操作。
+	s.recordCodebuddySchedulerSuccess(ctx, account)
+
 	// 强制缓存计费：将 input_tokens 转为 cache_read_input_tokens
 	// 用于粘性会话切换时的特殊计费处理
 	if input.ForceCacheBilling && result.Usage.InputTokens > 0 {

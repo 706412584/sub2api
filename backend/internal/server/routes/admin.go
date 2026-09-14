@@ -64,6 +64,9 @@ func RegisterAdminRoutes(
 		// Kiro OAuth
 		registerKiroOAuthRoutes(admin, h)
 
+		// CodeBuddy OAuth
+		registerCodebuddyOAuthRoutes(admin, h)
+
 		// Grok OAuth
 		registerGrokOAuthRoutes(admin, h)
 
@@ -385,6 +388,7 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAu
 		accounts.POST("/check-mixed-channel", h.Admin.Account.CheckMixedChannel)
 		accounts.POST("/import/codex-session", h.Admin.Account.ImportCodexSession)
 		accounts.POST("/import/kiro", h.Admin.Account.ImportKiroAccounts)
+		accounts.POST("/import/codebuddy", h.Admin.Account.ImportCodebuddyAccounts)
 		accounts.POST("/import/grok-session", h.Admin.Account.ImportGrokSessions)
 		accounts.POST("/sync/crs", h.Admin.Account.SyncFromCRS)
 		accounts.POST("/sync/crs/preview", h.Admin.Account.PreviewFromCRS)
@@ -509,6 +513,15 @@ func registerKiroOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		kiro.POST("/oauth/builder-id/start", h.Admin.KiroOAuth.StartBuilderIDDeviceFlow)
 		kiro.POST("/oauth/builder-id/poll", h.Admin.KiroOAuth.PollBuilderIDDeviceFlow)
 		kiro.POST("/oauth/builder-id/create-account", h.Admin.KiroOAuth.CreateAccountFromBuilderIDDeviceFlow)
+	}
+}
+
+func registerCodebuddyOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	codebuddy := admin.Group("/codebuddy")
+	{
+		codebuddy.POST("/oauth/start", h.Admin.CodebuddyOAuth.StartLogin)
+		codebuddy.POST("/oauth/poll", h.Admin.CodebuddyOAuth.PollLogin)
+		codebuddy.POST("/oauth/create-account", h.Admin.CodebuddyOAuth.CreateAccountFromLogin)
 	}
 }
 

@@ -735,6 +735,44 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 			}
 		}
 
+		// ============ 调度策略反哺（阶段 B，setting 门控）============
+		// 三因子加权选号：credits占比×10 + 闲置补偿 + 成功率×3，Top-N 内加权随机。
+		// 关闭时逐字走原有「优先级 → 最早重置 → 负载率 → LRU」路径。
+		weightedMode := s.schedulerWeightedSelectionEnabled(ctx)
+		if weightedMode {
+			for len(available) > 0 {
+				weighted := make([]*Account, 0, len(available))
+				for i := range available {
+					weighted = append(weighted, available[i].account)
+				}
+				picked := s.schedulerWeightedSelect(ctx, weighted)
+				if picked == nil {
+					break
+				}
+				result, err := s.tryAcquireAccountSlot(ctx, picked.ID, picked.Concurrency)
+				if err == nil && result.Acquired {
+					if s.checkAndRegisterSession(ctx, picked, sessionHash) {
+						if sessionHash != "" && s.cache != nil {
+							_ = s.bindGatewayStickySessionDuringSelection(ctx, groupID, sessionHash, picked.ID)
+						}
+						s.schedulerWeightedNotePick(picked.ID)
+						return s.newSelectionResult(ctx, picked, true, result.ReleaseFunc, nil)
+					}
+					result.ReleaseFunc()
+				}
+				// 加权选中的账号槽位不可得/会话已满：移除后重新加权。
+				for i := len(available) - 1; i >= 0; i-- {
+					if available[i].account.ID == picked.ID {
+						available = append(available[:i], available[i+1:]...)
+						break
+					}
+				}
+			}
+			if len(available) == 0 {
+				return nil, ErrNoAvailableAccounts
+			}
+		}
+
 		// 分层过滤选择：优先级 →（可选）最早重置 → 负载率 → LRU
 		for len(available) > 0 {
 			// 1. 取优先级最小的集合

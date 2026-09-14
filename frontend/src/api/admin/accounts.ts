@@ -913,6 +913,91 @@ export async function createKiroBuilderIDAccount(payload: KiroBuilderIDCreateAcc
   return data
 }
 
+// ── CodeBuddy ──────────────────────────────────────────────────────────────
+
+export interface CodebuddyLoginStartRequest {
+  region?: 'cn' | 'global'
+}
+
+export interface CodebuddyLoginStartResponse {
+  session_id: string
+  auth_url: string
+  region: string
+  expires_in: number
+}
+
+export interface CodebuddyLoginPollResponse {
+  status: 'pending' | 'authorized'
+  expires_in?: number
+  nickname?: string
+}
+
+export interface CodebuddyOAuthCreateAccountRequest {
+  session_id: string
+  name?: string
+  notes?: string
+  group_ids?: number[]
+  proxy_id?: number | null
+  concurrency?: number
+  priority?: number
+  rate_multiplier?: number
+  load_factor?: number | null
+  skip_default_group_bind?: boolean
+}
+
+export interface CodebuddyImportResult {
+  total: number
+  created: number
+  failed: number
+  items?: Array<{ index: number; name?: string; action: string; account_id?: number; message?: string }>
+  errors?: Array<{ index: number; name?: string; message: string }>
+}
+
+export async function startCodebuddyLogin(
+  payload: CodebuddyLoginStartRequest
+): Promise<CodebuddyLoginStartResponse> {
+  const { data } = await apiClient.post<CodebuddyLoginStartResponse>('/admin/codebuddy/oauth/start', payload)
+  return data
+}
+
+export async function pollCodebuddyLogin(payload: {
+  session_id: string
+}): Promise<CodebuddyLoginPollResponse> {
+  const { data } = await apiClient.post<CodebuddyLoginPollResponse>('/admin/codebuddy/oauth/poll', payload)
+  return data
+}
+
+export async function createCodebuddyOAuthAccount(payload: CodebuddyOAuthCreateAccountRequest): Promise<Account> {
+  const { data } = await apiClient.post<Account>('/admin/codebuddy/oauth/create-account', payload)
+  return data
+}
+
+export async function importCodebuddyAuths(
+  data: unknown,
+  options?: {
+    region?: 'cn' | 'global'
+    name?: string
+    notes?: string
+    group_ids?: number[]
+    proxy_id?: number | null
+    concurrency?: number
+    priority?: number
+  }
+): Promise<CodebuddyImportResult> {
+  const { data: result } = await apiClient.post<CodebuddyImportResult>('/admin/accounts/import/codebuddy', {
+    data,
+    region: options?.region,
+    name: options?.name,
+    notes: options?.notes,
+    group_ids: options?.group_ids,
+    proxy_id: options?.proxy_id,
+    concurrency: options?.concurrency,
+    priority: options?.priority,
+    skip_default_group_bind: true
+  }, { timeout: 120000 })
+  return result
+}
+
 /**
  * Get Antigravity default model mapping from backend
  * @returns Default model mapping (from -> to)
@@ -1297,6 +1382,10 @@ export const accountsAPI = {
   startKiroBuilderIDDeviceFlow,
   pollKiroBuilderIDDeviceFlow,
   createKiroBuilderIDAccount,
+  startCodebuddyLogin,
+  pollCodebuddyLogin,
+  createCodebuddyOAuthAccount,
+  importCodebuddyAuths,
   getAntigravityDefaultModelMapping,
   batchDelete,
   batchClearError,

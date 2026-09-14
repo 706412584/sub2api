@@ -23,6 +23,7 @@ func ProvideAdminHandlers(
 	geminiOAuthHandler *admin.GeminiOAuthHandler,
 	antigravityOAuthHandler *admin.AntigravityOAuthHandler,
 	kiroOAuthHandler *admin.KiroOAuthHandler,
+	codebuddyOAuthHandler *admin.CodebuddyOAuthHandler,
 	grokOAuthHandler *admin.GrokOAuthHandler,
 	cnProviderHandler *admin.CNProviderHandler,
 	proxyHandler *admin.ProxyHandler,
@@ -73,6 +74,7 @@ func ProvideAdminHandlers(
 		GeminiOAuth:            geminiOAuthHandler,
 		AntigravityOAuth:       antigravityOAuthHandler,
 		KiroOAuth:              kiroOAuthHandler,
+		CodebuddyOAuth:         codebuddyOAuthHandler,
 		GrokOAuth:              grokOAuthHandler,
 		CNProvider:             cnProviderHandler,
 		Proxy:                  proxyHandler,
@@ -110,6 +112,7 @@ func ProvideGatewayHandler(
 	geminiCompatService *service.GeminiMessagesCompatService,
 	antigravityGatewayService *service.AntigravityGatewayService,
 	kiroGatewayService *service.KiroGatewayService,
+	codebuddyGatewayService *service.CodebuddyGatewayService,
 	userService *service.UserService,
 	concurrencyService *service.ConcurrencyService,
 	billingCacheService *service.BillingCacheService,
@@ -124,6 +127,7 @@ func ProvideGatewayHandler(
 	coordinator *securityaudit.Coordinator,
 ) *GatewayHandler {
 	h := NewGatewayHandler(gatewayService, openAIGatewayService, geminiCompatService, antigravityGatewayService, kiroGatewayService,
+		codebuddyGatewayService,
 		userService, concurrencyService, billingCacheService, usageService, apiKeyService, usageRecordWorkerPool,
 		errorPassthroughService, contentModerationService, userMsgQueueService, cfg, settingService)
 	h.securityAuditCoordinator = coordinator
@@ -273,6 +277,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewGeminiOAuthHandler,
 	admin.NewAntigravityOAuthHandler,
 	admin.NewKiroOAuthHandler,
+	admin.NewCodebuddyOAuthHandler,
 	admin.NewGrokOAuthHandler,
 	admin.NewCNProviderHandler,
 	admin.NewProxyHandler,
