@@ -189,9 +189,9 @@ data: [DONE]
 		t.Fatal(err)
 	}
 	msg := firstMessage(t, resp)
-	calls := msg["tool_calls"].([]map[string]any)
-	if len(calls) != 2 {
-		t.Fatalf("calls=%d want 2", len(calls))
+	calls, ok := msg["tool_calls"].([]map[string]any)
+	if !ok || len(calls) != 2 {
+		t.Fatalf("calls=%v want 2", msg["tool_calls"])
 	}
 	if calls[0]["id"] != "call_a" || calls[1]["id"] != "call_b" {
 		t.Errorf("调用顺序应为 index 升序，got %v / %v", calls[0]["id"], calls[1]["id"])

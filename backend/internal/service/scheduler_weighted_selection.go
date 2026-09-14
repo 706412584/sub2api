@@ -460,7 +460,12 @@ func (r *schedulerWeightedRuntime) lastPickFunc() func(accountID int64) (time.Ti
 		if !ok {
 			return time.Time{}, false
 		}
-		return v.(time.Time), true
+		// 只经 notePick 写入 time.Time；类型不符视为未记录，不 panic。
+		ts, ok := v.(time.Time)
+		if !ok {
+			return time.Time{}, false
+		}
+		return ts, true
 	}
 }
 
@@ -479,7 +484,12 @@ func (r *schedulerWeightedRuntime) statsOf(accountID int64) schedulerStats {
 	if !ok {
 		return schedulerStats{}
 	}
-	return v.(schedulerStats)
+	// 只经 recordRequestOutcome 写入 schedulerStats；类型不符按无记录处理。
+	stats, ok := v.(schedulerStats)
+	if !ok {
+		return schedulerStats{}
+	}
+	return stats
 }
 
 // recordRequestOutcome 累计一次请求结果（成功 / 失败各一）。
@@ -488,7 +498,11 @@ func (r *schedulerWeightedRuntime) recordRequestOutcome(accountID int64, success
 		return
 	}
 	v, _ := r.stats.LoadOrStore(accountID, schedulerStats{})
-	stats := v.(schedulerStats)
+	// 本包只写入 schedulerStats；类型不符时按零值起算，不 panic。
+	stats, ok := v.(schedulerStats)
+	if !ok {
+		stats = schedulerStats{}
+	}
 	if success {
 		stats.SuccessCount++
 	} else {
