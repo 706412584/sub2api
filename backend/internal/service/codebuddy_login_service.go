@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -205,6 +206,12 @@ func (s *CodebuddyLoginService) pollToken(ctx context.Context, sessionID string,
 	now := time.Now()
 	uid, enterpriseID, nickname := s.fetchLoginAccount(ctx, session.Region, session.State, tok.AccessToken)
 
+	// 拿到 uid 后补激活（仅 Global）。失败不阻断：token 已到手，凭证照常产出，
+	// 只是该账号 chat 会回 429 code=14017，需要重新登录或人工处理。
+	if uid != "" {
+		s.activateAccount(ctx, session.Region, tok.AccessToken, tok.Domain, uid, enterpriseID)
+	}
+
 	s.mu.Lock()
 	if current, ok := s.sessions[sessionID]; ok {
 		current.AccessToken = strings.TrimSpace(tok.AccessToken)
@@ -254,6 +261,97 @@ func (s *CodebuddyLoginService) fetchLoginAccount(ctx context.Context, region co
 		return "", "", ""
 	}
 	return strings.TrimSpace(acct.UID), strings.TrimSpace(acct.EnterpriseID), strings.TrimSpace(acct.Nickname)
+}
+
+// activateAccount 补跑 Global 账号激活三步（注册地 → registerCloud → trial）。
+//
+// 为什么必须做：登录只拿 token，账号仍是「未激活」，chat 会回 429 code=14017
+// （"The trial version is not yet activated"）。网页登录会多做这三步，网关不做就
+// 只能拿到一个用不了的账号。顺序不可颠倒：跳过提交注册地直接调 registerCloud 会回
+// {"code":500,"msg":"register failed:register region required"}。
+//
+// 仅 Global：CN 的同名路径语义不同（get-user-area-info 返回 WAF 拦截 HTML 而非
+// JSON；trial 对已激活账号回 14051）。没有 CN 未激活账号可供实测，故不猜。
+//
+// 全程尽力而为：任一步失败只记日志，不阻断登录结果（token 已到手，凭证仍可用）。
+func (s *CodebuddyLoginService) activateAccount(ctx context.Context, region codebuddy.Region, accessToken, domain, uid, enterpriseID string) {
+	if region != codebuddy.RegionGlobal {
+		return
+	}
+	creds := codebuddy.Credentials{
+		AccessToken:  accessToken,
+		Domain:       domain,
+		UID:          uid,
+		EnterpriseID: enterpriseID,
+	}
+
+	// 1. 取检测到的注册地（IOS2）。data 是嵌套的 JSON 字符串，要解两层。
+	//    取不到就退回 SG —— intl 账号的常见归属，且第 2 步只要求「有个区域」。
+	countryName, countryCode, countryFullName := "SG", "65", "Singapore"
+	if req, err := codebuddy.BuildUserAreaInfoRequest(creds, region, codebuddy.EndpointOptions{}); err == nil {
+		if data, ok := s.doActivateRequest(ctx, req); ok {
+			var outer string
+			if json.Unmarshal(data, &outer) == nil {
+				var inner struct {
+					Data struct {
+						IOS2   string `json:"IOS2"`
+						EnName string `json:"enName"`
+						Code   string `json:"code"`
+					} `json:"data"`
+				}
+				if json.Unmarshal([]byte(outer), &inner) == nil && inner.Data.IOS2 != "" {
+					countryName = inner.Data.IOS2
+					if inner.Data.EnName != "" {
+						countryFullName = inner.Data.EnName
+					}
+					if inner.Data.Code != "" {
+						countryCode = inner.Data.Code
+					}
+				}
+			}
+		}
+	}
+
+	// 2. 提交注册地（areaInfoComplete 翻 true）。
+	if req, err := codebuddy.BuildSubmitAreaRequest(creds, region, countryCode, countryFullName, countryName, codebuddy.EndpointOptions{}); err == nil {
+		if _, ok := s.doActivateRequest(ctx, req); !ok {
+			slog.Warn("codebuddy_login.activate_submit_area_failed", "uid", uid)
+			return
+		}
+	}
+
+	// 3. registerCloud。成功时返回 code=200 而非 0，会被 ParseEnvelope 当错误 —— 只记不报。
+	if req, err := codebuddy.BuildRegisterCloudRequest(creds, region, uid, codebuddy.EndpointOptions{}); err == nil {
+		if _, ok := s.doActivateRequest(ctx, req); !ok {
+			slog.Info("codebuddy_login.activate_register_cloud_nonzero", "uid", uid)
+		}
+	}
+
+	// 4. trial —— 翻转 14017 的那一步。14051「has applied trial」是已领过的正常结果。
+	if req, err := codebuddy.BuildTrialRequest(creds, region, codebuddy.EndpointOptions{}); err == nil {
+		if _, ok := s.doActivateRequest(ctx, req); ok {
+			slog.Info("codebuddy_login.activate_done", "uid", uid, "country", countryName)
+		} else {
+			slog.Warn("codebuddy_login.activate_trial_failed", "uid", uid)
+		}
+	}
+}
+
+// doActivateRequest 执行一次激活请求并解析信封；成功返回 data，失败返回 false。
+// 14051（试用已领过）视作成功：账号本就是激活态，无需再激活。
+func (s *CodebuddyLoginService) doActivateRequest(ctx context.Context, req *http.Request) ([]byte, bool) {
+	body, status, err := s.doRequest(req.WithContext(ctx))
+	if err != nil {
+		return nil, false
+	}
+	data, parseErr := codebuddy.ParseEnvelope(status, body)
+	if parseErr != nil {
+		if codebuddy.ErrorCodeOf(parseErr) == codebuddy.CodeTrialAlreadyApplied {
+			return nil, true
+		}
+		return nil, false
+	}
+	return data, true
 }
 
 // Credentials 返回已完成授权的会话凭证。

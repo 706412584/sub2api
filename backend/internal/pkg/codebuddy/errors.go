@@ -2,6 +2,7 @@ package codebuddy
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -171,6 +172,15 @@ func ParseEnvelope(status int, raw []byte) (json.RawMessage, error) {
 		}
 	}
 	return env.Data, nil
+}
+
+// ErrorCodeOf 取出 *Error 携带的上游业务 code；非本包错误或 code 为 0 时返回 0。
+func ErrorCodeOf(err error) int {
+	var ue *Error
+	if errors.As(err, &ue) {
+		return ue.Code
+	}
+	return 0
 }
 
 // Truncate 截断字符串到 n 字节（先 TrimSpace）。
