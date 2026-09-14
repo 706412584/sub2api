@@ -2,6 +2,7 @@ package codebuddy
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"strings"
@@ -30,6 +31,14 @@ const (
 	PathAuthState       = "/v2/plugin/auth/state"
 	PathAuthToken       = "/v2/plugin/auth/token"
 	PathLoginAccount    = "/v2/plugin/login/account"
+
+	// 账号激活（仅 Global）。登录只拿到 token，账号仍是「未激活」，
+	// chat 会回 429 code=14017（"The trial version is not yet activated"）。
+	// 网页登录会多做三步，网关必须自己补，顺序不可颠倒。
+	PathUserAreaInfo  = "/billing/area/get-user-area-info"
+	PathLoginAccount2 = "/console/login/account"
+	PathRegisterCloud = "/auth/realms/copilot/overseas/user/register"
+	PathTrial         = "/billing/ide/trial"
 )
 
 // ChatBase 返回区域的 chat 端点根。
@@ -181,3 +190,96 @@ func BuildLoginAccountRequest(region Region, state string, opts AuthFlowOptions)
 	AuthFlowHeaders(req, region)
 	return req, nil
 }
+
+// ── 账号激活（仅 Global）────────────────────────────────────────────────────
+//
+// 登录只拿到 token，账号仍是「未激活」，chat 会回 429 code=14017
+// （"The trial version is not yet activated"）。网页登录会多做三步：
+//
+//	1. POST /console/login/account        提交注册地（areaInfoComplete 翻 true）
+//	2. GET  /auth/realms/copilot/overseas/user/register?userId=   registerCloud
+//	3. POST /billing/ide/trial            试用激活（翻转 14017 的那一步）
+//
+// 顺序不可颠倒：跳过 1 直接调 2 会回 {"code":500,"msg":"register failed:register region required"}。
+//
+// 只对 Global 做：CN 的同名路径语义不同 —— get-user-area-info 返回 WAF 拦截 HTML
+// 而非 JSON，billing/ide/trial 对已激活账号回 code=14051 "has applied trial"。
+//
+// 这些端点要求 Bearer + X-User-Id + X-No-Enterprise-Id + X-Domain + X-Product，
+// 与 chat/billing 的头略有差异（未激活账号没有 enterpriseId，显式用 X-No- 声明）。
+
+// ActivateHeaders 账号激活端点请求头。
+func ActivateHeaders(req *http.Request, creds Credentials, r Region) {
+	CommonHeaders(req, r)
+	req.Header.Set("Authorization", "Bearer "+creds.AccessToken)
+	if creds.UID != "" {
+		req.Header.Set("X-User-Id", creds.UID)
+	}
+	if creds.EnterpriseID != "" {
+		req.Header.Set("X-Enterprise-Id", creds.EnterpriseID)
+	} else {
+		req.Header.Set("X-No-Enterprise-Id", "1")
+	}
+	if creds.Domain != "" {
+		req.Header.Set("X-Domain", creds.Domain)
+	}
+	req.Header.Set("X-Product", "SaaS")
+}
+
+// BuildUserAreaInfoRequest 构造查询注册地的请求（POST {"action":"getUserAreaInfo"}）。
+func BuildUserAreaInfoRequest(creds Credentials, region Region, opts EndpointOptions) (*http.Request, error) {
+	req, err := newRequest(http.MethodPost, opts.billingBase(region)+PathUserAreaInfo,
+		[]byte(`{"action":"getUserAreaInfo"}`))
+	if err != nil {
+		return nil, err
+	}
+	ActivateHeaders(req, creds, region)
+	return req, nil
+}
+
+// BuildSubmitAreaRequest 构造提交注册地的请求（POST，attributes 的值都是数组，与网页一致）。
+func BuildSubmitAreaRequest(creds Credentials, region Region, countryCode, countryFullName, countryName string, opts EndpointOptions) (*http.Request, error) {
+	body, err := json.Marshal(map[string]any{
+		"attributes": map[string]any{
+			"countryCode":     []string{countryCode},
+			"countryFullName": []string{countryFullName},
+			"countryName":     []string{countryName},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	req, err := newRequest(http.MethodPost, opts.billingBase(region)+PathLoginAccount2, body)
+	if err != nil {
+		return nil, err
+	}
+	ActivateHeaders(req, creds, region)
+	return req, nil
+}
+
+// BuildRegisterCloudRequest 构造 registerCloud 请求（GET ?userId=）。
+func BuildRegisterCloudRequest(creds Credentials, region Region, uid string, opts EndpointOptions) (*http.Request, error) {
+	u := opts.billingBase(region) + PathRegisterCloud + "?userId=" + url.QueryEscape(uid)
+	req, err := http.NewRequest(http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
+	ActivateHeaders(req, creds, region)
+	return req, nil
+}
+
+// BuildTrialRequest 构造试用激活请求（POST {}）。
+func BuildTrialRequest(creds Credentials, region Region, opts EndpointOptions) (*http.Request, error) {
+	req, err := newRequest(http.MethodPost, opts.billingBase(region)+PathTrial, []byte("{}"))
+	if err != nil {
+		return nil, err
+	}
+	ActivateHeaders(req, creds, region)
+	return req, nil
+}
+
+// CodeTrialAlreadyApplied 试用已领过（对已激活账号调 trial 的正常返回，不算失败）。
+const CodeTrialAlreadyApplied = 14051
+
+// CodeTrialNotActivated 账号未激活（chat 直接返回此码，需先跑激活三步）。
+const CodeTrialNotActivated = 14017
