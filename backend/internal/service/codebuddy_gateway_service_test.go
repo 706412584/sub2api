@@ -78,9 +78,9 @@ func codebuddyTestAccount() *Account {
 func codebuddySSE(frames ...string) io.Reader {
 	var buf bytes.Buffer
 	for _, f := range frames {
-		buf.WriteString("data: " + f + "\n\n")
+		_, _ = buf.WriteString("data: " + f + "\n\n")
 	}
-	buf.WriteString("data: [DONE]\n\n")
+	_, _ = buf.WriteString("data: [DONE]\n\n")
 	return bytes.NewReader(buf.Bytes())
 }
 

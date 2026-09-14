@@ -73,11 +73,11 @@ func Aggregate(r io.Reader) (map[string]any, error) {
 								role = r2
 							}
 							if txt, ok := delta["content"].(string); ok {
-								content.WriteString(txt)
+								_, _ = content.WriteString(txt)
 								gotAnyContent = true
 							}
 							if rc, ok := delta["reasoning_content"].(string); ok {
-								reasoning.WriteString(rc)
+								_, _ = reasoning.WriteString(rc)
 							}
 							if tcs, ok := delta["tool_calls"].([]any); ok {
 								for _, tc := range tcs {
@@ -102,7 +102,7 @@ func Aggregate(r io.Reader) (map[string]any, error) {
 						// 有的上游把完整消息放在 message 里（非 delta）
 						if msg, ok := c["message"].(map[string]any); ok && !gotAnyContent {
 							if txt, ok := msg["content"].(string); ok {
-								content.WriteString(txt)
+								_, _ = content.WriteString(txt)
 							}
 						}
 					}

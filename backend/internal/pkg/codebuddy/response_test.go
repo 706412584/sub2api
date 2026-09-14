@@ -21,6 +21,48 @@ func (w *bufWriter) Write(p []byte) (int, error) { return w.sb.Write(p) }
 func (w *bufWriter) Flush()                      {}
 func (w *bufWriter) String() string              { return w.sb.String() }
 
+// mustMap / mustSlice / mustFloat 是测试内的类型断言助手。
+// .golangci.yml 开启 errcheck 的 check-type-assertions，裸断言会被判为未检查错误；
+// 用助手集中处理，既满足 linter 又避免每处重复 ok 判断。
+func mustMap(t *testing.T, v any) map[string]any {
+	t.Helper()
+	m, ok := v.(map[string]any)
+	if !ok {
+		t.Fatalf("want map[string]any, got %T", v)
+	}
+	return m
+}
+
+func mustSlice(t *testing.T, v any) []any {
+	t.Helper()
+	s, ok := v.([]any)
+	if !ok {
+		t.Fatalf("want []any, got %T", v)
+	}
+	return s
+}
+
+func mustFloat(t *testing.T, v any) float64 {
+	t.Helper()
+	f, ok := v.(float64)
+	if !ok {
+		t.Fatalf("want float64, got %T", v)
+	}
+	return f
+}
+
+// firstMessage 取 resp.choices[0].message（Aggregate 结果的常见断言入口）。
+func firstMessage(t *testing.T, resp map[string]any) map[string]any {
+	t.Helper()
+	return mustMap(t, mustMap(t, mustSlice(t, resp["choices"])[0])["message"])
+}
+
+// firstChoice 取 resp.choices[0]。
+func firstChoice(t *testing.T, resp map[string]any) map[string]any {
+	t.Helper()
+	return mustMap(t, mustSlice(t, resp["choices"])[0])
+}
+
 func TestAggregate(t *testing.T) {
 	resp, err := Aggregate(strings.NewReader(sseFixture))
 	if err != nil {
@@ -32,19 +74,32 @@ func TestAggregate(t *testing.T) {
 	if resp["model"] != "glm-5.2" {
 		t.Errorf("model=%v", resp["model"])
 	}
-	choices := resp["choices"].([]any)
-	msg := choices[0].(map[string]any)["message"].(map[string]any)
+	choices, ok := resp["choices"].([]any)
+	if !ok || len(choices) == 0 {
+		t.Fatalf("choices=%v", resp["choices"])
+	}
+	choice, ok := choices[0].(map[string]any)
+	if !ok {
+		t.Fatalf("choice=%v", choices[0])
+	}
+	msg, ok := choice["message"].(map[string]any)
+	if !ok {
+		t.Fatalf("message=%v", choice["message"])
+	}
 	if msg["content"] != "你好，世界" {
 		t.Errorf("content=%q", msg["content"])
 	}
 	if msg["role"] != "assistant" {
 		t.Errorf("role=%v", msg["role"])
 	}
-	if choices[0].(map[string]any)["finish_reason"] != "stop" {
-		t.Errorf("finish_reason=%v", choices[0].(map[string]any)["finish_reason"])
+	if choice["finish_reason"] != "stop" {
+		t.Errorf("finish_reason=%v", choice["finish_reason"])
 	}
-	usage := resp["usage"].(map[string]any)
-	if usage["total_tokens"].(float64) != 7 {
+	usage, ok := resp["usage"].(map[string]any)
+	if !ok {
+		t.Fatalf("usage=%v", resp["usage"])
+	}
+	if total, ok := usage["total_tokens"].(float64); !ok || total != 7 {
 		t.Errorf("usage=%v", usage)
 	}
 }
@@ -55,7 +110,7 @@ func TestAggregateSkipsNonDataLines(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	msg := resp["choices"].([]any)[0].(map[string]any)["message"].(map[string]any)
+	msg := firstMessage(t, resp)
 	if msg["content"] != "你好，世界" {
 		t.Errorf("content=%q", msg["content"])
 	}
@@ -71,7 +126,7 @@ func TestAggregateReasoningContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	msg := resp["choices"].([]any)[0].(map[string]any)["message"].(map[string]any)
+	msg := firstMessage(t, resp)
 	if msg["reasoning_content"] != "思考中" {
 		t.Errorf("reasoning_content=%q want 思考中", msg["reasoning_content"])
 	}
@@ -97,11 +152,11 @@ data: [DONE]
 	if err != nil {
 		t.Fatal(err)
 	}
-	choice := resp["choices"].([]any)[0].(map[string]any)
+	choice := firstChoice(t, resp)
 	if choice["finish_reason"] != "tool_calls" {
 		t.Errorf("finish_reason=%v", choice["finish_reason"])
 	}
-	msg := choice["message"].(map[string]any)
+	msg := mustMap(t, choice["message"])
 	calls, ok := msg["tool_calls"].([]map[string]any)
 	if !ok || len(calls) != 1 {
 		t.Fatalf("tool_calls=%#v", msg["tool_calls"])
@@ -109,7 +164,7 @@ data: [DONE]
 	if calls[0]["id"] != "call_a" || calls[0]["type"] != "function" {
 		t.Errorf("call meta=%v", calls[0])
 	}
-	fn := calls[0]["function"].(map[string]any)
+	fn := mustMap(t, calls[0]["function"])
 	if fn["name"] != "get_weather" {
 		t.Errorf("fn.name=%v", fn["name"])
 	}
@@ -133,7 +188,7 @@ data: [DONE]
 	if err != nil {
 		t.Fatal(err)
 	}
-	msg := resp["choices"].([]any)[0].(map[string]any)["message"].(map[string]any)
+	msg := firstMessage(t, resp)
 	calls := msg["tool_calls"].([]map[string]any)
 	if len(calls) != 2 {
 		t.Fatalf("calls=%d want 2", len(calls))
@@ -151,7 +206,7 @@ func TestAggregateMessageFallback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	msg := resp["choices"].([]any)[0].(map[string]any)["message"].(map[string]any)
+	msg := firstMessage(t, resp)
 	if msg["content"] != "hi" {
 		t.Errorf("content=%q want hi", msg["content"])
 	}
@@ -197,7 +252,7 @@ func TestAggregateEmptyStreamCases(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			msg := resp["choices"].([]any)[0].(map[string]any)["message"].(map[string]any)
+			msg := firstMessage(t, resp)
 			if msg["content"] != c.wantContent {
 				t.Errorf("content=%q want %q", msg["content"], c.wantContent)
 			}
@@ -205,7 +260,7 @@ func TestAggregateEmptyStreamCases(t *testing.T) {
 			if !ok {
 				t.Fatal("usage missing")
 			}
-			if u["total_tokens"].(float64) != c.wantUsage {
+			if mustFloat(t, u["total_tokens"]) != c.wantUsage {
 				t.Errorf("usage=%v want %v", u["total_tokens"], c.wantUsage)
 			}
 		})
@@ -317,11 +372,11 @@ func TestStreamNormalizesFrames(t *testing.T) {
 	if f0["usage"] != nil {
 		t.Errorf("usage should be null when absent, got %v", f0["usage"])
 	}
-	ch0 := f0["choices"].([]any)[0].(map[string]any)
+	ch0 := firstChoice(t, f0)
 	if ch0["finish_reason"] != nil {
 		t.Errorf("frame1 finish_reason=%v want null", ch0["finish_reason"])
 	}
-	d := ch0["delta"].(map[string]any)
+	d := mustMap(t, ch0["delta"])
 	if len(d) != 1 || d["role"] != "assistant" {
 		t.Errorf("frame1 delta should only keep role, got %#v", d)
 	}
@@ -332,8 +387,8 @@ func TestStreamNormalizesFrames(t *testing.T) {
 	}
 
 	f1 := frames[1]
-	ch1 := f1["choices"].([]any)[0].(map[string]any)
-	d1 := ch1["delta"].(map[string]any)
+	ch1 := firstChoice(t, f1)
+	d1 := mustMap(t, ch1["delta"])
 	if d1["content"] != "hello" {
 		t.Errorf("frame2 content=%v", d1["content"])
 	}
@@ -346,11 +401,11 @@ func TestStreamNormalizesFrames(t *testing.T) {
 	}
 
 	f2 := frames[2]
-	ch2 := f2["choices"].([]any)[0].(map[string]any)
+	ch2 := firstChoice(t, f2)
 	if ch2["finish_reason"] != "stop" {
 		t.Errorf("frame3 finish_reason=%v want stop", ch2["finish_reason"])
 	}
-	if f2["usage"].(map[string]any)["total_tokens"].(float64) != 7 {
+	if mustFloat(t, mustMap(t, f2["usage"])["total_tokens"]) != 7 {
 		t.Errorf("frame3 usage=%v", f2["usage"])
 	}
 }
@@ -546,7 +601,7 @@ func TestMergeToolCallDelta(t *testing.T) {
 	if merged["id"] != "c1" || merged["type"] != "function" {
 		t.Fatalf("meta not merged: %v", merged)
 	}
-	fn := merged["function"].(map[string]any)
+	fn := mustMap(t, merged["function"])
 	if fn["name"] != "f" {
 		t.Fatalf("name=%v", fn["name"])
 	}

@@ -25,10 +25,10 @@ const (
 	PlatformKiro        = "kiro"
 	PlatformGrok        = "grok"
 	// 国产 OpenAI 兼容供应商（经 OpenAI 网关转发，按 Chat Completions 协议）。
-	PlatformKimi      = "kimi"     // Kimi (月之暗面 / Moonshot)
-	PlatformZhipu     = "zhipu"    // 智谱 GLM (bigmodel)
-	PlatformDeepseek  = "deepseek" // DeepSeek
-	PlatformMiniMax   = "minimax"  // MiniMax (M 系列)
+	PlatformKimi     = "kimi"     // Kimi (月之暗面 / Moonshot)
+	PlatformZhipu    = "zhipu"    // 智谱 GLM (bigmodel)
+	PlatformDeepseek = "deepseek" // DeepSeek
+	PlatformMiniMax  = "minimax"  // MiniMax (M 系列)
 	// CodeBuddy（腾讯）：账号类型决定区域（codebuddy_cn / codebuddy_global），两区模型不互通。
 	PlatformCodebuddy = "codebuddy"
 	PlatformComposite = "composite"
@@ -53,15 +53,15 @@ const (
 
 // Account type constants
 const (
-	AccountTypeOAuth          = "oauth"           // OAuth类型账号（full scope: profile + inference）
-	AccountTypeSetupToken     = "setup-token"     // Setup Token类型账号（inference only scope）
-	AccountTypeAPIKey         = "apikey"          // API Key类型账号
-	AccountTypeUpstream       = "upstream"        // 上游透传类型账号（通过 Base URL + API Key 连接上游）
-	AccountTypeBedrock        = "bedrock"         // AWS Bedrock 类型账号（通过 SigV4 签名或 API Key 连接 Bedrock，由 credentials.auth_mode 区分）
-	AccountTypeServiceAccount = "service_account" // Google Service Account 类型账号（用于 Vertex AI）
-	AccountTypeGrokConsole    = "grok_console"    // Grok Console 类型账号（DPoP 会话）
-	AccountTypeGrokWeb        = "grok_web"        // Grok Web 类型账号（浏览器会话）
-	AccountTypeCodebuddyCN    = "codebuddy_cn"    // CodeBuddy 国内区（copilot.tencent.com，有签到活动）
+	AccountTypeOAuth          = "oauth"            // OAuth类型账号（full scope: profile + inference）
+	AccountTypeSetupToken     = "setup-token"      // Setup Token类型账号（inference only scope）
+	AccountTypeAPIKey         = "apikey"           // API Key类型账号
+	AccountTypeUpstream       = "upstream"         // 上游透传类型账号（通过 Base URL + API Key 连接上游）
+	AccountTypeBedrock        = "bedrock"          // AWS Bedrock 类型账号（通过 SigV4 签名或 API Key 连接 Bedrock，由 credentials.auth_mode 区分）
+	AccountTypeServiceAccount = "service_account"  // Google Service Account 类型账号（用于 Vertex AI）
+	AccountTypeGrokConsole    = "grok_console"     // Grok Console 类型账号（DPoP 会话）
+	AccountTypeGrokWeb        = "grok_web"         // Grok Web 类型账号（浏览器会话）
+	AccountTypeCodebuddyCN    = "codebuddy_cn"     // CodeBuddy 国内区（copilot.tencent.com，有签到活动）
 	AccountTypeCodebuddyGlob  = "codebuddy_global" // CodeBuddy 国际区（workbuddy.ai，无签到活动）
 )
 

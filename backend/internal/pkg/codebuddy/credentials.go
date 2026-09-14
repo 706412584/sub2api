@@ -140,7 +140,9 @@ func FromCredentialsMap(m map[string]any) Credentials {
 
 // ParseAuthFile 解析 workbuddy2api 的 auths/*.json（嵌套形或扁平形）。
 // 嵌套形：{"auth":{"accessToken","refreshToken","expiresAt","domain"},
-//          "account":{"uid","enterpriseId","nickname"}}
+//
+//	"account":{"uid","enterpriseId","nickname"}}
+//
 // 扁平形：{"accessToken":...,"uid":...}
 func ParseAuthFile(m map[string]any) (Credentials, error) {
 	if m == nil {

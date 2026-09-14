@@ -530,15 +530,6 @@ func (s *GatewayService) schedulerWeightedNotePick(accountID int64) {
 	}
 }
 
-// schedulerWeightedRecordOutcome 记录一次 CodeBuddy 请求结果（成功/失败统计，
-// 进程内内存态；仅开启时累计，避免关闭态白占内存）。
-func (s *GatewayService) schedulerWeightedRecordOutcome(ctx context.Context, accountID int64, success bool) {
-	if !s.schedulerWeightedSelectionEnabled(ctx) {
-		return
-	}
-	s.schedulerWeighted.recordRequestOutcome(accountID, success)
-}
-
 // recordCodebuddySchedulerSuccess CodeBuddy 请求成功（RecordUsage 路径）：累计
 // 成功统计；若此前软失败持久化过退避计数器（backoffMark 脏标记），写显式 null
 // 删除 extra 键（JSONB 合并；读取侧把 null 视为无状态）。关闭态零操作。
