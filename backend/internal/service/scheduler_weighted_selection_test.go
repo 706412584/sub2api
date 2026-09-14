@@ -112,59 +112,73 @@ func TestSelectBySchedulerWeight_EmptyAndSingle(t *testing.T) {
 	require.Same(t, only, SelectBySchedulerWeight([]*Account{only}, weightedTestSettings(), nil, nil))
 }
 
-func TestSelectBySchedulerWeight_PrefersHigherCredits(t *testing.T) {
-	// 两号都从未使用（idle 满分），差别只在 credits。高积分号权重显著更高，
-	// 重复取样应压倒性偏向它。
+// 三因子权重本身是确定性的，直接断言 schedulerWeightOf 的输出，
+// 不靠采样分布 —— 概率断言在权重差较小（如成功率 +3 vs +0）时不稳定，
+// 会在 CI 上随机翻红。选号的随机性单独由 TestSelectBySchedulerWeight_TopNLimit
+// 与防惊群用例覆盖（那两处是「必须/必须不」的确定性边界，不依赖概率）。
+
+func TestSchedulerWeightOf_CreditsRatio(t *testing.T) {
+	settings := weightedTestSettings()
+	now := time.Now()
+	// 两号都从未使用（idle 满分）、无统计（中性 1.5），只有 credits 不同。
 	high := &Account{ID: 1, Platform: PlatformCodebuddy,
 		Extra: map[string]any{"codebuddy_credit": map[string]any{"remain": int64(1000)}}}
 	low := &Account{ID: 2, Platform: PlatformCodebuddy,
 		Extra: map[string]any{"codebuddy_credit": map[string]any{"remain": int64(10)}}}
 
-	hits := map[int64]int{}
-	for i := 0; i < 3000; i++ {
-		picked := SelectBySchedulerWeight([]*Account{high, low}, weightedTestSettings(), nil, nil)
-		require.NotNil(t, picked)
-		hits[picked.ID]++
-	}
-	// 权重 ≈17.5 vs ≈7.6（期望中选率 ~70%），应稳定偏向高积分账号。
-	require.Greater(t, hits[high.ID], hits[low.ID]*2, "高积分账号应显著更常中选")
+	wHigh := schedulerWeightOf(high, 1000, schedulerStats{}, settings, now)
+	wLow := schedulerWeightOf(low, 1000, schedulerStats{}, settings, now)
+	// 基数 1 + credits占比×10 + idle 5 + 中性 1.5
+	require.InDelta(t, 1+10+5+1.5, wHigh, 1e-9, "满分 credits 应拿满 ×10")
+	require.InDelta(t, 1+0.1+5+1.5, wLow, 1e-9, "低 credits 按占比折算")
+	require.Greater(t, wHigh, wLow)
 }
 
-func TestSelectBySchedulerWeight_StatsInfluenceSuccessRate(t *testing.T) {
+func TestSchedulerWeightOf_SuccessRate(t *testing.T) {
 	settings := weightedTestSettings()
-	statsOf := func(id int64) schedulerStats {
-		if id == 1 {
-			return schedulerStats{SuccessCount: 100, ErrTotal: 0} // 成功率 1.0 → +3
-		}
-		return schedulerStats{SuccessCount: 0, ErrTotal: 100} // 成功率 0 → +0
-	}
-	// 相同 credits、相同 idle（均从未使用），只有成功率不同。
+	now := time.Now()
 	a := &Account{ID: 1, Platform: PlatformCodebuddy,
 		Extra: map[string]any{"codebuddy_credit": map[string]any{"remain": int64(100)}}}
 	b := &Account{ID: 2, Platform: PlatformCodebuddy,
 		Extra: map[string]any{"codebuddy_credit": map[string]any{"remain": int64(100)}}}
+	perfect := schedulerStats{SuccessCount: 100, ErrTotal: 0}
+	failing := schedulerStats{SuccessCount: 0, ErrTotal: 100}
 
-	hits := map[int64]int{}
-	for i := 0; i < 300; i++ {
-		hits[SelectBySchedulerWeight([]*Account{a, b}, settings, nil, statsOf).ID]++
-	}
-	require.Greater(t, hits[a.ID], hits[b.ID], "高成功率账号应更常中选")
+	wPerfect := schedulerWeightOf(a, 100, perfect, settings, now)
+	wFailing := schedulerWeightOf(b, 100, failing, settings, now)
+	// 成功率 1.0 → +3；成功率 0 → +0。
+	require.InDelta(t, wPerfect-wFailing, 3.0, 1e-9, "成功率因子满值应为 +3")
 }
 
-func TestSelectBySchedulerWeight_IdleBonus(t *testing.T) {
+func TestSchedulerWeightOf_NoStatsGivesNeutral(t *testing.T) {
 	settings := weightedTestSettings()
 	now := time.Now()
-	// 相同 credits；idle 号从未使用（idle 满分 5），recent 号刚用过（idle≈0）。
-	idle := &Account{ID: 1, Platform: PlatformCodebuddy, LastUsedAt: nil,
+	a := &Account{ID: 1, Platform: PlatformCodebuddy,
 		Extra: map[string]any{"codebuddy_credit": map[string]any{"remain": int64(100)}}}
-	recent := &Account{ID: 2, Platform: PlatformCodebuddy, LastUsedAt: testTimePtr(now),
+	// 无记录 → 中性 1.5，而非 0（否则新号会被系统性压低）。
+	neutral := schedulerWeightOf(a, 100, schedulerStats{}, settings, now)
+	zeroRate := schedulerWeightOf(a, 100, schedulerStats{SuccessCount: 0, ErrTotal: 1}, settings, now)
+	require.InDelta(t, neutral-zeroRate, 1.5, 1e-9, "无记录应给中性 1.5")
+}
+
+func TestSchedulerWeightOf_IdleBonus(t *testing.T) {
+	settings := weightedTestSettings()
+	now := time.Now()
+	never := &Account{ID: 1, Platform: PlatformCodebuddy, LastUsedAt: nil,
+		Extra: map[string]any{"codebuddy_credit": map[string]any{"remain": int64(100)}}}
+	justUsed := &Account{ID: 2, Platform: PlatformCodebuddy, LastUsedAt: testTimePtr(now),
 		Extra: map[string]any{"codebuddy_credit": map[string]any{"remain": int64(100)}}}
 
-	hits := map[int64]int{}
-	for i := 0; i < 300; i++ {
-		hits[SelectBySchedulerWeight([]*Account{idle, recent}, settings, nil, nil).ID]++
-	}
-	require.Greater(t, hits[idle.ID], hits[recent.ID], "闲置账号应受 idle 补偿更常中选")
+	wNever := schedulerWeightOf(never, 100, schedulerStats{}, settings, now)
+	wJust := schedulerWeightOf(justUsed, 100, schedulerStats{}, settings, now)
+	require.InDelta(t, wNever-wJust, settings.IdleWeightMax, 1e-9, "从未使用应拿满 idle 补偿")
+
+	// 闲置封顶：100 小时的闲置不应超过 IdleWeightMax。
+	old := &Account{ID: 3, Platform: PlatformCodebuddy,
+		LastUsedAt: testTimePtr(now.Add(-100 * time.Hour)),
+		Extra:      map[string]any{"codebuddy_credit": map[string]any{"remain": int64(100)}}}
+	require.InDelta(t, schedulerWeightOf(old, 100, schedulerStats{}, settings, now), wNever, 1e-9,
+		"idle 补偿应封顶在 IdleWeightMax")
 }
 
 func TestSelectBySchedulerWeight_TopNLimit(t *testing.T) {
