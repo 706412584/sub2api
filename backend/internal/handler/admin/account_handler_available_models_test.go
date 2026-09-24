@@ -334,7 +334,15 @@ func TestMergeAccountMappingIntoOpenAIModelsWildcardOnlyKeepsLiveCatalog(t *test
 }
 
 // 端到端：账号自定义模型经 GetAvailableModels 全链路出现在下拉数据里。
-// 上游实时目录只有 2 个模型，mapping 里的自定义模型必须叠加返回。
+//
+// 合并后这一段是「上游投影 + 本地叠加」两段语义的组合：
+//   - 上游 de28eea11（v0.2.8）让 FetchOpenAIAccountModels 先把实时目录按
+//     model_mapping 投影，只有「mapping 命中且上游目录里存在」的 id 才保留，
+//     因此上游返回的 live-only（不在 mapping 里）会被上游自己剔除；
+//   - 本地 mergeAccountMappingIntoOpenAIModels 再补上 mapping 里独有、上游目录
+//     里查不到的键（custom-only / deepseek-v4-pro），这些正是上游投影会丢掉的。
+//
+// 两者合起来才是管理员预期：配置过的模型都在，未配置的上游模型不暴露。
 func TestAccountHandlerGetAvailableModels_MergesCustomMappingOverLiveUpstreamCatalog(t *testing.T) {
 	account := service.Account{
 		ID:       47,
@@ -397,7 +405,9 @@ func TestAccountHandlerGetAvailableModels_MergesCustomMappingOverLiveUpstreamCat
 	for _, model := range resp.Data {
 		ids = append(ids, model.ID)
 	}
-	require.Equal(t, []string{"upstream-listed", "live-only", "custom-only", "deepseek-v4-pro"}, ids)
+	// 上游目录里的 live-only 不在 mapping 中，被上游投影剔除；mapping 独有、
+	// 上游目录查不到的 custom-only / deepseek-v4-pro 由本地叠加补回。
+	require.Equal(t, []string{"upstream-listed", "custom-only", "deepseek-v4-pro"}, ids)
 }
 
 func countDistinctStrings(values []string) int {

@@ -3158,6 +3158,10 @@ func (h *AccountHandler) SetSchedulable(c *gin.Context) {
 // 测试连接里选到它。账号映射是管理员的显式声明，必须叠加在实时目录之上：
 // 目录里已有的保持原样，只补 mapping 独有且带通配符之外的键。
 //
+// 上游 de28eea11（v0.2.8）又在 FetchOpenAIAccountModels 里加了按 mapping 的投影，
+// 只保留「mapping 命中且上游目录存在」的 id，因此映射到上游缺失模型的键仍会被丢掉，
+// 本函数的补全依然是它们唯一的出口；两者是叠加关系而非重复。
+//
 // 是否真能跑通由上游裁决（网关对 OpenAI API Key 账号按 mapping 准入并透传），
 // 这里不做可用性预判。
 func mergeAccountMappingIntoOpenAIModels(models []openai.Model, account *service.Account) []openai.Model {
