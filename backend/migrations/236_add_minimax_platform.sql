@@ -4,13 +4,20 @@
 --   3. channel_monitors / channel_monitor_request_templates.provider CHECK
 --
 -- 与 224/226/227 同型：DROP IF EXISTS 后重建超集约束，存量行瞬时校验通过。
+--
+-- 重要（勿删 kiro）：本迁移必须保持为 224 平台列表的**超集**。224 已把 kiro 写入
+-- user_platform_quotas / composite_model_routes，而本迁移重建约束时会整块覆盖，
+-- 早期版本漏写 kiro → 库中已存在 kiro 配额行时 ADD CONSTRAINT 校验失败、迁移中断，
+-- 后续 237/238/241 不再执行，应用启动即崩溃循环（线上表现为 Nginx 502）。
+-- 本文件受 migrationChecksumCompatibilityRules 白名单保护：已应用过旧版的库
+-- 以历史 checksum 放行跳过，不会再触发中断。
 
 ALTER TABLE user_platform_quotas
     DROP CONSTRAINT IF EXISTS user_platform_quotas_platform_check;
 
 ALTER TABLE user_platform_quotas
     ADD CONSTRAINT user_platform_quotas_platform_check
-    CHECK (platform IN ('anthropic', 'openai', 'gemini', 'antigravity', 'grok',
+    CHECK (platform IN ('anthropic', 'openai', 'gemini', 'antigravity', 'kiro', 'grok',
                         'kimi', 'zhipu', 'deepseek', 'minimax'));
 
 ALTER TABLE composite_model_routes
@@ -18,7 +25,7 @@ ALTER TABLE composite_model_routes
 
 ALTER TABLE composite_model_routes
     ADD CONSTRAINT composite_model_routes_target_platform_check
-    CHECK (target_platform IN ('anthropic', 'openai', 'gemini', 'antigravity', 'grok',
+    CHECK (target_platform IN ('anthropic', 'openai', 'gemini', 'antigravity', 'kiro', 'grok',
                                'kimi', 'zhipu', 'deepseek', 'minimax'));
 
 DO $$
