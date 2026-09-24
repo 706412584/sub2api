@@ -6,9 +6,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/clashsub"
 )
+
+// mihomoListenVerifyTimeout 是等待 mihomo listener 端口进入监听的上限。
+// 略大于单次 TCP 探测（500ms）× 端口数，确保有足够重试窗口。
+const mihomoListenVerifyTimeout = 5 * time.Second
 
 // MihomoEngine manages per-subscription mihomo child processes.
 //
@@ -99,8 +104,18 @@ func (e *MihomoEngine) EnsureRunning(sourceID int64, namePrefix, bindAddr string
 	}
 
 	proc := e.procs[sourceID]
+	// 已在运行且配置未变：仍要确认端口真的在监听。mihomo 端口被占用时不会退出，
+	// 若上次启动实际 bind 失败（例如上一实例的孤儿进程占着端口），这里必须能发现并重启，
+	// 否则会因 configHash 未变而永久短路，UI 报 running 但代理不可用。
 	if proc != nil && proc.running && proc.configHash == hash && proc.runner != nil {
-		return nil
+		if err := proc.runner.VerifyListening(mihomoListenVerifyTimeout); err == nil {
+			return nil
+		} else {
+			proc.lastError = err.Error()
+			_ = proc.runner.Stop()
+			proc.running = false
+			proc.runner = nil
+		}
 	}
 	if proc != nil && proc.runner != nil {
 		_ = proc.runner.Stop()
@@ -113,6 +128,12 @@ func (e *MihomoEngine) EnsureRunning(sourceID int64, namePrefix, bindAddr string
 	if err := runner.Start(); err != nil {
 		e.procs[sourceID] = &mihomoProc{runner: nil, configHash: hash, lastError: err.Error(), running: false}
 		return fmt.Errorf("start mihomo: %w", err)
+	}
+	// 启动成功不等于 sidecar 可用：必须等端口真正监听，否则如实报错以便下轮重试。
+	if err := runner.VerifyListening(mihomoListenVerifyTimeout); err != nil {
+		_ = runner.Stop()
+		e.procs[sourceID] = &mihomoProc{runner: nil, configHash: "", lastError: err.Error(), running: false}
+		return fmt.Errorf("mihomo listeners not ready: %w", err)
 	}
 	e.procs[sourceID] = &mihomoProc{runner: runner, configHash: hash, lastError: "", running: true}
 	return nil
