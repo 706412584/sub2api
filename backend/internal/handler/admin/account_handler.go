@@ -78,6 +78,7 @@ type AccountHandler struct {
 	ollamaCloudUsage        *service.OllamaCloudUsageService
 	grokSession             service.GrokSessionCredentialService
 	cfg                     *config.Config
+	opencodeGoUsage         *service.OpenCodeGoUsageService
 }
 
 // SetUpstreamBillingProbeService attaches the optional remote billing probe service.
@@ -96,6 +97,10 @@ func (h *AccountHandler) SetOllamaCloudUsageService(usage *service.OllamaCloudUs
 // SetGrokSessionCredentialService attaches the Grok Console/Web session service.
 func (h *AccountHandler) SetGrokSessionCredentialService(svc service.GrokSessionCredentialService) {
 	h.grokSession = svc
+}
+
+func (h *AccountHandler) SetOpenCodeGoUsageService(usage *service.OpenCodeGoUsageService) {
+	h.opencodeGoUsage = usage
 }
 
 // NewAccountHandler creates a new admin account handler
@@ -716,14 +721,22 @@ func (h *AccountHandler) List(c *gin.Context) {
 		accounts = filtered
 		total = int64(len(filtered))
 	}
-	if h.ollamaCloudUsage != nil && len(accounts) > 0 {
+	if len(accounts) > 0 {
 		accountPointers := make([]*service.Account, len(accounts))
 		for index := range accounts {
 			accountPointers[index] = &accounts[index]
 		}
-		if err := h.ollamaCloudUsage.ResolveAccounts(c.Request.Context(), accountPointers); err != nil {
-			response.ErrorFrom(c, err)
-			return
+		if h.ollamaCloudUsage != nil {
+			if err := h.ollamaCloudUsage.ResolveAccounts(c.Request.Context(), accountPointers); err != nil {
+				response.ErrorFrom(c, err)
+				return
+			}
+		}
+		if h.opencodeGoUsage != nil {
+			if err := h.opencodeGoUsage.ResolveOpenCodeGoUsageAccounts(c.Request.Context(), accountPointers); err != nil {
+				response.ErrorFrom(c, err)
+				return
+			}
 		}
 	}
 
@@ -980,6 +993,12 @@ func (h *AccountHandler) GetByID(c *gin.Context) {
 	}
 	if h.ollamaCloudUsage != nil {
 		if err := h.ollamaCloudUsage.ResolveAccounts(c.Request.Context(), []*service.Account{account}); err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+	}
+	if h.opencodeGoUsage != nil {
+		if err := h.opencodeGoUsage.ResolveOpenCodeGoUsageAccounts(c.Request.Context(), []*service.Account{account}); err != nil {
 			response.ErrorFrom(c, err)
 			return
 		}
@@ -1909,6 +1928,7 @@ func (h *AccountHandler) Refresh(c *gin.Context) {
 
 	if warning == "missing_project_id_temporary" {
 		response.Success(c, gin.H{
+			"account": h.buildAccountResponseWithRuntime(c.Request.Context(), updatedAccount),
 			"message": "Token refreshed successfully, but project_id could not be retrieved (will retry automatically)",
 			"warning": "missing_project_id_temporary",
 		})
@@ -1972,6 +1992,10 @@ func (h *AccountHandler) ApplyOAuthCredentials(c *gin.Context) {
 		return
 	}
 
+	// Re-auth only returns authentication fields. Preserve account configuration
+	// stored alongside them (for example model_mapping), while allowing the new
+	// OAuth values to replace their existing counterparts.
+	req.Credentials = service.MergeCredentials(existing.Credentials, req.Credentials)
 	// Drop SSO/password residue; re-auth must leave only OAuth tokens on disk.
 	req.Credentials = service.SanitizeStoredCredentials(existing.Platform, req.Credentials)
 
@@ -3127,6 +3151,59 @@ func (h *AccountHandler) SetSchedulable(c *gin.Context) {
 	response.Success(c, h.buildAccountResponseWithRuntime(c.Request.Context(), account))
 }
 
+// mergeAccountMappingIntoOpenAIModels 把账号 model_mapping 的键并入上游实时目录。
+//
+// 上游 f88d62ad2 让测试连接下拉改用实时 /v1/models 目录后，账号里手工添加的
+// 自定义模型（mapping 有键、上游目录没返回）就从下拉里消失了，管理员无法在
+// 测试连接里选到它。账号映射是管理员的显式声明，必须叠加在实时目录之上：
+// 目录里已有的保持原样，只补 mapping 独有且带通配符之外的键。
+//
+// 上游 de28eea11（v0.2.8）又在 FetchOpenAIAccountModels 里加了按 mapping 的投影，
+// 只保留「mapping 命中且上游目录存在」的 id，因此映射到上游缺失模型的键仍会被丢掉，
+// 本函数的补全依然是它们唯一的出口；两者是叠加关系而非重复。
+//
+// 是否真能跑通由上游裁决（网关对 OpenAI API Key 账号按 mapping 准入并透传），
+// 这里不做可用性预判。
+func mergeAccountMappingIntoOpenAIModels(models []openai.Model, account *service.Account) []openai.Model {
+	if account == nil {
+		return models
+	}
+	mapping := account.GetModelMapping()
+	if len(mapping) == 0 {
+		return models
+	}
+	seen := make(map[string]struct{}, len(models))
+	for _, model := range models {
+		seen[model.ID] = struct{}{}
+	}
+	extra := make([]string, 0, len(mapping))
+	for requestedModel := range mapping {
+		if _, ok := seen[requestedModel]; ok {
+			continue
+		}
+		// 通配符是准入规则而不是具体模型名，不能出现在下拉里。
+		if strings.Contains(requestedModel, "*") {
+			continue
+		}
+		extra = append(extra, requestedModel)
+	}
+	if len(extra) == 0 {
+		return models
+	}
+	sort.Strings(extra)
+	merged := make([]openai.Model, 0, len(models)+len(extra))
+	merged = append(merged, models...)
+	for _, id := range extra {
+		merged = append(merged, openai.Model{
+			ID:          id,
+			Object:      "model",
+			Type:        "model",
+			DisplayName: id,
+		})
+	}
+	return merged
+}
+
 // GetAvailableModels handles getting available models for an account
 // GET /api/v1/admin/accounts/:id/models
 func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
@@ -3148,7 +3225,7 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 		// retain the legacy local catalog below so the test dialog remains usable.
 		if h.accountTestService != nil {
 			if models, fetchErr := h.accountTestService.FetchOpenAIAccountModels(c.Request.Context(), account); fetchErr == nil {
-				response.Success(c, models)
+				response.Success(c, mergeAccountMappingIntoOpenAIModels(models, account))
 				return
 			}
 		}

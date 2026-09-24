@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -267,6 +268,154 @@ func TestAccountHandlerGetAvailableModels_OpenAIAPIKeyDefaultsToConcreteGPT56Sol
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	require.NotEmpty(t, resp.Data)
 	require.Equal(t, "gpt-5.6-sol", resp.Data[0].ID)
+}
+
+// 账号 model_mapping 里的自定义模型必须叠加在上游实时目录之上，
+// 否则测试连接下拉里选不到管理员手工添加的模型。
+func TestMergeAccountMappingIntoOpenAIModels(t *testing.T) {
+	live := []openai.Model{
+		{ID: "upstream-listed", Object: "model", Type: "model", DisplayName: "upstream-listed"},
+		{ID: "live-only", Object: "model", Type: "model", DisplayName: "live-only"},
+	}
+	account := &service.Account{
+		Platform: service.PlatformOpenAI,
+		Type:     service.AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"model_mapping": map[string]any{
+				"upstream-listed":  "upstream-listed",
+				"custom-only":      "custom-only",
+				"deepseek-v4-pro":  "deepseek-v4-pro",
+				"wildcard-family*": "wildcard-family*",
+			},
+		},
+	}
+
+	merged := mergeAccountMappingIntoOpenAIModels(live, account)
+
+	ids := make([]string, 0, len(merged))
+	for _, model := range merged {
+		ids = append(ids, model.ID)
+	}
+	require.Equal(t, []string{"upstream-listed", "live-only", "custom-only", "deepseek-v4-pro"}, ids,
+		"上游目录保持原序在前，mapping 独有模型按字典序追加")
+	for _, model := range merged[2:] {
+		require.Equal(t, "model", model.Object)
+		require.Equal(t, "model", model.Type)
+		require.Equal(t, model.ID, model.DisplayName)
+	}
+
+	// 通配符是准入规则，不是具体模型名。
+	require.NotContains(t, ids, "wildcard-family*")
+	// 上游已列出的 mapping 键不得重复追加。
+	require.Len(t, ids, countDistinctStrings(ids))
+}
+
+func TestMergeAccountMappingIntoOpenAIModelsNoMappingReturnsInput(t *testing.T) {
+	live := []openai.Model{{ID: "live-only", Object: "model", Type: "model", DisplayName: "live-only"}}
+
+	require.Equal(t, live, mergeAccountMappingIntoOpenAIModels(live, &service.Account{
+		Platform:    service.PlatformOpenAI,
+		Credentials: map[string]any{},
+	}), "无 mapping 时必须原样返回上游目录")
+	require.Equal(t, live, mergeAccountMappingIntoOpenAIModels(live, nil))
+}
+
+func TestMergeAccountMappingIntoOpenAIModelsWildcardOnlyKeepsLiveCatalog(t *testing.T) {
+	live := []openai.Model{{ID: "live-only", Object: "model", Type: "model", DisplayName: "live-only"}}
+
+	merged := mergeAccountMappingIntoOpenAIModels(live, &service.Account{
+		Platform: service.PlatformOpenAI,
+		Credentials: map[string]any{
+			"model_mapping": map[string]any{"claude-*": "claude-*"},
+		},
+	})
+
+	require.Equal(t, live, merged, "只有通配符时不追加任何条目")
+}
+
+// 端到端：账号自定义模型经 GetAvailableModels 全链路出现在下拉数据里。
+//
+// 合并后这一段是「上游投影 + 本地叠加」两段语义的组合：
+//   - 上游 de28eea11（v0.2.8）让 FetchOpenAIAccountModels 先把实时目录按
+//     model_mapping 投影，只有「mapping 命中且上游目录里存在」的 id 才保留，
+//     因此上游返回的 live-only（不在 mapping 里）会被上游自己剔除；
+//   - 本地 mergeAccountMappingIntoOpenAIModels 再补上 mapping 里独有、上游目录
+//     里查不到的键（custom-only / deepseek-v4-pro），这些正是上游投影会丢掉的。
+//
+// 两者合起来才是管理员预期：配置过的模型都在，未配置的上游模型不暴露。
+func TestAccountHandlerGetAvailableModels_MergesCustomMappingOverLiveUpstreamCatalog(t *testing.T) {
+	account := service.Account{
+		ID:       47,
+		Name:     "openai-apikey-custom-mapping",
+		Platform: service.PlatformOpenAI,
+		Type:     service.AccountTypeAPIKey,
+		Status:   service.StatusActive,
+		Credentials: map[string]any{
+			"api_key":  "sk-upstream",
+			"base_url": "https://models.example/v1",
+			"model_mapping": map[string]any{
+				"upstream-listed": "upstream-listed",
+				"custom-only":     "custom-only",
+				"deepseek-v4-pro": "deepseek-v4-pro",
+			},
+		},
+	}
+	upstream := &syncUpstreamHTTPUpstream{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     make(http.Header),
+		Body: io.NopCloser(strings.NewReader(
+			`{"object":"list","data":[{"id":"upstream-listed"},{"id":"live-only"}]}`,
+		)),
+	}}
+	gateway := service.NewOpenAIGatewayService(
+		nil,
+		nil, nil, nil, nil, nil, nil,
+		&config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
+		nil, nil, nil, nil, nil,
+		upstream,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+	)
+	accountTestSvc := service.NewAccountTestService(
+		nil, nil, nil, nil, nil,
+		upstream,
+		&config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
+		nil,
+	)
+	accountTestSvc.SetOpenAIGatewayService(gateway)
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	handler := NewAccountHandler(
+		&availableModelsAdminService{stubAdminService: newStubAdminService(), account: account},
+		nil, nil, nil, nil, nil, nil, nil, accountTestSvc, nil, nil, nil, nil, nil,
+	)
+	router.GET("/api/v1/admin/accounts/:id/models", handler.GetAvailableModels)
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts/47/models", nil))
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var resp struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	ids := make([]string, 0, len(resp.Data))
+	for _, model := range resp.Data {
+		ids = append(ids, model.ID)
+	}
+	// 上游目录里的 live-only 不在 mapping 中，被上游投影剔除；mapping 独有、
+	// 上游目录查不到的 custom-only / deepseek-v4-pro 由本地叠加补回。
+	require.Equal(t, []string{"upstream-listed", "custom-only", "deepseek-v4-pro"}, ids)
+}
+
+func countDistinctStrings(values []string) int {
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		seen[value] = struct{}{}
+	}
+	return len(seen)
 }
 
 func TestAccountHandlerGetAvailableModels_OpenAISparkShadowReturnsMappingModels(t *testing.T) {
@@ -624,8 +773,8 @@ func TestAccountHandlerGetAvailableModels_AntigravityFiltersByMapping(t *testing
 	for _, m := range resp.Data {
 		ids = append(ids, m.ID)
 	}
-	// GetModelMapping 运行时会注入裸名透传（gemini-3-flash / 3.1-pro-* / 3.6 / 3.8 裸名）
-	// 有裸名入口的家族（3.6 / 3.8）档位变体被折叠，只剩裸名
+	// GetModelMapping 运行时会注入裸名透传（gemini-3-flash / 3.1-pro-* / 3.6 / 3.7 / 3.8 裸名）
+	// 有裸名入口的家族（3.6 / 3.7 / 3.8）档位变体被折叠，只剩裸名
 	require.ElementsMatch(t, []string{
 		"claude-sonnet-4-6",
 		"gemini-3.8-flash",
@@ -633,6 +782,7 @@ func TestAccountHandlerGetAvailableModels_AntigravityFiltersByMapping(t *testing
 		"gemini-3.1-pro-high",
 		"gemini-3.1-pro-low",
 		"gemini-3.6-flash",
+		"gemini-3.7-flash",
 	}, ids)
 	require.NotContains(t, ids, "gemini-3.8-flash-tiered", "有裸名入口时 tiered 是重复项，应折叠")
 	require.NotContains(t, ids, "gemini-3.8-flash-low", "账号未开放的档位不能出现在列表里")

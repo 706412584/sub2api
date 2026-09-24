@@ -75,27 +75,96 @@ type migrationChecksumCompatibilityRule struct {
 // 规则必须同时匹配「迁移名 + 数据库 checksum + 当前文件 checksum」且两者都落在该迁移的已知版本集合内才会放行，
 // 避免放宽全局校验，也允许将误改的历史 migration 回滚为已发布版本而不要求人工修 checksum。
 var migrationChecksumCompatibilityRules = map[string]migrationChecksumCompatibilityRule{
-	"054_drop_legacy_cache_columns.sql":                       newMigrationChecksumCompatibilityRule("82de761156e03876653e7a6a4eee883cd927847036f779b0b9f34c42a8af7a7d", "182c193f3359946cf094090cd9e57d5c3fd9abaffbc1e8fc378646b8a6fa12b4"),
-	"061_add_usage_log_request_type.sql":                      newMigrationChecksumCompatibilityRule("66207e7aa5dd0429c2e2c0fabdaf79783ff157fa0af2e81adff2ee03790ec65c", "08a248652cbab7cfde147fc6ef8cda464f2477674e20b718312faa252e0481c0", "222b4a09c797c22e5922b6b172327c824f5463aaa8760e4f621bc5c22e2be0f3"),
-	"109_auth_identity_compat_backfill.sql":                   newMigrationChecksumCompatibilityRule("0580b4602d85435edf9aca1633db580bb3932f26517f75134106f80275ec2ace", "551e498aa5616d2d91096e9d72cf9fb36e418ee22eacc557f8811cadbc9e20ee"),
-	"110_pending_auth_and_provider_default_grants.sql":        newMigrationChecksumCompatibilityRule("32cf87ee787b1bb36b5c691367c96eee37518fa3eed6f3322cf68795e3745279", "e3d1f433be2b564cfbdc549adf98fce13c5c7b363ebc20fd05b765d0563b0925"),
-	"112_add_payment_order_provider_key_snapshot.sql":         newMigrationChecksumCompatibilityRule("b75f8f56d39455682787696a3d92ad25b055444ca328fb7fca9a460a15d68d99", "ffd3e8a2c9295fa9cbefefd629a78268877e5b51bc970a82d9b3f46ec4ebd15e"),
-	"115_auth_identity_legacy_external_backfill.sql":          newMigrationChecksumCompatibilityRule("022aadd97bb53e755f0cf7a3a957e0cb1a1353b0c39ec4de3234acd2871fd04f", "4cf39e508be9fd1a5aa41610cbbebeb80385c9adda45bf78a706de9db4f1385f"),
-	"116_auth_identity_legacy_external_safety_reports.sql":    newMigrationChecksumCompatibilityRule("07edb09fa8d04ffb172b0621e3c22f4d1757d20a24ae267b3b36b087ab72d488", "f7757bd929ac67ffb08ce69fa4cf20fad39dbff9d5a5085fb2adabb7607e5877"),
-	"118_wechat_dual_mode_and_auth_source_defaults.sql":       newMigrationChecksumCompatibilityRule("b54194d7a3e4fbf710e0a3590d22a2fe7966804c487052a356e0b55f53ef96b0", "e0cdf835d6c688d64100f483d31bc02ac9ebad414bf1837af239a84bf75b8227", "a38243ca0a72c3a01c0a92b7986423054d6133c0399441f853b99802852720fb"),
-	"119_enforce_payment_orders_out_trade_no_unique.sql":      newMigrationChecksumCompatibilityRule("0bbe809ae48a9d811dabda1ba1c74955bd71c4a9cc610f9128816818dfa6c11e", "ebd2c67cce0116393fb4f1b5d5116a67c6aceb73820dfb5133d1ff6f36d72d34"),
-	"120_enforce_payment_orders_out_trade_no_unique_notx.sql": newMigrationChecksumCompatibilityRule("34aadc0db59a4e390f92a12b73bd74642d9724f33124f73638ae00089ea5e074", "e77921f79d539bc24575cb9c16cbe566d2b23ce816190343d0a7568f6a3fcf61", "707431450603e70a43ce9fbd61e0c12fa67da4875158ccefabacea069587ab22", "04b082b5a239c525154fe9185d324ee2b05ff90da9297e10dba19f9be79aa59a"),
-	"123_fix_legacy_auth_source_grant_on_signup_defaults.sql": newMigrationChecksumCompatibilityRule("2ce43c2cd89e9f9e1febd34a407ed9e84d177386c5544b6f02c1f58a21129f57", "6cd33422f215dcd1f486ab6f35c0ea5805d9ca69bb25906d94bc649156657145"),
-	"159_batch_image_foundation.sql":                          newMigrationChecksumCompatibilityRule("d902b70982025ec519749faf058aab7631e82c3f48167b9a4ae4db718eb72cce", "82da85b5d98e67a0507647b873a40373e84538e4adafdeed6767c0ac8b6570b2"),
-	"161_batch_image_pricing_snapshot.sql":                    newMigrationChecksumCompatibilityRule("4012af3e43636cb6af22e0176d59d1fcc70615c0f310194329461ae462c4fbd6", "96d915c9b7a6941ae99039e0ff3f1a61481eb9bddd933d11c6fadb2274554e87"),
+	"054_drop_legacy_cache_columns.sql":  newMigrationChecksumCompatibilityRule("82de761156e03876653e7a6a4eee883cd927847036f779b0b9f34c42a8af7a7d", "182c193f3359946cf094090cd9e57d5c3fd9abaffbc1e8fc378646b8a6fa12b4"),
+	"061_add_usage_log_request_type.sql": newMigrationChecksumCompatibilityRule("66207e7aa5dd0429c2e2c0fabdaf79783ff157fa0af2e81adff2ee03790ec65c", "08a248652cbab7cfde147fc6ef8cda464f2477674e20b718312faa252e0481c0", "222b4a09c797c22e5922b6b172327c824f5463aaa8760e4f621bc5c22e2be0f3"),
+	// 说明：fileChecksum 必须是 runner 真实算法（strings.TrimSpace 后 SHA256，见本文件
+	// content := strings.TrimSpace(...)）对当前嵌入文件算出的值；acceptedDBChecksum 必须是该迁移
+	// 历史版本在同一算法下的哈希集合。二者口径不一致时规则永不命中，等于没有保护。
+	//
+	// 历史遗留问题（本次修复）：多条规则曾用「文件原始字节」的哈希填写，而 runner 自引入起
+	// 就是 trim 后哈希（不存在 raw 哈希时期，早期为 GORM AutoMigrate 无 checksum），
+	// 导致这些规则自诞生起即为死规则。现统一按 trim 口径重写，并补入此前漏掉的历史修订值
+	// （115/116/120 有真实发布过的中间修订未收录，会让从旧 tag 升级的库启动失败）。
+	// TestChecksumRulesMatchRunnerAlgorithm 锁定该不变量。
+	"109_auth_identity_compat_backfill.sql": newMigrationChecksumCompatibilityRule(
+		"2b380305e73ff0c13aa8c811e45897f2b36ca4a438f7b3e8f98e19ecb6bae0b3",
+		"551e498aa5616d2d91096e9d72cf9fb36e418ee22eacc557f8811cadbc9e20ee",
+		"748ddcdc60f93a1ac562ce8a66ee870f64ee594bf6dbedad55ed8baf3c75b28c",
+	),
+	"110_pending_auth_and_provider_default_grants.sql": newMigrationChecksumCompatibilityRule(
+		"57a196a9810fb478fa001dfff110f5c76a7d87fb04f15e12e513fcb75402d7a6",
+		"e3d1f433be2b564cfbdc549adf98fce13c5c7b363ebc20fd05b765d0563b0925",
+		"301e90405b3424967b7d1931568b7a244902148fa82802f362c115ae4e2ae2ef",
+	),
+	"112_add_payment_order_provider_key_snapshot.sql": newMigrationChecksumCompatibilityRule(
+		"ab871fc02da1eabe0de6ca74a119ee3cea9c727caed30af2ae07a0cd1176d1b8",
+		"ffd3e8a2c9295fa9cbefefd629a78268877e5b51bc970a82d9b3f46ec4ebd15e",
+		"d4476c67ceea871aa2d92ee2a603795a742d0379a58cf53938bb9aa559ff9caa",
+	),
+	"115_auth_identity_legacy_external_backfill.sql": newMigrationChecksumCompatibilityRule(
+		"022aadd97bb53e755f0cf7a3a957e0cb1a1353b0c39ec4de3234acd2871fd04f",
+		"4cf39e508be9fd1a5aa41610cbbebeb80385c9adda45bf78a706de9db4f1385f",
+		"72f32dec60e352e652006b0a09ed8720b4c88e4afc177ecde22266a9803d7203",
+	),
+	"116_auth_identity_legacy_external_safety_reports.sql": newMigrationChecksumCompatibilityRule(
+		"07edb09fa8d04ffb172b0621e3c22f4d1757d20a24ae267b3b36b087ab72d488",
+		"f7757bd929ac67ffb08ce69fa4cf20fad39dbff9d5a5085fb2adabb7607e5877",
+		"a4db306b0b987459590522ebb08ff9ce42ab1ff5d4f99ec4068c41a51f2236da",
+	),
+	"118_wechat_dual_mode_and_auth_source_defaults.sql": newMigrationChecksumCompatibilityRule(
+		"ed272e0840730b6b8e7838513c4cc8817e8b5e488e27c88b5421adbece5e89c9",
+		"e0cdf835d6c688d64100f483d31bc02ac9ebad414bf1837af239a84bf75b8227",
+		"a38243ca0a72c3a01c0a92b7986423054d6133c0399441f853b99802852720fb",
+		"b4a5b7a28f6a7ac67aad214645761e5a8486c83f0f2a1a874d7f67085f83159b",
+		"6395ad255f2be2219ad85813b72db6fa7783c81d747e42e098847ef3594f1674",
+	),
+	"119_enforce_payment_orders_out_trade_no_unique.sql": newMigrationChecksumCompatibilityRule("0bbe809ae48a9d811dabda1ba1c74955bd71c4a9cc610f9128816818dfa6c11e", "ebd2c67cce0116393fb4f1b5d5116a67c6aceb73820dfb5133d1ff6f36d72d34"),
+	"120_enforce_payment_orders_out_trade_no_unique_notx.sql": newMigrationChecksumCompatibilityRule(
+		"34aadc0db59a4e390f92a12b73bd74642d9724f33124f73638ae00089ea5e074",
+		"e77921f79d539bc24575cb9c16cbe566d2b23ce816190343d0a7568f6a3fcf61",
+		"707431450603e70a43ce9fbd61e0c12fa67da4875158ccefabacea069587ab22",
+		"04b082b5a239c525154fe9185d324ee2b05ff90da9297e10dba19f9be79aa59a",
+		"79ea6127a22e61b3bad6ea29347a8cc3ff005f8b486ef4a51bd04fdda906f931",
+	),
+	"123_fix_legacy_auth_source_grant_on_signup_defaults.sql": newMigrationChecksumCompatibilityRule(
+		"7faba5ef65051b7ecb215b7fd2351b0828b7c48153ec688ac089c1588d2cde41",
+		"6cd33422f215dcd1f486ab6f35c0ea5805d9ca69bb25906d94bc649156657145",
+		"ac0d79ca6feb449674f54f593a5eac5f7cc06751047c664b586c1892e19c60d5",
+		"ea17c2767b937f08274e091d212a93acb7e2d62521129179830f073a291fbd97",
+	),
+	"159_batch_image_foundation.sql":       newMigrationChecksumCompatibilityRule("d902b70982025ec519749faf058aab7631e82c3f48167b9a4ae4db718eb72cce", "82da85b5d98e67a0507647b873a40373e84538e4adafdeed6767c0ac8b6570b2"),
+	"161_batch_image_pricing_snapshot.sql": newMigrationChecksumCompatibilityRule("4012af3e43636cb6af22e0176d59d1fcc70615c0f310194329461ae462c4fbd6", "96d915c9b7a6941ae99039e0ff3f1a61481eb9bddd933d11c6fadb2274554e87"),
 	// 195 originally seeded mode=v2; flipped to v1 (safe default / opt-in v2). Existing DBs
 	// that already applied the v2 seed keep their row and the historical checksum.
-	"195_channel_monitor_mode.sql": newMigrationChecksumCompatibilityRule("13f3792f3e3e53ee96e26415c884cf8062c77172824b54fcc9a8c0c2b1f185ec", "4c74fe33ef2274cc72e1bb49671e651274532c034b29f5b2982c2a4c88d101a6"),
+	"195_channel_monitor_mode.sql": newMigrationChecksumCompatibilityRule(
+		"73c39ac374c722253135041466108836845828a6065b499c60e7f27d6b92c21c",
+		"4c74fe33ef2274cc72e1bb49671e651274532c034b29f5b2982c2a4c88d101a6",
+		"f20366e106e3a54c73d4a67df3ba87734427ed859bc4ae42b0708e4cbcbacb56",
+	),
 	// 220 originally cleared video prices for all non-grok platforms (including composite);
 	// composite is now preserved because it may route to Grok accounts.
-	"220_clear_non_grok_video_generation_config.sql": newMigrationChecksumCompatibilityRule("85e320b9ec64f2d3fcd8cf705b2b4e76a7b49f7a57140c14bff97f32691c818b", "3da48c8fdffe6390325f43d08b8e353e0a365df43d44a78dbbe655d0deb18402"),
-	"219_group_search_price_per_1k.sql":              newMigrationChecksumCompatibilityRule("e86786ebcc3b14206fd2d321380a4e50e80cdadbfcf4962c639255e6a14008db", "df6ffd71b97e30ec2c8fe7b95e15783042dea58c553e32701ee7c42a5619af80"),
-	"218_group_audio_voice_pricing.sql":              newMigrationChecksumCompatibilityRule("40ee9f3a2af0e0a5e99dabc878fd0fe98be1011f26bcfcefcac7197f7081f0e7", "c2a5e5b4ffd6968ad1c10593289fbc11192cdea19fec3ed9bce3a84eff9a8351"),
+	"220_clear_non_grok_video_generation_config.sql": newMigrationChecksumCompatibilityRule(
+		"cf4dbfa75ac27d93a30a6a14439fe7dccfc911c043358363d5ec47946aa0e28b",
+		"3da48c8fdffe6390325f43d08b8e353e0a365df43d44a78dbbe655d0deb18402",
+		"353c8e8e1805f2a6fd61311e03118e7dd8388f264cfd9af9e0cabe2a696388c4",
+		"3d08d905a7bca1f56f14b6d2a2a0dcb07480ff52c21393b4e2db1b3a3f83b3d0",
+	),
+	"219_group_search_price_per_1k.sql": newMigrationChecksumCompatibilityRule(
+		"430c2e3595342fe22c59e9676e9b18ea376f076324b77174a21e6f181f57f4b5",
+		"df6ffd71b97e30ec2c8fe7b95e15783042dea58c553e32701ee7c42a5619af80",
+		"833578274d0eed24d39355298d5659b33e5484c869b331ffd815187c221552d2",
+	),
+	"218_group_audio_voice_pricing.sql": newMigrationChecksumCompatibilityRule(
+		"a99ade7d0d464c67bf56814570050cc363ffad64eae2cb1e1ed760065f0b3585",
+		"c2a5e5b4ffd6968ad1c10593289fbc11192cdea19fec3ed9bce3a84eff9a8351",
+		"343a955e52348ce92c35753e78ca3f8e5a76060c20af71061ca5e04c6ed84085",
+	),
+	// 238 originally (upstream v0.2.8) rewrote the platform CHECK lists without kiro/codebuddy,
+	// which aborts startup on a fork DB that already has such rows (ADD CONSTRAINT validation)
+	// and silently strips the two platforms otherwise. The fork union snapshot is applied
+	// instead; DBs that already ran the narrow version keep their historical checksum and are
+	// repaired by 241_platform_check_constraints_union_with_opencode_go.sql.
+	"238_opencode_go_platform.sql": newMigrationChecksumCompatibilityRule("5c4aececec663f542c55a235d02458fdbcf682315fd62c8fe80c88c9a06cb9db", "6f987e251519bd3759e60da44620a5d777494cceb333b6ce394aa0ea536ef5a2"),
 }
 
 // ApplyMigrations 将嵌入的 SQL 迁移文件应用到指定的数据库。
