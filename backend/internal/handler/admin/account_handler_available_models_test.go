@@ -624,8 +624,8 @@ func TestAccountHandlerGetAvailableModels_AntigravityFiltersByMapping(t *testing
 	for _, m := range resp.Data {
 		ids = append(ids, m.ID)
 	}
-	// GetModelMapping 运行时会注入裸名透传（gemini-3-flash / 3.1-pro-* / 3.6 / 3.8 裸名）
-	// 有裸名入口的家族（3.6 / 3.8）档位变体被折叠，只剩裸名
+	// GetModelMapping 运行时会注入裸名透传（gemini-3-flash / 3.1-pro-* / 3.6 / 3.7 / 3.8 裸名）
+	// 有裸名入口的家族（3.6 / 3.7 / 3.8）档位变体被折叠，只剩裸名
 	require.ElementsMatch(t, []string{
 		"claude-sonnet-4-6",
 		"gemini-3.8-flash",
@@ -633,6 +633,7 @@ func TestAccountHandlerGetAvailableModels_AntigravityFiltersByMapping(t *testing
 		"gemini-3.1-pro-high",
 		"gemini-3.1-pro-low",
 		"gemini-3.6-flash",
+		"gemini-3.7-flash",
 	}, ids)
 	require.NotContains(t, ids, "gemini-3.8-flash-tiered", "有裸名入口时 tiered 是重复项，应折叠")
 	require.NotContains(t, ids, "gemini-3.8-flash-low", "账号未开放的档位不能出现在列表里")

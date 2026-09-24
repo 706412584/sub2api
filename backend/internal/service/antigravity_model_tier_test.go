@@ -189,6 +189,23 @@ func TestAntigravityTierFamilyRoots_RequiresPassthroughBase(t *testing.T) {
 	require.Equal(t, models, collapseAntigravityTierModels(models, roots))
 }
 
+// 3.7 家族随上游 v0.2.8 引入。裸名透传由 resolveModelMapping 运行时注入
+// （credentials 里没有该条），注入后家族必须能被识别，对外列表才回落到裸名。
+func TestAntigravityTierFamilyRoots_SeesInjected37Passthrough(t *testing.T) {
+	account := antigravityTierAccount(map[string]string{
+		"gemini-3.7-flash-tiered": "gemini-3.7-flash-tiered",
+	})
+	mapping := account.GetModelMapping()
+	require.Equal(t, "gemini-3.7-flash", mapping["gemini-3.7-flash"], "裸名透传由 resolveModelMapping 注入")
+
+	roots := antigravityTierFamilyRoots(mapping)
+	require.Contains(t, roots, "gemini-3.7-flash")
+
+	models := []string{"gemini-3.7-flash", "gemini-3.7-flash-tiered", "claude-opus-4-6"}
+	require.Equal(t, []string{"gemini-3.7-flash", "claude-opus-4-6"},
+		collapseAntigravityTierModels(models, roots))
+}
+
 // 分组自定义模型列表勾选了档位变体时，需要能回落到裸名做白名单校验。
 func TestTrimAntigravityTierSuffix(t *testing.T) {
 	require.Equal(t, "gemini-3.8-flash", TrimAntigravityTierSuffix("gemini-3.8-flash-high"))
