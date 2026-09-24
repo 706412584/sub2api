@@ -3151,6 +3151,55 @@ func (h *AccountHandler) SetSchedulable(c *gin.Context) {
 	response.Success(c, h.buildAccountResponseWithRuntime(c.Request.Context(), account))
 }
 
+// mergeAccountMappingIntoOpenAIModels 把账号 model_mapping 的键并入上游实时目录。
+//
+// 上游 f88d62ad2 让测试连接下拉改用实时 /v1/models 目录后，账号里手工添加的
+// 自定义模型（mapping 有键、上游目录没返回）就从下拉里消失了，管理员无法在
+// 测试连接里选到它。账号映射是管理员的显式声明，必须叠加在实时目录之上：
+// 目录里已有的保持原样，只补 mapping 独有且带通配符之外的键。
+//
+// 是否真能跑通由上游裁决（网关对 OpenAI API Key 账号按 mapping 准入并透传），
+// 这里不做可用性预判。
+func mergeAccountMappingIntoOpenAIModels(models []openai.Model, account *service.Account) []openai.Model {
+	if account == nil {
+		return models
+	}
+	mapping := account.GetModelMapping()
+	if len(mapping) == 0 {
+		return models
+	}
+	seen := make(map[string]struct{}, len(models))
+	for _, model := range models {
+		seen[model.ID] = struct{}{}
+	}
+	extra := make([]string, 0, len(mapping))
+	for requestedModel := range mapping {
+		if _, ok := seen[requestedModel]; ok {
+			continue
+		}
+		// 通配符是准入规则而不是具体模型名，不能出现在下拉里。
+		if strings.Contains(requestedModel, "*") {
+			continue
+		}
+		extra = append(extra, requestedModel)
+	}
+	if len(extra) == 0 {
+		return models
+	}
+	sort.Strings(extra)
+	merged := make([]openai.Model, 0, len(models)+len(extra))
+	merged = append(merged, models...)
+	for _, id := range extra {
+		merged = append(merged, openai.Model{
+			ID:          id,
+			Object:      "model",
+			Type:        "model",
+			DisplayName: id,
+		})
+	}
+	return merged
+}
+
 // GetAvailableModels handles getting available models for an account
 // GET /api/v1/admin/accounts/:id/models
 func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
@@ -3172,7 +3221,7 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 		// retain the legacy local catalog below so the test dialog remains usable.
 		if h.accountTestService != nil {
 			if models, fetchErr := h.accountTestService.FetchOpenAIAccountModels(c.Request.Context(), account); fetchErr == nil {
-				response.Success(c, models)
+				response.Success(c, mergeAccountMappingIntoOpenAIModels(models, account))
 				return
 			}
 		}
