@@ -202,11 +202,11 @@ func resolveOpenAIMessagesDispatchMappedModel(c *gin.Context, apiKey *service.AP
 	if apiKey == nil || apiKey.Group == nil {
 		return ""
 	}
-	// composite 解析到 grok/CN 目标时调度级映射不适用（Group 级映射的 gpt-5.x
-	// 默认值是 openai 专属,发给这些上游必错）,模型改写交给账号级 model_mapping。
+	// composite 解析到 grok/CN/OpenCode 目标时调度级映射不适用（Group 级映射的
+	// gpt-5.x 默认值是 openai 专属,发给这些上游必错）,模型改写交给账号级 model_mapping。
 	if apiKey.Group.Platform == service.PlatformComposite && c != nil && c.Request != nil {
 		if platform, ok := service.ResolvedTargetPlatformFromContext(c.Request.Context()); ok &&
-			(platform == service.PlatformGrok || service.IsCNProvider(platform)) {
+			(platform == service.PlatformGrok || service.IsMultiProtocolAPIKeyProvider(platform)) {
 			return ""
 		}
 	}
@@ -309,14 +309,14 @@ func allowOpenAICompatibleMessagesDispatch(c *gin.Context, apiKey *service.APIKe
 	// 协议账号原生直通 Claude Code),无需 allow_messages_dispatch 开关授权——
 	// 该开关对非 openai/composite 平台恒被 sanitizeGroupMessagesDispatchFields 置 false,
 	// 若不豁免,CN 分组将永远 403。
-	if service.IsCNProvider(apiKey.Group.Platform) {
+	if service.IsMultiProtocolAPIKeyProvider(apiKey.Group.Platform) {
 		return true
 	}
-	// composite 分组解析到 grok/CN 目标时与对应独立分组同语义豁免；
+	// composite 分组解析到 grok/CN/OpenCode Go 目标时与对应独立分组同语义豁免；
 	// 解析到 openai 目标则受 composite 分组自身的可配置开关控制。
 	if apiKey.Group.Platform == service.PlatformComposite && c != nil && c.Request != nil {
 		if platform, ok := service.ResolvedTargetPlatformFromContext(c.Request.Context()); ok &&
-			(platform == service.PlatformGrok || service.IsCNProvider(platform)) {
+			(platform == service.PlatformGrok || service.IsMultiProtocolAPIKeyProvider(platform)) {
 			return true
 		}
 	}
@@ -326,7 +326,8 @@ func allowOpenAICompatibleMessagesDispatch(c *gin.Context, apiKey *service.APIKe
 func openAICompatibleTextTargetAllowed(c *gin.Context, apiKey *service.APIKey, model string) bool {
 	return compositeTargetPlatformAllowed(c, apiKey, model,
 		service.PlatformOpenAI, service.PlatformGrok,
-		service.PlatformKimi, service.PlatformZhipu, service.PlatformDeepseek, service.PlatformMiniMax)
+		service.PlatformKimi, service.PlatformZhipu, service.PlatformDeepseek,
+		service.PlatformMiniMax, service.PlatformOpenCodeGo)
 }
 
 // isResponsesWebSocketCompositePlatform 限定 composite 分组在 Responses WebSocket
@@ -1921,12 +1922,24 @@ func validCodexAutomationLastRun(value string) bool {
 func validCodexAutomationHeartbeat(value string) bool {
 	decoder := xml.NewDecoder(strings.NewReader(value))
 	var rootSeen, automationIDSeen bool
-	var automationID bytes.Buffer
+	var childName string
+	var childText bytes.Buffer
+	fields := make(map[string]string)
 	depth := 0
 	for {
 		token, err := decoder.Token()
 		if err == io.EOF {
-			id := automationID.String()
+			id := fields["automation_id"]
+			timestamp, hasTime := fields["current_time_iso"]
+			instructions, hasInstructions := fields["instructions"]
+			if hasTime != hasInstructions {
+				return false
+			}
+			if hasTime {
+				if _, err := time.Parse(time.RFC3339Nano, timestamp); err != nil || strings.TrimSpace(instructions) == "" {
+					return false
+				}
+			}
 			return rootSeen && automationIDSeen && depth == 0 &&
 				strings.TrimSpace(id) == id && validCodexAutomationID(id)
 		}
@@ -1944,13 +1957,25 @@ func validCodexAutomationHeartbeat(value string) bool {
 					return false
 				}
 				rootSeen = true
-			} else if automationIDSeen || current.Name.Local != "automation_id" {
-				return false
+			} else {
+				childName = current.Name.Local
+				switch childName {
+				case "automation_id", "current_time_iso", "instructions":
+				default:
+					return false
+				}
+				if _, duplicate := fields[childName]; duplicate {
+					return false
+				}
+				childText.Reset()
 			}
-			automationIDSeen = depth == 2
 		case xml.EndElement:
 			if current.Name.Space != "" {
 				return false
+			}
+			if depth == 2 {
+				fields[childName] = childText.String()
+				automationIDSeen = automationIDSeen || childName == "automation_id"
 			}
 			depth--
 			if depth < 0 {
@@ -1958,7 +1983,7 @@ func validCodexAutomationHeartbeat(value string) bool {
 			}
 		case xml.CharData:
 			if depth == 2 {
-				_, _ = automationID.Write(current)
+				_, _ = childText.Write(current)
 			} else if len(bytes.TrimSpace(current)) != 0 {
 				return false
 			}
@@ -2533,6 +2558,20 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		return
 	}
 
+	// A WebSocket may outlive a key's remaining spending window. Recheck
+	// after acquiring turn slots, including the first account-selection wait.
+	// Restrict this extra check to the opt-in mode so standard-mode RPM checks
+	// are not charged a second time for the same request.
+	checkSimpleModeTurnBilling := func() error {
+		if h.cfg == nil || h.cfg.RunMode != config.RunModeSimple || !h.cfg.SimpleModeKeyRateLimitEnabled {
+			return nil
+		}
+		if err := h.billingCacheService.CheckBillingEligibility(ctx, apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(ctx, apiKey)); err != nil {
+			return service.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "billing check failed", err)
+		}
+		return nil
+	}
+
 	sessionHash := h.gatewayService.GenerateSessionHashWithFallback(
 		c,
 		firstMessage,
@@ -2790,6 +2829,11 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		// turn 级定价：首轮回退到 TurnStarted 的所属 turn 时刻；后续 turn 由
 		// BeforeTurn 重新冻结 pricingAt 并按最新门复核当前账号。
 		var turnPricing openAIWSTurnPricing
+		// Passthrough ingress does not invoke BeforeTurn for the first frame.
+		if err := checkSimpleModeTurnBilling(); err != nil {
+			closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, "billing check failed")
+			return
+		}
 		hooks := &service.OpenAIWSIngressHooks{
 			ClientLifecycleContext:      clientLifecycleCtx,
 			InitialRequestModel:         reqModel,
@@ -2900,7 +2944,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				}
 				currentUserRelease = wrapReleaseOnDone(ctx, userReleaseFunc)
 				currentAccountRelease = wrapReleaseOnDone(ctx, accountReleaseFunc)
-				return nil
+				return checkSimpleModeTurnBilling()
 			},
 			AfterTurn: func(turn int, result *service.OpenAIForwardResult, turnErr error) {
 				turnStart := getTurnStart(turn)
@@ -3027,7 +3071,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 
 		// WebSocket 首包可能很大，hash 必须在 hooks 外算成字符串，避免 AfterTurn 闭包保活请求体。
 		requestPayloadHash = service.HashUsageRequestPayload(wsFirstMessage)
-		if preemptCtx, cleanupPreempt, armed := h.gatewayService.BeginOpenAIWSIngressSessionPreemption(ctx, c, account, wsFirstMessage); armed {
+		if preemptCtx, cleanupPreempt, armed := h.gatewayService.BeginOpenAIWSIngressSessionPreemptionWithClient(ctx, c, account, wsFirstMessage, wsConn); armed {
 			ctx = preemptCtx
 			defer cleanupPreempt()
 		}
@@ -3039,6 +3083,8 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				return
 			}
 			if service.IsOpenAIWSSessionPreemptedError(err) {
+				// 关闭帧已由抢占登记在取消前发给本连接，这里只记录并释放。
+				reqLog.Info("openai.websocket_ingress_preempted", zap.Int64("account_id", account.ID))
 				return
 			}
 			var failoverErr *service.UpstreamFailoverError
@@ -3348,6 +3394,7 @@ func (h *OpenAIGatewayHandler) handleFailoverExhausted(c *gin.Context, failoverE
 		h.handleFailoverExhaustedSimple(c, http.StatusBadGateway, streamStarted)
 		return
 	}
+	copyFailoverRetryAfter(c, failoverErr.ResponseHeaders)
 	if failoverErr.IsOpenAIRequestBodyTooLarge() {
 		service.SetOpsUpstreamError(c, http.StatusRequestEntityTooLarge, service.OpenAIRequestBodyTooLargeClientMessage, "")
 		h.handleStreamingAwareError(
@@ -3367,7 +3414,19 @@ func (h *OpenAIGatewayHandler) handleFailoverExhausted(c *gin.Context, failoverE
 		h.handleStreamingAwareError(c, http.StatusBadRequest, "invalid_request_error", message, streamStarted)
 		return
 	}
-	copyFailoverRetryAfter(c, failoverErr.ResponseHeaders)
+	if failoverErr.Reason == service.OpenAIImagesInsufficientBalanceReason {
+		status := failoverErr.ClientStatusCode
+		if status <= 0 {
+			status = http.StatusPaymentRequired
+		}
+		message := strings.TrimSpace(failoverErr.ClientMessage)
+		if message == "" {
+			message = service.OpenAIImagesInsufficientBalanceMessage
+		}
+		service.SetOpsUpstreamError(c, failoverErr.StatusCode, message, "")
+		h.handleStreamingAwareErrorWithCode(c, status, "upstream_error", service.OpenAIImagesInsufficientBalanceCode, message, streamStarted, false)
+		return
+	}
 	if failoverErr.IsCredentialFailure() {
 		status, message := credentialFailoverClientResponse(failoverErr)
 		h.handleStreamingAwareError(c, status, "upstream_error", message, streamStarted)

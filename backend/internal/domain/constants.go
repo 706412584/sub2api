@@ -31,7 +31,10 @@ const (
 	PlatformMiniMax  = "minimax"  // MiniMax (M 系列)
 	// CodeBuddy（腾讯）：账号类型决定区域（codebuddy_cn / codebuddy_global），两区模型不互通。
 	PlatformCodebuddy = "codebuddy"
-	PlatformComposite = "composite"
+	// PlatformOpenCodeGo 是 OpenCode 平台（账号类型 Zen 按量 / Go 订阅）。
+	// 值保持 opencode_go 以兼容已落库的分组、配额与 Composite 路由 CHECK。
+	PlatformOpenCodeGo = "opencode_go"
+	PlatformComposite  = "composite"
 )
 
 // Account mode constants 区分国产供应商的「按量付费（余额）」与「Coding Plan」两种接入方式。
@@ -39,6 +42,8 @@ const (
 const (
 	AccountModePayG   = "payg"   // 按量付费：消耗余额，做余额检测冷却
 	AccountModeCoding = "coding" // Coding Plan：滚动用量窗口冷却（5h / weekly）
+	AccountModeZen    = "zen"    // OpenCode Zen：按量付费，https://opencode.ai/zen/v1
+	AccountModeGo     = "go"     // OpenCode Go：订阅额度窗口，https://opencode.ai/zen/go/v1
 )
 
 // API protocol constants 国产供应商的上游 API 协议维度。存储于
@@ -153,6 +158,12 @@ var DefaultAntigravityModelMapping = map[string]string{
 	"gemini-3.6-flash-low":    "gemini-3.6-flash-low",
 	"gemini-3.6-flash-medium": "gemini-3.6-flash-medium",
 	"gemini-3.6-flash-tiered": "gemini-3.6-flash-tiered",
+	// Gemini 3.7 Flash tiered models
+	"gemini-3.7-flash":        "gemini-3.7-flash",
+	"gemini-3.7-flash-high":   "gemini-3.7-flash-high",
+	"gemini-3.7-flash-low":    "gemini-3.7-flash-low",
+	"gemini-3.7-flash-medium": "gemini-3.7-flash-medium",
+	"gemini-3.7-flash-tiered": "gemini-3.7-flash-tiered",
 	// Gemini 3.8 Flash tiered models
 	// 裸名透传后由网关按 reasoning effort 自动补档位后缀，客户端只需请求裸名。
 	"gemini-3.8-flash":        "gemini-3.8-flash",
