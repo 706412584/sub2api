@@ -6,22 +6,34 @@
 --
 -- Runs after 237_add_minimax_platform.sql. DROP ... IF EXISTS + 幂等守卫保证可重入；
 -- 新约束是 237 的超集，必须同时保留 MiniMax。
+--
+-- fork 合并说明（v0.2.8）：本文件按文件名排序会**先于**同号的
+-- 238_platform_check_constraints_union.sql 执行（'o' < 'p'），而后者只在
+-- 「codebuddy + minimax + kiro 均已在内」时才跳过。上游原版的两处列表
+-- 不含 kiro/codebuddy，因此在已部署 238 收敛迁移的库上会：
+--   1. 把约束收窄回「无 kiro/codebuddy」→ 存量 kiro/codebuddy 配额行使
+--      ADD CONSTRAINT 校验失败 → 迁移报错 → 启动中止；
+--   2. 即便无存量行，也会静默丢掉这两个平台的配额能力。
+-- 故此处两处列表取**本分支并集快照**（9 基线含 kiro + codebuddy + minimax
+-- + opencode_go = 12 平台），使本迁移自身不窄化约束、且与执行顺序无关。
+-- 权威来源：internal/service/domain_constants.go 的 AllowedQuotaPlatforms
+-- 与 internal/service/composite_platform.go 的 isConcreteRequestPlatform。
 
 ALTER TABLE user_platform_quotas
     DROP CONSTRAINT IF EXISTS user_platform_quotas_platform_check;
 
 ALTER TABLE user_platform_quotas
     ADD CONSTRAINT user_platform_quotas_platform_check
-    CHECK (platform IN ('anthropic', 'openai', 'gemini', 'antigravity', 'grok',
-                        'kimi', 'zhipu', 'deepseek', 'minimax', 'opencode_go'));
+    CHECK (platform IN ('anthropic', 'openai', 'gemini', 'antigravity', 'kiro', 'grok',
+                        'kimi', 'zhipu', 'deepseek', 'codebuddy', 'minimax', 'opencode_go'));
 
 ALTER TABLE composite_model_routes
     DROP CONSTRAINT IF EXISTS composite_model_routes_target_platform_check;
 
 ALTER TABLE composite_model_routes
     ADD CONSTRAINT composite_model_routes_target_platform_check
-    CHECK (target_platform IN ('anthropic', 'openai', 'gemini', 'antigravity', 'grok',
-                               'kimi', 'zhipu', 'deepseek', 'minimax', 'opencode_go'));
+    CHECK (target_platform IN ('anthropic', 'openai', 'gemini', 'antigravity', 'kiro', 'grok',
+                               'kimi', 'zhipu', 'deepseek', 'codebuddy', 'minimax', 'opencode_go'));
 
 DO $$
 DECLARE

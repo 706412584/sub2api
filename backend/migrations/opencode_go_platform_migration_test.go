@@ -20,10 +20,12 @@ func TestOpenCodeGoPlatformMigration(t *testing.T) {
 	require.Contains(t, sql, "'minimax'")
 	require.Contains(t, sql, "position('opencode_go' IN monitor_constraint_def) = 0")
 	require.Contains(t, sql, "position('opencode_go' IN template_constraint_def) = 0")
+	// quota / target 两处取本分支并集快照（12 平台，含 kiro/codebuddy），
+	// 见文件头「fork 合并说明」：本文件先于 238 号收敛迁移执行，不得收窄约束。
 	require.Contains(t, sql,
-		"CHECK (platform IN ('anthropic', 'openai', 'gemini', 'antigravity', 'grok', 'kimi', 'zhipu', 'deepseek', 'minimax', 'opencode_go'))")
+		"CHECK (platform IN ('anthropic', 'openai', 'gemini', 'antigravity', 'kiro', 'grok', 'kimi', 'zhipu', 'deepseek', 'codebuddy', 'minimax', 'opencode_go'))")
 	require.Contains(t, sql,
-		"CHECK (target_platform IN ('anthropic', 'openai', 'gemini', 'antigravity', 'grok', 'kimi', 'zhipu', 'deepseek', 'minimax', 'opencode_go'))")
+		"CHECK (target_platform IN ('anthropic', 'openai', 'gemini', 'antigravity', 'kiro', 'grok', 'kimi', 'zhipu', 'deepseek', 'codebuddy', 'minimax', 'opencode_go'))")
 	require.Contains(t, sql,
 		"CHECK (provider IN ('openai', 'anthropic', 'gemini', 'grok', 'antigravity', 'kimi', 'zhipu', 'deepseek', 'minimax', 'opencode_go'))")
 }

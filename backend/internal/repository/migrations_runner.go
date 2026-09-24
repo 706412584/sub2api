@@ -96,6 +96,12 @@ var migrationChecksumCompatibilityRules = map[string]migrationChecksumCompatibil
 	"220_clear_non_grok_video_generation_config.sql": newMigrationChecksumCompatibilityRule("85e320b9ec64f2d3fcd8cf705b2b4e76a7b49f7a57140c14bff97f32691c818b", "3da48c8fdffe6390325f43d08b8e353e0a365df43d44a78dbbe655d0deb18402"),
 	"219_group_search_price_per_1k.sql":              newMigrationChecksumCompatibilityRule("e86786ebcc3b14206fd2d321380a4e50e80cdadbfcf4962c639255e6a14008db", "df6ffd71b97e30ec2c8fe7b95e15783042dea58c553e32701ee7c42a5619af80"),
 	"218_group_audio_voice_pricing.sql":              newMigrationChecksumCompatibilityRule("40ee9f3a2af0e0a5e99dabc878fd0fe98be1011f26bcfcefcac7197f7081f0e7", "c2a5e5b4ffd6968ad1c10593289fbc11192cdea19fec3ed9bce3a84eff9a8351"),
+	// 238 originally (upstream v0.2.8) rewrote the platform CHECK lists without kiro/codebuddy,
+	// which aborts startup on a fork DB that already has such rows (ADD CONSTRAINT validation)
+	// and silently strips the two platforms otherwise. The fork union snapshot is applied
+	// instead; DBs that already ran the narrow version keep their historical checksum and are
+	// repaired by 241_platform_check_constraints_union_with_opencode_go.sql.
+	"238_opencode_go_platform.sql": newMigrationChecksumCompatibilityRule("5c4aececec663f542c55a235d02458fdbcf682315fd62c8fe80c88c9a06cb9db", "6f987e251519bd3759e60da44620a5d777494cceb333b6ce394aa0ea536ef5a2"),
 }
 
 // ApplyMigrations 将嵌入的 SQL 迁移文件应用到指定的数据库。
