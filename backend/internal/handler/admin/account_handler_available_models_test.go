@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -267,6 +268,144 @@ func TestAccountHandlerGetAvailableModels_OpenAIAPIKeyDefaultsToConcreteGPT56Sol
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	require.NotEmpty(t, resp.Data)
 	require.Equal(t, "gpt-5.6-sol", resp.Data[0].ID)
+}
+
+// 账号 model_mapping 里的自定义模型必须叠加在上游实时目录之上，
+// 否则测试连接下拉里选不到管理员手工添加的模型。
+func TestMergeAccountMappingIntoOpenAIModels(t *testing.T) {
+	live := []openai.Model{
+		{ID: "upstream-listed", Object: "model", Type: "model", DisplayName: "upstream-listed"},
+		{ID: "live-only", Object: "model", Type: "model", DisplayName: "live-only"},
+	}
+	account := &service.Account{
+		Platform: service.PlatformOpenAI,
+		Type:     service.AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"model_mapping": map[string]any{
+				"upstream-listed":  "upstream-listed",
+				"custom-only":      "custom-only",
+				"deepseek-v4-pro":  "deepseek-v4-pro",
+				"wildcard-family*": "wildcard-family*",
+			},
+		},
+	}
+
+	merged := mergeAccountMappingIntoOpenAIModels(live, account)
+
+	ids := make([]string, 0, len(merged))
+	for _, model := range merged {
+		ids = append(ids, model.ID)
+	}
+	require.Equal(t, []string{"upstream-listed", "live-only", "custom-only", "deepseek-v4-pro"}, ids,
+		"上游目录保持原序在前，mapping 独有模型按字典序追加")
+	for _, model := range merged[2:] {
+		require.Equal(t, "model", model.Object)
+		require.Equal(t, "model", model.Type)
+		require.Equal(t, model.ID, model.DisplayName)
+	}
+
+	// 通配符是准入规则，不是具体模型名。
+	require.NotContains(t, ids, "wildcard-family*")
+	// 上游已列出的 mapping 键不得重复追加。
+	require.Len(t, ids, countDistinctStrings(ids))
+}
+
+func TestMergeAccountMappingIntoOpenAIModelsNoMappingReturnsInput(t *testing.T) {
+	live := []openai.Model{{ID: "live-only", Object: "model", Type: "model", DisplayName: "live-only"}}
+
+	require.Equal(t, live, mergeAccountMappingIntoOpenAIModels(live, &service.Account{
+		Platform:    service.PlatformOpenAI,
+		Credentials: map[string]any{},
+	}), "无 mapping 时必须原样返回上游目录")
+	require.Equal(t, live, mergeAccountMappingIntoOpenAIModels(live, nil))
+}
+
+func TestMergeAccountMappingIntoOpenAIModelsWildcardOnlyKeepsLiveCatalog(t *testing.T) {
+	live := []openai.Model{{ID: "live-only", Object: "model", Type: "model", DisplayName: "live-only"}}
+
+	merged := mergeAccountMappingIntoOpenAIModels(live, &service.Account{
+		Platform: service.PlatformOpenAI,
+		Credentials: map[string]any{
+			"model_mapping": map[string]any{"claude-*": "claude-*"},
+		},
+	})
+
+	require.Equal(t, live, merged, "只有通配符时不追加任何条目")
+}
+
+// 端到端：账号自定义模型经 GetAvailableModels 全链路出现在下拉数据里。
+// 上游实时目录只有 2 个模型，mapping 里的自定义模型必须叠加返回。
+func TestAccountHandlerGetAvailableModels_MergesCustomMappingOverLiveUpstreamCatalog(t *testing.T) {
+	account := service.Account{
+		ID:       47,
+		Name:     "openai-apikey-custom-mapping",
+		Platform: service.PlatformOpenAI,
+		Type:     service.AccountTypeAPIKey,
+		Status:   service.StatusActive,
+		Credentials: map[string]any{
+			"api_key":  "sk-upstream",
+			"base_url": "https://models.example/v1",
+			"model_mapping": map[string]any{
+				"upstream-listed": "upstream-listed",
+				"custom-only":     "custom-only",
+				"deepseek-v4-pro": "deepseek-v4-pro",
+			},
+		},
+	}
+	upstream := &syncUpstreamHTTPUpstream{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     make(http.Header),
+		Body: io.NopCloser(strings.NewReader(
+			`{"object":"list","data":[{"id":"upstream-listed"},{"id":"live-only"}]}`,
+		)),
+	}}
+	gateway := service.NewOpenAIGatewayService(
+		nil,
+		nil, nil, nil, nil, nil, nil,
+		&config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
+		nil, nil, nil, nil, nil,
+		upstream,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+	)
+	accountTestSvc := service.NewAccountTestService(
+		nil, nil, nil, nil, nil,
+		upstream,
+		&config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
+		nil,
+	)
+	accountTestSvc.SetOpenAIGatewayService(gateway)
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	handler := NewAccountHandler(
+		&availableModelsAdminService{stubAdminService: newStubAdminService(), account: account},
+		nil, nil, nil, nil, nil, nil, nil, accountTestSvc, nil, nil, nil, nil, nil,
+	)
+	router.GET("/api/v1/admin/accounts/:id/models", handler.GetAvailableModels)
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts/47/models", nil))
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var resp struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	ids := make([]string, 0, len(resp.Data))
+	for _, model := range resp.Data {
+		ids = append(ids, model.ID)
+	}
+	require.Equal(t, []string{"upstream-listed", "live-only", "custom-only", "deepseek-v4-pro"}, ids)
+}
+
+func countDistinctStrings(values []string) int {
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		seen[value] = struct{}{}
+	}
+	return len(seen)
 }
 
 func TestAccountHandlerGetAvailableModels_OpenAISparkShadowReturnsMappingModels(t *testing.T) {
