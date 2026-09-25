@@ -3905,7 +3905,9 @@ func (h *AccountHandler) SyncUpstreamModelsBulk(c *gin.Context) {
 		order[id] = i
 	}
 	sort.SliceStable(results, func(i, j int) bool {
-		return order[results[i]["account_id"].(int64)] < order[results[j]["account_id"].(int64)]
+		left, _ := results[i]["account_id"].(int64)
+		right, _ := results[j]["account_id"].(int64)
+		return order[left] < order[right]
 	})
 
 	if h.modelsCacheInvalidator != nil {
