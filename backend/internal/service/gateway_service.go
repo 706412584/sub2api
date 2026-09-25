@@ -1520,6 +1520,12 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 		models = supplementUnmappedOpenAIModels(accounts, models)
 	}
 
+	// Grok 前缀别名（xai/、x-ai/、grok/）只用于接受该形式的客户端请求，不应对外
+	// 展示——否则同一模型会以裸名 + 3 个前缀名重复出现，看起来像一堆重复模型。
+	if platform == PlatformGrok {
+		models = xai.HideGrokProviderPrefixedAliases(models)
+	}
+
 	if s.modelsListCache != nil {
 		s.modelsListCache.Set(cacheKey, cloneStringSlice(models), s.modelsListCacheTTL)
 		modelsListCacheStoreTotal.Add(1)

@@ -5,9 +5,11 @@ import BulkEditAccountModal from '../BulkEditAccountModal.vue'
 import ModelWhitelistSelector from '../ModelWhitelistSelector.vue'
 import { adminAPI } from '@/api/admin'
 
-const { showError, showSuccess, translate } = vi.hoisted(() => ({
+const { showError, showSuccess, showWarning, showInfo, translate } = vi.hoisted(() => ({
   showError: vi.fn(),
   showSuccess: vi.fn(),
+  showWarning: vi.fn(),
+  showInfo: vi.fn(),
   translate: vi.fn((key: string) => key)
 }))
 
@@ -15,7 +17,8 @@ vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
     showError,
     showSuccess,
-    showInfo: vi.fn()
+    showWarning,
+    showInfo
   })
 }))
 
@@ -23,7 +26,9 @@ vi.mock('@/api/admin', () => ({
   adminAPI: {
     accounts: {
       bulkUpdate: vi.fn(),
-      checkMixedChannelRisk: vi.fn()
+      checkMixedChannelRisk: vi.fn(),
+      bulkSyncUpstreamModels: vi.fn(),
+      bulkSyncUpstreamModelsByFilters: vi.fn()
     }
   }
 }))
@@ -1002,5 +1007,212 @@ describe('BulkEditAccountModal', () => {
         codex_cli_only: true
       }
     })
+  })
+})
+
+describe('BulkEditAccountModal — 分组平台过滤与 Grok 专项', () => {
+  beforeEach(() => {
+    vi.mocked(adminAPI.accounts.bulkUpdate).mockReset()
+    vi.mocked(adminAPI.accounts.checkMixedChannelRisk).mockReset()
+    showError.mockReset()
+    showSuccess.mockReset()
+    translate.mockClear()
+    vi.mocked(adminAPI.accounts.bulkUpdate).mockResolvedValue({ success: 2, failed: 0, results: [] } as any)
+  })
+
+  // 与单账号编辑一致：所选账号平台唯一时把 platform 传给 GroupSelector，按平台过滤分组。
+  it('平台唯一时向 GroupSelector 传 platform', () => {
+    const wrapper = mountModal({ selectedPlatforms: ['grok'], selectedTypes: ['oauth'] })
+    const selector = wrapper.findComponent({ name: 'GroupSelector' })
+    expect(selector.props('platform')).toBe('grok')
+  })
+
+  // 混合平台时不过滤，否则会把另一平台的分组整个藏起来。
+  it('混合平台时不传 platform', () => {
+    const wrapper = mountModal({ selectedPlatforms: ['grok', 'openai'], selectedTypes: ['oauth'] })
+    const selector = wrapper.findComponent({ name: 'GroupSelector' })
+    expect(selector.props('platform')).toBeUndefined()
+  })
+
+  it('非 Grok OAuth 不显示 Grok 专项区块', () => {
+    const wrapper = mountModal({ selectedPlatforms: ['openai'], selectedTypes: ['oauth'] })
+    expect(wrapper.find('[data-testid="bulk-grok-section"]').exists()).toBe(false)
+  })
+
+  it('Grok OAuth 显示 Grok 专项区块', () => {
+    const wrapper = mountModal({ selectedPlatforms: ['grok'], selectedTypes: ['oauth'] })
+    expect(wrapper.find('[data-testid="bulk-grok-section"]').exists()).toBe(true)
+  })
+
+  // Grok 非 OAuth（如 grok_console/grok_web）没有这两个开关的语义，不显示。
+  it('Grok 非 OAuth 类型不显示 Grok 专项区块', () => {
+    const wrapper = mountModal({ selectedPlatforms: ['grok'], selectedTypes: ['grok_console'] })
+    expect(wrapper.find('[data-testid="bulk-grok-section"]').exists()).toBe(false)
+  })
+
+  it('勾选客户端工具缓存后写入 grok_client_tool_cache_enabled', async () => {
+    const wrapper = mountModal({ selectedPlatforms: ['grok'], selectedTypes: ['oauth'] })
+    await wrapper.get('#bulk-edit-grok-client-tool-cache-enabled').setValue(true)
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      extra: { grok_client_tool_cache_enabled: true }
+    })
+  })
+
+  it('媒体资格选「强制禁用」写入 grok_media_eligible=false', async () => {
+    const wrapper = mountModal({ selectedPlatforms: ['grok'], selectedTypes: ['oauth'] })
+    await wrapper.get('#bulk-edit-grok-media-eligibility-enabled').setValue(true)
+    await wrapper.get('[data-testid="bulk-grok-media-eligibility-mode"]').setValue('disabled')
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      extra: { grok_media_eligible: false }
+    })
+  })
+
+  // 自动判断 = 清除手工覆盖，用 null 表达（与单账号编辑一致）。
+  it('媒体资格选「自动判断」写入 grok_media_eligible=null', async () => {
+    const wrapper = mountModal({ selectedPlatforms: ['grok'], selectedTypes: ['oauth'] })
+    await wrapper.get('#bulk-edit-grok-media-eligibility-enabled').setValue(true)
+    await wrapper.get('[data-testid="bulk-grok-media-eligibility-mode"]').setValue('auto')
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      extra: { grok_media_eligible: null }
+    })
+  })
+
+  // 未勾选时不得写入，避免批量编辑别的字段顺手清掉 Grok 账号的既有设置。
+  it('未勾选 Grok 开关时不写入任何 grok 键', async () => {
+    const wrapper = mountModal({ selectedPlatforms: ['grok'], selectedTypes: ['oauth'] })
+    await wrapper.get('#bulk-edit-concurrency-enabled').setValue(true)
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    const call = vi.mocked(adminAPI.accounts.bulkUpdate).mock.calls[0]
+    const payload = call[1] as any
+    expect(payload.extra?.grok_client_tool_cache_enabled).toBeUndefined()
+    expect(payload.extra?.grok_media_eligible).toBeUndefined()
+  })
+})
+
+describe('BulkEditAccountModal — 批量同步上游模型', () => {
+  beforeEach(() => {
+    vi.mocked(adminAPI.accounts.bulkUpdate).mockReset()
+    vi.mocked(adminAPI.accounts.checkMixedChannelRisk).mockReset()
+    vi.mocked(adminAPI.accounts.bulkSyncUpstreamModels).mockReset()
+    vi.mocked(adminAPI.accounts.bulkSyncUpstreamModelsByFilters).mockReset()
+    showError.mockReset()
+    showSuccess.mockReset()
+    showWarning.mockReset()
+    showInfo.mockReset()
+    translate.mockClear()
+  })
+
+  // 单次请求提交全部所选账号，前端不得逐个轮询单账号接口。
+  it('按所选账号一次请求批量同步', async () => {
+    vi.mocked(adminAPI.accounts.bulkSyncUpstreamModels).mockResolvedValue({
+      total: 2, success: 2, failed: 0, failed_ids: [], added_total: 5, results: []
+    } as any)
+    const wrapper = mountModal({ selectedPlatforms: ['grok'], selectedTypes: ['oauth'] })
+
+    await wrapper.get('[data-testid="bulk-sync-upstream-models"]').trigger('click')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkSyncUpstreamModels).toHaveBeenCalledTimes(1)
+    expect(adminAPI.accounts.bulkSyncUpstreamModels).toHaveBeenCalledWith([1, 2])
+    expect(adminAPI.accounts.bulkSyncUpstreamModelsByFilters).not.toHaveBeenCalled()
+  })
+
+  // 筛选模式：仍是一次请求，目标交给服务端按 filters 解析。
+  it('筛选模式按 filters 一次请求批量同步', async () => {
+    vi.mocked(adminAPI.accounts.bulkSyncUpstreamModelsByFilters).mockResolvedValue({
+      total: 3, success: 3, failed: 0, failed_ids: [], added_total: 1, results: []
+    } as any)
+    const wrapper = mountModal({
+      selectedPlatforms: ['grok'],
+      selectedTypes: ['oauth'],
+      target: { mode: 'filtered', filters: { platform: 'grok' }, previewCount: 3 }
+    })
+
+    await wrapper.get('[data-testid="bulk-sync-upstream-models"]').trigger('click')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkSyncUpstreamModelsByFilters).toHaveBeenCalledTimes(1)
+    expect(adminAPI.accounts.bulkSyncUpstreamModelsByFilters).toHaveBeenCalledWith({ platform: 'grok' })
+    expect(adminAPI.accounts.bulkSyncUpstreamModels).not.toHaveBeenCalled()
+  })
+
+  // 部分成功要如实告知，不能报成完全成功。
+  it('部分成功时给出成功/失败数量', async () => {
+    vi.mocked(adminAPI.accounts.bulkSyncUpstreamModels).mockResolvedValue({
+      total: 2, success: 1, failed: 1, failed_ids: [2], added_total: 1, results: [
+        { account_id: 1, success: true, added_count: 1 }
+      ]
+    } as any)
+    const wrapper = mountModal({ selectedPlatforms: ['grok'], selectedTypes: ['oauth'] })
+
+    await wrapper.get('[data-testid="bulk-sync-upstream-models"]').trigger('click')
+    await flushPromises()
+
+    expect(showWarning).toHaveBeenCalledWith('admin.accounts.bulkEdit.syncUpstreamPartial')
+  })
+
+  // 有新增时用 success，并带上新增数量。
+  it('全部成功且有新增时提示成功', async () => {
+    vi.mocked(adminAPI.accounts.bulkSyncUpstreamModels).mockResolvedValue({
+      total: 2, success: 2, failed: 0, failed_ids: [], added_total: 5, results: [
+        { account_id: 1, success: true, added_count: 3 },
+        { account_id: 2, success: true, added_count: 2 }
+      ]
+    } as any)
+    const wrapper = mountModal({ selectedPlatforms: ['grok'], selectedTypes: ['oauth'] })
+
+    await wrapper.get('[data-testid="bulk-sync-upstream-models"]').trigger('click')
+    await flushPromises()
+
+    expect(showSuccess).toHaveBeenCalledWith('admin.accounts.bulkEdit.syncUpstreamSuccess')
+  })
+
+  // 上游模型已全部存在（unchanged）时用 info，不能报成失败。
+  it('无变化时提示无需更新（info）', async () => {
+    vi.mocked(adminAPI.accounts.bulkSyncUpstreamModels).mockResolvedValue({
+      total: 2, success: 2, failed: 0, failed_ids: [], added_total: 0, results: [
+        { account_id: 1, success: true, added_count: 0, unchanged: true },
+        { account_id: 2, success: true, added_count: 0, unchanged: true }
+      ]
+    } as any)
+    const wrapper = mountModal({ selectedPlatforms: ['grok'], selectedTypes: ['oauth'] })
+
+    await wrapper.get('[data-testid="bulk-sync-upstream-models"]').trigger('click')
+    await flushPromises()
+
+    expect(showInfo).toHaveBeenCalledWith('admin.accounts.bulkEdit.syncUpstreamNoChanges')
+    expect(showError).not.toHaveBeenCalled()
+  })
+
+  it('全部失败时报错', async () => {
+    vi.mocked(adminAPI.accounts.bulkSyncUpstreamModels).mockResolvedValue({
+      total: 2, success: 0, failed: 2, failed_ids: [1, 2], added_total: 0, results: []
+    } as any)
+    const wrapper = mountModal({ selectedPlatforms: ['grok'], selectedTypes: ['oauth'] })
+
+    await wrapper.get('[data-testid="bulk-sync-upstream-models"]').trigger('click')
+    await flushPromises()
+
+    expect(showError).toHaveBeenCalledWith('admin.accounts.bulkEdit.syncUpstreamFailed')
+  })
+
+  it('未选择账号时不发起请求', async () => {
+    const wrapper = mountModal({ accountIds: [], selectedPlatforms: ['grok'], selectedTypes: ['oauth'] })
+    await wrapper.get('[data-testid="bulk-sync-upstream-models"]').trigger('click')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkSyncUpstreamModels).not.toHaveBeenCalled()
+    expect(showError).toHaveBeenCalledWith('admin.accounts.bulkEdit.noSelection')
   })
 })

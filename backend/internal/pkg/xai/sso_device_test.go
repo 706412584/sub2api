@@ -19,10 +19,29 @@ type ssoDeviceFakeClient struct {
 	t             *testing.T
 	tokenCalls    int
 	cookieHeaders []string
+	approveForm   url.Values
+	approveOrigin string
+	approveRefer  string
+	// omitConsentToken 模拟 consent 页未返回 consent_token 的异常场景。
+	omitConsentToken bool
 }
 
 func (c *ssoDeviceFakeClient) Do(req *http.Request) (*http.Response, error) {
 	c.cookieHeaders = append(c.cookieHeaders, req.Header.Get("Cookie"))
+	// consent 页会先被 verify 的 303 跟随到 /consent（无查询串），随后再显式请求
+	// 带 user_code 的地址，两种形式都要接受。
+	if strings.HasPrefix(req.URL.Path, "/oauth2/device/consent") {
+		require.Equal(c.t, http.MethodGet, req.Method)
+		if c.omitConsentToken {
+			return ssoDeviceResponse(http.StatusOK, nil, `<html><form action="https://auth.x.ai/oauth2/device/approve" method="POST">`+
+				`<input type="hidden" name="user_code" value="USER-1"/>`+
+				`</form></html>`), nil
+		}
+		return ssoDeviceResponse(http.StatusOK, nil, `<html><form action="https://auth.x.ai/oauth2/device/approve" method="POST">`+
+			`<input type="hidden" name="user_code" value="USER-1"/>`+
+			`<input type="hidden" name="consent_token" value="consent-jwt-token"/>`+
+			`</form></html>`), nil
+	}
 	switch req.URL.String() {
 	case SSOAccountsURL:
 		require.Equal(c.t, http.MethodGet, req.Method)
@@ -32,6 +51,11 @@ func (c *ssoDeviceFakeClient) Do(req *http.Request) (*http.Response, error) {
 		values := readSSODeviceForm(c.t, req)
 		require.Equal(c.t, DefaultClientID, values.Get("client_id"))
 		require.Equal(c.t, SSOBuildScope, values.Get("scope"))
+		// Build 客户端标识：缺失时上游可能拒绝发放 Build scope。
+		require.Equal(c.t, ssoDeviceReferrer, values.Get("referrer"))
+		require.Equal(c.t, ssoDeviceUserAgent, req.Header.Get("User-Agent"))
+		require.Equal(c.t, ssoDeviceVersion, req.Header.Get("x-grok-client-version"))
+		require.Equal(c.t, ssoDeviceSurface, req.Header.Get("x-grok-client-surface"))
 		return ssoDeviceResponse(http.StatusOK, http.Header{"Set-Cookie": {"csrf=csrf-token; Path=/"}}, `{"device_code":"device-1","user_code":"USER-1","verification_uri_complete":"https://auth.x.ai/oauth2/device/complete","interval":1,"expires_in":60}`), nil
 	case "https://auth.x.ai/oauth2/device/complete":
 		require.Equal(c.t, http.MethodGet, req.Method)
@@ -41,15 +65,15 @@ func (c *ssoDeviceFakeClient) Do(req *http.Request) (*http.Response, error) {
 		values := readSSODeviceForm(c.t, req)
 		require.Equal(c.t, "USER-1", values.Get("user_code"))
 		return ssoDeviceResponse(http.StatusFound, http.Header{"Location": {"/oauth2/device/consent"}}, ``), nil
-	case "https://auth.x.ai/oauth2/device/consent":
-		require.Equal(c.t, http.MethodGet, req.Method)
-		return ssoDeviceResponse(http.StatusOK, nil, `<html>consent</html>`), nil
 	case SSOApproveURL:
 		require.Equal(c.t, http.MethodPost, req.Method)
 		values := readSSODeviceForm(c.t, req)
 		require.Equal(c.t, "USER-1", values.Get("user_code"))
 		require.Equal(c.t, "allow", values.Get("action"))
 		require.Equal(c.t, "User", values.Get("principal_type"))
+		c.approveForm = values
+		c.approveOrigin = req.Header.Get("Origin")
+		c.approveRefer = req.Header.Get("Referer")
 		return ssoDeviceResponse(http.StatusSeeOther, http.Header{"Location": {"/oauth2/device/done"}}, ``), nil
 	case "https://auth.x.ai/oauth2/device/done":
 		require.Equal(c.t, http.MethodGet, req.Method)
@@ -87,6 +111,36 @@ func TestConvertSSOToBuildCompletesDeviceFlow(t *testing.T) {
 	require.Contains(t, client.cookieHeaders[0], "sso-rw=sso-token")
 	require.Contains(t, client.cookieHeaders[len(client.cookieHeaders)-1], "session=web-session")
 	require.Contains(t, client.cookieHeaders[len(client.cookieHeaders)-1], "csrf=csrf-token")
+
+	// approve 必须回传 consent 页的 consent_token，否则上游 403。
+	require.Equal(t, "consent-jwt-token", client.approveForm.Get("consent_token"))
+	// approve 必须带 Origin/Referer 通过 CSRF 校验，否则上游 403
+	// "Request could not be verified"。
+	require.Equal(t, "https://accounts.x.ai", client.approveOrigin)
+	require.Equal(t, "https://accounts.x.ai/", client.approveRefer)
+}
+
+// consent 页缺少 consent_token 时必须明确失败，而不是发出一个必然 403 的 approve。
+func TestConvertSSOToBuildRequiresConsentToken(t *testing.T) {
+	t.Setenv(EnvClientID, "")
+	client := &ssoDeviceFakeClient{t: t, omitConsentToken: true}
+	_, err := ConvertSSOToBuild(context.Background(), "sso=sso-token", &SSODeviceOptions{
+		HTTPClient: client,
+		Sleep:      func(context.Context, time.Duration) error { return nil },
+	})
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "consent token")
+}
+
+func TestExtractConsentToken(t *testing.T) {
+	html := `<form action="https://auth.x.ai/oauth2/device/approve" method="POST">` +
+		`<input type="hidden" name="user_code" value="ABC-123"/>` +
+		`<input type="hidden" name="consent_token" value="tok-1"/>` +
+		`</form>`
+	require.Equal(t, "tok-1", extractConsentToken(html))
+	require.Equal(t, "", extractConsentToken(`<html>no token here</html>`))
+	require.Equal(t, "", extractConsentToken(`name="consent_token"`))
 }
 
 func TestNormalizeSSOTokenAcceptsCookieHeader(t *testing.T) {

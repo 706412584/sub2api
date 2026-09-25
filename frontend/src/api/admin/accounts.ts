@@ -650,6 +650,48 @@ export interface SyncUpstreamPreviewParams {
   model_mapping?: Record<string, string>
 }
 
+export interface BulkSyncUpstreamItemResult {
+  account_id: number
+  success: boolean
+  model_count?: number
+  added_count?: number
+  /** 上游模型已全部在映射中，未写库。 */
+  unchanged?: boolean
+  error?: string
+}
+
+export interface BulkSyncUpstreamResult {
+  total: number
+  success: number
+  failed: number
+  failed_ids: number[]
+  added_total: number
+  results: BulkSyncUpstreamItemResult[]
+}
+
+/**
+ * 批量同步所选账号的上游模型目录并写回各自 model_mapping。
+ * 单次请求提交全部账号 ID，服务端并发处理，前端无需逐个轮询。
+ */
+export async function bulkSyncUpstreamModels(accountIds: number[]): Promise<BulkSyncUpstreamResult> {
+  const { data } = await apiClient.post<BulkSyncUpstreamResult>('/admin/accounts/models/sync-upstream-bulk', {
+    account_ids: accountIds
+  })
+  return data
+}
+
+/**
+ * 按当前筛选条件批量同步上游模型。目标由服务端解析，仍是单次请求。
+ */
+export async function bulkSyncUpstreamModelsByFilters(
+  filters: Record<string, unknown>
+): Promise<BulkSyncUpstreamResult> {
+  const { data } = await apiClient.post<BulkSyncUpstreamResult>('/admin/accounts/models/sync-upstream-bulk', {
+    filters
+  })
+  return data
+}
+
 /**
  * Preview upstream models without a saved account (create-flow)
  * @param params - Connection credentials
@@ -1428,6 +1470,8 @@ export const accountsAPI = {
   getAvailableModels,
   syncUpstreamModels,
   syncUpstreamModelsPreview,
+  bulkSyncUpstreamModels,
+  bulkSyncUpstreamModelsByFilters,
   generateAuthUrl,
   exchangeCode,
   refreshOpenAIToken,
