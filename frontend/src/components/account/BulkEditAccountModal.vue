@@ -346,6 +346,27 @@
                 :platforms="targetSelectedPlatforms"
               />
 
+              <!-- 批量同步上游模型：一次请求提交全部所选账号，服务端并发处理。
+                   直接写回各账号 model_mapping，不依赖前端逐个轮询。 -->
+              <div class="mt-3">
+                <button
+                  type="button"
+                  data-testid="bulk-sync-upstream-models"
+                  :disabled="isBulkSyncingUpstream"
+                  class="rounded-lg border border-emerald-200 px-3 py-1.5 text-sm text-emerald-600 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
+                  @click="handleBulkSyncUpstreamModels"
+                >
+                  {{
+                    isBulkSyncingUpstream
+                      ? t('admin.accounts.syncUpstreamModelsLoading')
+                      : t('admin.accounts.syncUpstreamModels')
+                  }}
+                </button>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.accounts.bulkEdit.syncUpstreamHint') }}
+                </p>
+              </div>
+
               <p class="text-xs text-gray-500 dark:text-gray-400">
                 {{ t('admin.accounts.selectedModels', { count: allowedModels.length }) }}
                 <span v-if="allowedModels.length === 0">{{
@@ -662,6 +683,109 @@
           <p v-else class="text-xs text-gray-500 dark:text-gray-400">
             {{ t('admin.accounts.headerOverride.bulkDisableHint') }}
           </p>
+        </div>
+      </div>
+
+      <!-- Grok OAuth 专项（仅所选账号全为 Grok OAuth 时显示，与单账号编辑一致） -->
+      <div
+        v-if="allTargetsGrokOAuth"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+        data-testid="bulk-grok-section"
+      >
+        <!-- 客户端工具提示缓存 -->
+        <div class="mb-3 flex items-center justify-between">
+          <div class="flex-1 pr-4">
+            <label
+              id="bulk-edit-grok-client-tool-cache-label"
+              class="input-label mb-0"
+              for="bulk-edit-grok-client-tool-cache-enabled"
+            >
+              {{ t('admin.accounts.grokClientToolCache.title') }}
+            </label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.grokClientToolCache.hint') }}
+            </p>
+          </div>
+          <input
+            v-model="enableGrokClientToolCache"
+            id="bulk-edit-grok-client-tool-cache-enabled"
+            type="checkbox"
+            aria-controls="bulk-edit-grok-client-tool-cache-body"
+            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+        </div>
+        <div
+          id="bulk-edit-grok-client-tool-cache-body"
+          :class="!enableGrokClientToolCache && 'pointer-events-none opacity-50'"
+        >
+          <button
+            type="button"
+            data-testid="bulk-grok-client-tool-cache-toggle"
+            :aria-label="t('admin.accounts.grokClientToolCache.title')"
+            :class="[
+              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+              grokClientToolCacheEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+            ]"
+            @click="grokClientToolCacheEnabled = !grokClientToolCacheEnabled"
+          >
+            <span
+              :class="[
+                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                grokClientToolCacheEnabled ? 'translate-x-5' : 'translate-x-0'
+              ]"
+            />
+          </button>
+        </div>
+
+        <!-- 媒体生成资格 -->
+        <div class="mt-4">
+          <div class="mb-3 flex items-center justify-between">
+            <div class="flex-1 pr-4">
+              <label
+                id="bulk-edit-grok-media-eligibility-label"
+                class="input-label mb-0"
+                for="bulk-edit-grok-media-eligibility-enabled"
+              >
+                {{ t('admin.accounts.grokMediaEligibility.title') }}
+              </label>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {{ t('admin.accounts.grokMediaEligibility.hint') }}
+              </p>
+            </div>
+            <input
+              v-model="enableGrokMediaEligibility"
+              id="bulk-edit-grok-media-eligibility-enabled"
+              type="checkbox"
+              aria-controls="bulk-edit-grok-media-eligibility-body"
+              class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            />
+          </div>
+          <div
+            id="bulk-edit-grok-media-eligibility-body"
+            :class="!enableGrokMediaEligibility && 'pointer-events-none opacity-50'"
+          >
+            <select
+              v-model="grokMediaEligibilityMode"
+              class="input"
+              data-testid="bulk-grok-media-eligibility-mode"
+              :aria-label="t('admin.accounts.grokMediaEligibility.title')"
+            >
+              <option value="auto">{{ t('admin.accounts.grokMediaEligibility.auto') }}</option>
+              <option value="enabled">{{ t('admin.accounts.grokMediaEligibility.enabled') }}</option>
+              <option value="disabled">{{ t('admin.accounts.grokMediaEligibility.disabled') }}</option>
+            </select>
+            <div
+              v-if="grokMediaEligibilityMode === 'enabled'"
+              class="mt-2 rounded-lg bg-amber-50 p-3 dark:bg-amber-900/20"
+            >
+              <p class="text-xs text-amber-700 dark:text-amber-400">
+                {{ t('admin.accounts.grokMediaEligibility.forceEnableWarning') }}
+              </p>
+            </div>
+            <p v-else-if="grokMediaEligibilityMode === 'auto'" class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.grokMediaEligibility.autoHint') }}
+            </p>
+          </div>
         </div>
       </div>
 
@@ -1415,6 +1539,7 @@
           <GroupSelector
             v-model="groupIds"
             :groups="groups"
+            :platform="groupSelectorPlatform"
             aria-labelledby="bulk-edit-groups-label"
           />
         </div>
@@ -1482,6 +1607,7 @@ import type {
   AdminGroup,
   AccountPlatform,
   AccountType,
+  GroupPlatform,
   OpenAICompactMode,
   OpenAIEndpointCapability,
   OpenAIResponsesMode
@@ -1553,6 +1679,21 @@ const allTargetsGrok = computed(
     targetSelectedPlatforms.value.every((p) => p === 'grok')
 )
 const isMixedPlatform = computed(() => targetSelectedPlatforms.value.length > 1)
+
+// 分组平台过滤：与单账号编辑一致，按所选账号的平台过滤分组，避免跨平台误绑。
+// 仅当所选账号平台唯一时才过滤；混合平台时退化为不过滤（否则会把另一平台的分组藏起来）。
+const groupSelectorPlatform = computed<GroupPlatform | undefined>(() =>
+  targetSelectedPlatforms.value.length === 1 ? targetSelectedPlatforms.value[0] : undefined
+)
+
+// Grok 开关仅对 Grok OAuth 账号有意义（与单账号编辑的 v-if 条件一致）。
+const allTargetsGrokOAuth = computed(
+  () =>
+    targetSelectedPlatforms.value.length === 1 &&
+    targetSelectedPlatforms.value[0] === 'grok' &&
+    targetSelectedTypes.value.length > 0 &&
+    targetSelectedTypes.value.every((t) => t === 'oauth')
+)
 
 const allOpenAIPassthroughCapable = computed(() => {
   return (
@@ -1650,6 +1791,12 @@ const enableModelRestriction = ref(false)
 const enableCustomErrorCodes = ref(false)
 const enableInterceptWarmup = ref(false)
 const enableHeaderOverride = ref(false)
+// Grok OAuth 专项（写入 extra，与单账号编辑使用同一批键）
+const enableGrokClientToolCache = ref(false)
+const grokClientToolCacheEnabled = ref(true)
+const enableGrokMediaEligibility = ref(false)
+const grokMediaEligibilityMode = ref<'auto' | 'enabled' | 'disabled'>('auto')
+const isBulkSyncingUpstream = ref(false)
 const enableProxy = ref(false)
 const enableConcurrency = ref(false)
 const enableLoadFactor = ref(false)
@@ -2053,6 +2200,22 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
     credentialsChanged = true
   }
 
+  // Grok OAuth 专项：后端 extra 走 JSONB || merge，只写显式勾选的键。
+  // 媒体资格用 null 表示「清除手工覆盖，回到自动判断」（与单账号编辑一致）。
+  if (enableGrokClientToolCache.value && allTargetsGrokOAuth.value) {
+    const extra = ensureExtra()
+    extra.grok_client_tool_cache_enabled = grokClientToolCacheEnabled.value
+  }
+
+  if (enableGrokMediaEligibility.value && allTargetsGrokOAuth.value) {
+    const extra = ensureExtra()
+    if (grokMediaEligibilityMode.value === 'auto') {
+      extra.grok_media_eligible = null
+    } else {
+      extra.grok_media_eligible = grokMediaEligibilityMode.value === 'enabled'
+    }
+  }
+
   if (enableOpenAIWSMode.value) {
     const extra = ensureExtra()
     extra.openai_oauth_responses_websockets_v2_mode = openaiOAuthResponsesWebSocketV2Mode.value
@@ -2211,6 +2374,8 @@ const handleSubmit = async () => {
     enableCustomErrorCodes.value ||
     enableInterceptWarmup.value ||
     enableHeaderOverride.value ||
+    (enableGrokClientToolCache.value && allTargetsGrokOAuth.value) ||
+    (enableGrokMediaEligibility.value && allTargetsGrokOAuth.value) ||
     enableProxy.value ||
     enableConcurrency.value ||
     enableLoadFactor.value ||
@@ -2268,6 +2433,46 @@ const handleSubmit = async () => {
   if (!canContinue) return
 
   await submitBulkUpdate(built)
+}
+
+// 批量同步上游模型：单次请求提交目标账号（显式选择或按筛选条件），服务端并发
+// 抓取并写回各自 model_mapping，前端不做逐账号轮询。
+const handleBulkSyncUpstreamModels = async () => {
+  if (isBulkSyncingUpstream.value) return
+
+  const isFiltered = targetMode.value === 'filtered' && !!props.target?.filters
+  if (!isFiltered && props.accountIds.length === 0) {
+    appStore.showError(t('admin.accounts.bulkEdit.noSelection'))
+    return
+  }
+
+  isBulkSyncingUpstream.value = true
+  try {
+    const res = isFiltered
+      ? await adminAPI.accounts.bulkSyncUpstreamModelsByFilters(props.target!.filters as Record<string, unknown>)
+      : await adminAPI.accounts.bulkSyncUpstreamModels([...props.accountIds])
+
+    const success = res.success || 0
+    const failed = res.failed || 0
+    const added = res.added_total || 0
+    const unchanged = (res.results || []).filter(r => r.success && r.unchanged).length
+
+    // 提示语义对齐单账号编辑：空结果/无变化用 info，有新增用 success，部分失败用 warning。
+    if (success === 0) {
+      appStore.showError(t('admin.accounts.bulkEdit.syncUpstreamFailed'))
+    } else if (failed > 0) {
+      appStore.showWarning(t('admin.accounts.bulkEdit.syncUpstreamPartial', { success, failed }))
+    } else if (added === 0) {
+      appStore.showInfo(t('admin.accounts.bulkEdit.syncUpstreamNoChanges', { count: unchanged || success }))
+    } else {
+      appStore.showSuccess(t('admin.accounts.bulkEdit.syncUpstreamSuccess', { count: success, added }))
+    }
+    if (success > 0 && added > 0) emit('updated')
+  } catch (error: any) {
+    appStore.showError(error?.message || t('admin.accounts.bulkEdit.syncUpstreamFailed'))
+  } finally {
+    isBulkSyncingUpstream.value = false
+  }
 }
 
 const submitBulkUpdate = async (baseUpdates: Record<string, unknown>) => {

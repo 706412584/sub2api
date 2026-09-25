@@ -238,6 +238,46 @@ func StripGrokProviderPrefix(model string) string {
 	return trimmed
 }
 
+// HasGrokProviderPrefix reports whether model carries one of the provider
+// prefixes that addGrokProviderPrefixedMappings injects (xai/, x-ai/, grok/).
+//
+// 这些前缀别名只用于接受 `grok/xxx` 形式的客户端请求，不应出现在对外模型
+// 列表里：同一模型会以「裸名 + 3 个前缀名」重复出现，让 /v1/models 与后台
+// 下拉看起来有一堆重复模型。列表侧用本函数过滤，映射本身保持不变。
+func HasGrokProviderPrefix(model string) bool {
+	lower := strings.ToLower(strings.TrimSpace(model))
+	for _, prefix := range []string{"xai/", "x-ai/", "grok/"} {
+		if strings.HasPrefix(lower, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// HideGrokProviderPrefixedAliases 过滤掉前缀别名，并保持原有顺序与去重。
+func HideGrokProviderPrefixedAliases(models []string) []string {
+	if len(models) == 0 {
+		return models
+	}
+	out := make([]string, 0, len(models))
+	seen := make(map[string]struct{}, len(models))
+	for _, model := range models {
+		if HasGrokProviderPrefix(model) {
+			continue
+		}
+		trimmed := strings.TrimSpace(model)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		out = append(out, trimmed)
+	}
+	return out
+}
+
 // IsGrokModelID reports whether model looks like a native Grok/xAI model id
 // (including aliases). Claude/OpenAI model names return false.
 func IsGrokModelID(model string) bool {

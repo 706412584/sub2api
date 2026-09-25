@@ -4,11 +4,14 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -135,7 +138,14 @@ func (r *Runner) Start() error {
 	r.cmd = exec.Command(r.Binary, "-f", r.ConfigPath, "-d", r.DataDir)
 	r.cmd.Stdout = os.Stdout
 	r.cmd.Stderr = os.Stderr
-	return r.cmd.Start()
+	if err := r.cmd.Start(); err != nil {
+		r.cmd = nil
+		return err
+	}
+	// Windows: 绑定到 kill-on-close job，避免父进程被强杀后残留孤儿进程占住 sidecar 端口。
+	// 绑定失败不影响启动（与修复前行为一致）。
+	_ = assignToJobObject(r.cmd)
+	return nil
 }
 
 func (r *Runner) Stop() error {
@@ -146,6 +156,69 @@ func (r *Runner) Stop() error {
 	_, _ = r.cmd.Process.Wait()
 	r.cmd = nil
 	return err
+}
+
+// ConfigListenPorts 解析生成的 mihomo 配置里所有 mixed listener 的端口。
+func (r *Runner) ConfigListenPorts() ([]int, error) {
+	data, err := os.ReadFile(r.ConfigPath)
+	if err != nil {
+		return nil, err
+	}
+	var doc struct {
+		Listeners []struct {
+			Port int `yaml:"port"`
+		} `yaml:"listeners"`
+	}
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return nil, err
+	}
+	ports := make([]int, 0, len(doc.Listeners))
+	for _, l := range doc.Listeners {
+		if l.Port > 0 {
+			ports = append(ports, l.Port)
+		}
+	}
+	return ports, nil
+}
+
+// VerifyListening 轮询确认所有 listener 端口都真正进入监听状态。
+//
+// mihomo 进程在端口被占用时不会退出，只会记录 bind 错误并继续运行，因此
+// cmd.Start() 成功并不代表 sidecar 可用。这里以 TCP 可连接为准，避免把
+// 「进程活着但端口未绑定」误报为 running（那会让 UI 显示正常而代理实际不可用，
+// 且因 configHash 未变而永远不会重试）。
+func (r *Runner) VerifyListening(timeout time.Duration) error {
+	ports, err := r.ConfigListenPorts()
+	if err != nil {
+		return err
+	}
+	if len(ports) == 0 {
+		return nil
+	}
+	deadline := time.Now().Add(timeout)
+	var lastErr error
+	for {
+		allUp := true
+		for _, port := range ports {
+			conn, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)), 500*time.Millisecond)
+			if err != nil {
+				allUp = false
+				lastErr = fmt.Errorf("port %d not listening: %w", port, err)
+				break
+			}
+			_ = conn.Close()
+		}
+		if allUp {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			if lastErr == nil {
+				lastErr = fmt.Errorf("listeners not ready after %s", timeout)
+			}
+			return lastErr
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
 }
 
 func EndpointsFromBindings(bindings []Binding) []LocalEndpoint {

@@ -149,6 +149,16 @@ var migrationChecksumCompatibilityRules = map[string]migrationChecksumCompatibil
 		"353c8e8e1805f2a6fd61311e03118e7dd8388f264cfd9af9e0cabe2a696388c4",
 		"3d08d905a7bca1f56f14b6d2a2a0dcb07480ff52c21393b4e2db1b3a3f83b3d0",
 	),
+	// 236 originally rebuilt the platform CHECK lists as a 9-platform set that dropped the
+	// kiro entry introduced by 224. On a DB that already has kiro quota rows, ADD CONSTRAINT
+	// validation fails, the migration aborts, later migrations never run, and the app
+	// crash-loops (observed as Nginx 502). The list now includes kiro; DBs that already
+	// applied the narrow version keep their historical checksum and are skipped here
+	// (their constraint end state is converged by 241_platform_check_constraints_union_with_opencode_go.sql).
+	"236_add_minimax_platform.sql": newMigrationChecksumCompatibilityRule(
+		"2af2d10184f337b4a06a3c499efbbe9c68377f726b73a945fd8079fcc8768e51",
+		"f4c73d2dbce114ca7ade1aac51998c3465490f4f3c9b3e868e53590f3fa8601b",
+	),
 	"219_group_search_price_per_1k.sql": newMigrationChecksumCompatibilityRule(
 		"430c2e3595342fe22c59e9676e9b18ea376f076324b77174a21e6f181f57f4b5",
 		"df6ffd71b97e30ec2c8fe7b95e15783042dea58c553e32701ee7c42a5619af80",

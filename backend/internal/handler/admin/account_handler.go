@@ -3438,6 +3438,11 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 
 		var models []xai.Model
 		for _, requestedModel := range requestedModels {
+			// 前缀别名（xai/、x-ai/、grok/）只用于接受该形式的请求，不在下拉里展示，
+			// 否则同一模型会以裸名 + 3 个前缀名重复出现。
+			if xai.HasGrokProviderPrefix(requestedModel) {
+				continue
+			}
 			if defaultModel, found := defaultByID[requestedModel]; found {
 				models = append(models, defaultModel)
 				continue
@@ -3717,6 +3722,253 @@ func (h *AccountHandler) RefreshTier(c *gin.Context) {
 // BatchRefreshTierRequest represents batch tier refresh request
 type BatchRefreshTierRequest struct {
 	AccountIDs []int64 `json:"account_ids"`
+}
+
+// SyncUpstreamModelsBulkRequest 批量同步上游模型目录。
+// 服务端一次请求内并发逐个账号抓取并写回 model_mapping，前端不需要按账号轮询。
+// 支持两种定位方式：显式 account_ids，或 filters（按当前筛选条件解析目标）。
+type SyncUpstreamModelsBulkRequest struct {
+	AccountIDs []int64                   `json:"account_ids"`
+	Filters    *BulkUpdateAccountFilters `json:"filters"`
+}
+
+// SyncUpstreamModelsBulk 批量同步所选账号的上游模型目录并写回各自 model_mapping。
+// POST /api/v1/admin/accounts/models/sync-upstream-bulk
+//
+// 逐账号独立处理：单个账号失败不影响其它账号（与 bulk-update 的部分成功语义一致），
+// 结果按账号汇总返回，便于前端展示成功/失败明细。
+func (h *AccountHandler) SyncUpstreamModelsBulk(c *gin.Context) {
+	var req SyncUpstreamModelsBulkRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	// 先校验目标，再检查依赖：请求本身不合法时应回 400 而不是 500。
+	if len(req.AccountIDs) == 0 && req.Filters == nil {
+		response.BadRequest(c, "account_ids or filters is required")
+		return
+	}
+
+	if h.accountTestService == nil {
+		response.InternalError(c, "Account test service is not configured")
+		return
+	}
+
+	// 按筛选条件定位目标（与 bulk-update 同语义）：仍是单次请求，服务端自行解析。
+	if len(req.AccountIDs) == 0 {
+		resolved, err := h.adminService.ResolveBulkUpdateTargetIDs(ctx, toServiceBulkUpdateAccountFilters(req.Filters))
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+		req.AccountIDs = resolved
+	}
+
+	// 去重，避免同一账号被并发写两次 model_mapping。
+	seen := make(map[int64]struct{}, len(req.AccountIDs))
+	ids := make([]int64, 0, len(req.AccountIDs))
+	for _, id := range req.AccountIDs {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+
+	if len(ids) == 0 {
+		response.Success(c, gin.H{
+			"total": 0, "success": 0, "failed": 0,
+			"failed_ids": []int64{}, "added_total": 0, "results": []gin.H{},
+		})
+		return
+	}
+
+	fetched, err := h.adminService.GetAccountsByIDs(ctx, ids)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	byID := make(map[int64]*service.Account, len(fetched))
+	for _, acc := range fetched {
+		if acc != nil {
+			byID[acc.ID] = acc
+		}
+	}
+
+	// 与 BatchRefreshTier 一致的并发上限，避免同时打爆上游。
+	const maxConcurrency = 10
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(maxConcurrency)
+
+	var mu sync.Mutex
+	var successCount, failedCount int
+	var addedTotal int
+	results := make([]gin.H, 0, len(ids))
+	failedIDs := make([]int64, 0)
+
+	for _, id := range ids {
+		account := byID[id]
+		g.Go(func() error {
+			if account == nil {
+				mu.Lock()
+				failedCount++
+				failedIDs = append(failedIDs, id)
+				results = append(results, gin.H{"account_id": id, "success": false, "error": "Account not found"})
+				mu.Unlock()
+				return nil
+			}
+
+			item := gin.H{"account_id": id, "success": false}
+
+			catalog, syncErr := h.accountTestService.SyncUpstreamModelCatalog(gctx, account)
+			if syncErr != nil {
+				item["error"] = upstreamModelSyncSafeMessage(syncErr)
+				mu.Lock()
+				failedCount++
+				failedIDs = append(failedIDs, id)
+				results = append(results, item)
+				mu.Unlock()
+				return nil
+			}
+
+			models := catalog.Models
+			if len(models) == 0 {
+				// 上游没有返回任何模型：不写入，避免把账号已有的完整映射清空。
+				item["error"] = "Upstream returned no models to sync"
+				mu.Lock()
+				failedCount++
+				failedIDs = append(failedIDs, id)
+				results = append(results, item)
+				mu.Unlock()
+				return nil
+			}
+
+			// 并集语义（与单账号编辑一致）：只把上游新模型并入现有映射，绝不删除
+			// 已有条目。整体覆盖会让上游只声明少量模型（如 Grok CLI 代理仅 grok-4.7）
+			// 的账号丢失既有目录，表现为测试下拉只剩一个模型。
+			merged, added := mergeUpstreamModelsIntoMapping(account.GetModelMapping(), models)
+
+			item["success"] = true
+			item["model_count"] = len(models)
+			item["added_count"] = added
+
+			if added == 0 {
+				// 上游模型已全部在映射中：无变化，不写库（对齐单账号编辑的提示语义）。
+				item["unchanged"] = true
+				mu.Lock()
+				successCount++
+				results = append(results, item)
+				mu.Unlock()
+				return nil
+			}
+
+			credentials := make(map[string]any, len(account.Credentials)+1)
+			for key, value := range account.Credentials {
+				credentials[key] = value
+			}
+			credentials["model_mapping"] = merged
+
+			_, updateErr := h.adminService.UpdateAccount(gctx, id, &service.UpdateAccountInput{
+				Credentials: credentials,
+			})
+			if updateErr != nil {
+				item["success"] = false
+				item["error"] = updateErr.Error()
+				mu.Lock()
+				failedCount++
+				failedIDs = append(failedIDs, id)
+				results = append(results, item)
+				mu.Unlock()
+				return nil
+			}
+
+			mu.Lock()
+			successCount++
+			addedTotal += added
+			results = append(results, item)
+			mu.Unlock()
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	// 按请求顺序输出，前端展示更稳定。
+	order := make(map[int64]int, len(ids))
+	for i, id := range ids {
+		order[id] = i
+	}
+	sort.SliceStable(results, func(i, j int) bool {
+		left, _ := results[i]["account_id"].(int64)
+		right, _ := results[j]["account_id"].(int64)
+		return order[left] < order[right]
+	})
+
+	if h.modelsCacheInvalidator != nil {
+		// 各账号平台可能不同，逐平台失效，避免返回陈旧模型列表。
+		platforms := make(map[string]struct{}, len(fetched))
+		for _, acc := range fetched {
+			if acc != nil {
+				platforms[acc.Platform] = struct{}{}
+			}
+		}
+		for platform := range platforms {
+			h.modelsCacheInvalidator.InvalidateAvailableModelsCache(nil, platform)
+		}
+	}
+
+	response.Success(c, gin.H{
+		"total":       len(ids),
+		"success":     successCount,
+		"failed":      failedCount,
+		"failed_ids":  failedIDs,
+		"added_total": addedTotal,
+		"results":     results,
+	})
+}
+
+// mergeUpstreamModelsIntoMapping 把上游模型并入现有映射，返回合并结果与新增数量。
+//
+// 只增不删：上游目录往往只是其自身声明的子集（例如 Grok CLI 代理的 /v1/models
+// 只返回 grok-4.7），若用整体覆盖写回，会静默丢掉账号里已有的完整映射，表现为
+// 模型下拉只剩一个模型。语义与单账号编辑页的「同步上游模型」保持一致（只追加）。
+func mergeUpstreamModelsIntoMapping(existing map[string]string, upstream []string) (map[string]any, int) {
+	merged := make(map[string]any, len(existing)+len(upstream))
+	for key, value := range existing {
+		merged[key] = value
+	}
+	added := 0
+	for _, model := range upstream {
+		model = strings.TrimSpace(model)
+		if model == "" {
+			continue
+		}
+		if _, ok := existing[model]; ok {
+			continue
+		}
+		if _, ok := merged[model]; ok {
+			continue
+		}
+		merged[model] = model
+		added++
+	}
+	return merged, added
+}
+
+// upstreamModelSyncSafeMessage 返回可安全下发给客户端的错误文案，
+// 与单账号同步的 Kind 分支保持一致的脱敏口径。
+func upstreamModelSyncSafeMessage(err error) string {
+	var syncErr *service.UpstreamModelSyncError
+	if errors.As(err, &syncErr) {
+		return syncErr.SafeMessage()
+	}
+	return "Failed to sync upstream models from upstream"
 }
 
 // BatchRefreshTier handles batch refreshing Google One tier
