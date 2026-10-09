@@ -12,6 +12,8 @@ func TestResToAnthFuncArgsDelta_ReadToolWaitsForCompleteJSON(t *testing.T) {
 	state.MessageStartSent = true
 	state.ContentBlockOpen = true
 	state.CurrentBlockType = "tool_use"
+	state.CurrentOutputIndex = 0
+	state.CurrentOutputSet = true
 	state.CurrentToolName = "Read"
 	state.OutputIndexToBlockIdx = map[int]int{0: 0}
 

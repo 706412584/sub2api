@@ -25,19 +25,24 @@ import (
 
 type grokQuotaAccountRepo struct {
 	*mockAccountRepoForPlatform
-	updates               map[int64]map[string]any
-	updateCalls           int
-	rateLimitedCalls      int
-	lastRateLimitedID     int64
-	lastRateLimitResetAt  time.Time
-	tempUnschedCalls      int
-	lastTempUnschedID     int64
-	lastTempUnschedUntil  time.Time
-	lastTempUnschedReason string
-	recoveryClearCalls    int
-	recoveryObservedAt    time.Time
-	recoveryObservedReset time.Time
-	recoveryClearResult   bool
+	updates                  map[int64]map[string]any
+	updateCalls              int
+	rateLimitedCalls         int
+	lastRateLimitedID        int64
+	lastRateLimitResetAt     time.Time
+	tempUnschedCalls         int
+	lastTempUnschedID        int64
+	lastTempUnschedUntil     time.Time
+	lastTempUnschedReason    string
+	modelRateLimitCalls      int
+	lastModelRateLimitID     int64
+	lastModelRateLimitKey    string
+	lastModelRateLimitAt     time.Time
+	lastModelRateLimitReason string
+	recoveryClearCalls       int
+	recoveryObservedAt       time.Time
+	recoveryObservedReset    time.Time
+	recoveryClearResult      bool
 }
 
 func (r *grokQuotaAccountRepo) UpdateExtra(_ context.Context, id int64, updates map[string]any) error {
@@ -84,6 +89,17 @@ func (r *grokQuotaAccountRepo) SetTempUnschedulable(_ context.Context, id int64,
 	r.lastTempUnschedID = id
 	r.lastTempUnschedUntil = until
 	r.lastTempUnschedReason = reason
+	return nil
+}
+
+func (r *grokQuotaAccountRepo) SetModelRateLimit(_ context.Context, id int64, scope string, resetAt time.Time, reason ...string) error {
+	r.modelRateLimitCalls++
+	r.lastModelRateLimitID = id
+	r.lastModelRateLimitKey = scope
+	r.lastModelRateLimitAt = resetAt
+	if len(reason) > 0 {
+		r.lastModelRateLimitReason = reason[0]
+	}
 	return nil
 }
 
@@ -450,7 +466,33 @@ func TestIsRetryableGrokBillingStatus(t *testing.T) {
 	}
 }
 
-func TestGrokQuotaServiceProbeUsageDoesNotRetryResponsesPost(t *testing.T) {
+func TestGrokQuotaServiceProbeUsagePaymentRequiredTempUnschedules(t *testing.T) {
+	account := healthyGrokQuotaOAuthAccount(406)
+	repo := &grokQuotaAccountRepo{mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
+		accountsByID: map[int64]*Account{account.ID: account},
+	}}
+	upstream := &grokQuotaSequenceUpstream{steps: []grokQuotaUpstreamStep{{
+		status: http.StatusPaymentRequired,
+		body:   `{"code":"personal-team-blocked:spending-limit","error":"You have run out of credits or need a Grok subscription."}`,
+	}}}
+	svc := NewGrokQuotaService(repo, nil, NewGrokTokenProvider(repo, nil), upstream, nil)
+	before := time.Now()
+
+	result, err := svc.ProbeUsage(context.Background(), account.ID)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, http.StatusPaymentRequired, result.StatusCode)
+	require.Equal(t, http.StatusPaymentRequired, result.Snapshot.StatusCode)
+	require.Contains(t, result.ProbeError, `upstream returned 402`)
+	require.Equal(t, 1, repo.tempUnschedCalls)
+	require.Equal(t, account.ID, repo.lastTempUnschedID)
+	require.Equal(t, "grok credits or subscription exhausted", repo.lastTempUnschedReason)
+	require.Greater(t, repo.lastTempUnschedUntil, before.Add(29*time.Minute))
+	require.Less(t, repo.lastTempUnschedUntil, before.Add(31*time.Minute))
+}
+
+func TestGrokQuotaServiceProbeUsageBadGatewayReturnsWarningResultWithoutRetry(t *testing.T) {
 	account := healthyGrokQuotaOAuthAccount(405)
 	repo := &grokQuotaAccountRepo{mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
 		accountsByID: map[int64]*Account{account.ID: account},
@@ -463,9 +505,11 @@ func TestGrokQuotaServiceProbeUsageDoesNotRetryResponsesPost(t *testing.T) {
 
 	result, err := svc.ProbeUsage(context.Background(), account.ID)
 
-	require.Error(t, err)
-	require.Nil(t, result)
-	require.Equal(t, "GROK_QUOTA_PROBE_UPSTREAM_ERROR", infraerrors.Reason(err))
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, http.StatusBadGateway, result.StatusCode)
+	require.Equal(t, http.StatusBadGateway, result.Snapshot.StatusCode)
+	require.Contains(t, result.ProbeError, `upstream returned 502`)
 	requests := upstream.snapshotRequests()
 	require.Len(t, requests, 1)
 	require.Equal(t, http.MethodPost, requests[0].Method)

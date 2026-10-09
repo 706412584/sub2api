@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"os"
+	"strings"
 	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
@@ -43,9 +44,23 @@ func ProvidePricingService(cfg *config.Config, remoteClient PricingRemoteClient)
 	return svc, nil
 }
 
-// ProvideUpdateService creates UpdateService with BuildInfo
-func ProvideUpdateService(cache UpdateCache, githubClient GitHubReleaseClient, buildInfo BuildInfo) *UpdateService {
-	return NewUpdateService(cache, githubClient, buildInfo.Version, buildInfo.BuildType)
+// ProvideUpdateService creates UpdateService with BuildInfo.
+// Call SetProxyRetry after construction to enable one managed-proxy retry on
+// network errors during download/checksum.
+func ProvideUpdateService(
+	cache UpdateCache,
+	githubClient GitHubReleaseClient,
+	buildInfo BuildInfo,
+	settingRepository SettingRepository,
+) *UpdateService {
+	svc := NewUpdateService(cache, githubClient, buildInfo.Version, buildInfo.BuildType)
+	if settingRepository != nil {
+		// DB-backed update proxy overrides the startup config without a restart.
+		svc.SetUpdateProxyProvider(func() (string, error) {
+			return settingRepository.GetValue(context.Background(), SettingKeyUpdateProxyURL)
+		})
+	}
+	return svc
 }
 
 // ProvideEmailQueueService creates EmailQueueService with default worker count
@@ -118,6 +133,14 @@ func ProvideOpenAIOAuthService(
 	return svc
 }
 
+func ProvideKiroBuilderIDDeviceFlowService() *KiroBuilderIDDeviceFlowService {
+	return NewKiroBuilderIDDeviceFlowService()
+}
+
+func ProvideCodebuddyLoginService() *CodebuddyLoginService {
+	return NewCodebuddyLoginService()
+}
+
 // ProvideTokenRefreshService creates and starts TokenRefreshService
 func ProvideTokenRefreshService(
 	accountRepo AccountRepository,
@@ -134,6 +157,8 @@ func ProvideTokenRefreshService(
 	proxyRepo ProxyRepository,
 	refreshAPI *OAuthRefreshAPI,
 	runtimeBlocker AccountRuntimeBlocker,
+	httpUpstream HTTPUpstream,
+	tlsFPProfileService *TLSFingerprintProfileService,
 ) *TokenRefreshService {
 	svc := NewTokenRefreshService(accountRepo, oauthService, openaiOAuthService, geminiOAuthService, antigravityOAuthService, cacheInvalidator, schedulerCache, cfg, tempUnschedCache, grokOAuthService)
 	// 注入 OpenAI privacy opt-out 依赖
@@ -143,6 +168,8 @@ func ProvideTokenRefreshService(
 	// 调用侧显式注入后台刷新策略，避免策略漂移
 	svc.SetRefreshPolicy(DefaultBackgroundRefreshPolicy())
 	svc.SetAccountRuntimeBlocker(runtimeBlocker)
+	// 注入 CodeBuddy 刷新器的网络依赖
+	svc.SetCodebuddyDeps(httpUpstream, tlsFPProfileService)
 	svc.Start()
 	return svc
 }
@@ -230,10 +257,13 @@ func ProvideAccountUsageService(
 	grokQuotaFetcher *GrokQuotaFetcher,
 	grokQuotaService *GrokQuotaService,
 	openAIQuotaService *OpenAIQuotaService,
+	kiroGatewayService *KiroGatewayService,
+	codebuddyGatewayService *CodebuddyGatewayService,
 	cache *UsageCache,
 	identityCache IdentityCache,
 	tlsFPProfileService *TLSFingerprintProfileService,
 	openAIGatewayService *OpenAIGatewayService,
+	consoleDPoPProvider *GrokConsoleDPoPProvider,
 ) *AccountUsageService {
 	service := NewAccountUsageService(
 		accountRepo,
@@ -244,16 +274,51 @@ func ProvideAccountUsageService(
 		grokQuotaFetcher,
 		grokQuotaService,
 		openAIQuotaService,
+		kiroGatewayService,
 		cache,
 		identityCache,
 		tlsFPProfileService,
 	)
+	service.SetCodebuddyGatewayService(codebuddyGatewayService)
 	service.agentIdentityWS = openAIGatewayService
+	service.SetConsoleDPoPProvider(consoleDPoPProvider)
 	return service
+}
+
+// ProvideCodebuddyGatewayService wires the CodeBuddy gateway with its
+// config-derived response header filter (nil config → nil filter).
+func ProvideCodebuddyGatewayService(
+	httpUpstream HTTPUpstream,
+	tlsFPProfileService *TLSFingerprintProfileService,
+	settingService *SettingService,
+	cfg *config.Config,
+) *CodebuddyGatewayService {
+	return NewCodebuddyGatewayService(httpUpstream, tlsFPProfileService, settingService, cfg)
+}
+
+// ProvideGrokReasoningProbeService wires the optional reasoning quality mark store
+// into both the probe service and the OpenAI gateway scheduler, so that the
+// per-group "enforce" visibility mode can actually read probe marks.
+func ProvideGrokReasoningProbeService(
+	accountRepo AccountRepository,
+	proxyRepo ProxyRepository,
+	grokTokenProvider *GrokTokenProvider,
+	httpUpstream HTTPUpstream,
+	markStore GrokReasoningQualityMarkStore,
+	openAIGatewayService *OpenAIGatewayService,
+) *GrokReasoningProbeService {
+	svc := NewGrokReasoningProbeService(accountRepo, proxyRepo, grokTokenProvider, httpUpstream)
+	svc.SetMarkStore(markStore)
+	if openAIGatewayService != nil {
+		openAIGatewayService.SetGrokReasoningQualityMarkStore(markStore)
+		openAIGatewayService.SetGrokReasoningProbeService(svc)
+	}
+	return svc
 }
 
 func ProvideAccountTestService(
 	accountRepo AccountRepository,
+	proxyRepo ProxyRepository,
 	geminiTokenProvider *GeminiTokenProvider,
 	claudeTokenProvider *ClaudeTokenProvider,
 	grokTokenProvider *GrokTokenProvider,
@@ -263,6 +328,7 @@ func ProvideAccountTestService(
 	tlsFPProfileService *TLSFingerprintProfileService,
 	openAIGatewayService *OpenAIGatewayService,
 	settingService *SettingService,
+	consoleDPoPProvider *GrokConsoleDPoPProvider,
 	pluginManager *PluginManager,
 ) *AccountTestService {
 	service := NewAccountTestService(
@@ -278,6 +344,9 @@ func ProvideAccountTestService(
 	service.agentIdentityWS = openAIGatewayService
 	service.SetOpenAIGatewayService(openAIGatewayService)
 	service.SetSettingService(settingService)
+	service.SetProxyRepo(proxyRepo)
+	service.SetGrokConsoleDPoPProvider(consoleDPoPProvider)
+	service.SetGrokWebGateway(openAIGatewayService)
 	service.SetPluginManager(pluginManager)
 	return service
 }
@@ -291,9 +360,9 @@ func ProvideGrokQuotaService(
 	usageLogRepo UsageLogRepository,
 	settingService *SettingService,
 ) *GrokQuotaService {
-	service := NewGrokQuotaService(accountRepo, proxyRepo, tokenProvider, httpUpstream, cfg, usageLogRepo)
-	service.SetSettingService(settingService)
-	return service
+	svc := NewGrokQuotaService(accountRepo, proxyRepo, tokenProvider, httpUpstream, cfg, usageLogRepo)
+	svc.SetSettingService(settingService)
+	return svc
 }
 
 // ProvideCNProviderQuotaService 构造国产供应商 Coding Plan 额度探测服务。
@@ -319,15 +388,15 @@ func ProvideCNProviderBalanceService(
 // ProvideCNProviderBalanceCheckService 构造并启动周期余额/额度检测任务。
 // payg 账号探余额（低余额停调）；coding plan 账号探 5h/weekly 滚动窗口
 // （落 extra 快照供调度阈值评估自动停调）。
-// 间隔取自 gateway.cn_providers.balance_check_interval_minutes；<=0 或关闭时不启动。
+// 间隔取自 gateway.cn_providers.balance_check_interval_minutes（缺省值由 config 默认值提供）；<=0 或关闭时不启动。
 func ProvideCNProviderBalanceCheckService(
 	accountRepo AccountRepository,
 	balanceService *CNProviderBalanceService,
 	quotaService *CNProviderQuotaService,
 	cfg *config.Config,
 ) *CNProviderBalanceCheckService {
-	minutes := 10
-	if cfg != nil && cfg.Gateway.CNProviders.BalanceCheckIntervalMinutes > 0 {
+	minutes := 0
+	if cfg != nil {
 		minutes = cfg.Gateway.CNProviders.BalanceCheckIntervalMinutes
 	}
 	svc := NewCNProviderBalanceCheckService(accountRepo, balanceService, quotaService, cfg, time.Duration(minutes)*time.Minute)
@@ -365,6 +434,38 @@ func ProvideAntigravityTokenProvider(
 	return p
 }
 
+// ProvideGrokSessionCredentialService creates GrokSessionCredentialService with encryption.
+func ProvideGrokSessionCredentialService(
+	repo GrokSessionCredentialRepository,
+	encryptor SecretEncryptor,
+) GrokSessionCredentialService {
+	return NewGrokSessionCredentialService(repo, encryptor)
+}
+
+// ProvideGrokConsoleDPoPProvider creates GrokConsoleDPoPProvider with session service and HTTP upstream.
+func ProvideGrokConsoleDPoPProvider(
+	sessionService GrokSessionCredentialService,
+	httpUpstream HTTPUpstream,
+	proxyRepo ProxyRepository,
+) *GrokConsoleDPoPProvider {
+	p := NewGrokConsoleDPoPProvider(sessionService, httpUpstream)
+	p.SetProxyURLResolver(func(proxyID int64) string {
+		proxy, err := proxyRepo.GetByID(context.Background(), proxyID)
+		if err == nil && proxy != nil {
+			return proxy.URL()
+		}
+		return ""
+	})
+	return p
+}
+
+// ProvideConsoleModelCatalog creates ConsoleModelCatalog with DPoP provider.
+func ProvideConsoleModelCatalog(
+	dpopProvider *GrokConsoleDPoPProvider,
+) *ConsoleModelCatalog {
+	return NewConsoleModelCatalog(dpopProvider)
+}
+
 // ProvideGrokTokenProvider creates GrokTokenProvider with OAuthRefreshAPI injection.
 func ProvideGrokTokenProvider(
 	accountRepo AccountRepository,
@@ -378,6 +479,13 @@ func ProvideGrokTokenProvider(
 	p.SetRefreshAPI(refreshAPI, executor)
 	p.SetRefreshPolicy(GrokProviderRefreshPolicy())
 	p.SetTempUnschedCache(tempUnschedCache)
+	// 启动时异步重建风控标记索引（覆盖存量账号）
+	go func() {
+		if err := context.Background().Err(); err != nil {
+			return
+		}
+		p.RebuildBuildBotFlagIndex(context.Background())
+	}()
 	return p
 }
 
@@ -661,6 +769,36 @@ func ProvideScheduledTestRunnerService(
 	return svc
 }
 
+// ProvideAccountPoolProbeRunner creates and starts the low-cost global account pool probe.
+func ProvideAccountPoolProbeRunner(
+	accountRepo AccountRepository,
+	settingService *SettingService,
+	usageService *AccountUsageService,
+	grokQuota *GrokQuotaService,
+	cfg *config.Config,
+) *AccountPoolProbeRunner {
+	svc := NewAccountPoolProbeRunner(accountRepo, settingService, usageService, grokQuota, cfg)
+	svc.Start()
+	return svc
+}
+
+// ProvideCodebuddyMaintenanceRunner creates and starts the CodeBuddy
+// account-maintenance runner (check-in / activity / keepalive, CN region only).
+func ProvideCodebuddyMaintenanceRunner(
+	accountRepo AccountRepository,
+	gatewayService *CodebuddyGatewayService,
+	runtimeService *GatewayService,
+	httpUpstream HTTPUpstream,
+	tlsFPProfileService *TLSFingerprintProfileService,
+	settingService *SettingService,
+	cfg *config.Config,
+) *CodebuddyMaintenanceRunner {
+	refresher := NewCodebuddyTokenRefresher(httpUpstream, tlsFPProfileService)
+	svc := NewCodebuddyMaintenanceRunner(accountRepo, gatewayService, runtimeService, refresher, settingService, cfg)
+	svc.Start()
+	return svc
+}
+
 // ProvideOpsScheduledReportService creates and starts OpsScheduledReportService.
 func ProvideOpsScheduledReportService(
 	opsService *OpsService,
@@ -764,6 +902,7 @@ func ProvideOpsService(
 		// Optional warm-up so the first scheduled request after process start observes
 		// a populated cache rather than zero defaults. Best-effort, sync-bounded.
 		settingService.WarmOpenAIQuotaAutoPauseSettings(context.Background())
+		settingService.WarmGrokCLIIdentitySettings(context.Background())
 	}
 	svc.authCacheInvalidationWorker = authCacheInvalidationWorker
 	svc.apiKeyService = apiKeyService
@@ -802,6 +941,8 @@ func ProvideSettingService(settingRepo SettingRepository, groupRepo GroupReposit
 		logger.LegacyPrintf("service.setting", "Warning: migrate Grok default text model failed: %v", err)
 	}
 	antigravity.SetUserAgentVersionResolver(svc.GetAntigravityUserAgentVersion)
+	// Antigravity 客户端指纹开关 resolver（getter 内部自带 60s TTL 缓存）
+	antigravity.SetClientFingerprintEnabledResolver(svc.GetAntigravityClientFingerprintEnabled)
 	// enforceCodexIdentityHeaders 是所有 Codex 出站路径共用的纯函数收口点，拿不到 ctx，
 	// 故注入无参解析器；解析器内部自带 60s TTL 缓存，热路径不触库。
 	SetCodexCanonicalUserAgentResolver(func() string {
@@ -884,6 +1025,11 @@ var ProviderSet = wire.NewSet(
 	ProvideOpenAIOAuthService,
 	ProvideGrokOAuthService,
 	wire.Bind(new(GrokOAuthTokenService), new(*GrokOAuthService)),
+	ProvideGrokSessionCredentialService, // P0: Grok 会话凭据服务
+	ProvideGrokConsoleDPoPProvider,      // P2: Console DPoP Provider
+	ProvideConsoleModelCatalog,          // P2: Console 模型目录
+	ProvideKiroBuilderIDDeviceFlowService,
+	ProvideCodebuddyLoginService,
 	NewGeminiOAuthService,
 	NewGeminiQuotaService,
 	NewCompositeTokenCacheInvalidator,
@@ -903,9 +1049,12 @@ var ProviderSet = wire.NewSet(
 	ProvideCNProviderBalanceCheckService,
 	ProvideClaudeTokenProvider,
 	NewAntigravityGatewayService,
+	NewKiroGatewayService,
+	ProvideCodebuddyGatewayService,
 	ProvideRateLimitService,
 	ProvideAccountUsageService,
 	ProvideAccountTestService,
+	ProvideGrokReasoningProbeService,
 	ProvideUpstreamBillingProbeService,
 	ProvideOllamaCloudUsageService,
 	ProvideOpenCodeGoUsageService,
@@ -961,6 +1110,8 @@ var ProviderSet = wire.NewSet(
 	ProvideIdempotencyCleanupService,
 	ProvideScheduledTestService,
 	ProvideScheduledTestRunnerService,
+	ProvideAccountPoolProbeRunner,
+	ProvideCodebuddyMaintenanceRunner,
 	NewGroupCapacityService,
 	NewChannelService,
 	wire.Bind(new(ChannelCacheInvalidator), new(*ChannelService)),
@@ -979,6 +1130,11 @@ var ProviderSet = wire.NewSet(
 	ProvideChannelMonitorV2Aggregator,
 	NewChannelMonitorRequestTemplateService,
 	ProvideUserPlatformQuotaUsageFlusher,
+	ProvideMihomoEngine,
+	ProvideProxySubscriptionService,
+	ProvideProxySubscriptionRunner,
+	NewDynamicProxyPoolService,
+	ProvideDynamicProxyPoolRunner,
 )
 
 // ProvideUserPlatformQuotaUsageFlusher 创建并启动 UserPlatformQuotaUsageFlusher。
@@ -1048,6 +1204,63 @@ func ProvideChannelMonitorRunner(
 		svc.SetScheduler(r)
 		svc.SetQuotaFetcher(quotaFetcher)
 	}
+	r.Start()
+	return r
+}
+
+// ProvideMihomoEngine creates the in-process mihomo process manager.
+func ProvideMihomoEngine(cfg *config.Config) *MihomoEngine {
+	binary := ""
+	dataDir := "data/proxy-subscriptions"
+	if cfg != nil {
+		binary = strings.TrimSpace(cfg.ProxySubscription.MihomoBinary)
+		if d := strings.TrimSpace(cfg.ProxySubscription.DataDir); d != "" {
+			dataDir = d
+		}
+	}
+	return NewMihomoEngine(binary, dataDir)
+}
+
+// ProvideProxySubscriptionService creates CRUD + sync service for embedded subscriptions.
+func ProvideProxySubscriptionService(
+	repo ProxySubscriptionRepository,
+	proxyRepo ProxyRepository,
+	engine *MihomoEngine,
+	cfg *config.Config,
+) *ProxySubscriptionService {
+	svc := NewProxySubscriptionService(repo, proxyRepo, engine)
+	if cfg != nil {
+		svc.SetAllowInsecureSubscription(cfg.ProxySubscription.AllowInsecureSubscription)
+		svc.SetAllowNonLocalBind(cfg.ProxySubscription.AllowNonLocalBind)
+	}
+	return svc
+}
+
+// ProvideDynamicProxyPoolRunner creates and starts the periodic IP refresh runner.
+func ProvideDynamicProxyPoolRunner(
+	svc *DynamicProxyPoolService,
+	lockCache LeaderLockCache,
+	db *sql.DB,
+) *DynamicProxyPoolRunner {
+	r := NewDynamicProxyPoolRunner(svc, 30*time.Second)
+	r.SetLeaderLock(lockCache, db)
+	r.Start()
+	return r
+}
+
+// ProvideProxySubscriptionRunner creates and starts the due-sync background runner.
+func ProvideProxySubscriptionRunner(
+	svc *ProxySubscriptionService,
+	cfg *config.Config,
+	lockCache LeaderLockCache,
+	db *sql.DB,
+) *ProxySubscriptionRunner {
+	interval := 30 * time.Second
+	if cfg != nil && cfg.ProxySubscription.RunnerIntervalSec > 0 {
+		interval = time.Duration(cfg.ProxySubscription.RunnerIntervalSec) * time.Second
+	}
+	r := NewProxySubscriptionRunner(svc, interval)
+	r.SetLeaderLock(lockCache, db)
 	r.Start()
 	return r
 }

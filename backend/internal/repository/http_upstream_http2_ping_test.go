@@ -52,7 +52,7 @@ func TestBuildUpstreamTransport_HTTP2PingPolicy(t *testing.T) {
 					peerDone <- err
 				}()
 
-				tr, err := buildUpstreamTransport(http2KeepAliveTestPoolSettings(), nil, tc.mode)
+				tr, err := buildUpstreamTransport(http2KeepAliveTestPoolSettings(), nil, tc.mode, "")
 				require.NoError(t, err)
 				defer tr.CloseIdleConnections()
 				// 仅把 TLS 建连替换为内存 HTTP/2 连接，保活参数仍来自生产构建器。

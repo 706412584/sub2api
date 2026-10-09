@@ -104,6 +104,8 @@ const (
 	FieldFallbackGroupID = "fallback_group_id"
 	// FieldFallbackGroupIDOnInvalidRequest holds the string denoting the fallback_group_id_on_invalid_request field in the database.
 	FieldFallbackGroupIDOnInvalidRequest = "fallback_group_id_on_invalid_request"
+	// FieldDefaultProxyID holds the string denoting the default_proxy_id field in the database.
+	FieldDefaultProxyID = "default_proxy_id"
 	// FieldModelRouting holds the string denoting the model_routing field in the database.
 	FieldModelRouting = "model_routing"
 	// FieldModelRoutingEnabled holds the string denoting the model_routing_enabled field in the database.
@@ -118,6 +120,14 @@ const (
 	FieldAllowMessagesDispatch = "allow_messages_dispatch"
 	// FieldAllowLive holds the string denoting the allow_live field in the database.
 	FieldAllowLive = "allow_live"
+	// FieldGrokMessagesProtocol holds the string denoting the grok_messages_protocol field in the database.
+	FieldGrokMessagesProtocol = "grok_messages_protocol"
+	// FieldGrokReasoningVisibilityMode holds the string denoting the grok_reasoning_visibility_mode field in the database.
+	FieldGrokReasoningVisibilityMode = "grok_reasoning_visibility_mode"
+	// FieldGrokReasoningProbeTTLSec holds the string denoting the grok_reasoning_probe_ttl_sec field in the database.
+	FieldGrokReasoningProbeTTLSec = "grok_reasoning_probe_ttl_sec"
+	// FieldGrokReasoningQuarantineSec holds the string denoting the grok_reasoning_quarantine_sec field in the database.
+	FieldGrokReasoningQuarantineSec = "grok_reasoning_quarantine_sec"
 	// FieldForceOpenaiFast holds the string denoting the force_openai_fast field in the database.
 	FieldForceOpenaiFast = "force_openai_fast"
 	// FieldFreeOpenaiFast holds the string denoting the free_openai_fast field in the database.
@@ -134,6 +144,8 @@ const (
 	FieldModelAllowlist = "model_allowlist"
 	// FieldCodexModelsManifestConfig holds the string denoting the codex_models_manifest_config field in the database.
 	FieldCodexModelsManifestConfig = "codex_models_manifest_config"
+	// FieldPromptPolicy holds the string denoting the prompt_policy field in the database.
+	FieldPromptPolicy = "prompt_policy"
 	// FieldRpmLimit holds the string denoting the rpm_limit field in the database.
 	FieldRpmLimit = "rpm_limit"
 	// FieldMaxReasoningEffort holds the string denoting the max_reasoning_effort field in the database.
@@ -267,6 +279,7 @@ var Columns = []string{
 	FieldClaudeCodeOnly,
 	FieldFallbackGroupID,
 	FieldFallbackGroupIDOnInvalidRequest,
+	FieldDefaultProxyID,
 	FieldModelRouting,
 	FieldModelRoutingEnabled,
 	FieldMcpXMLInject,
@@ -274,6 +287,10 @@ var Columns = []string{
 	FieldSortOrder,
 	FieldAllowMessagesDispatch,
 	FieldAllowLive,
+	FieldGrokMessagesProtocol,
+	FieldGrokReasoningVisibilityMode,
+	FieldGrokReasoningProbeTTLSec,
+	FieldGrokReasoningQuarantineSec,
 	FieldForceOpenaiFast,
 	FieldFreeOpenaiFast,
 	FieldRequireOauthOnly,
@@ -282,6 +299,7 @@ var Columns = []string{
 	FieldMessagesDispatchModelConfig,
 	FieldModelAllowlist,
 	FieldCodexModelsManifestConfig,
+	FieldPromptPolicy,
 	FieldRpmLimit,
 	FieldMaxReasoningEffort,
 	FieldMaxReasoningEffortOverLimit,
@@ -398,6 +416,18 @@ var (
 	DefaultAllowMessagesDispatch bool
 	// DefaultAllowLive holds the default value on creation for the "allow_live" field.
 	DefaultAllowLive bool
+	// DefaultGrokMessagesProtocol holds the default value on creation for the "grok_messages_protocol" field.
+	DefaultGrokMessagesProtocol string
+	// GrokMessagesProtocolValidator is a validator for the "grok_messages_protocol" field. It is called by the builders before save.
+	GrokMessagesProtocolValidator func(string) error
+	// DefaultGrokReasoningVisibilityMode holds the default value on creation for the "grok_reasoning_visibility_mode" field.
+	DefaultGrokReasoningVisibilityMode string
+	// GrokReasoningVisibilityModeValidator is a validator for the "grok_reasoning_visibility_mode" field. It is called by the builders before save.
+	GrokReasoningVisibilityModeValidator func(string) error
+	// DefaultGrokReasoningProbeTTLSec holds the default value on creation for the "grok_reasoning_probe_ttl_sec" field.
+	DefaultGrokReasoningProbeTTLSec int
+	// DefaultGrokReasoningQuarantineSec holds the default value on creation for the "grok_reasoning_quarantine_sec" field.
+	DefaultGrokReasoningQuarantineSec int
 	// DefaultForceOpenaiFast holds the default value on creation for the "force_openai_fast" field.
 	DefaultForceOpenaiFast bool
 	// DefaultFreeOpenaiFast holds the default value on creation for the "free_openai_fast" field.
@@ -416,6 +446,8 @@ var (
 	DefaultModelAllowlist domain.GroupModelAllowlist
 	// DefaultCodexModelsManifestConfig holds the default value on creation for the "codex_models_manifest_config" field.
 	DefaultCodexModelsManifestConfig domain.GroupCodexModelsManifestConfig
+	// DefaultPromptPolicy holds the default value on creation for the "prompt_policy" field.
+	DefaultPromptPolicy domain.GroupPromptPolicy
 	// DefaultRpmLimit holds the default value on creation for the "rpm_limit" field.
 	DefaultRpmLimit int
 	// DefaultMaxReasoningEffort holds the default value on creation for the "max_reasoning_effort" field.
@@ -654,6 +686,11 @@ func ByFallbackGroupIDOnInvalidRequest(opts ...sql.OrderTermOption) OrderOption 
 	return sql.OrderByField(FieldFallbackGroupIDOnInvalidRequest, opts...).ToFunc()
 }
 
+// ByDefaultProxyID orders the results by the default_proxy_id field.
+func ByDefaultProxyID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDefaultProxyID, opts...).ToFunc()
+}
+
 // ByModelRoutingEnabled orders the results by the model_routing_enabled field.
 func ByModelRoutingEnabled(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldModelRoutingEnabled, opts...).ToFunc()
@@ -677,6 +714,26 @@ func ByAllowMessagesDispatch(opts ...sql.OrderTermOption) OrderOption {
 // ByAllowLive orders the results by the allow_live field.
 func ByAllowLive(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldAllowLive, opts...).ToFunc()
+}
+
+// ByGrokMessagesProtocol orders the results by the grok_messages_protocol field.
+func ByGrokMessagesProtocol(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldGrokMessagesProtocol, opts...).ToFunc()
+}
+
+// ByGrokReasoningVisibilityMode orders the results by the grok_reasoning_visibility_mode field.
+func ByGrokReasoningVisibilityMode(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldGrokReasoningVisibilityMode, opts...).ToFunc()
+}
+
+// ByGrokReasoningProbeTTLSec orders the results by the grok_reasoning_probe_ttl_sec field.
+func ByGrokReasoningProbeTTLSec(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldGrokReasoningProbeTTLSec, opts...).ToFunc()
+}
+
+// ByGrokReasoningQuarantineSec orders the results by the grok_reasoning_quarantine_sec field.
+func ByGrokReasoningQuarantineSec(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldGrokReasoningQuarantineSec, opts...).ToFunc()
 }
 
 // ByForceOpenaiFast orders the results by the force_openai_fast field.

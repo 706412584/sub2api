@@ -1,5 +1,7 @@
 export default {
   common: {
+    pageOf: '第 {page} / {pages} 页',
+    prev: '上一页',
     loading: '加载中...',
     submitting: '提交中...',
     justNow: '刚刚',
@@ -184,6 +186,7 @@ export default {
     accounts: '账号管理',
     plugins: '插件管理',
     proxies: 'IP管理',
+    imBots: 'IM 机器人',
     redeemCodes: '兑换码',
     ops: '运维监控',
     promoCodes: '优惠码',

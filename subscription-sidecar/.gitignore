@@ -1,0 +1,8 @@
+# Built binaries at module root only (do not ignore cmd/subscription-sidecar/)
+/subscription-sidecar
+/subscription-sidecar.exe
+data/
+*.log
+.env
+*.env
+!deploy/subscription-sidecar.env.example

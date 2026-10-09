@@ -13,6 +13,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
+	"github.com/Wei-Shaw/sub2api/internal/im"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
 	"github.com/Wei-Shaw/sub2api/internal/repository"
 	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
@@ -46,6 +47,9 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 
 		// Server layer ProviderSet
 		server.ProviderSet,
+
+		// IM chat bots
+		im.ProviderSet,
 
 		// Privacy client factory for OpenAI training opt-out
 		providePrivacyClientFactory,
@@ -118,9 +122,13 @@ func provideCleanup(
 	grokOAuth *service.GrokOAuthService,
 	openAIGateway *service.OpenAIGatewayService,
 	scheduledTestRunner *service.ScheduledTestRunnerService,
+	accountPoolProbe *service.AccountPoolProbeRunner,
+	codebuddyMaintenance *service.CodebuddyMaintenanceRunner,
 	backupSvc *service.BackupService,
 	paymentOrderExpiry *service.PaymentOrderExpiryService,
 	channelMonitorRunner *service.ChannelMonitorRunner,
+	proxySubscriptionRunner *service.ProxySubscriptionRunner,
+	dynamicProxyPoolRunner *service.DynamicProxyPoolRunner,
 	channelMonitorV2Aggregator *service.ChannelMonitorV2Aggregator,
 	quotaFlusher *service.UserPlatformQuotaUsageFlusher,
 	upstreamBillingProbe *service.UpstreamBillingProbeService,
@@ -130,6 +138,7 @@ func provideCleanup(
 	openAIAutoReset *service.OpenAIQuotaAutoResetService,
 	promptAudit *securityaudit.PromptService,
 	pluginManager *service.PluginManager,
+	imHub *im.Hub,
 ) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -142,6 +151,12 @@ func provideCleanup(
 
 		// 应用层清理步骤可并行执行，基础设施资源（Redis/Ent）最后按顺序关闭。
 		parallelSteps := []cleanupStep{
+			{"IMHub", func() error {
+				if imHub != nil {
+					imHub.Stop()
+				}
+				return nil
+			}},
 			{"PluginManager", func() error {
 				if pluginManager != nil {
 					pluginManager.Stop()
@@ -344,6 +359,18 @@ func provideCleanup(
 				}
 				return nil
 			}},
+			{"AccountPoolProbeRunner", func() error {
+				if accountPoolProbe != nil {
+					accountPoolProbe.Stop()
+				}
+				return nil
+			}},
+			{"CodebuddyMaintenanceRunner", func() error {
+				if codebuddyMaintenance != nil {
+					codebuddyMaintenance.Stop()
+				}
+				return nil
+			}},
 			{"BackupService", func() error {
 				if backupSvc != nil {
 					backupSvc.Stop()
@@ -365,6 +392,18 @@ func provideCleanup(
 			{"ChannelMonitorRunner", func() error {
 				if channelMonitorRunner != nil {
 					channelMonitorRunner.Stop()
+				}
+				return nil
+			}},
+			{"ProxySubscriptionRunner", func() error {
+				if proxySubscriptionRunner != nil {
+					proxySubscriptionRunner.Stop()
+				}
+				return nil
+			}},
+			{"DynamicProxyPoolRunner", func() error {
+				if dynamicProxyPoolRunner != nil {
+					dynamicProxyPoolRunner.Stop()
 				}
 				return nil
 			}},

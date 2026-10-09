@@ -120,8 +120,18 @@ func (h *SystemHandler) PerformUpdate(c *gin.Context) {
 		}
 		succeeded = true
 
+		// Schedule platform restart after the response is sent.
+		// On Windows the process that just swapped the binary still runs the
+		// old image; waiting for a second /restart click can leave the old
+		// process alive forever (pre-fix builds no-op, or the user never
+		// clicks). Linux relies on systemd Restart=always after exit.
+		go func() {
+			time.Sleep(500 * time.Millisecond)
+			sysutil.RestartServiceAsync()
+		}()
+
 		return gin.H{
-			"message":      "Update completed. Please restart the service.",
+			"message":      "Update completed. Service restart initiated.",
 			"need_restart": true,
 			"operation_id": lock.OperationID(),
 		}, nil
@@ -189,8 +199,14 @@ func (h *SystemHandler) Rollback(c *gin.Context) {
 		}
 		succeeded = true
 
+		// Same as update: binary is on disk; load it without a manual stop/start.
+		go func() {
+			time.Sleep(500 * time.Millisecond)
+			sysutil.RestartServiceAsync()
+		}()
+
 		return gin.H{
-			"message":      "Rollback completed. Please restart the service.",
+			"message":      "Rollback completed. Service restart initiated.",
 			"need_restart": true,
 			"version":      targetVersion,
 			"operation_id": lock.OperationID(),

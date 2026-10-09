@@ -626,6 +626,34 @@ func assertGrokGatewayReasoningEfforts(t *testing.T, groupID int64, modelID stri
 	require.Equal(t, want, model.ReasoningEfforts)
 }
 
+func TestGatewayModels_GrokGroupFallsBackToXAIModels(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	groupID := int64(26)
+	h := newGatewayModelsHandlerForTest(
+		&gatewayModelsAccountRepoStub{
+			byGroup: map[int64][]service.Account{},
+		},
+	)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	c.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{
+		Group: &service.Group{ID: groupID, Platform: service.PlatformGrok},
+	})
+
+	h.Models(c)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var got gatewayModelsResponseForTest
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Equal(t, "list", got.Object)
+	require.Contains(t, modelIDsForTest(got.Data), "grok-4.5")
+	require.NotContains(t, modelIDsForTest(got.Data), "claude-sonnet-4-6")
+}
+
 func TestGatewayModels_GeminiGroupFiltersMappedModelsByPlatform(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -1469,9 +1497,12 @@ func TestGatewayModels_GeminiGroupIncludesAntigravityGeminiMappings(t *testing.T
 	ids := modelIDsForTest(got.Data)
 	// 账号显式配置的 gemini-* 映射必须出现（resolveModelMapping 还会补一组 antigravity
 	// 默认透传别名，这里只断言显式条目与排除项，不锁定补齐后的完整集合）。
-	require.Contains(t, ids, "gemini-3.8-flash-high")
+	// 本分支的列表策略：有裸名入口的家族（3.6/3.8）档位变体折叠为裸名，
+	// 显式配置的 gemini-3.8-flash-high/low 在对外列表中表现为 gemini-3.8-flash。
+	require.Contains(t, ids, "gemini-3.8-flash")
 	require.Contains(t, ids, "gemini-synced-custom")
-	require.Contains(t, ids, "gemini-3.8-flash-low")
+	require.NotContains(t, ids, "gemini-3.8-flash-high")
+	require.NotContains(t, ids, "gemini-3.8-flash-low")
 	require.Contains(t, ids, "gemini-native-only")
 	require.NotContains(t, ids, "gemini-disabled-only")
 	require.NotContains(t, ids, "gemini-unset-only")
@@ -1515,7 +1546,9 @@ func TestGatewayModels_GeminiGroupUsesAntigravityDefaultMappingWhenUnset(t *test
 	var got gatewayModelsResponseForTest
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 	ids := modelIDsForTest(got.Data)
-	require.Contains(t, ids, "gemini-3.8-flash-high")
+	// 档位变体在对外列表中折叠为裸名（本分支的 antigravity 列表策略）。
+	require.Contains(t, ids, "gemini-3.8-flash")
+	require.NotContains(t, ids, "gemini-3.8-flash-high")
 	for _, id := range ids {
 		require.True(t, strings.HasPrefix(id, "gemini-"), "unexpected non-gemini model on gemini group: %s", id)
 	}
@@ -1562,7 +1595,8 @@ func TestGatewayModels_CodexGeminiGroupListsAntigravityGeminiMappings(t *testing
 	var got codexModelsResponseForTest
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 	slugs := codexModelSlugsForTest(got.Models)
-	require.Contains(t, slugs, "gemini-3.8-flash-high")
+	require.Contains(t, slugs, "gemini-3.8-flash")
+	require.NotContains(t, slugs, "gemini-3.8-flash-high")
 	require.Contains(t, slugs, "gemini-synced-custom")
 	require.NotContains(t, slugs, "claude-sonnet-4-6")
 	require.NotContains(t, slugs, "gemini-2.0-flash")

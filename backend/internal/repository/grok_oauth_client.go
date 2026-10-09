@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -15,6 +16,8 @@ import (
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	sharedhttp "github.com/Wei-Shaw/sub2api/internal/pkg/httpclient"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/proxyurl"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/proxyutil"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/Wei-Shaw/sub2api/internal/util/logredact"
@@ -22,7 +25,8 @@ import (
 )
 
 type grokOAuthClient struct {
-	tokenURL string
+	tokenURL       string
+	egressResolver EgressProxyResolver
 }
 
 const (
@@ -34,19 +38,27 @@ const (
 	yesCaptchaGetResult  = "https://api.yescaptcha.com/getTaskResult"
 )
 
-func NewGrokOAuthClient() service.GrokOAuthClient {
-	// Fail closed: never fall back to an unvalidated EffectiveTokenURL (env can
-	// point at an attacker host and steal code/refresh tokens).
+func NewGrokOAuthClient(resolver EgressProxyResolver) service.GrokOAuthClient {
 	tokenURL, err := xai.ValidatedTokenURL()
 	if err != nil || strings.TrimSpace(tokenURL) == "" {
-		// Official allowlisted endpoint only — never EffectiveTokenURL() (raw env).
 		tokenURL = xai.DefaultTokenURL
 	}
-	return &grokOAuthClient{tokenURL: tokenURL}
+	return &grokOAuthClient{tokenURL: tokenURL, egressResolver: resolver}
+}
+
+func (c *grokOAuthClient) resolveEgress(ctx context.Context, proxyURL string) string {
+	if c == nil || c.egressResolver == nil || strings.TrimSpace(proxyURL) == "" {
+		return ""
+	}
+	normalized, _, err := proxyurl.Parse(proxyURL)
+	if err != nil {
+		return ""
+	}
+	return c.egressResolver.ResolveEgress(ctx, normalized)
 }
 
 func (c *grokOAuthClient) ExchangeCode(ctx context.Context, code, codeVerifier, redirectURI, proxyURL, clientID string) (*xai.TokenResponse, error) {
-	client, err := createGrokReqClient(proxyURL)
+	client, err := createGrokReqClient(proxyURL, c.resolveEgress(ctx, proxyURL))
 	if err != nil {
 		return nil, infraerrors.Newf(http.StatusBadGateway, "GROK_OAUTH_CLIENT_INIT_FAILED", "create HTTP client: %v", err)
 	}
@@ -80,7 +92,7 @@ func (c *grokOAuthClient) ExchangeCode(ctx context.Context, code, codeVerifier, 
 }
 
 func (c *grokOAuthClient) RefreshToken(ctx context.Context, refreshToken, proxyURL, clientID string) (*xai.TokenResponse, error) {
-	client, err := createGrokReqClient(proxyURL)
+	client, err := createGrokReqClient(proxyURL, c.resolveEgress(ctx, proxyURL))
 	if err != nil {
 		return nil, infraerrors.Newf(http.StatusBadGateway, "GROK_OAUTH_CLIENT_INIT_FAILED", "create HTTP client: %v", err)
 	}
@@ -137,7 +149,7 @@ func (c *grokOAuthClient) LoginWithPassword(ctx context.Context, email, password
 }
 
 func (c *grokOAuthClient) ConvertSSOToBuild(ctx context.Context, ssoToken, proxyURL string) (*xai.TokenResponse, error) {
-	client, err := createGrokSSOHTTPClient(proxyURL)
+	client, err := createGrokSSOHTTPClient(proxyURL, c.resolveEgress(ctx, proxyURL))
 	if err != nil {
 		return nil, infraerrors.Newf(http.StatusBadGateway, "GROK_SSO_CLIENT_INIT_FAILED", "create HTTP client: %v", err)
 	}
@@ -151,14 +163,41 @@ func (c *grokOAuthClient) ConvertSSOToBuild(ctx context.Context, ssoToken, proxy
 	return tokenResp, nil
 }
 
-func createGrokReqClient(proxyURL string) (*req.Client, error) {
+func createGrokReqClient(proxyURL, egressURL string) (*req.Client, error) {
+	if strings.TrimSpace(egressURL) != "" {
+		transport, err := buildOAuthEgressTransport(proxyURL, egressURL)
+		if err != nil {
+			return nil, err
+		}
+		client := req.C().SetTimeout(60 * time.Second)
+		client.GetClient().Transport = transport
+		// Skip instrumentReqClient for the egress path: the custom transport
+		// already handles servertiming and the req Transport wrapper would
+		// override our DialContext/Proxy configuration.
+		return client, nil
+	}
 	return getSharedReqClient(reqClientOptions{
 		ProxyURL: proxyURL,
 		Timeout:  60 * time.Second,
 	})
 }
 
-func createGrokSSOHTTPClient(proxyURL string) (*http.Client, error) {
+func createGrokSSOHTTPClient(proxyURL, egressURL string) (*http.Client, error) {
+	if strings.TrimSpace(egressURL) != "" {
+		transport, err := buildOAuthEgressTransport(proxyURL, egressURL)
+		if err != nil {
+			return nil, err
+		}
+		transport.DisableCompression = false
+		client := &http.Client{
+			Transport: transport,
+			Timeout:   xai.SSOConversionTimeout,
+			CheckRedirect: func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		}
+		return client, nil
+	}
 	client, err := sharedhttp.GetClient(sharedhttp.Options{
 		ProxyURL:              proxyURL,
 		Timeout:               xai.SSOConversionTimeout,
@@ -172,6 +211,30 @@ func createGrokSSOHTTPClient(proxyURL string) (*http.Client, error) {
 		return http.ErrUseLastResponse
 	}
 	return &clone, nil
+}
+
+func buildOAuthEgressTransport(proxyURL, egressURL string) (*http.Transport, error) {
+	base := &http.Transport{
+		DialContext:         (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
+		TLSHandshakeTimeout: 10 * time.Second,
+	}
+	_, parsedTarget, err := proxyurl.Parse(proxyURL)
+	if err != nil || parsedTarget == nil {
+		return nil, fmt.Errorf("parse target proxy: %w", err)
+	}
+	_, parsedEgress, err := proxyurl.Parse(egressURL)
+	if err != nil || parsedEgress == nil {
+		return nil, fmt.Errorf("parse egress proxy: %w", err)
+	}
+	egressDialer, err := newEgressDialer(parsedEgress.String(), &net.Dialer{Timeout: 10 * time.Second})
+	if err != nil {
+		return nil, err
+	}
+	base.DialContext = egressDialer.DialContext
+	if err := proxyutil.ConfigureTransportProxyWithDialContextToProxy(base, parsedTarget, net.JoinHostPort(parsedTarget.Hostname(), parsedTarget.Port()), egressDialer.DialContext); err != nil {
+		return nil, err
+	}
+	return base, nil
 }
 
 func grokSSOConversionError(err error) error {

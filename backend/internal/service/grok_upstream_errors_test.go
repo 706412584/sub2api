@@ -329,6 +329,25 @@ func TestHandleGrokAccountUpstreamErrorEntitlement403KeepsDefaultCooldown(t *tes
 	require.Less(t, repo.lastTempUnschedUntil, before.Add(31*time.Minute))
 }
 
+func TestHandleGrokAccountUpstreamErrorPaymentRequiredTempUnschedules(t *testing.T) {
+	repo := &grokQuotaAccountRepo{}
+	svc := &OpenAIGatewayService{accountRepo: repo}
+	account := &Account{ID: 4719, Platform: PlatformGrok, Type: AccountTypeOAuth}
+	before := time.Now()
+
+	svc.handleGrokAccountUpstreamError(
+		context.Background(), account, http.StatusPaymentRequired, nil,
+		[]byte(`{"error":{"message":"billing period exhausted - upgrade to continue"}}`),
+	)
+
+	require.Equal(t, 1, repo.tempUnschedCalls)
+	require.Equal(t, "grok payment required", repo.lastTempUnschedReason)
+	require.Greater(t, repo.lastTempUnschedUntil, before.Add(29*time.Minute))
+	require.Less(t, repo.lastTempUnschedUntil, before.Add(31*time.Minute))
+	require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))
+
+}
+
 func TestHandleGrokAccountUpstreamErrorDefaultCooldownsRespectPoolMode(t *testing.T) {
 	for _, statusCode := range []int{
 		http.StatusUnauthorized,

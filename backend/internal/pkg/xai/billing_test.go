@@ -29,7 +29,10 @@ func TestBuildBillingURLWithValidator(t *testing.T) {
 }
 
 func TestApplyCLIBillingHeaders(t *testing.T) {
-	t.Parallel()
+	// Not parallel: shares process-level CLI version resolver with sibling tests.
+	SetCLIClientVersionResolver(nil)
+	t.Cleanup(func() { SetCLIClientVersionResolver(nil) })
+
 	req, err := http.NewRequest(http.MethodGet, BuildBillingURL(true), nil)
 	require.NoError(t, err)
 
@@ -40,6 +43,22 @@ func TestApplyCLIBillingHeaders(t *testing.T) {
 	require.Equal(t, CLIClientVersion, req.Header.Get(CLIClientVersionHeader))
 	require.Equal(t, CLIUserAgent(CLIClientVersion), req.UserAgent())
 	require.Equal(t, "interactive", req.Header.Get("x-grok-client-mode"))
+}
+
+func TestEffectiveCLIClientVersionUsesResolver(t *testing.T) {
+	SetCLIClientVersionResolver(func() string { return "1.0.60" })
+	t.Cleanup(func() { SetCLIClientVersionResolver(nil) })
+
+	require.Equal(t, "1.0.60", EffectiveCLIClientVersion())
+
+	req, err := http.NewRequest(http.MethodGet, BuildBillingURL(false), nil)
+	require.NoError(t, err)
+	ApplyCLIBillingHeaders(req, "tok")
+	require.Equal(t, "1.0.60", req.Header.Get(CLIClientVersionHeader))
+
+	SetCLIClientVersionResolver(nil)
+	require.Equal(t, CLIClientVersion, EffectiveCLIClientVersion())
+}
 }
 
 func TestBuildBillingSummaryWeeklyAndMonthly(t *testing.T) {

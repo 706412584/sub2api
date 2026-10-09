@@ -144,7 +144,8 @@ func (i *PluginPackageInstaller) Install(ctx context.Context, reader io.Reader, 
 	if err := i.extractArchive(ctx, &archive.Reader, manifest, extractPath); err != nil {
 		return nil, err
 	}
-	// Windows 不允许重命名仍被打开的文件，提交前先释放 ZIP 读取器。
+	// Windows 上 rename 打开中的文件会失败（"being used by another process"），
+	// 提交前先释放 zip 句柄；Linux 无影响。
 	closeArchive()
 	if err := os.Rename(extractPath, installPath); err != nil {
 		return nil, fmt.Errorf("提交插件安装目录: %w", err)

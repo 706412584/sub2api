@@ -1,5 +1,7 @@
 export default {
   common: {
+    pageOf: 'Page {page} of {pages}',
+    prev: 'Previous',
     loading: 'Loading...',
     submitting: 'Submitting...',
     justNow: 'just now',
@@ -184,6 +186,7 @@ export default {
     accounts: 'Accounts',
     plugins: 'Plugins',
     proxies: 'Proxies',
+    imBots: 'IM Bots',
     redeemCodes: 'Redeem Codes',
     ops: 'Ops',
     promoCodes: 'Promo Codes',

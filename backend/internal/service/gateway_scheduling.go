@@ -735,6 +735,44 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 			}
 		}
 
+		// ============ 调度策略反哺（阶段 B，setting 门控）============
+		// 三因子加权选号：credits占比×10 + 闲置补偿 + 成功率×3，Top-N 内加权随机。
+		// 关闭时逐字走原有「优先级 → 最早重置 → 负载率 → LRU」路径。
+		weightedMode := s.schedulerWeightedSelectionEnabled(ctx)
+		if weightedMode {
+			for len(available) > 0 {
+				weighted := make([]*Account, 0, len(available))
+				for i := range available {
+					weighted = append(weighted, available[i].account)
+				}
+				picked := s.schedulerWeightedSelect(ctx, weighted)
+				if picked == nil {
+					break
+				}
+				result, err := s.tryAcquireAccountSlot(ctx, picked.ID, picked.Concurrency)
+				if err == nil && result.Acquired {
+					if s.checkAndRegisterSession(ctx, picked, sessionHash) {
+						if sessionHash != "" && s.cache != nil {
+							_ = s.bindGatewayStickySessionDuringSelection(ctx, groupID, sessionHash, picked.ID)
+						}
+						s.schedulerWeightedNotePick(picked.ID)
+						return s.newSelectionResult(ctx, picked, true, result.ReleaseFunc, nil)
+					}
+					result.ReleaseFunc()
+				}
+				// 加权选中的账号槽位不可得/会话已满：移除后重新加权。
+				for i := len(available) - 1; i >= 0; i-- {
+					if available[i].account.ID == picked.ID {
+						available = append(available[:i], available[i+1:]...)
+						break
+					}
+				}
+			}
+			if len(available) == 0 {
+				return nil, ErrNoAvailableAccounts
+			}
+		}
+
 		// 分层过滤选择：优先级 →（可选）最早重置 → 负载率 → LRU
 		for len(available) > 0 {
 			// 1. 取优先级最小的集合
@@ -2001,6 +2039,13 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 			if acc.Priority < selected.Priority {
 				selected = acc
 			} else if acc.Priority == selected.Priority {
+				if accTier, selTier, applies := compareAntigravityTier(acc, selected); applies && accTier < selTier {
+					selected = acc
+					continue
+				} else if applies && selTier < accTier {
+					// 在位者 tier 更高：拒绝后来者，不落入 LRU 比较
+					continue
+				}
 				switch {
 				case acc.LastUsedAt == nil && selected.LastUsedAt != nil:
 					selected = acc
@@ -2118,6 +2163,13 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 		if acc.Priority < selected.Priority {
 			selected = acc
 		} else if acc.Priority == selected.Priority {
+			if accTier, selTier, applies := compareAntigravityTier(acc, selected); applies && accTier < selTier {
+				selected = acc
+				continue
+			} else if applies && selTier < accTier {
+				// 在位者 tier 更高：拒绝后来者，不落入 LRU 比较
+				continue
+			}
 			switch {
 			case acc.LastUsedAt == nil && selected.LastUsedAt != nil:
 				selected = acc
@@ -2267,6 +2319,13 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 			if acc.Priority < selected.Priority {
 				selected = acc
 			} else if acc.Priority == selected.Priority {
+				if accTier, selTier, applies := compareAntigravityTier(acc, selected); applies && accTier < selTier {
+					selected = acc
+					continue
+				} else if applies && selTier < accTier {
+					// 在位者 tier 更高：拒绝后来者，不落入 LRU 比较
+					continue
+				}
 				switch {
 				case acc.LastUsedAt == nil && selected.LastUsedAt != nil:
 					selected = acc
@@ -2385,6 +2444,13 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 		if acc.Priority < selected.Priority {
 			selected = acc
 		} else if acc.Priority == selected.Priority {
+			if accTier, selTier, applies := compareAntigravityTier(acc, selected); applies && accTier < selTier {
+				selected = acc
+				continue
+			} else if applies && selTier < accTier {
+				// 在位者 tier 更高：拒绝后来者，不落入 LRU 比较
+				continue
+			}
 			switch {
 			case acc.LastUsedAt == nil && selected.LastUsedAt != nil:
 				selected = acc
@@ -2661,4 +2727,37 @@ func (s *GatewayService) isModelSupportedByAccount(account *Account, requestedMo
 	}
 	// 其他平台使用账户的模型支持检查
 	return account.IsModelSupported(requestedModel)
+}
+
+// antigravityTierRank 返回 Antigravity 账号的订阅等级优先序（越小越优先）。
+// ULTRA=0 > PRO=1 > FREE=2 > 缺失/未知=3。tier 读取内存 credentials["plan_type"]
+// （OAuth 刷新链路持续更新），归一化复用 normalizeTier。
+func antigravityTierRank(account *Account) int {
+	if account == nil || account.Platform != PlatformAntigravity {
+		return 3
+	}
+	switch normalizeTier(account.GetCredential("plan_type")) {
+	case "ULTRA":
+		return 0
+	case "PRO":
+		return 1
+	case "FREE":
+		return 2
+	default:
+		return 3
+	}
+}
+
+// compareAntigravityTier 比较两个账号的 Antigravity 订阅等级。
+// 仅当两个账号均为 Antigravity 平台时 applies=true（跨平台配对不干预，
+// 避免改变混合调度的选择分布）；否则返回 (0, 0, false)，由调用方落入
+// 原有 Priority/LRU 比较链。
+func compareAntigravityTier(acc, selected *Account) (accTier, selectedTier int, applies bool) {
+	if acc == nil || selected == nil {
+		return 0, 0, false
+	}
+	if acc.Platform != PlatformAntigravity || selected.Platform != PlatformAntigravity {
+		return 0, 0, false
+	}
+	return antigravityTierRank(acc), antigravityTierRank(selected), true
 }

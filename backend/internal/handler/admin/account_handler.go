@@ -47,6 +47,16 @@ func NewOAuthHandler(oauthService *service.OAuthService) *OAuthHandler {
 	}
 }
 
+var defaultKiroModels = []openai.Model{
+	{ID: "claude-sonnet-4.6", Object: "model", OwnedBy: "kiro", Type: "model", DisplayName: "Claude Sonnet 4.6"},
+	{ID: "claude-opus-4.7", Object: "model", OwnedBy: "kiro", Type: "model", DisplayName: "Claude Opus 4.7"},
+	{ID: "claude-haiku-4.5", Object: "model", OwnedBy: "kiro", Type: "model", DisplayName: "Claude Haiku 4.5"},
+}
+
+type availableModelsCacheInvalidator interface {
+	InvalidateAvailableModelsCache(groupID *int64, platform string)
+}
+
 // AccountHandler handles admin account management
 type AccountHandler struct {
 	claudeResetCredits      claudeResetReader
@@ -66,7 +76,9 @@ type AccountHandler struct {
 	tokenCacheInvalidator   service.TokenCacheInvalidator
 	grokImportProber        grokImportProber
 	upstreamBillingProbe    *service.UpstreamBillingProbeService
+	modelsCacheInvalidator  availableModelsCacheInvalidator
 	ollamaCloudUsage        *service.OllamaCloudUsageService
+	grokSession             service.GrokSessionCredentialService
 	cfg                     *config.Config
 	opencodeGoUsage         *service.OpenCodeGoUsageService
 }
@@ -76,8 +88,17 @@ func (h *AccountHandler) SetUpstreamBillingProbeService(probe *service.UpstreamB
 	h.upstreamBillingProbe = probe
 }
 
+func (h *AccountHandler) SetAvailableModelsCacheInvalidator(invalidator availableModelsCacheInvalidator) {
+	h.modelsCacheInvalidator = invalidator
+}
+
 func (h *AccountHandler) SetOllamaCloudUsageService(usage *service.OllamaCloudUsageService) {
 	h.ollamaCloudUsage = usage
+}
+
+// SetGrokSessionCredentialService attaches the Grok Console/Web session service.
+func (h *AccountHandler) SetGrokSessionCredentialService(svc service.GrokSessionCredentialService) {
+	h.grokSession = svc
 }
 
 func (h *AccountHandler) SetOpenCodeGoUsageService(usage *service.OpenCodeGoUsageService) {
@@ -124,7 +145,7 @@ type CreateAccountRequest struct {
 	Name                    string         `json:"name" binding:"required"`
 	Notes                   *string        `json:"notes"`
 	Platform                string         `json:"platform" binding:"required"`
-	Type                    string         `json:"type" binding:"required,oneof=oauth setup-token apikey upstream bedrock service_account"`
+	Type                    string         `json:"type" binding:"required,oneof=oauth setup-token apikey upstream bedrock service_account grok_console grok_web"`
 	Credentials             map[string]any `json:"credentials" binding:"required"`
 	Extra                   map[string]any `json:"extra"`
 	ProxyID                 *int64         `json:"proxy_id"`
@@ -144,7 +165,7 @@ type CreateAccountRequest struct {
 type UpdateAccountRequest struct {
 	Name                    string         `json:"name"`
 	Notes                   *string        `json:"notes"`
-	Type                    string         `json:"type" binding:"omitempty,oneof=oauth setup-token apikey upstream bedrock service_account"`
+	Type                    string         `json:"type" binding:"omitempty,oneof=oauth setup-token apikey upstream bedrock service_account grok_console grok_web"`
 	Credentials             map[string]any `json:"credentials"`
 	Extra                   map[string]any `json:"extra"`
 	ProxyID                 *int64         `json:"proxy_id"`
@@ -647,6 +668,7 @@ func (h *AccountHandler) List(c *gin.Context) {
 	status := c.Query("status")
 	search := c.Query("search")
 	privacyMode := strings.TrimSpace(c.Query("privacy_mode"))
+	risk := strings.TrimSpace(c.Query("risk"))
 	sortBy := c.DefaultQuery("sort_by", "name")
 	sortOrder := c.DefaultQuery("sort_order", "asc")
 	// 标准化和验证 search 参数
@@ -680,6 +702,26 @@ func (h *AccountHandler) List(c *gin.Context) {
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
+	}
+	// 风控标记筛选（仅 Grok 平台字段）：flagged=被标记(1/2)，normal=未标记。
+	// 数据量通常较小，采用内存过滤以避免改动整个列表查询链路。
+	if risk != "" && len(accounts) > 0 {
+		filtered := accounts[:0]
+		for _, acc := range accounts {
+			flagged := acc.IsGrokBotFlagged()
+			switch risk {
+			case "flagged":
+				if flagged {
+					filtered = append(filtered, acc)
+				}
+			case "normal":
+				if !flagged {
+					filtered = append(filtered, acc)
+				}
+			}
+		}
+		accounts = filtered
+		total = int64(len(filtered))
 	}
 	if len(accounts) > 0 {
 		accountPointers := make([]*service.Account, len(accounts))
@@ -1266,11 +1308,59 @@ type TestAccountRequest struct {
 	ModelID string `json:"model_id"`
 	Prompt  string `json:"prompt"`
 	Mode    string `json:"mode"`
+	// OverrideProxyID temporarily forces the outbound proxy for this single test only.
+	// nil/omitted: keep the account's bound proxy.
+	// 0: force direct (no proxy).
+	// >0: use that proxy from IP management.
+	OverrideProxyID *int64 `json:"override_proxy_id"`
 	// Optional media for Grok (and future) real generation tests.
 	// ImageDataURL / AudioDataURL are data:<mime>;base64,... payloads.
 	ImageDataURL string `json:"image_data_url"`
 	AudioDataURL string `json:"audio_data_url"`
 }
+
+type BatchTestAccountsRequest struct {
+	AccountIDs []int64 `json:"account_ids"`
+	ModelID    string  `json:"model_id"`
+	Mode       string  `json:"mode"`
+	// OverrideProxyID temporarily forces the outbound proxy for this batch only.
+	// nil/omitted: keep each account's bound proxy.
+	// 0: force direct (no proxy).
+	// >0: use that proxy from IP management for every account in the batch.
+	OverrideProxyID *int64 `json:"override_proxy_id"`
+	// Deprecated: previously filtered accounts by bound proxy_id. Ignored.
+	ProxyIDs    []int64 `json:"proxy_ids"`
+	IntervalMs  *int    `json:"interval_ms"`
+	Concurrency *int    `json:"concurrency"`
+}
+
+type BatchTestAccountItem struct {
+	AccountID int64  `json:"account_id"`
+	Name      string `json:"name"`
+	Success   bool   `json:"success"`
+	Status    string `json:"status"`
+	LatencyMs int64  `json:"latency_ms"`
+	Error     string `json:"error"`
+}
+
+type BatchTestAccountsResponse struct {
+	Total   int                    `json:"total"`
+	Success int                    `json:"success"`
+	Failed  int                    `json:"failed"`
+	Items   []BatchTestAccountItem `json:"items"`
+}
+
+const (
+	batchTestAccountsMax            = 100
+	batchTestAccountsTimeout        = 5 * time.Minute
+	batchTestDefaultConcurrency     = 5
+	batchTestGrokDefaultConcurrency = 1
+	batchTestMaxConcurrency         = 50
+	batchTestDefaultIntervalMs      = 0
+	batchTestGrokDefaultIntervalMs  = 5000
+	batchTestMaxIntervalMs          = 60000
+	batchTestNoProxyID              = int64(0)
+)
 
 type SyncFromCRSRequest struct {
 	BaseURL            string   `json:"base_url" binding:"required"`
@@ -1299,6 +1389,19 @@ func (h *AccountHandler) Test(c *gin.Context) {
 	// Allow empty body, model_id is optional
 	_ = c.ShouldBindJSON(&req)
 
+	if h.accountTestService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Account test service unavailable")
+		return
+	}
+
+	proxyOverride, err := resolveBatchTestProxyOverride(c.Request.Context(), h.adminService, req.OverrideProxyID)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	if proxyOverride != nil {
+		c.Request = c.Request.WithContext(service.WithTestProxyOverride(c.Request.Context(), proxyOverride))
+	}
 	opts := service.AccountTestOptions{
 		ImageDataURL: req.ImageDataURL,
 		AudioDataURL: req.AudioDataURL,
@@ -1315,6 +1418,242 @@ func (h *AccountHandler) Test(c *gin.Context) {
 			_ = c.Error(err)
 		}
 	}
+}
+
+func normalizeBatchTestAccountIDs(requested []int64) ([]int64, error) {
+	if len(requested) == 0 {
+		return nil, errors.New("account_ids is required")
+	}
+	accountIDs := make([]int64, 0, len(requested))
+	seen := make(map[int64]struct{}, len(requested))
+	for _, accountID := range requested {
+		if accountID <= 0 {
+			return nil, errors.New("account_ids must contain positive IDs")
+		}
+		if _, exists := seen[accountID]; exists {
+			continue
+		}
+		seen[accountID] = struct{}{}
+		accountIDs = append(accountIDs, accountID)
+		if len(accountIDs) > batchTestAccountsMax {
+			return nil, fmt.Errorf("account_ids cannot exceed %d unique IDs", batchTestAccountsMax)
+		}
+	}
+	return accountIDs, nil
+}
+
+func resolveBatchTestProxyOverride(ctx context.Context, adminService service.AdminService, overrideProxyID *int64) (*service.TestProxyOverride, error) {
+	if overrideProxyID == nil {
+		return nil, nil
+	}
+	if *overrideProxyID < 0 {
+		return nil, errors.New("override_proxy_id must be >= 0")
+	}
+	if *overrideProxyID == batchTestNoProxyID {
+		return &service.TestProxyOverride{ForceDirect: true}, nil
+	}
+	if adminService == nil {
+		return nil, errors.New("proxy service unavailable")
+	}
+	proxy, err := adminService.GetProxy(ctx, *overrideProxyID)
+	if err != nil {
+		return nil, fmt.Errorf("override proxy not found: %w", err)
+	}
+	if proxy == nil {
+		return nil, errors.New("override proxy not found")
+	}
+	if !proxy.IsActive() {
+		return nil, fmt.Errorf("override proxy %d is not active", proxy.ID)
+	}
+	if proxy.IsExpired(time.Now()) {
+		return nil, fmt.Errorf("override proxy %d is expired", proxy.ID)
+	}
+	return &service.TestProxyOverride{Proxy: proxy}, nil
+}
+
+func resolveBatchTestMode(mode string, accounts []*service.Account) (string, error) {
+	normalized := strings.ToLower(strings.TrimSpace(mode))
+	if normalized == "" || normalized == service.AccountTestModeDefault {
+		return service.AccountTestModeDefault, nil
+	}
+	if normalized != service.AccountTestModeCompact {
+		return "", fmt.Errorf("mode must be %q or %q", service.AccountTestModeDefault, service.AccountTestModeCompact)
+	}
+	if len(accounts) == 0 {
+		return "", errors.New("compact mode requires OpenAI accounts")
+	}
+	for _, account := range accounts {
+		if account == nil || !account.IsOpenAI() {
+			return "", errors.New("compact mode is only supported when all selected accounts are OpenAI")
+		}
+	}
+	return service.AccountTestModeCompact, nil
+}
+
+func resolveBatchTestSchedule(accounts []*service.Account, concurrency *int, intervalMs *int) (int, int, error) {
+	hasGrok := false
+	for _, account := range accounts {
+		if account != nil && account.IsGrok() {
+			hasGrok = true
+			break
+		}
+	}
+
+	resolvedConcurrency := batchTestDefaultConcurrency
+	resolvedIntervalMs := batchTestDefaultIntervalMs
+	if hasGrok {
+		resolvedConcurrency = batchTestGrokDefaultConcurrency
+		resolvedIntervalMs = batchTestGrokDefaultIntervalMs
+	}
+	if concurrency != nil {
+		resolvedConcurrency = *concurrency
+	}
+	if intervalMs != nil {
+		resolvedIntervalMs = *intervalMs
+	}
+	if resolvedConcurrency < 1 || resolvedConcurrency > batchTestMaxConcurrency {
+		return 0, 0, fmt.Errorf("concurrency must be between 1 and %d", batchTestMaxConcurrency)
+	}
+	if resolvedIntervalMs < 0 || resolvedIntervalMs > batchTestMaxIntervalMs {
+		return 0, 0, fmt.Errorf("interval_ms must be between 0 and %d", batchTestMaxIntervalMs)
+	}
+	return resolvedConcurrency, resolvedIntervalMs, nil
+}
+
+func (h *AccountHandler) BatchTestAccounts(c *gin.Context) {
+	var req BatchTestAccountsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	accountIDs, err := normalizeBatchTestAccountIDs(req.AccountIDs)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	if h.accountTestService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Account test service unavailable")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), batchTestAccountsTimeout)
+	defer cancel()
+	accounts, err := h.adminService.GetAccountsByIDs(ctx, accountIDs)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	accountByID := make(map[int64]*service.Account, len(accounts))
+	for _, account := range accounts {
+		if account != nil {
+			accountByID[account.ID] = account
+		}
+	}
+
+	orderedAccounts := make([]*service.Account, 0, len(accountIDs))
+	orderedIDs := make([]int64, 0, len(accountIDs))
+	for _, accountID := range accountIDs {
+		account := accountByID[accountID]
+		orderedIDs = append(orderedIDs, accountID)
+		orderedAccounts = append(orderedAccounts, account)
+	}
+
+	proxyOverride, err := resolveBatchTestProxyOverride(ctx, h.adminService, req.OverrideProxyID)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	// Mode/schedule validation only considers accounts that will actually be tested.
+	existingAccounts := make([]*service.Account, 0, len(orderedAccounts))
+	for _, account := range orderedAccounts {
+		if account != nil {
+			existingAccounts = append(existingAccounts, account)
+		}
+	}
+	mode, err := resolveBatchTestMode(req.Mode, existingAccounts)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	concurrency, intervalMs, err := resolveBatchTestSchedule(existingAccounts, req.Concurrency, req.IntervalMs)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	items := make([]BatchTestAccountItem, len(orderedIDs))
+	var mu sync.Mutex
+	var successCount, failedCount int
+	markItem := func(index int, item BatchTestAccountItem) {
+		mu.Lock()
+		defer mu.Unlock()
+		items[index] = item
+		if item.Success {
+			successCount++
+		} else {
+			failedCount++
+		}
+	}
+
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(concurrency)
+	started := 0
+	for index, accountID := range orderedIDs {
+		index, accountID := index, accountID
+		account := orderedAccounts[index]
+		if account == nil {
+			markItem(index, BatchTestAccountItem{AccountID: accountID, Status: "failed", Error: "account not found"})
+			continue
+		}
+		if started > 0 && intervalMs > 0 {
+			timer := time.NewTimer(time.Duration(intervalMs) * time.Millisecond)
+			select {
+			case <-gctx.Done():
+				timer.Stop()
+				markItem(index, BatchTestAccountItem{
+					AccountID: account.ID,
+					Name:      account.Name,
+					Status:    "failed",
+					Error:     gctx.Err().Error(),
+				})
+				continue
+			case <-timer.C:
+			}
+		}
+		started++
+		g.Go(func() error {
+			result, testErr := h.accountTestService.RunTestBackground(gctx, account.ID, req.ModelID, mode, proxyOverride)
+			item := BatchTestAccountItem{AccountID: account.ID, Name: account.Name, Status: "failed"}
+			if result != nil {
+				item.Status = result.Status
+				item.LatencyMs = result.LatencyMs
+				item.Error = result.ErrorMessage
+			}
+			if testErr != nil {
+				item.Error = testErr.Error()
+			} else if result != nil && result.Status == "success" {
+				item.Success = true
+				if h.rateLimitService != nil {
+					if _, err := h.rateLimitService.RecoverAccountAfterSuccessfulTest(gctx, account.ID); err != nil {
+						slog.Warn("batch_test_account_recover_failed", "account_id", account.ID, "err", err)
+					}
+				}
+			}
+			if !item.Success && item.Error == "" {
+				item.Error = "account test failed"
+			}
+			markItem(index, item)
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, BatchTestAccountsResponse{Total: len(orderedIDs), Success: successCount, Failed: failedCount, Items: items})
 }
 
 // RecoverState handles unified recovery of recoverable account runtime state.
@@ -1403,6 +1742,9 @@ func (h *AccountHandler) PreviewFromCRS(c *gin.Context) {
 // refreshSingleAccount refreshes credentials for a single OAuth account.
 // Returns (updatedAccount, warning, error) where warning is used for Antigravity ProjectIDMissing scenario.
 func (h *AccountHandler) refreshSingleAccount(ctx context.Context, account *service.Account) (*service.Account, string, error) {
+	if account != nil && account.IsKiroAPIKey() {
+		return nil, "", infraerrors.BadRequest("KIRO_API_KEY_NO_REFRESH", "Kiro API key accounts cannot be refreshed")
+	}
 	if !account.IsOAuth() {
 		return nil, "", infraerrors.BadRequest("NOT_OAUTH", "cannot refresh non-OAuth account")
 	}
@@ -1481,11 +1823,19 @@ func (h *AccountHandler) refreshSingleAccount(ctx context.Context, account *serv
 				return nil, "", fmt.Errorf("failed to clear account error: %w", clearErr)
 			}
 		}
+	} else if account.Platform == service.PlatformKiro {
+		kiroRefresher := service.NewKiroTokenRefresher()
+		refreshedCredentials, refreshErr := kiroRefresher.Refresh(ctx, account)
+		if refreshErr != nil {
+			return nil, "", fmt.Errorf("failed to refresh Kiro credentials: %w", refreshErr)
+		}
+		newCredentials = refreshedCredentials
 	} else if account.Platform == service.PlatformGrok {
 		if h.grokOAuthService == nil {
 			return nil, "", fmt.Errorf("grok oauth service is not configured")
 		}
-		tokenInfo, err := h.grokOAuthService.RefreshAccountToken(ctx, account)
+		// RT first; on failure/missing RT, fall back to extra.sso device convert.
+		tokenInfo, err := service.RefreshGrokAccountTokenWithSSOFallback(ctx, h.grokOAuthService, account)
 		if err != nil {
 			return nil, "", fmt.Errorf("failed to refresh Grok credentials: %w", err)
 		}
@@ -1525,6 +1875,20 @@ func (h *AccountHandler) refreshSingleAccount(ctx context.Context, account *serv
 	})
 	if err != nil {
 		return nil, "", err
+	}
+
+	// Grok: 刷新成功后若账号仍为 error，清掉错误态（含 SSO 回退救回的账号）
+	if account.Platform == service.PlatformGrok && account.Status == service.StatusError {
+		if cleared, clearErr := h.adminService.ClearAccountError(ctx, account.ID); clearErr != nil {
+			slog.Warn("grok refresh clear_error_failed",
+				"account_id", account.ID,
+				"err", clearErr,
+			)
+		} else if cleared != nil {
+			// ClearError 重读 DB，凭证已在 UpdateAccount 落库
+			cleared.Credentials = updatedAccount.Credentials
+			updatedAccount = cleared
+		}
 	}
 
 	// 刷新成功后，清除 token 缓存，确保下次请求使用新 token
@@ -2789,6 +3153,59 @@ func (h *AccountHandler) SetSchedulable(c *gin.Context) {
 	response.Success(c, h.buildAccountResponseWithRuntime(c.Request.Context(), account))
 }
 
+// mergeAccountMappingIntoOpenAIModels 把账号 model_mapping 的键并入上游实时目录。
+//
+// 上游 f88d62ad2 让测试连接下拉改用实时 /v1/models 目录后，账号里手工添加的
+// 自定义模型（mapping 有键、上游目录没返回）就从下拉里消失了，管理员无法在
+// 测试连接里选到它。账号映射是管理员的显式声明，必须叠加在实时目录之上：
+// 目录里已有的保持原样，只补 mapping 独有且带通配符之外的键。
+//
+// 上游 de28eea11（v0.2.8）又在 FetchOpenAIAccountModels 里加了按 mapping 的投影，
+// 只保留「mapping 命中且上游目录存在」的 id，因此映射到上游缺失模型的键仍会被丢掉，
+// 本函数的补全依然是它们唯一的出口；两者是叠加关系而非重复。
+//
+// 是否真能跑通由上游裁决（网关对 OpenAI API Key 账号按 mapping 准入并透传），
+// 这里不做可用性预判。
+func mergeAccountMappingIntoOpenAIModels(models []openai.Model, account *service.Account) []openai.Model {
+	if account == nil {
+		return models
+	}
+	mapping := account.GetModelMapping()
+	if len(mapping) == 0 {
+		return models
+	}
+	seen := make(map[string]struct{}, len(models))
+	for _, model := range models {
+		seen[model.ID] = struct{}{}
+	}
+	extra := make([]string, 0, len(mapping))
+	for requestedModel := range mapping {
+		if _, ok := seen[requestedModel]; ok {
+			continue
+		}
+		// 通配符是准入规则而不是具体模型名，不能出现在下拉里。
+		if strings.Contains(requestedModel, "*") {
+			continue
+		}
+		extra = append(extra, requestedModel)
+	}
+	if len(extra) == 0 {
+		return models
+	}
+	sort.Strings(extra)
+	merged := make([]openai.Model, 0, len(models)+len(extra))
+	merged = append(merged, models...)
+	for _, id := range extra {
+		merged = append(merged, openai.Model{
+			ID:          id,
+			Object:      "model",
+			Type:        "model",
+			DisplayName: id,
+		})
+	}
+	return merged
+}
+
 // GetAvailableModels handles getting available models for an account
 // GET /api/v1/admin/accounts/:id/models
 func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
@@ -2810,7 +3227,7 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 		// retain the legacy local catalog below so the test dialog remains usable.
 		if h.accountTestService != nil {
 			if models, fetchErr := h.accountTestService.FetchOpenAIAccountModels(c.Request.Context(), account); fetchErr == nil {
-				response.Success(c, models)
+				response.Success(c, mergeAccountMappingIntoOpenAIModels(models, account))
 				return
 			}
 		}
@@ -2896,7 +3313,80 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 
 	// Explicit account mappings expose their request-side names to connectivity tests.
 	if account.Platform == service.PlatformAntigravity {
-		response.Success(c, antigravityAccountTestModels(account.Credentials["model_mapping"]))
+		// 按账号映射过滤：上游按账号灰度开放档位（例如有的账号 3.8 只有
+		// tiered 没有 low/medium/high），返回全量默认列表会让用户在下拉里
+		// 选到该账号实际不可用的档位，测试连接直接 not in whitelist。
+		mapping := account.GetModelMapping()
+		if len(mapping) == 0 {
+			response.Success(c, antigravity.DefaultModels())
+			return
+		}
+		defaults := antigravity.DefaultModels()
+		models := make([]antigravity.ClaudeModel, 0, len(mapping))
+		seen := make(map[string]struct{}, len(mapping))
+		for _, dm := range defaults {
+			if _, ok := mapping[dm.ID]; ok {
+				models = append(models, dm)
+				seen[dm.ID] = struct{}{}
+			}
+		}
+		// 映射里存在但默认列表没有的模型（上游同步回来的新档位等）原样列出
+		for requestedModel := range mapping {
+			if _, ok := seen[requestedModel]; ok {
+				continue
+			}
+			models = append(models, antigravity.ClaudeModel{
+				ID:          requestedModel,
+				Type:        "model",
+				DisplayName: requestedModel,
+				CreatedAt:   "",
+			})
+		}
+		// 有裸名入口的分档家族折叠档位变体：裸名会按 reasoning effort 自动
+		// 选档（缺档时落 tiered），tiered/low/medium/high 与裸名是同一个模型，
+		// 留在列表里只会造成重复项（3.8 显示两个同名的 "Gemini 3.8 Flash"）。
+		// 无裸名入口的家族（映射里只有带档位的名字）保持原样。
+		models = service.CollapseAntigravityTierVariantsForAdmin(models)
+		response.Success(c, models)
+		return
+	}
+
+	// Handle Kiro accounts
+	if account.Platform == service.PlatformKiro {
+		mapping := account.GetModelMapping()
+		if len(mapping) == 0 && h.accountTestService != nil {
+			if upstreamModels, syncErr := h.accountTestService.FetchUpstreamSupportedModels(c.Request.Context(), account); syncErr == nil {
+				modelMapping := make(map[string]any, len(upstreamModels))
+				mapping = make(map[string]string, len(upstreamModels))
+				for _, model := range upstreamModels {
+					modelMapping[model] = model
+					mapping[model] = model
+				}
+				credentials := make(map[string]any, len(account.Credentials)+1)
+				for key, value := range account.Credentials {
+					credentials[key] = value
+				}
+				credentials["model_mapping"] = modelMapping
+				if _, updateErr := h.adminService.UpdateAccount(c.Request.Context(), account.ID, &service.UpdateAccountInput{Credentials: credentials}); updateErr == nil && h.modelsCacheInvalidator != nil {
+					h.modelsCacheInvalidator.InvalidateAvailableModelsCache(nil, account.Platform)
+				}
+			}
+		}
+		if len(mapping) == 0 {
+			response.Success(c, defaultKiroModels)
+			return
+		}
+
+		models := make([]openai.Model, 0, len(mapping))
+		for requestedModel := range mapping {
+			models = append(models, openai.Model{
+				ID:          requestedModel,
+				Object:      "model",
+				Type:        "model",
+				DisplayName: requestedModel,
+			})
+		}
+		response.Success(c, models)
 		return
 	}
 
@@ -2912,6 +3402,21 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 			hasExplicitMapping = len(rawMapping) > 0
 		}
 		if !hasExplicitMapping {
+			// Console / Web 会话账号使用各自来源的模型目录，与 Build OAuth 不同。
+			switch account.Type {
+			case service.AccountTypeGrokWeb:
+				webIDs := service.GrokWebCatalogModels()
+				sort.Strings(webIDs)
+				models := make([]xai.Model, 0, len(webIDs))
+				for _, id := range webIDs {
+					models = append(models, xai.Model{ID: id, Object: "model", OwnedBy: "xai", DisplayName: id})
+				}
+				response.Success(c, models)
+				return
+			case service.AccountTypeGrokConsole:
+				response.Success(c, defaultModels)
+				return
+			}
 			response.Success(c, defaultModels)
 			return
 		}
@@ -2935,6 +3440,11 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 
 		var models []xai.Model
 		for _, requestedModel := range requestedModels {
+			// 前缀别名（xai/、x-ai/、grok/）只用于接受该形式的请求，不在下拉里展示，
+			// 否则同一模型会以裸名 + 3 个前缀名重复出现。
+			if xai.HasGrokProviderPrefix(requestedModel) {
+				continue
+			}
 			if defaultModel, found := defaultByID[requestedModel]; found {
 				models = append(models, defaultModel)
 				continue
@@ -3078,6 +3588,28 @@ func (h *AccountHandler) SyncUpstreamModels(c *gin.Context) {
 		slog.Warn("sync_upstream_models_failed", "account_id", accountID)
 		response.Error(c, http.StatusBadGateway, "Failed to sync upstream models from upstream")
 		return
+	}
+
+	// fork 定制保留：同步成功后把模型列表写回 model_mapping（导入预编辑链路），
+	// 同时返回上游新结构的完整 catalog。
+	models := catalog.Models
+	modelMapping := make(map[string]any, len(models))
+	for _, model := range models {
+		modelMapping[model] = model
+	}
+	credentials := make(map[string]any, len(account.Credentials)+1)
+	for key, value := range account.Credentials {
+		credentials[key] = value
+	}
+	credentials["model_mapping"] = modelMapping
+	if _, err := h.adminService.UpdateAccount(c.Request.Context(), accountID, &service.UpdateAccountInput{
+		Credentials: credentials,
+	}); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if h.modelsCacheInvalidator != nil {
+		h.modelsCacheInvalidator.InvalidateAvailableModelsCache(nil, account.Platform)
 	}
 
 	response.Success(c, catalog)
@@ -3240,6 +3772,253 @@ func (h *AccountHandler) RefreshTier(c *gin.Context) {
 // BatchRefreshTierRequest represents batch tier refresh request
 type BatchRefreshTierRequest struct {
 	AccountIDs []int64 `json:"account_ids"`
+}
+
+// SyncUpstreamModelsBulkRequest 批量同步上游模型目录。
+// 服务端一次请求内并发逐个账号抓取并写回 model_mapping，前端不需要按账号轮询。
+// 支持两种定位方式：显式 account_ids，或 filters（按当前筛选条件解析目标）。
+type SyncUpstreamModelsBulkRequest struct {
+	AccountIDs []int64                   `json:"account_ids"`
+	Filters    *BulkUpdateAccountFilters `json:"filters"`
+}
+
+// SyncUpstreamModelsBulk 批量同步所选账号的上游模型目录并写回各自 model_mapping。
+// POST /api/v1/admin/accounts/models/sync-upstream-bulk
+//
+// 逐账号独立处理：单个账号失败不影响其它账号（与 bulk-update 的部分成功语义一致），
+// 结果按账号汇总返回，便于前端展示成功/失败明细。
+func (h *AccountHandler) SyncUpstreamModelsBulk(c *gin.Context) {
+	var req SyncUpstreamModelsBulkRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	// 先校验目标，再检查依赖：请求本身不合法时应回 400 而不是 500。
+	if len(req.AccountIDs) == 0 && req.Filters == nil {
+		response.BadRequest(c, "account_ids or filters is required")
+		return
+	}
+
+	if h.accountTestService == nil {
+		response.InternalError(c, "Account test service is not configured")
+		return
+	}
+
+	// 按筛选条件定位目标（与 bulk-update 同语义）：仍是单次请求，服务端自行解析。
+	if len(req.AccountIDs) == 0 {
+		resolved, err := h.adminService.ResolveBulkUpdateTargetIDs(ctx, toServiceBulkUpdateAccountFilters(req.Filters))
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+		req.AccountIDs = resolved
+	}
+
+	// 去重，避免同一账号被并发写两次 model_mapping。
+	seen := make(map[int64]struct{}, len(req.AccountIDs))
+	ids := make([]int64, 0, len(req.AccountIDs))
+	for _, id := range req.AccountIDs {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+
+	if len(ids) == 0 {
+		response.Success(c, gin.H{
+			"total": 0, "success": 0, "failed": 0,
+			"failed_ids": []int64{}, "added_total": 0, "results": []gin.H{},
+		})
+		return
+	}
+
+	fetched, err := h.adminService.GetAccountsByIDs(ctx, ids)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	byID := make(map[int64]*service.Account, len(fetched))
+	for _, acc := range fetched {
+		if acc != nil {
+			byID[acc.ID] = acc
+		}
+	}
+
+	// 与 BatchRefreshTier 一致的并发上限，避免同时打爆上游。
+	const maxConcurrency = 10
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(maxConcurrency)
+
+	var mu sync.Mutex
+	var successCount, failedCount int
+	var addedTotal int
+	results := make([]gin.H, 0, len(ids))
+	failedIDs := make([]int64, 0)
+
+	for _, id := range ids {
+		account := byID[id]
+		g.Go(func() error {
+			if account == nil {
+				mu.Lock()
+				failedCount++
+				failedIDs = append(failedIDs, id)
+				results = append(results, gin.H{"account_id": id, "success": false, "error": "Account not found"})
+				mu.Unlock()
+				return nil
+			}
+
+			item := gin.H{"account_id": id, "success": false}
+
+			catalog, syncErr := h.accountTestService.SyncUpstreamModelCatalog(gctx, account)
+			if syncErr != nil {
+				item["error"] = upstreamModelSyncSafeMessage(syncErr)
+				mu.Lock()
+				failedCount++
+				failedIDs = append(failedIDs, id)
+				results = append(results, item)
+				mu.Unlock()
+				return nil
+			}
+
+			models := catalog.Models
+			if len(models) == 0 {
+				// 上游没有返回任何模型：不写入，避免把账号已有的完整映射清空。
+				item["error"] = "Upstream returned no models to sync"
+				mu.Lock()
+				failedCount++
+				failedIDs = append(failedIDs, id)
+				results = append(results, item)
+				mu.Unlock()
+				return nil
+			}
+
+			// 并集语义（与单账号编辑一致）：只把上游新模型并入现有映射，绝不删除
+			// 已有条目。整体覆盖会让上游只声明少量模型（如 Grok CLI 代理仅 grok-4.7）
+			// 的账号丢失既有目录，表现为测试下拉只剩一个模型。
+			merged, added := mergeUpstreamModelsIntoMapping(account.GetModelMapping(), models)
+
+			item["success"] = true
+			item["model_count"] = len(models)
+			item["added_count"] = added
+
+			if added == 0 {
+				// 上游模型已全部在映射中：无变化，不写库（对齐单账号编辑的提示语义）。
+				item["unchanged"] = true
+				mu.Lock()
+				successCount++
+				results = append(results, item)
+				mu.Unlock()
+				return nil
+			}
+
+			credentials := make(map[string]any, len(account.Credentials)+1)
+			for key, value := range account.Credentials {
+				credentials[key] = value
+			}
+			credentials["model_mapping"] = merged
+
+			_, updateErr := h.adminService.UpdateAccount(gctx, id, &service.UpdateAccountInput{
+				Credentials: credentials,
+			})
+			if updateErr != nil {
+				item["success"] = false
+				item["error"] = updateErr.Error()
+				mu.Lock()
+				failedCount++
+				failedIDs = append(failedIDs, id)
+				results = append(results, item)
+				mu.Unlock()
+				return nil
+			}
+
+			mu.Lock()
+			successCount++
+			addedTotal += added
+			results = append(results, item)
+			mu.Unlock()
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	// 按请求顺序输出，前端展示更稳定。
+	order := make(map[int64]int, len(ids))
+	for i, id := range ids {
+		order[id] = i
+	}
+	sort.SliceStable(results, func(i, j int) bool {
+		left, _ := results[i]["account_id"].(int64)
+		right, _ := results[j]["account_id"].(int64)
+		return order[left] < order[right]
+	})
+
+	if h.modelsCacheInvalidator != nil {
+		// 各账号平台可能不同，逐平台失效，避免返回陈旧模型列表。
+		platforms := make(map[string]struct{}, len(fetched))
+		for _, acc := range fetched {
+			if acc != nil {
+				platforms[acc.Platform] = struct{}{}
+			}
+		}
+		for platform := range platforms {
+			h.modelsCacheInvalidator.InvalidateAvailableModelsCache(nil, platform)
+		}
+	}
+
+	response.Success(c, gin.H{
+		"total":       len(ids),
+		"success":     successCount,
+		"failed":      failedCount,
+		"failed_ids":  failedIDs,
+		"added_total": addedTotal,
+		"results":     results,
+	})
+}
+
+// mergeUpstreamModelsIntoMapping 把上游模型并入现有映射，返回合并结果与新增数量。
+//
+// 只增不删：上游目录往往只是其自身声明的子集（例如 Grok CLI 代理的 /v1/models
+// 只返回 grok-4.7），若用整体覆盖写回，会静默丢掉账号里已有的完整映射，表现为
+// 模型下拉只剩一个模型。语义与单账号编辑页的「同步上游模型」保持一致（只追加）。
+func mergeUpstreamModelsIntoMapping(existing map[string]string, upstream []string) (map[string]any, int) {
+	merged := make(map[string]any, len(existing)+len(upstream))
+	for key, value := range existing {
+		merged[key] = value
+	}
+	added := 0
+	for _, model := range upstream {
+		model = strings.TrimSpace(model)
+		if model == "" {
+			continue
+		}
+		if _, ok := existing[model]; ok {
+			continue
+		}
+		if _, ok := merged[model]; ok {
+			continue
+		}
+		merged[model] = model
+		added++
+	}
+	return merged, added
+}
+
+// upstreamModelSyncSafeMessage 返回可安全下发给客户端的错误文案，
+// 与单账号同步的 Kind 分支保持一致的脱敏口径。
+func upstreamModelSyncSafeMessage(err error) string {
+	var syncErr *service.UpstreamModelSyncError
+	if errors.As(err, &syncErr) {
+		return syncErr.SafeMessage()
+	}
+	return "Failed to sync upstream models from upstream"
 }
 
 // BatchRefreshTier handles batch refreshing Google One tier

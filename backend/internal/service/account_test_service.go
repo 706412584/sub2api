@@ -28,7 +28,9 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/codebuddy"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
+	kiroprotocol "github.com/Wei-Shaw/sub2api/internal/pkg/kiro"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
@@ -63,6 +65,18 @@ type TestEvent struct {
 	Data     any    `json:"data,omitempty"`
 	Success  bool   `json:"success,omitempty"`
 	Error    string `json:"error,omitempty"`
+	// LatencyMs is filled on terminal events (test_complete / error) when available.
+	LatencyMs int64 `json:"latency_ms,omitempty"`
+	// ProxyName indicates which proxy was used for the test (if any).
+	ProxyName string `json:"proxy_name,omitempty"`
+	// ProxyURL is the proxy URL used for the test (if any).
+	ProxyURL string `json:"proxy_url,omitempty"`
+	// EgressIP is the public IP observed through the same proxy hop used by the test.
+	EgressIP string `json:"egress_ip,omitempty"`
+	// EgressLatencyMs is the latency of the egress IP probe (not the model call).
+	EgressLatencyMs int64 `json:"egress_latency_ms,omitempty"`
+	// EgressError is set when the egress IP probe failed (proxy may still work for the model call).
+	EgressError string `json:"egress_error,omitempty"`
 }
 
 // AccountTestOptions carries optional media for admin connectivity tests.
@@ -87,6 +101,7 @@ const (
 	defaultGeminiImageTestPrompt = "Generate a cute orange cat astronaut sticker on a clean pastel background."
 	defaultOpenAIImageTestPrompt = "Generate a cute orange cat astronaut sticker on a clean pastel background."
 	defaultGrokImageTestPrompt   = "Generate a cute orange cat astronaut sticker on a clean pastel background."
+	defaultGrokTextTestPrompt    = "Reply with exactly one word: pong"
 	defaultGrokVideoTestPrompt   = "A red ball bouncing once on a white floor, short simple motion."
 	defaultGrokSearchTestQuery   = "xAI Grok"
 	defaultGrokTTSTestText       = "Hello from Sub2API account connectivity test."
@@ -108,6 +123,49 @@ const (
 // isOpenAIImageModel checks if the model is an OpenAI image generation model (e.g. gpt-image-2).
 func isOpenAIImageModel(model string) bool {
 	return strings.HasPrefix(strings.ToLower(model), "gpt-image-")
+}
+
+// TestProxyOverride temporarily changes the outbound proxy for an account test
+// without persisting account.proxy_id. Nil means use the account's bound proxy.
+type TestProxyOverride struct {
+	// ForceDirect forces a direct connection (no proxy).
+	ForceDirect bool
+	// Proxy is used when ForceDirect is false and Proxy is non-nil.
+	Proxy *Proxy
+}
+
+type testProxyOverrideContextKey struct{}
+type testStartedAtContextKey struct{}
+
+// WithTestProxyOverride temporarily changes the outbound proxy for an account
+// test without persisting account.proxy_id. Nil override is a no-op.
+func WithTestProxyOverride(ctx context.Context, override *TestProxyOverride) context.Context {
+	return withTestProxyOverride(ctx, override)
+}
+
+func withTestStartedAt(ctx context.Context, startedAt time.Time) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if startedAt.IsZero() {
+		startedAt = time.Now()
+	}
+	return context.WithValue(ctx, testStartedAtContextKey{}, startedAt)
+}
+
+func testLatencyMs(ctx context.Context) int64 {
+	if ctx == nil {
+		return 0
+	}
+	startedAt, ok := ctx.Value(testStartedAtContextKey{}).(time.Time)
+	if !ok || startedAt.IsZero() {
+		return 0
+	}
+	ms := time.Since(startedAt).Milliseconds()
+	if ms < 0 {
+		return 0
+	}
+	return ms
 }
 
 func isGrokVideoGenerationModel(model string) bool {
@@ -139,6 +197,7 @@ func normalizeGrokAccountTestMode(mode string) string {
 // AccountTestService handles account testing operations
 type AccountTestService struct {
 	accountRepo               AccountRepository
+	proxyRepo                 ProxyRepository
 	geminiTokenProvider       *GeminiTokenProvider
 	claudeTokenProvider       *ClaudeTokenProvider
 	grokTokenProvider         *GrokTokenProvider
@@ -157,6 +216,32 @@ type AccountTestService struct {
 	// grokWSDialer is optional; realtime account tests use the default OpenAI-style
 	// WS dialer when nil (supports proxy + coder/websocket handshake).
 	grokWSDialer openAIWSClientDialer
+	// grokConsoleDPoP / grokWebGateway 支撑 Console/Web 会话账号的手动测试；
+	// 由 wire 注入（与网关共享同一 provider 实例）。
+	grokConsoleDPoP *GrokConsoleDPoPProvider
+	grokWebGateway  *OpenAIGatewayService
+}
+
+// SetProxyRepo 注入代理仓库（sync-upstream 的 egress 链解析需要，
+// 可选注入以兼容既有测试桩）。
+func (s *AccountTestService) SetProxyRepo(repo ProxyRepository) {
+	if s != nil {
+		s.proxyRepo = repo
+	}
+}
+
+// SetGrokConsoleDPoPProvider 注入 Console DPoP provider（手动测试用）。
+func (s *AccountTestService) SetGrokConsoleDPoPProvider(p *GrokConsoleDPoPProvider) {
+	if s != nil {
+		s.grokConsoleDPoP = p
+	}
+}
+
+// SetGrokWebGateway 注入 OpenAI 网关（复用其 Web mgw 转发实现）。
+func (s *AccountTestService) SetGrokWebGateway(g *OpenAIGatewayService) {
+	if s != nil {
+		s.grokWebGateway = g
+	}
 }
 
 func (s *AccountTestService) SetSettingService(settingService *SettingService) {
@@ -280,6 +365,86 @@ func NewAccountTestService(
 	}
 }
 
+// SetSettingService injects system settings used for Grok ops proxy defaults.
+// applyGrokOpsProxyOverrideIfNeeded injects the global Grok ops proxy when no explicit
+// TestProxyOverride is already on ctx and the account is Grok.
+func (s *AccountTestService) applyGrokOpsProxyOverrideIfNeeded(ctx context.Context, account *Account) context.Context {
+	if s == nil || account == nil || !account.IsGrok() || s.settingService == nil {
+		return ctx
+	}
+	if ctx != nil {
+		if override, ok := ctx.Value(testProxyOverrideContextKey{}).(*TestProxyOverride); ok && override != nil {
+			return ctx
+		}
+	}
+	override, err := s.settingService.ResolveGrokOpsProxyOverride(ctx)
+	if err != nil || override == nil {
+		return ctx
+	}
+	return withTestProxyOverride(ctx, override)
+}
+
+// resolveTestProxyURL returns the proxy URL for a test request.
+// A TestProxyOverride on ctx wins over the account's bound proxy and is never persisted.
+func (s *AccountTestService) resolveTestProxyURL(ctx context.Context, account *Account) string {
+	if ctx != nil {
+		if override, ok := ctx.Value(testProxyOverrideContextKey{}).(*TestProxyOverride); ok && override != nil {
+			if override.ForceDirect {
+				return ""
+			}
+			if override.Proxy != nil {
+				return override.Proxy.URL()
+			}
+		}
+	}
+	if account != nil && account.ProxyID != nil && account.Proxy != nil {
+		return account.Proxy.URL()
+	}
+	return ""
+}
+
+func (s *AccountTestService) resolveTestProxyName(ctx context.Context, account *Account) string {
+	if ctx != nil {
+		if override, ok := ctx.Value(testProxyOverrideContextKey{}).(*TestProxyOverride); ok && override != nil {
+			if override.ForceDirect {
+				return ""
+			}
+			if override.Proxy != nil {
+				return override.Proxy.Name
+			}
+		}
+	}
+	if account != nil && account.ProxyID != nil && account.Proxy != nil {
+		return account.Proxy.Name
+	}
+	return ""
+}
+
+type egressProbeHTTPUpstream interface {
+	ProbeEgress(ctx context.Context, proxyURL string, accountID int64, accountConcurrency int) (string, int64, error)
+}
+
+// probeTestEgressIP uses the same resolved transport as account requests when
+// the production upstream supports it. Test doubles that only implement Do do
+// not consume their account response during the informational probe.
+func (s *AccountTestService) probeTestEgressIP(ctx context.Context, proxyURL string, accountID int64, accountConcurrency int) (string, int64, error) {
+	prober, ok := s.httpUpstream.(egressProbeHTTPUpstream)
+	if !ok {
+		return "", 0, fmt.Errorf("egress probe unavailable")
+	}
+	return prober.ProbeEgress(ctx, proxyURL, accountID, accountConcurrency)
+}
+
+func withTestProxyOverride(ctx context.Context, override *TestProxyOverride) context.Context {
+	if override == nil {
+		return ctx
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, testProxyOverrideContextKey{}, override)
+}
+
 func (s *AccountTestService) validateUpstreamBaseURL(raw string) (string, error) {
 	if s.cfg == nil {
 		return "", errors.New("config is not available")
@@ -361,6 +526,11 @@ func createTestPayload(modelID string) (map[string]any, error) {
 func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int64, modelID string, prompt string, mode string, opts ...AccountTestOptions) error {
 	initAccountTestLogger(c, accountID, modelID, mode)
 	ctx := c.Request.Context()
+	startedAt := time.Now()
+	ctx = withTestStartedAt(ctx, startedAt)
+	if c.Request != nil {
+		c.Request = c.Request.WithContext(ctx)
+	}
 	testOpts := firstAccountTestOptions(opts)
 
 	// Get account
@@ -369,6 +539,24 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 		return s.sendErrorAndEnd(c, "Account not found")
 	}
 	bindAccountTestPlatform(c, account)
+
+	// Send proxy info event (always) so the UI can show which proxy is being used + egress IP
+	proxyName := s.resolveTestProxyName(ctx, account)
+	proxyURL := s.resolveTestProxyURL(ctx, account)
+	egressIP, egressLatency, egressErr := s.probeTestEgressIP(ctx, proxyURL, account.ID, account.Concurrency)
+	var egressErrStr string
+	if egressErr != nil {
+		egressErrStr = egressErr.Error()
+	}
+	event := TestEvent{
+		Type:            "proxy_info",
+		ProxyName:       proxyName,
+		ProxyURL:        proxyURL,
+		EgressIP:        egressIP,
+		EgressLatencyMs: egressLatency,
+		EgressError:     egressErrStr,
+	}
+	s.sendEvent(c, event)
 
 	// Synthetic UI load-test accounts exercise the real SSE parsing and modal
 	// interactions, but intentionally do not send their placeholder credentials
@@ -415,6 +603,15 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 		return s.routeAntigravityTest(c, account, modelID, prompt)
 	}
 
+	// fork 定制平台（Kiro / CodeBuddy）在上游清单平台之外，先于按模型分流判定。
+	if account.IsKiro() {
+		return s.testKiroAccountConnection(c, account, modelID)
+	}
+
+	if account.IsCodebuddy() {
+		return s.testCodebuddyAccountConnection(c, account, modelID)
+	}
+
 	// 按模型分流的多模型聚合平台（OpenCode、Command Code 等）。
 	if account.routesByModel() {
 		return s.testModelRoutedAccountConnection(c, account, modelID, prompt)
@@ -422,6 +619,10 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 
 	if account.IsTypeSafe() {
 		return s.testTypeSafeAccountConnection(c, account, prompt)
+	}
+
+	if account.IsOpenCodeGo() {
+		return s.testOpenCodeGoAccountConnection(c, account, modelID, prompt)
 	}
 
 	return s.testClaudeAccountConnection(c, account, modelID)
@@ -474,6 +675,161 @@ func (s *AccountTestService) testModelRoutedResponsesConnection(c *gin.Context, 
 	c.Writer.Flush()
 	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
 	return s.testCNProviderAdaptiveResponsesConnection(c, account, testModelID, authToken)
+}
+
+// testCodebuddyAccountConnection 测试 CodeBuddy 账号连通性：构造最小 chat 请求
+// （上游只接受 stream:true），聚合 SSE 后取 content 回显。
+func (s *AccountTestService) testCodebuddyAccountConnection(c *gin.Context, account *Account, modelID string) error {
+	ctx := c.Request.Context()
+	testModelID := strings.TrimSpace(modelID)
+	if testModelID == "" {
+		testModelID = firstCodebuddyTestModel(account)
+	}
+	testModelID = account.GetMappedModel(testModelID)
+
+	creds := codebuddy.FromCredentialsMap(account.Credentials)
+	if err := creds.Validate(); err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid CodeBuddy credentials: %s", err.Error()))
+	}
+	region := codebuddy.RegionForAccountType(account.Type)
+
+	body, err := json.Marshal(map[string]any{
+		"model":      testModelID,
+		"messages":   []map[string]string{{"role": "user", "content": "hi"}},
+		"max_tokens": 64,
+	})
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to build CodeBuddy request: %s", err.Error()))
+	}
+	request, err := codebuddy.BuildChatRequest(creds, region, codebuddy.PrepareBody(body, nil), codebuddy.EndpointOptions{})
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to build CodeBuddy request: %s", err.Error()))
+	}
+	request = request.WithContext(ctx)
+	account.ApplyHeaderOverrides(request.Header)
+
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("X-Accel-Buffering", "no")
+	c.Writer.Flush()
+	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
+
+	proxyURL := s.resolveTestProxyURL(ctx, account)
+	resp, err := s.httpUpstream.DoWithTLS(request, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("CodeBuddy request failed: %s", err.Error()))
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+		return s.sendErrorAndEnd(c, fmt.Sprintf("CodeBuddy API returned %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody))))
+	}
+	aggregated, err := codebuddy.Aggregate(resp.Body)
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("CodeBuddy stream failed: %s", err.Error()))
+	}
+	if text := strings.TrimSpace(aggregatedContent(aggregated)); text != "" {
+		s.sendEvent(c, TestEvent{Type: "text", Text: text})
+	}
+	s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+	return nil
+}
+
+// aggregatedContent 从 CodeBuddy 聚合响应里取首个 choice 的 delta.content。
+func aggregatedContent(aggregated map[string]any) string {
+	choices, ok := aggregated["choices"].([]any)
+	if !ok || len(choices) == 0 {
+		return ""
+	}
+	choice, ok := choices[0].(map[string]any)
+	if !ok {
+		return ""
+	}
+	delta, ok := choice["delta"].(map[string]any)
+	if !ok {
+		if msg, ok := choice["message"].(map[string]any); ok {
+			delta = msg
+		}
+	}
+	content, _ := delta["content"].(string)
+	return content
+}
+
+// firstCodebuddyTestModel 选测活模型：优先 "auto"（两区共有的公共别名），
+// 否则取账号模型目录首键，最后退回本区域静态表首项。
+func firstCodebuddyTestModel(account *Account) string {
+	if _, ok := account.GetModelMapping()["auto"]; ok {
+		return "auto"
+	}
+	for id := range account.GetModelMapping() {
+		return id
+	}
+	if ids := codebuddy.StaticModelIDs(codebuddy.RegionForAccountType(account.Type)); len(ids) > 0 {
+		return ids[0]
+	}
+	return "auto"
+}
+
+func (s *AccountTestService) testKiroAccountConnection(c *gin.Context, account *Account, modelID string) error {
+	ctx := c.Request.Context()
+	testModelID := strings.TrimSpace(modelID)
+	if testModelID == "" {
+		testModelID = "claude-sonnet-4.6"
+	}
+	testModelID = account.GetMappedModel(testModelID)
+	credentials := kiroprotocol.Credentials{
+		AccessToken:  strings.TrimSpace(account.GetCredential("access_token")),
+		RefreshToken: strings.TrimSpace(account.GetCredential("refresh_token")),
+		ProfileARN:   strings.TrimSpace(account.GetCredential("profile_arn")),
+		APIKey:       strings.TrimSpace(account.GetCredential("kiro_api_key")),
+		AuthMethod:   strings.TrimSpace(account.GetCredential("auth_method")),
+		APIRegion:    account.GetKiroAPIRegion(),
+		Endpoint:     kiroprotocol.Endpoint(account.GetKiroEndpoint()),
+	}
+	request, err := kiroprotocol.BuildDataPlaneRequest(
+		credentials,
+		kiroprotocol.NewRequest(uuid.NewString(), testModelID, "hi"),
+		kiroprotocol.EndpointOptions{
+			Region:        account.GetKiroAPIRegion(),
+			MachineID:     strings.TrimSpace(account.GetCredential("machine_id")),
+			KiroVersion:   "0.7.1",
+			SystemVersion: "windows",
+			NodeVersion:   "20",
+		},
+	)
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to build Kiro request: %s", err.Error()))
+	}
+	request = request.WithContext(ctx)
+	account.ApplyHeaderOverrides(request.Header)
+
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("X-Accel-Buffering", "no")
+	c.Writer.Flush()
+	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
+
+	proxyURL := s.resolveTestProxyURL(ctx, account)
+	resp, err := s.httpUpstream.DoWithTLS(request, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Kiro request failed: %s", err.Error()))
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Kiro API returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body))))
+	}
+	result, err := kiroprotocol.CollectResponse(resp.Body, 0)
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Kiro stream failed: %s", err.Error()))
+	}
+	if text := strings.TrimSpace(result.Content); text != "" {
+		s.sendEvent(c, TestEvent{Type: "text", Text: text})
+	}
+	s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+	return nil
 }
 
 func (s *AccountTestService) testCNProviderChatCompletionsConnection(c *gin.Context, account *Account, modelID string, prompt string) error {
@@ -598,10 +954,7 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 	account.ApplyHeaderOverrides(req.Header)
 
 	// Get proxy URL
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := s.resolveTestProxyURL(ctx, account)
 
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
@@ -670,10 +1023,7 @@ func (s *AccountTestService) testClaudeVertexServiceAccountConnection(c *gin.Con
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := s.resolveTestProxyURL(ctx, account)
 
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
@@ -756,10 +1106,7 @@ func (s *AccountTestService) testBedrockAccountConnection(c *gin.Context, ctx co
 		}
 	}
 
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := s.resolveTestProxyURL(ctx, account)
 
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, nil)
 	if err != nil {
@@ -946,10 +1293,7 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 	credentialAccount.ApplyHeaderOverrides(req.Header)
 
 	// Get proxy URL
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := s.resolveTestProxyURL(ctx, account)
 
 	resp, err := s.doOpenAIAccountTestUpstream(req, proxyURL, account, true)
 	if err != nil {
@@ -1005,12 +1349,20 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 //
 // When mode is default, image/video can still be inferred from model_id for backward compat.
 func (s *AccountTestService) testGrokAccountConnection(c *gin.Context, account *Account, modelID, prompt, mode string, opts AccountTestOptions) error {
-	ctx := c.Request.Context()
+	ctx := s.applyGrokOpsProxyOverrideIfNeeded(c.Request.Context(), account)
+	if ctx != c.Request.Context() {
+		c.Request = c.Request.WithContext(ctx)
+	}
 
 	// Realtime is WebSocket-only and does not need HTTP upstream.
 	mode = normalizeGrokAccountTestMode(mode)
 	if mode != AccountTestModeGrokRealtime && s.httpUpstream == nil {
 		return s.sendErrorAndEnd(c, "HTTP upstream not configured")
+	}
+
+	// Web 会话账号走 mgw WebSocket 链路，与 Build/Console 的 HTTP Responses 不同。
+	if account.Type == AccountTypeGrokWeb {
+		return s.testGrokWebAccount(c, ctx, account, modelID, prompt, mode, opts)
 	}
 
 	authToken, err := s.grokTestAccessToken(ctx, account)
@@ -1040,6 +1392,13 @@ func (s *AccountTestService) testGrokAccountConnection(c *gin.Context, account *
 		}
 		if mapped := strings.TrimSpace(account.GetMappedModel(testModelID)); mapped != "" {
 			testModelID = mapped
+		}
+		if account.Type == AccountTypeGrokConsole {
+			testPrompt := strings.TrimSpace(prompt)
+			if testPrompt == "" {
+				testPrompt = grokQuotaProbeInput
+			}
+			return s.testGrokConsoleResponsesConnection(c, ctx, account, testPrompt, testModelID)
 		}
 		return s.testGrokResponsesConnection(c, ctx, account, authToken, testModelID)
 	}
@@ -1118,6 +1477,15 @@ func (s *AccountTestService) grokTestAccessToken(ctx context.Context, account *A
 			return "", fmt.Errorf("grok api key is missing")
 		}
 		return authToken, nil
+	case AccountTypeGrokConsole:
+		if s.grokConsoleDPoP == nil {
+			return "", fmt.Errorf("grok console DPoP provider not configured")
+		}
+		session, err := s.grokConsoleDPoP.GetOrCreateSession(ctx, account.ID, account.ProxyID)
+		if err != nil {
+			return "", fmt.Errorf("failed to get console DPoP token: %s", err.Error())
+		}
+		return session.AccessToken, nil
 	default:
 		return "", fmt.Errorf("unsupported grok account type: %s", account.Type)
 	}
@@ -1128,6 +1496,114 @@ func (s *AccountTestService) grokTestProxyURL(account *Account) string {
 		return account.Proxy.URL()
 	}
 	return ""
+}
+
+// testGrokConsoleResponsesConnection 通过 Console DPoP 链路验证会话账号：
+// SSO Cookie + DPoP Authorization + 每请求 proof + 浏览器头，直连 console.x.ai。
+func (s *AccountTestService) testGrokConsoleResponsesConnection(
+	c *gin.Context,
+	ctx context.Context,
+	account *Account,
+	prompt, testModelID string,
+) error {
+	if s.grokConsoleDPoP == nil {
+		return s.sendErrorAndEnd(c, "grok console DPoP provider not configured")
+	}
+
+	// 与 Build Responses 测试一致：请求思考摘要流，前端可展示推理过程。
+	// 附带 web_search/x_search server tools：Console 免费链路仅在混合工具
+	// 请求下返回 reasoning summary 流（与 Build Free 的 cache route 行为一致）。
+	payload := map[string]any{
+		"model":  testModelID,
+		"input":  prompt,
+		"stream": true,
+		"reasoning": map[string]any{
+			"effort":  "low",
+			"summary": "auto",
+		},
+		"tools": []map[string]any{
+			{"type": "web_search"},
+			{"type": "x_search"},
+		},
+	}
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return s.sendErrorAndEnd(c, "Failed to create Console test payload")
+	}
+
+	req, err := s.grokConsoleDPoP.BuildConsoleResponsesRequest(ctx, account.ID, account.ProxyID, payloadBytes)
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Build Console request failed: %s", err.Error()))
+	}
+
+	s.prepareGrokTestSSE(c)
+	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
+
+	resp, err := s.httpUpstream.Do(req, s.grokTestProxyURL(account), account.ID, account.Concurrency)
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Console Responses API request failed: %s", err.Error()))
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Console Responses API returned %d: %s", resp.StatusCode, string(body)))
+	}
+
+	return s.processOpenAIStream(c, resp.Body)
+}
+
+// testGrokWebAccount 通过 mgw WebSocket 验证 Web 会话账号。
+// 文本模式走完整问答链路；其他模式当前不支持（Web 无 TTS/STT/Realtime，
+// 图像/视频的 mgw 适配尚未接入测试路径）。
+func (s *AccountTestService) testGrokWebAccount(
+	c *gin.Context,
+	ctx context.Context,
+	account *Account,
+	modelID, prompt, mode string,
+	opts AccountTestOptions,
+) error {
+	mode = normalizeGrokAccountTestMode(mode)
+	switch mode {
+	case AccountTestModeGrokText, "":
+	case AccountTestModeGrokSearch:
+	default:
+		return s.sendErrorAndEnd(c, fmt.Sprintf("grok web accounts do not support %s tests (chat/search only)", mode))
+	}
+
+	gateway := s.grokWebGateway
+	if gateway == nil || gateway.sessionCredentialService == nil {
+		return s.sendErrorAndEnd(c, "grok web gateway not configured")
+	}
+	if gateway.sessionCredentialService == nil {
+		return s.sendErrorAndEnd(c, "grok web session service not configured")
+	}
+
+	testModelID := strings.TrimSpace(modelID)
+	if testModelID == "" {
+		testModelID = "grok-3"
+	}
+	if mapped := strings.TrimSpace(account.GetMappedModel(testModelID)); mapped != "" {
+		testModelID = mapped
+	}
+	testPrompt := strings.TrimSpace(prompt)
+	if testPrompt == "" {
+		testPrompt = defaultGrokTextTestPrompt
+	}
+
+	s.prepareGrokTestSSE(c)
+	started := time.Now()
+	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
+
+	text, err := gateway.ForwardGrokWebChat(ctx, account, testModelID, testPrompt)
+	latencyMs := time.Since(started).Milliseconds()
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Grok Web mgw request failed: %s", err.Error()))
+	}
+
+	s.sendEvent(c, TestEvent{Type: "chunk", Text: text})
+	s.sendEvent(c, TestEvent{Type: "test_complete", Success: true, LatencyMs: latencyMs})
+	return nil
 }
 
 func (s *AccountTestService) prepareGrokTestSSE(c *gin.Context) {
@@ -1190,7 +1666,7 @@ func (s *AccountTestService) observeGrokTestResponse(ctx context.Context, accoun
 		if resp.StatusCode == http.StatusPaymentRequired && s.accountRepo != nil {
 			stateCtx, cancel := openAIAccountStateContext(ctx)
 			defer cancel()
-			_ = s.accountRepo.SetTempUnschedulable(stateCtx, account.ID, now.Add(30*time.Minute), "grok payment required")
+			_ = s.accountRepo.SetTempUnschedulable(stateCtx, account.ID, now.Add(30*time.Minute), "grok payment required (test probe)")
 		}
 		return
 	}
@@ -2154,10 +2630,7 @@ func (s *AccountTestService) testOpenAIChatCompletionsConnection(
 	account.ApplyHeaderOverrides(req.Header)
 	applyOpenCodeSessionHeader(c, account, apiURL, req.Header, payloadBytes)
 
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := s.resolveTestProxyURL(ctx, account)
 
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
@@ -2287,10 +2760,7 @@ func (s *AccountTestService) testOpenAICompactConnection(c *gin.Context, account
 	// 账号级请求头覆写：测试请求与真实转发保持一致的最终头
 	account.ApplyHeaderOverrides(req.Header)
 
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := s.resolveTestProxyURL(ctx, account)
 
 	resp, err := s.doOpenAIAccountTestUpstream(req, proxyURL, account, true)
 	if err != nil {
@@ -2435,10 +2905,7 @@ func (s *AccountTestService) testGeminiAccountConnection(c *gin.Context, account
 	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
 
 	// Get proxy and execute request
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := s.resolveTestProxyURL(ctx, account)
 
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
@@ -2734,7 +3201,12 @@ func (s *AccountTestService) processGeminiStream(c *gin.Context, body io.Reader)
 						for _, part := range parts {
 							if partMap, ok := part.(map[string]any); ok {
 								if text, ok := partMap["text"].(string); ok && text != "" {
-									s.sendEvent(c, TestEvent{Type: "content", Text: text})
+									// Gemini thought parts use thought=true on the same text field.
+									if thought, _ := partMap["thought"].(bool); thought {
+										s.sendEvent(c, TestEvent{Type: "thinking", Text: text})
+									} else {
+										s.sendEvent(c, TestEvent{Type: "content", Text: text})
+									}
 								}
 								if inlineData, ok := partMap["inlineData"].(map[string]any); ok {
 									mimeType, _ := inlineData["mimeType"].(string)
@@ -2853,8 +3325,11 @@ func (s *AccountTestService) processClaudeStream(c *gin.Context, body io.Reader)
 		switch eventType {
 		case "content_block_delta":
 			if delta, ok := data["delta"].(map[string]any); ok {
-				if text, ok := delta["text"].(string); ok {
+				if text, ok := delta["text"].(string); ok && text != "" {
 					s.sendEvent(c, TestEvent{Type: "content", Text: text})
+				}
+				if thinking, ok := delta["thinking"].(string); ok && thinking != "" {
+					s.sendEvent(c, TestEvent{Type: "thinking", Text: thinking})
 				}
 			}
 		case "message_stop":
@@ -2935,10 +3410,19 @@ func (s *AccountTestService) processOpenAIChatCompletionsStream(c *gin.Context, 
 				if text, ok := delta["content"].(string); ok && text != "" {
 					s.sendEvent(c, TestEvent{Type: "content", Text: text})
 				}
+				if reasoning, ok := delta["reasoning_content"].(string); ok && reasoning != "" {
+					s.sendEvent(c, TestEvent{Type: "thinking", Text: reasoning})
+				}
+				if reasoning, ok := delta["reasoning"].(string); ok && reasoning != "" {
+					s.sendEvent(c, TestEvent{Type: "thinking", Text: reasoning})
+				}
 			}
 			if message, ok := choice["message"].(map[string]any); ok {
 				if text, ok := message["content"].(string); ok && text != "" {
 					s.sendEvent(c, TestEvent{Type: "content", Text: text})
+				}
+				if reasoning, ok := message["reasoning_content"].(string); ok && reasoning != "" {
+					s.sendEvent(c, TestEvent{Type: "thinking", Text: reasoning})
 				}
 			}
 			if finishReason, ok := choice["finish_reason"].(string); ok && finishReason != "" {
@@ -2992,6 +3476,10 @@ func (s *AccountTestService) processOpenAIStream(c *gin.Context, body io.Reader)
 			// OpenAI Responses API uses "delta" field for text content
 			if delta, ok := data["delta"].(string); ok && delta != "" {
 				s.sendEvent(c, TestEvent{Type: "content", Text: delta})
+			}
+		case "response.reasoning_summary_text.delta", "response.reasoning_text.delta":
+			if delta, ok := data["delta"].(string); ok && delta != "" {
+				s.sendEvent(c, TestEvent{Type: "thinking", Text: delta})
 			}
 		case "response.completed", "response.done":
 			s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
@@ -3063,10 +3551,7 @@ func (s *AccountTestService) testOpenAIImageAPIKey(c *gin.Context, ctx context.C
 	// 账号级请求头覆写：测试请求与真实转发保持一致的最终头
 	account.ApplyHeaderOverrides(req.Header)
 
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := s.resolveTestProxyURL(ctx, account)
 
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
@@ -3199,10 +3684,7 @@ func (s *AccountTestService) testOpenAIImageOAuth(c *gin.Context, ctx context.Co
 	// 与该账号真实出站的身份不是同一个（issue #3901 的配对不变式由收口保证）。
 	enforceCodexIdentityHeadersWithUA(req.Header, credentialAccount.GetOpenAIUserAgent())
 
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := s.resolveTestProxyURL(ctx, account)
 	resp, err := s.doOpenAIAccountTestUpstream(req, proxyURL, account, false)
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Image upstream request failed: %s", err.Error()))
@@ -3274,6 +3756,9 @@ func (s *AccountTestService) sendEvent(c *gin.Context, event TestEvent) {
 			}
 		}
 	}
+	if (event.Type == "test_complete" || event.Type == "error") && event.LatencyMs == 0 && c != nil && c.Request != nil {
+		event.LatencyMs = testLatencyMs(c.Request.Context())
+	}
 	eventJSON, _ := json.Marshal(event)
 	if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", eventJSON); err != nil {
 		log.Printf("failed to write SSE event: %v", err)
@@ -3291,15 +3776,18 @@ func (s *AccountTestService) sendErrorAndEnd(c *gin.Context, errorMsg string) er
 
 // RunTestBackground executes an account test in-memory (no real HTTP client),
 // capturing SSE output via httptest.NewRecorder, then parses the result.
-func (s *AccountTestService) RunTestBackground(ctx context.Context, accountID int64, modelID string) (*ScheduledTestResult, error) {
+// mode is optional; empty/"default" uses the standard probe, "compact" is OpenAI-only.
+// proxyOverride temporarily changes the outbound proxy for this test only; nil keeps the bound proxy.
+func (s *AccountTestService) RunTestBackground(ctx context.Context, accountID int64, modelID string, mode string, proxyOverride *TestProxyOverride) (*ScheduledTestResult, error) {
 	startedAt := time.Now()
 
 	w := httptest.NewRecorder()
 	ginCtx, _ := gin.CreateTestContext(w)
-	ginCtx.Request = (&http.Request{}).WithContext(ctx)
+	reqCtx := withTestProxyOverride(ctx, proxyOverride)
+	ginCtx.Request = (&http.Request{}).WithContext(reqCtx)
 	ginCtx.Set(accountTestBackgroundKey, true)
 
-	testErr := s.TestAccountConnection(ginCtx, accountID, modelID, "", AccountTestModeDefault)
+	testErr := s.TestAccountConnection(ginCtx, accountID, modelID, "", normalizeAccountTestMode(mode))
 
 	finishedAt := time.Now()
 	body := w.Body.String()
@@ -3337,7 +3825,7 @@ func parseTestSSEOutput(body string) (responseText, errMsg string) {
 			continue
 		}
 		switch event.Type {
-		case "content":
+		case "content", "thinking":
 			if event.Text != "" {
 				texts = append(texts, event.Text)
 			}

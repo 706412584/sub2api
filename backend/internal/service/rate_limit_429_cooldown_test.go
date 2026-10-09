@@ -66,6 +66,9 @@ func TestHandle429_FallbackUsesDBSeconds(t *testing.T) {
 	settingRepo := newMockSettingRepo()
 	data, _ := json.Marshal(RateLimit429CooldownSettings{Enabled: true, CooldownSeconds: 12})
 	settingRepo.data[SettingKeyRateLimit429CooldownSettings] = string(data)
+	// Disable GPT/Grok exhaustion so this case exercises the generic 429 cooldown path.
+	exhaustion, _ := json.Marshal(OpenAIGrok429ExhaustionSettings{Enabled: false, FreeFullDurationHours: 24, FreeFullThresholdPercent: 98, NoResetDurationMinutes: 60})
+	settingRepo.data[SettingKeyOpenAIGrok429ExhaustionSettings] = string(exhaustion)
 
 	settingSvc := NewSettingService(settingRepo, &config.Config{})
 	svc := NewRateLimitService(accountRepo, nil, &config.Config{}, nil, nil)
@@ -86,6 +89,9 @@ func TestHandle429_FallbackDisabledSkipsLocalMark(t *testing.T) {
 	settingRepo := newMockSettingRepo()
 	data, _ := json.Marshal(RateLimit429CooldownSettings{Enabled: false, CooldownSeconds: 12})
 	settingRepo.data[SettingKeyRateLimit429CooldownSettings] = string(data)
+	// Disable GPT/Grok exhaustion so disabled generic cooldown is observable.
+	exhaustion, _ := json.Marshal(OpenAIGrok429ExhaustionSettings{Enabled: false, FreeFullDurationHours: 24, FreeFullThresholdPercent: 98, NoResetDurationMinutes: 60})
+	settingRepo.data[SettingKeyOpenAIGrok429ExhaustionSettings] = string(exhaustion)
 
 	settingSvc := NewSettingService(settingRepo, &config.Config{})
 	svc := NewRateLimitService(accountRepo, nil, &config.Config{}, nil, nil)
@@ -97,8 +103,6 @@ func TestHandle429_FallbackDisabledSkipsLocalMark(t *testing.T) {
 	require.Zero(t, accountRepo.rateLimitCalls)
 }
 
-// Anthropic 无 reset 头的 429（如 Extra usage required）也应走兜底冷却，
-// 否则账号永不冷却，调度器会让每个请求反复撞同一批 429 账号（旋转木马）。
 func TestHandle429_AnthropicNoResetTimeUsesFallbackCooldown(t *testing.T) {
 	accountRepo := &rateLimit429AccountRepoStub{}
 	settingRepo := newMockSettingRepo()

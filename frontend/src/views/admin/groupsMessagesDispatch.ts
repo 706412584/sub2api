@@ -1,4 +1,17 @@
-import type { OpenAIMessagesDispatchModelConfig } from "@/types";
+import type {
+  GrokMessagesProtocol,
+  GroupPlatform,
+  OpenAIMessagesDispatchModelConfig,
+} from "@/types";
+
+// Default is native responses; only explicit chat_completions opts into visible thinking.
+export function normalizeGrokMessagesProtocolForPlatform(
+  platform: GroupPlatform,
+  protocol?: GrokMessagesProtocol | string,
+): GrokMessagesProtocol {
+  if (platform !== "grok") return "responses";
+  return protocol === "chat_completions" ? "chat_completions" : "responses";
+}
 
 export interface MessagesDispatchMappingRow {
   claude_model: string;

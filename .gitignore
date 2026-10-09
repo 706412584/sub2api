@@ -2,6 +2,10 @@
 /docs-local/
 .codex
 
+# Python 工具字节码缓存
+__pycache__/
+*.pyc
+
 # ===================
 # Go 后端
 # ===================
@@ -161,3 +165,16 @@ issues/
 .vite/
 # 本地闭源插件开发目录及构建产物不进入 Sub2API 仓库
 /plugins/
+
+# ===================
+# 本分支（fork）特有：本地构建/工具目录
+# ===================
+tmp-build/
+backend/tmp-build/
+frontend/pnpm-workspace.yaml
+frontend/pnpm-lock.yaml.local
+.workbuddy-ai/
+*.heapsnapshot
+*.heapprofile
+.test/
+.playwright-mcp/

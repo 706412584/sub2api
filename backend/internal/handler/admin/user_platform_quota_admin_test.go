@@ -101,8 +101,14 @@ func TestUpdateUserPlatformQuotas_Success(t *testing.T) {
 		{"platform":"openai","daily_limit_usd":80.0,"weekly_limit_usd":300.0,"monthly_limit_usd":null},
 		{"platform":"gemini","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null},
 		{"platform":"antigravity","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null},
-		{"platform":"grok","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null}
-	]}`
+		{"platform":"kiro","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null},
+			{"platform":"grok","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null},
+			{"platform":"kimi","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null},
+			{"platform":"zhipu","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null},
+			{"platform":"deepseek","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null},
+			{"platform":"minimax","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null},
+			{"platform":"codebuddy","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null}
+		]}`
 	c, w := putReq(t, body)
 	h.UpdateUserPlatformQuotas(c)
 

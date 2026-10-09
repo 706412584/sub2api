@@ -67,3 +67,21 @@ func TestClaudeContentItem_ThinkingAlwaysHasSignature(t *testing.T) {
 		t.Fatalf("text block = %s, want %s", got, want)
 	}
 }
+
+// 分档模型的裸名不是 reasoning 模型（不触发 ToolConfig 过滤），
+// 带档位后缀的才是——与 3.6 的既有语义保持一致。
+func TestIsGeminiReasoningModel_TieredFlashVariants(t *testing.T) {
+	t.Parallel()
+
+	for _, base := range []string{"gemini-3.6-flash", "gemini-3.8-flash"} {
+		if IsGeminiReasoningModel(base) {
+			t.Fatalf("expected %q not to be treated as a reasoning model", base)
+		}
+		for _, tier := range []string{"low", "medium", "high", "tiered"} {
+			id := base + "-" + tier
+			if !IsGeminiReasoningModel(id) {
+				t.Fatalf("expected %q to be treated as a reasoning model", id)
+			}
+		}
+	}
+}

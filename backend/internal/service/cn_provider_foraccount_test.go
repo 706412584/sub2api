@@ -124,3 +124,19 @@ func TestCNProviderServices_IDEntryAppliesSameValidation(t *testing.T) {
 	requireReason(t, err, "CN_QUOTA_NOT_CODING_PLAN")
 	require.Zero(t, upstream.calls)
 }
+
+func TestCNProviderServices_IDEntryRejectsIncompleteConfiguration(t *testing.T) {
+	_, err := (&CNProviderQuotaService{}).QueryUsage(context.Background(), 1)
+	requireReason(t, err, "CN_QUOTA_NOT_CONFIGURED")
+
+	_, err = (&CNProviderBalanceService{}).QueryBalance(context.Background(), 1)
+	requireReason(t, err, "CN_BALANCE_NOT_CONFIGURED")
+
+	var quotaService *CNProviderQuotaService
+	_, err = quotaService.QueryUsage(context.Background(), 1)
+	requireReason(t, err, "CN_QUOTA_NOT_CONFIGURED")
+
+	var balanceService *CNProviderBalanceService
+	_, err = balanceService.QueryBalance(context.Background(), 1)
+	requireReason(t, err, "CN_BALANCE_NOT_CONFIGURED")
+}

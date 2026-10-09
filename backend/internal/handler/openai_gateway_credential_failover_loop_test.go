@@ -137,6 +137,38 @@ func (r *grokCredentialHandlerRepo) SetRateLimitedIfLater(ctx context.Context, i
 	return r.SetRateLimited(ctx, id, resetAt)
 }
 
+func (r *grokCredentialHandlerRepo) SetModelRateLimit(_ context.Context, id int64, scope string, resetAt time.Time, reason ...string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	scope = strings.TrimSpace(scope)
+	if scope == "" {
+		return nil
+	}
+	for i := range r.accounts {
+		if r.accounts[i].ID != id {
+			continue
+		}
+		if r.accounts[i].Extra == nil {
+			r.accounts[i].Extra = map[string]any{}
+		}
+		limits, _ := r.accounts[i].Extra["model_rate_limits"].(map[string]any)
+		if limits == nil {
+			limits = map[string]any{}
+			r.accounts[i].Extra["model_rate_limits"] = limits
+		}
+		entry := map[string]any{
+			"rate_limit_reset_at": resetAt.UTC().Format(time.RFC3339),
+			"rate_limited_at":     time.Now().UTC().Format(time.RFC3339),
+		}
+		if len(reason) > 0 && strings.TrimSpace(reason[0]) != "" {
+			entry["reason"] = reason[0]
+		}
+		limits[scope] = entry
+		return nil
+	}
+	return nil
+}
+
 func (r *grokCredentialHandlerRepo) SetGrokCredentialErrorIfMatch(
 	_ context.Context,
 	id int64,
@@ -927,7 +959,8 @@ func newGrokCredentialFailoverHandler(t *testing.T, mode string) (*OpenAIGateway
 	gateway := service.NewOpenAIGatewayService(
 		repo, nil, nil, nil, nil, nil, nil, cfg, nil, nil,
 		service.NewBillingService(cfg, nil), nil, billingCache, upstream,
-		&service.DeferredService{}, nil, provider, nil, nil, nil, nil, nil,
+		&service.DeferredService{}, nil, provider, nil, nil, nil, nil, nil, nil,
+		nil,
 	)
 	cache := &concurrencyCacheMock{
 		acquireUserSlotFn:    func(context.Context, int64, int, string) (bool, error) { return true, nil },

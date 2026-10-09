@@ -20,6 +20,8 @@ const concretePlatforms = [
   'gemini',
   'antigravity',
   'grok',
+  'kiro',
+  'codebuddy',
   'kimi',
   'zhipu',
   'deepseek',

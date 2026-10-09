@@ -15,6 +15,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/domain"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/codebuddy"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/typesafe"
@@ -113,6 +114,10 @@ const openAIEndpointCapabilitiesCredentialKey = "openai_capabilities"
 // accounts.extra. true forces media routing on, false disables it, and an
 // absent/null value uses provider observations.
 const GrokMediaEligibleExtraKey = "grok_media_eligible"
+
+// GrokBotFlagSourceExtraKey 是 accounts.extra 中存储 Grok Build 风控标记的键名。
+// 值 1 或 2 表示被风控标记（bot_flag_source/bfs），0 或缺失表示正常。
+const GrokBotFlagSourceExtraKey = "grok_bot_flag_source"
 
 const (
 	OpenAIAuthModePersonalAccessToken = "personalAccessToken"
@@ -277,6 +282,101 @@ func (a *Account) IsGrokOAuth() bool {
 	return a.IsGrok() && a.Type == AccountTypeOAuth
 }
 
+func (a *Account) IsKiro() bool {
+	return a != nil && a.Platform == PlatformKiro
+}
+
+func (a *Account) IsCodebuddy() bool {
+	return a != nil && a.Platform == PlatformCodebuddy
+}
+
+func (a *Account) IsKiroOAuth() bool {
+	return a.IsKiro() && a.Type == AccountTypeOAuth
+}
+
+func (a *Account) IsKiroAPIKey() bool {
+	return a.IsKiro() && a.Type == AccountTypeAPIKey
+}
+
+func (a *Account) GetKiroToken() string {
+	if a.IsKiroAPIKey() {
+		return strings.TrimSpace(a.GetCredential("kiro_api_key"))
+	}
+	if a.IsKiroOAuth() {
+		return strings.TrimSpace(a.GetCredential("access_token"))
+	}
+	return ""
+}
+
+func (a *Account) GetKiroEndpoint() string {
+	if !a.IsKiro() {
+		return ""
+	}
+	endpoint := strings.ToLower(strings.TrimSpace(a.GetCredential("endpoint")))
+	if endpoint == "ide" || endpoint == "cli" {
+		return endpoint
+	}
+	if a.IsKiroAPIKey() {
+		return "cli"
+	}
+	return "ide"
+}
+
+func (a *Account) GetKiroAuthRegion() string {
+	if !a.IsKiro() {
+		return ""
+	}
+	if region := strings.TrimSpace(a.GetCredential("auth_region")); region != "" {
+		return region
+	}
+	if region := strings.TrimSpace(a.GetCredential("region")); region != "" {
+		return region
+	}
+	return "us-east-1"
+}
+
+func (a *Account) GetKiroAPIRegion() string {
+	if !a.IsKiro() {
+		return ""
+	}
+	if region := strings.TrimSpace(a.GetCredential("api_region")); region != "" {
+		return region
+	}
+	if region := strings.TrimSpace(a.GetCredential("region")); region != "" {
+		return region
+	}
+	return "us-east-1"
+}
+
+func ValidateKiroAccountCredentials(platform, accountType string, credentials map[string]any) error {
+	if platform != PlatformKiro {
+		return nil
+	}
+	endpoint := strings.ToLower(strings.TrimSpace(credentialString(credentials, "endpoint")))
+	if endpoint != "" && endpoint != "ide" && endpoint != "cli" {
+		return errors.New("kiro endpoint must be ide or cli")
+	}
+	if accountType != AccountTypeAPIKey {
+		return nil
+	}
+	if endpoint != "" && endpoint != "cli" {
+		return errors.New("kiro API key accounts require the cli endpoint")
+	}
+	apiKey := strings.TrimSpace(credentialString(credentials, "kiro_api_key"))
+	if !strings.HasPrefix(apiKey, "ksk_") || len(apiKey) <= len("ksk_") {
+		return errors.New("kiro API key must start with ksk_")
+	}
+	return nil
+}
+
+func credentialString(credentials map[string]any, key string) string {
+	if credentials == nil {
+		return ""
+	}
+	value, _ := credentials[key].(string)
+	return value
+}
+
 // IsKimi / IsZhipu / IsDeepseek 标识国产 OpenAI 兼容供应商账号。
 func (a *Account) IsKimi() bool {
 	return a.Platform == PlatformKimi
@@ -375,6 +475,7 @@ func (a *Account) GetCredential(key string) string {
 // 兼容以下格式：
 //   - RFC3339 字符串: "2025-01-01T00:00:00Z"
 //   - Unix 时间戳字符串: "1735689600"
+//   - Unix 毫秒时间戳（Kiro manager 等导出常见）: "1735689600000"
 //   - Unix 时间戳数字: 1735689600 (float64/int64/json.Number)
 func (a *Account) GetCredentialAsTime(key string) *time.Time {
 	s := a.GetCredential(key)
@@ -385,12 +486,22 @@ func (a *Account) GetCredentialAsTime(key string) *time.Time {
 	if t, err := time.Parse(time.RFC3339, s); err == nil {
 		return &t
 	}
-	// 尝试 Unix 时间戳（纯数字字符串）
+	// 尝试 Unix 时间戳（纯数字字符串）；>1e12 视为毫秒
 	if ts, err := strconv.ParseInt(s, 10, 64); err == nil {
-		t := time.Unix(ts, 0)
+		t := time.Unix(normalizeUnixTimestampSeconds(ts), 0)
 		return &t
 	}
 	return nil
+}
+
+// normalizeUnixTimestampSeconds converts epoch seconds or milliseconds to seconds.
+// Values with magnitude > 1e12 are treated as milliseconds (Kiro manager expiresAt).
+func normalizeUnixTimestampSeconds(ts int64) int64 {
+	const msThreshold = int64(1_000_000_000_000) // ~2001-09-09 in ms; seconds stay below this for centuries
+	if ts > msThreshold || ts < -msThreshold {
+		return ts / 1000
+	}
+	return ts
 }
 
 // GetCredentialAsInt64 解析凭证中的 int64 字段
@@ -628,6 +739,16 @@ func (a *Account) GetModelMapping() map[string]string {
 }
 
 func (a *Account) resolveModelMapping(rawMapping map[string]any) map[string]string {
+	// Grok Console / Web 会话账号使用各自来源的模型目录，
+	// 不能套用 Build OAuth 的模型映射（entitlement 不同）。
+	if a.Platform == domain.PlatformGrok {
+		switch a.Type {
+		case AccountTypeGrokWeb:
+			return GrokWebDefaultModelMapping()
+		case AccountTypeGrokConsole:
+			return GrokConsoleDefaultModelMapping()
+		}
+	}
 	if a.Credentials == nil {
 		// Antigravity 平台使用默认映射
 		if a.Platform == domain.PlatformAntigravity {
@@ -661,25 +782,20 @@ func (a *Account) resolveModelMapping(rawMapping map[string]any) map[string]stri
 	}
 	if len(result) > 0 {
 		if a.Platform == domain.PlatformAntigravity {
+			// 注意：分档模型（3.6/3.7/3.8）只透传裸名，不补档位变体。
+			// 档位变体以账号 model_mapping 里上游同步回来的真实集合为准——
+			// 上游按账号灰度开放档位（例如只给 tiered 不给 low/medium/high），
+			// 强行补齐会让自动选档选到上游 404 的模型。
+			// 裸名 + applyAntigravityEffortTier 会从真实存在的档位里选。
+			// 3.7 家族随上游 v0.2.8 引入（DefaultAntigravityModelMapping 已有其档位），
+			// 裸名同样必须在此透传，否则 antigravityTierFamilyRoots 认不出该家族。
 			ensureAntigravityDefaultPassthroughs(result, []string{
 				"gemini-3-flash",
 				"gemini-3.1-pro-high",
 				"gemini-3.1-pro-low",
 				"gemini-3.6-flash",
-				"gemini-3.6-flash-high",
-				"gemini-3.6-flash-low",
-				"gemini-3.6-flash-medium",
-				"gemini-3.6-flash-tiered",
 				"gemini-3.7-flash",
-				"gemini-3.7-flash-high",
-				"gemini-3.7-flash-low",
-				"gemini-3.7-flash-medium",
-				"gemini-3.7-flash-tiered",
 				"gemini-3.8-flash",
-				"gemini-3.8-flash-high",
-				"gemini-3.8-flash-low",
-				"gemini-3.8-flash-medium",
-				"gemini-3.8-flash-tiered",
 			})
 			applyAntigravityGemini31ProAliases(result)
 		}
@@ -864,6 +980,14 @@ func (a *Account) IsModelSupported(requestedModel string) bool {
 	// model_mapping 白名单错误排除出候选集，导致 no available accounts / 404（issue #4936）。
 	if a.IsOpenAIPassthroughEnabled() {
 		return true
+	}
+	// CodeBuddy：model_mapping 只承担「/v1/models 展示目录」职责，不作准入白名单。
+	// 准入按区域归属判定——本区域已知模型放行、已知属于另一区域的模型拒绝、
+	// 两区均未收录（未知/自定义）放行透传，由上游裁决（code=11102）。
+	// 该短路必须在 GetModelMapping 之前：建号时写入的目录若被当白名单，
+	// 会把用户的自定义模型挡在候选集外。
+	if a.IsCodebuddy() {
+		return codebuddy.ModelAllowedInRegion(a.Type, requestedModel)
 	}
 	mapping := a.GetModelMapping()
 	if len(mapping) == 0 {
@@ -1505,9 +1629,7 @@ func (a *Account) IsAnthropicProtocol() bool {
 	return a.GetAPIProtocol() == APIProtocolAnthropic
 }
 
-// GetAnthropicProtocolBaseURL 返回 Anthropic 协议账号的上游 base_url
-// （上游路径为 {base}/v1/messages）。优先取凭证 base_url，缺失时按
-// 供应商 × 接入模式返回默认端点。非 Anthropic 协议账号返回空串。
+// GetAnthropicProtocolBaseURL 返回 Anthropic 协议账号的上游 base_url。
 func (a *Account) GetAnthropicProtocolBaseURL() string {
 	if a == nil || (!a.IsAnthropicProtocol() && !a.IsAdaptiveAPIProtocol()) {
 		return ""
@@ -1523,11 +1645,7 @@ func (a *Account) GetAnthropicProtocolBaseURL() string {
 	return a.defaultProviderBaseURL(APIProtocolAnthropic)
 }
 
-// GetOpenAIFormatBaseURL 返回供 OpenAI 格式端点（/v1/models、/v1/chat/completions
-// 等）使用的 base。chat_completions / responses 协议下与 GetOpenAIBaseURL
-// 一致（凭证 base_url 或平台默认）；anthropic 协议下凭证 base_url 指向 Anthropic
-// 端点，不能拿来拼 OpenAI 路径，此时返回该供应商 × 模式的 Chat Completions
-// 默认 base（模型同步等协议族共用路径仍可用）。
+// GetOpenAIFormatBaseURL 返回供 OpenAI 格式端点使用的 base。
 func (a *Account) GetOpenAIFormatBaseURL() string {
 	if a == nil || !a.IsAnthropicProtocol() {
 		return a.GetOpenAIBaseURL()
@@ -1538,8 +1656,7 @@ func (a *Account) GetOpenAIFormatBaseURL() string {
 	return a.GetOpenAIBaseURL()
 }
 
-// GetCNAPIKey 返回国产 OpenAI 兼容供应商账号的 api_key 凭据（kimi/zhipu/deepseek）。
-// 与 openai 的 GetOpenAIApiKey 区分：后者仅对 openai 平台返回。
+// GetCNAPIKey 返回国产 OpenAI 兼容供应商账号的 api_key 凭据。
 func (a *Account) GetCNAPIKey() string {
 	if a == nil || !a.IsMultiProtocolAPIKey() {
 		return ""
@@ -1682,6 +1799,62 @@ func (a *Account) GetGrokRefreshToken() string {
 		return ""
 	}
 	return a.GetCredential("refresh_token")
+}
+
+// GrokBotFlagSource 返回账号的 Grok Build 风控标记值（0/1/2）。
+// 优先从 accounts.extra 读取已持久化的值；缺失时尝试从 access token 的
+// JWT claims（bot_flag_source / bfs）现场解码并填充内存。
+func (a *Account) GrokBotFlagSource() int {
+	if a == nil {
+		return 0
+	}
+	if a.Extra != nil {
+		switch v := a.Extra[GrokBotFlagSourceExtraKey].(type) {
+		case float64:
+			return normalizeGrokBotFlagSource(int(v))
+		case int:
+			return normalizeGrokBotFlagSource(v)
+		case int64:
+			return normalizeGrokBotFlagSource(int(v))
+		}
+	}
+	// 未持久化时现场解码 access token（不验证签名，仅读 payload 声明）。
+	if token := a.GetGrokAccessToken(); token != "" {
+		return extractGrokBotFlagSource(xai.DecodeJWTClaims(token))
+	}
+	return 0
+}
+
+// IsGrokBotFlagged 报告账号是否被风控标记（bot_flag_source/bfs 为 1 或 2）。
+func (a *Account) IsGrokBotFlagged() bool {
+	return a.GrokBotFlagSource() != 0
+}
+
+// extractGrokBotFlagSource 从 JWT claims 中提取风控标记值。
+// bot_flag_source 优先，其次短别名 bfs；仅 JSON number 1/2 视为标记。
+func extractGrokBotFlagSource(claims map[string]any) int {
+	if source := grokBotFlagClaimValue(claims, "bot_flag_source"); source != 0 {
+		return source
+	}
+	return grokBotFlagClaimValue(claims, "bfs")
+}
+
+func grokBotFlagClaimValue(claims map[string]any, key string) int {
+	if claims == nil {
+		return 0
+	}
+	value, ok := claims[key].(float64)
+	if !ok {
+		return 0
+	}
+	return normalizeGrokBotFlagSource(int(value))
+}
+
+func normalizeGrokBotFlagSource(value int) int {
+	if value == 1 || value == 2 {
+		return value
+	}
+	return 0
 }
 
 func (a *Account) GetOpenAIIDToken() string {

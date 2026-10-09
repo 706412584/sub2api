@@ -114,8 +114,32 @@
                 </p>
               </div>
 
+              <!-- Priority 0: Another system operation in progress (countdown) -->
+              <div v-if="updateBusy" class="space-y-2">
+                <div
+                  class="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800/50 dark:bg-amber-900/20"
+                >
+                  <div
+                    class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50"
+                  >
+                    <Icon name="clock" size="sm" :stroke-width="2" class="text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <p class="text-sm font-medium text-amber-700 dark:text-amber-300">
+                      {{
+                        updateBusySecondsLeft > 0
+                          ? t('version.updateInProgressCountdown', {
+                              seconds: updateBusySecondsLeft
+                            })
+                          : t('version.updateInProgress')
+                      }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <!-- Priority 1: Update error (must check before hasUpdate) -->
-              <div v-if="updateError" class="space-y-2">
+              <div v-else-if="updateError" class="space-y-2">
                 <div
                   class="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800/50 dark:bg-red-900/20"
                 >
@@ -687,6 +711,62 @@ const restartCountdown = ref(0)
 // Distinguishes the success + restart panel between update and rollback flows
 const successKind = ref<'update' | 'rollback'>('update')
 
+// Busy/conflict handling: another update/rollback is still running server-side.
+// The backend replies 409 SYSTEM_OPERATION_BUSY (or IDEMPOTENCY_IN_PROGRESS)
+// with a retry_after window; we surface a countdown instead of a generic error
+// so the admin knows the previous attempt is still finishing (and avoids
+// hammering the button while the lock is held).
+const updateBusy = ref(false)
+const updateBusySecondsLeft = ref(0)
+let updateBusyTimer: ReturnType<typeof setInterval> | null = null
+
+function extractRetryAfter(err: unknown): { retrySeconds: number; busy: boolean } {
+  const e = err as {
+    response?: {
+      status?: number
+      data?: { reason?: string; metadata?: Record<string, string> }
+      headers?: Record<string, string>
+    }
+  }
+  const status = e?.response?.status
+  const reason = e?.response?.data?.reason
+  const busy =
+    status === 409 && (reason === 'SYSTEM_OPERATION_BUSY' || reason === 'IDEMPOTENCY_IN_PROGRESS')
+  // retry_after lives in the error body metadata (ApplicationError) or the HTTP header.
+  let retrySeconds = 0
+  const metaSeconds = Number(e?.response?.data?.metadata?.retry_after)
+  if (Number.isFinite(metaSeconds) && metaSeconds > 0) {
+    retrySeconds = Math.ceil(metaSeconds)
+  } else {
+    const headerSeconds = Number(e?.response?.headers?.['retry-after'])
+    if (Number.isFinite(headerSeconds) && headerSeconds > 0) {
+      retrySeconds = Math.ceil(headerSeconds)
+    }
+  }
+  return { retrySeconds, busy }
+}
+
+function clearUpdateBusy() {
+  if (updateBusyTimer) {
+    clearInterval(updateBusyTimer)
+    updateBusyTimer = null
+  }
+  updateBusy.value = false
+  updateBusySecondsLeft.value = 0
+}
+
+function enterUpdateBusy(retrySeconds: number) {
+  clearUpdateBusy()
+  updateBusy.value = true
+  updateBusySecondsLeft.value = retrySeconds > 0 ? retrySeconds : 15
+  updateBusyTimer = setInterval(() => {
+    updateBusySecondsLeft.value -= 1
+    if (updateBusySecondsLeft.value <= 0) {
+      clearUpdateBusy()
+    }
+  }, 1000)
+}
+
 // Rollback states
 const rollbackPanelOpen = ref(false)
 const rollbackVersions = ref<RollbackVersionInfo[]>([])
@@ -746,14 +826,16 @@ async function refreshVersion(force = true) {
   updateError.value = ''
   updateSuccess.value = false
   needRestart.value = false
+  clearUpdateBusy()
   resetRollbackState()
 
   await appStore.fetchVersion(force)
 }
 
 async function handleUpdate() {
-  if (updating.value) return
+  if (updating.value || updateBusy.value) return
 
+  clearUpdateBusy()
   updating.value = true
   updateError.value = ''
   updateSuccess.value = false
@@ -766,6 +848,11 @@ async function handleUpdate() {
     // Clear version cache to reflect update completed
     appStore.clearVersionCache()
   } catch (error: unknown) {
+    const { retrySeconds, busy } = extractRetryAfter(error)
+    if (busy) {
+      enterUpdateBusy(retrySeconds)
+      return
+    }
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     updateError.value = err.response?.data?.message || err.message || t('version.updateFailed')
   } finally {
@@ -827,8 +914,9 @@ function formatPublishedAt(publishedAt: string): string {
 
 async function handleRollback() {
   if (!isAdmin.value) return
-  if (rollingBack.value || !selectedRollbackVersion.value) return
+  if (rollingBack.value || updateBusy.value || !selectedRollbackVersion.value) return
 
+  clearUpdateBusy()
   rollingBack.value = true
   rollbackError.value = ''
 
@@ -841,6 +929,11 @@ async function handleRollback() {
     // Clear version cache so the next check reflects the rolled-back version
     appStore.clearVersionCache()
   } catch (error: unknown) {
+    const { retrySeconds, busy } = extractRetryAfter(error)
+    if (busy) {
+      enterUpdateBusy(retrySeconds)
+      return
+    }
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     rollbackError.value = err.response?.data?.message || err.message || t('version.rollbackFailed')
   } finally {
@@ -919,6 +1012,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleClickOutside)
+  clearUpdateBusy()
 })
 </script>
 

@@ -622,6 +622,20 @@ func (_c *GroupCreate) SetNillableFallbackGroupIDOnInvalidRequest(v *int64) *Gro
 	return _c
 }
 
+// SetDefaultProxyID sets the "default_proxy_id" field.
+func (_c *GroupCreate) SetDefaultProxyID(v int64) *GroupCreate {
+	_c.mutation.SetDefaultProxyID(v)
+	return _c
+}
+
+// SetNillableDefaultProxyID sets the "default_proxy_id" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableDefaultProxyID(v *int64) *GroupCreate {
+	if v != nil {
+		_c.SetDefaultProxyID(*v)
+	}
+	return _c
+}
+
 // SetModelRouting sets the "model_routing" field.
 func (_c *GroupCreate) SetModelRouting(v map[string][]int64) *GroupCreate {
 	_c.mutation.SetModelRouting(v)
@@ -700,6 +714,62 @@ func (_c *GroupCreate) SetAllowLive(v bool) *GroupCreate {
 func (_c *GroupCreate) SetNillableAllowLive(v *bool) *GroupCreate {
 	if v != nil {
 		_c.SetAllowLive(*v)
+	}
+	return _c
+}
+
+// SetGrokMessagesProtocol sets the "grok_messages_protocol" field.
+func (_c *GroupCreate) SetGrokMessagesProtocol(v string) *GroupCreate {
+	_c.mutation.SetGrokMessagesProtocol(v)
+	return _c
+}
+
+// SetNillableGrokMessagesProtocol sets the "grok_messages_protocol" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableGrokMessagesProtocol(v *string) *GroupCreate {
+	if v != nil {
+		_c.SetGrokMessagesProtocol(*v)
+	}
+	return _c
+}
+
+// SetGrokReasoningVisibilityMode sets the "grok_reasoning_visibility_mode" field.
+func (_c *GroupCreate) SetGrokReasoningVisibilityMode(v string) *GroupCreate {
+	_c.mutation.SetGrokReasoningVisibilityMode(v)
+	return _c
+}
+
+// SetNillableGrokReasoningVisibilityMode sets the "grok_reasoning_visibility_mode" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableGrokReasoningVisibilityMode(v *string) *GroupCreate {
+	if v != nil {
+		_c.SetGrokReasoningVisibilityMode(*v)
+	}
+	return _c
+}
+
+// SetGrokReasoningProbeTTLSec sets the "grok_reasoning_probe_ttl_sec" field.
+func (_c *GroupCreate) SetGrokReasoningProbeTTLSec(v int) *GroupCreate {
+	_c.mutation.SetGrokReasoningProbeTTLSec(v)
+	return _c
+}
+
+// SetNillableGrokReasoningProbeTTLSec sets the "grok_reasoning_probe_ttl_sec" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableGrokReasoningProbeTTLSec(v *int) *GroupCreate {
+	if v != nil {
+		_c.SetGrokReasoningProbeTTLSec(*v)
+	}
+	return _c
+}
+
+// SetGrokReasoningQuarantineSec sets the "grok_reasoning_quarantine_sec" field.
+func (_c *GroupCreate) SetGrokReasoningQuarantineSec(v int) *GroupCreate {
+	_c.mutation.SetGrokReasoningQuarantineSec(v)
+	return _c
+}
+
+// SetNillableGrokReasoningQuarantineSec sets the "grok_reasoning_quarantine_sec" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableGrokReasoningQuarantineSec(v *int) *GroupCreate {
+	if v != nil {
+		_c.SetGrokReasoningQuarantineSec(*v)
 	}
 	return _c
 }
@@ -812,6 +882,20 @@ func (_c *GroupCreate) SetCodexModelsManifestConfig(v domain.GroupCodexModelsMan
 func (_c *GroupCreate) SetNillableCodexModelsManifestConfig(v *domain.GroupCodexModelsManifestConfig) *GroupCreate {
 	if v != nil {
 		_c.SetCodexModelsManifestConfig(*v)
+	}
+	return _c
+}
+
+// SetPromptPolicy sets the "prompt_policy" field.
+func (_c *GroupCreate) SetPromptPolicy(v domain.GroupPromptPolicy) *GroupCreate {
+	_c.mutation.SetPromptPolicy(v)
+	return _c
+}
+
+// SetNillablePromptPolicy sets the "prompt_policy" field if the given value is not nil.
+func (_c *GroupCreate) SetNillablePromptPolicy(v *domain.GroupPromptPolicy) *GroupCreate {
+	if v != nil {
+		_c.SetPromptPolicy(*v)
 	}
 	return _c
 }
@@ -1151,6 +1235,22 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultAllowLive
 		_c.mutation.SetAllowLive(v)
 	}
+	if _, ok := _c.mutation.GrokMessagesProtocol(); !ok {
+		v := group.DefaultGrokMessagesProtocol
+		_c.mutation.SetGrokMessagesProtocol(v)
+	}
+	if _, ok := _c.mutation.GrokReasoningVisibilityMode(); !ok {
+		v := group.DefaultGrokReasoningVisibilityMode
+		_c.mutation.SetGrokReasoningVisibilityMode(v)
+	}
+	if _, ok := _c.mutation.GrokReasoningProbeTTLSec(); !ok {
+		v := group.DefaultGrokReasoningProbeTTLSec
+		_c.mutation.SetGrokReasoningProbeTTLSec(v)
+	}
+	if _, ok := _c.mutation.GrokReasoningQuarantineSec(); !ok {
+		v := group.DefaultGrokReasoningQuarantineSec
+		_c.mutation.SetGrokReasoningQuarantineSec(v)
+	}
 	if _, ok := _c.mutation.ForceOpenaiFast(); !ok {
 		v := group.DefaultForceOpenaiFast
 		_c.mutation.SetForceOpenaiFast(v)
@@ -1182,6 +1282,10 @@ func (_c *GroupCreate) defaults() error {
 	if _, ok := _c.mutation.CodexModelsManifestConfig(); !ok {
 		v := group.DefaultCodexModelsManifestConfig
 		_c.mutation.SetCodexModelsManifestConfig(v)
+	}
+	if _, ok := _c.mutation.PromptPolicy(); !ok {
+		v := group.DefaultPromptPolicy
+		_c.mutation.SetPromptPolicy(v)
 	}
 	if _, ok := _c.mutation.RpmLimit(); !ok {
 		v := group.DefaultRpmLimit
@@ -1358,6 +1462,28 @@ func (_c *GroupCreate) check() error {
 	if _, ok := _c.mutation.AllowLive(); !ok {
 		return &ValidationError{Name: "allow_live", err: errors.New(`ent: missing required field "Group.allow_live"`)}
 	}
+	if _, ok := _c.mutation.GrokMessagesProtocol(); !ok {
+		return &ValidationError{Name: "grok_messages_protocol", err: errors.New(`ent: missing required field "Group.grok_messages_protocol"`)}
+	}
+	if v, ok := _c.mutation.GrokMessagesProtocol(); ok {
+		if err := group.GrokMessagesProtocolValidator(v); err != nil {
+			return &ValidationError{Name: "grok_messages_protocol", err: fmt.Errorf(`ent: validator failed for field "Group.grok_messages_protocol": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.GrokReasoningVisibilityMode(); !ok {
+		return &ValidationError{Name: "grok_reasoning_visibility_mode", err: errors.New(`ent: missing required field "Group.grok_reasoning_visibility_mode"`)}
+	}
+	if v, ok := _c.mutation.GrokReasoningVisibilityMode(); ok {
+		if err := group.GrokReasoningVisibilityModeValidator(v); err != nil {
+			return &ValidationError{Name: "grok_reasoning_visibility_mode", err: fmt.Errorf(`ent: validator failed for field "Group.grok_reasoning_visibility_mode": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.GrokReasoningProbeTTLSec(); !ok {
+		return &ValidationError{Name: "grok_reasoning_probe_ttl_sec", err: errors.New(`ent: missing required field "Group.grok_reasoning_probe_ttl_sec"`)}
+	}
+	if _, ok := _c.mutation.GrokReasoningQuarantineSec(); !ok {
+		return &ValidationError{Name: "grok_reasoning_quarantine_sec", err: errors.New(`ent: missing required field "Group.grok_reasoning_quarantine_sec"`)}
+	}
 	if _, ok := _c.mutation.ForceOpenaiFast(); !ok {
 		return &ValidationError{Name: "force_openai_fast", err: errors.New(`ent: missing required field "Group.force_openai_fast"`)}
 	}
@@ -1386,6 +1512,9 @@ func (_c *GroupCreate) check() error {
 	}
 	if _, ok := _c.mutation.CodexModelsManifestConfig(); !ok {
 		return &ValidationError{Name: "codex_models_manifest_config", err: errors.New(`ent: missing required field "Group.codex_models_manifest_config"`)}
+	}
+	if _, ok := _c.mutation.PromptPolicy(); !ok {
+		return &ValidationError{Name: "prompt_policy", err: errors.New(`ent: missing required field "Group.prompt_policy"`)}
 	}
 	if _, ok := _c.mutation.RpmLimit(); !ok {
 		return &ValidationError{Name: "rpm_limit", err: errors.New(`ent: missing required field "Group.rpm_limit"`)}
@@ -1621,6 +1750,10 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 		_spec.SetField(group.FieldFallbackGroupIDOnInvalidRequest, field.TypeInt64, value)
 		_node.FallbackGroupIDOnInvalidRequest = &value
 	}
+	if value, ok := _c.mutation.DefaultProxyID(); ok {
+		_spec.SetField(group.FieldDefaultProxyID, field.TypeInt64, value)
+		_node.DefaultProxyID = &value
+	}
 	if value, ok := _c.mutation.ModelRouting(); ok {
 		_spec.SetField(group.FieldModelRouting, field.TypeJSON, value)
 		_node.ModelRouting = value
@@ -1648,6 +1781,22 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.AllowLive(); ok {
 		_spec.SetField(group.FieldAllowLive, field.TypeBool, value)
 		_node.AllowLive = value
+	}
+	if value, ok := _c.mutation.GrokMessagesProtocol(); ok {
+		_spec.SetField(group.FieldGrokMessagesProtocol, field.TypeString, value)
+		_node.GrokMessagesProtocol = value
+	}
+	if value, ok := _c.mutation.GrokReasoningVisibilityMode(); ok {
+		_spec.SetField(group.FieldGrokReasoningVisibilityMode, field.TypeString, value)
+		_node.GrokReasoningVisibilityMode = value
+	}
+	if value, ok := _c.mutation.GrokReasoningProbeTTLSec(); ok {
+		_spec.SetField(group.FieldGrokReasoningProbeTTLSec, field.TypeInt, value)
+		_node.GrokReasoningProbeTTLSec = value
+	}
+	if value, ok := _c.mutation.GrokReasoningQuarantineSec(); ok {
+		_spec.SetField(group.FieldGrokReasoningQuarantineSec, field.TypeInt, value)
+		_node.GrokReasoningQuarantineSec = value
 	}
 	if value, ok := _c.mutation.ForceOpenaiFast(); ok {
 		_spec.SetField(group.FieldForceOpenaiFast, field.TypeBool, value)
@@ -1680,6 +1829,10 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.CodexModelsManifestConfig(); ok {
 		_spec.SetField(group.FieldCodexModelsManifestConfig, field.TypeJSON, value)
 		_node.CodexModelsManifestConfig = value
+	}
+	if value, ok := _c.mutation.PromptPolicy(); ok {
+		_spec.SetField(group.FieldPromptPolicy, field.TypeJSON, value)
+		_node.PromptPolicy = value
 	}
 	if value, ok := _c.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)
@@ -2627,6 +2780,30 @@ func (u *GroupUpsert) ClearFallbackGroupIDOnInvalidRequest() *GroupUpsert {
 	return u
 }
 
+// SetDefaultProxyID sets the "default_proxy_id" field.
+func (u *GroupUpsert) SetDefaultProxyID(v int64) *GroupUpsert {
+	u.Set(group.FieldDefaultProxyID, v)
+	return u
+}
+
+// UpdateDefaultProxyID sets the "default_proxy_id" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateDefaultProxyID() *GroupUpsert {
+	u.SetExcluded(group.FieldDefaultProxyID)
+	return u
+}
+
+// AddDefaultProxyID adds v to the "default_proxy_id" field.
+func (u *GroupUpsert) AddDefaultProxyID(v int64) *GroupUpsert {
+	u.Add(group.FieldDefaultProxyID, v)
+	return u
+}
+
+// ClearDefaultProxyID clears the value of the "default_proxy_id" field.
+func (u *GroupUpsert) ClearDefaultProxyID() *GroupUpsert {
+	u.SetNull(group.FieldDefaultProxyID)
+	return u
+}
+
 // SetModelRouting sets the "model_routing" field.
 func (u *GroupUpsert) SetModelRouting(v map[string][]int64) *GroupUpsert {
 	u.Set(group.FieldModelRouting, v)
@@ -2723,6 +2900,66 @@ func (u *GroupUpsert) UpdateAllowLive() *GroupUpsert {
 	return u
 }
 
+// SetGrokMessagesProtocol sets the "grok_messages_protocol" field.
+func (u *GroupUpsert) SetGrokMessagesProtocol(v string) *GroupUpsert {
+	u.Set(group.FieldGrokMessagesProtocol, v)
+	return u
+}
+
+// UpdateGrokMessagesProtocol sets the "grok_messages_protocol" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateGrokMessagesProtocol() *GroupUpsert {
+	u.SetExcluded(group.FieldGrokMessagesProtocol)
+	return u
+}
+
+// SetGrokReasoningVisibilityMode sets the "grok_reasoning_visibility_mode" field.
+func (u *GroupUpsert) SetGrokReasoningVisibilityMode(v string) *GroupUpsert {
+	u.Set(group.FieldGrokReasoningVisibilityMode, v)
+	return u
+}
+
+// UpdateGrokReasoningVisibilityMode sets the "grok_reasoning_visibility_mode" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateGrokReasoningVisibilityMode() *GroupUpsert {
+	u.SetExcluded(group.FieldGrokReasoningVisibilityMode)
+	return u
+}
+
+// SetGrokReasoningProbeTTLSec sets the "grok_reasoning_probe_ttl_sec" field.
+func (u *GroupUpsert) SetGrokReasoningProbeTTLSec(v int) *GroupUpsert {
+	u.Set(group.FieldGrokReasoningProbeTTLSec, v)
+	return u
+}
+
+// UpdateGrokReasoningProbeTTLSec sets the "grok_reasoning_probe_ttl_sec" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateGrokReasoningProbeTTLSec() *GroupUpsert {
+	u.SetExcluded(group.FieldGrokReasoningProbeTTLSec)
+	return u
+}
+
+// AddGrokReasoningProbeTTLSec adds v to the "grok_reasoning_probe_ttl_sec" field.
+func (u *GroupUpsert) AddGrokReasoningProbeTTLSec(v int) *GroupUpsert {
+	u.Add(group.FieldGrokReasoningProbeTTLSec, v)
+	return u
+}
+
+// SetGrokReasoningQuarantineSec sets the "grok_reasoning_quarantine_sec" field.
+func (u *GroupUpsert) SetGrokReasoningQuarantineSec(v int) *GroupUpsert {
+	u.Set(group.FieldGrokReasoningQuarantineSec, v)
+	return u
+}
+
+// UpdateGrokReasoningQuarantineSec sets the "grok_reasoning_quarantine_sec" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateGrokReasoningQuarantineSec() *GroupUpsert {
+	u.SetExcluded(group.FieldGrokReasoningQuarantineSec)
+	return u
+}
+
+// AddGrokReasoningQuarantineSec adds v to the "grok_reasoning_quarantine_sec" field.
+func (u *GroupUpsert) AddGrokReasoningQuarantineSec(v int) *GroupUpsert {
+	u.Add(group.FieldGrokReasoningQuarantineSec, v)
+	return u
+}
+
 // SetForceOpenaiFast sets the "force_openai_fast" field.
 func (u *GroupUpsert) SetForceOpenaiFast(v bool) *GroupUpsert {
 	u.Set(group.FieldForceOpenaiFast, v)
@@ -2816,6 +3053,18 @@ func (u *GroupUpsert) SetCodexModelsManifestConfig(v domain.GroupCodexModelsMani
 // UpdateCodexModelsManifestConfig sets the "codex_models_manifest_config" field to the value that was provided on create.
 func (u *GroupUpsert) UpdateCodexModelsManifestConfig() *GroupUpsert {
 	u.SetExcluded(group.FieldCodexModelsManifestConfig)
+	return u
+}
+
+// SetPromptPolicy sets the "prompt_policy" field.
+func (u *GroupUpsert) SetPromptPolicy(v domain.GroupPromptPolicy) *GroupUpsert {
+	u.Set(group.FieldPromptPolicy, v)
+	return u
+}
+
+// UpdatePromptPolicy sets the "prompt_policy" field to the value that was provided on create.
+func (u *GroupUpsert) UpdatePromptPolicy() *GroupUpsert {
+	u.SetExcluded(group.FieldPromptPolicy)
 	return u
 }
 
@@ -3858,6 +4107,34 @@ func (u *GroupUpsertOne) ClearFallbackGroupIDOnInvalidRequest() *GroupUpsertOne 
 	})
 }
 
+// SetDefaultProxyID sets the "default_proxy_id" field.
+func (u *GroupUpsertOne) SetDefaultProxyID(v int64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetDefaultProxyID(v)
+	})
+}
+
+// AddDefaultProxyID adds v to the "default_proxy_id" field.
+func (u *GroupUpsertOne) AddDefaultProxyID(v int64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddDefaultProxyID(v)
+	})
+}
+
+// UpdateDefaultProxyID sets the "default_proxy_id" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateDefaultProxyID() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateDefaultProxyID()
+	})
+}
+
+// ClearDefaultProxyID clears the value of the "default_proxy_id" field.
+func (u *GroupUpsertOne) ClearDefaultProxyID() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.ClearDefaultProxyID()
+	})
+}
+
 // SetModelRouting sets the "model_routing" field.
 func (u *GroupUpsertOne) SetModelRouting(v map[string][]int64) *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
@@ -3970,6 +4247,76 @@ func (u *GroupUpsertOne) UpdateAllowLive() *GroupUpsertOne {
 	})
 }
 
+// SetGrokMessagesProtocol sets the "grok_messages_protocol" field.
+func (u *GroupUpsertOne) SetGrokMessagesProtocol(v string) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetGrokMessagesProtocol(v)
+	})
+}
+
+// UpdateGrokMessagesProtocol sets the "grok_messages_protocol" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateGrokMessagesProtocol() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateGrokMessagesProtocol()
+	})
+}
+
+// SetGrokReasoningVisibilityMode sets the "grok_reasoning_visibility_mode" field.
+func (u *GroupUpsertOne) SetGrokReasoningVisibilityMode(v string) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetGrokReasoningVisibilityMode(v)
+	})
+}
+
+// UpdateGrokReasoningVisibilityMode sets the "grok_reasoning_visibility_mode" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateGrokReasoningVisibilityMode() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateGrokReasoningVisibilityMode()
+	})
+}
+
+// SetGrokReasoningProbeTTLSec sets the "grok_reasoning_probe_ttl_sec" field.
+func (u *GroupUpsertOne) SetGrokReasoningProbeTTLSec(v int) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetGrokReasoningProbeTTLSec(v)
+	})
+}
+
+// AddGrokReasoningProbeTTLSec adds v to the "grok_reasoning_probe_ttl_sec" field.
+func (u *GroupUpsertOne) AddGrokReasoningProbeTTLSec(v int) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddGrokReasoningProbeTTLSec(v)
+	})
+}
+
+// UpdateGrokReasoningProbeTTLSec sets the "grok_reasoning_probe_ttl_sec" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateGrokReasoningProbeTTLSec() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateGrokReasoningProbeTTLSec()
+	})
+}
+
+// SetGrokReasoningQuarantineSec sets the "grok_reasoning_quarantine_sec" field.
+func (u *GroupUpsertOne) SetGrokReasoningQuarantineSec(v int) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetGrokReasoningQuarantineSec(v)
+	})
+}
+
+// AddGrokReasoningQuarantineSec adds v to the "grok_reasoning_quarantine_sec" field.
+func (u *GroupUpsertOne) AddGrokReasoningQuarantineSec(v int) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddGrokReasoningQuarantineSec(v)
+	})
+}
+
+// UpdateGrokReasoningQuarantineSec sets the "grok_reasoning_quarantine_sec" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateGrokReasoningQuarantineSec() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateGrokReasoningQuarantineSec()
+	})
+}
+
 // SetForceOpenaiFast sets the "force_openai_fast" field.
 func (u *GroupUpsertOne) SetForceOpenaiFast(v bool) *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
@@ -4079,6 +4426,20 @@ func (u *GroupUpsertOne) SetCodexModelsManifestConfig(v domain.GroupCodexModelsM
 func (u *GroupUpsertOne) UpdateCodexModelsManifestConfig() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateCodexModelsManifestConfig()
+	})
+}
+
+// SetPromptPolicy sets the "prompt_policy" field.
+func (u *GroupUpsertOne) SetPromptPolicy(v domain.GroupPromptPolicy) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetPromptPolicy(v)
+	})
+}
+
+// UpdatePromptPolicy sets the "prompt_policy" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdatePromptPolicy() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdatePromptPolicy()
 	})
 }
 
@@ -5304,6 +5665,34 @@ func (u *GroupUpsertBulk) ClearFallbackGroupIDOnInvalidRequest() *GroupUpsertBul
 	})
 }
 
+// SetDefaultProxyID sets the "default_proxy_id" field.
+func (u *GroupUpsertBulk) SetDefaultProxyID(v int64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetDefaultProxyID(v)
+	})
+}
+
+// AddDefaultProxyID adds v to the "default_proxy_id" field.
+func (u *GroupUpsertBulk) AddDefaultProxyID(v int64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddDefaultProxyID(v)
+	})
+}
+
+// UpdateDefaultProxyID sets the "default_proxy_id" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateDefaultProxyID() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateDefaultProxyID()
+	})
+}
+
+// ClearDefaultProxyID clears the value of the "default_proxy_id" field.
+func (u *GroupUpsertBulk) ClearDefaultProxyID() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.ClearDefaultProxyID()
+	})
+}
+
 // SetModelRouting sets the "model_routing" field.
 func (u *GroupUpsertBulk) SetModelRouting(v map[string][]int64) *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
@@ -5416,6 +5805,76 @@ func (u *GroupUpsertBulk) UpdateAllowLive() *GroupUpsertBulk {
 	})
 }
 
+// SetGrokMessagesProtocol sets the "grok_messages_protocol" field.
+func (u *GroupUpsertBulk) SetGrokMessagesProtocol(v string) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetGrokMessagesProtocol(v)
+	})
+}
+
+// UpdateGrokMessagesProtocol sets the "grok_messages_protocol" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateGrokMessagesProtocol() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateGrokMessagesProtocol()
+	})
+}
+
+// SetGrokReasoningVisibilityMode sets the "grok_reasoning_visibility_mode" field.
+func (u *GroupUpsertBulk) SetGrokReasoningVisibilityMode(v string) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetGrokReasoningVisibilityMode(v)
+	})
+}
+
+// UpdateGrokReasoningVisibilityMode sets the "grok_reasoning_visibility_mode" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateGrokReasoningVisibilityMode() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateGrokReasoningVisibilityMode()
+	})
+}
+
+// SetGrokReasoningProbeTTLSec sets the "grok_reasoning_probe_ttl_sec" field.
+func (u *GroupUpsertBulk) SetGrokReasoningProbeTTLSec(v int) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetGrokReasoningProbeTTLSec(v)
+	})
+}
+
+// AddGrokReasoningProbeTTLSec adds v to the "grok_reasoning_probe_ttl_sec" field.
+func (u *GroupUpsertBulk) AddGrokReasoningProbeTTLSec(v int) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddGrokReasoningProbeTTLSec(v)
+	})
+}
+
+// UpdateGrokReasoningProbeTTLSec sets the "grok_reasoning_probe_ttl_sec" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateGrokReasoningProbeTTLSec() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateGrokReasoningProbeTTLSec()
+	})
+}
+
+// SetGrokReasoningQuarantineSec sets the "grok_reasoning_quarantine_sec" field.
+func (u *GroupUpsertBulk) SetGrokReasoningQuarantineSec(v int) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetGrokReasoningQuarantineSec(v)
+	})
+}
+
+// AddGrokReasoningQuarantineSec adds v to the "grok_reasoning_quarantine_sec" field.
+func (u *GroupUpsertBulk) AddGrokReasoningQuarantineSec(v int) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddGrokReasoningQuarantineSec(v)
+	})
+}
+
+// UpdateGrokReasoningQuarantineSec sets the "grok_reasoning_quarantine_sec" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateGrokReasoningQuarantineSec() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateGrokReasoningQuarantineSec()
+	})
+}
+
 // SetForceOpenaiFast sets the "force_openai_fast" field.
 func (u *GroupUpsertBulk) SetForceOpenaiFast(v bool) *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
@@ -5525,6 +5984,20 @@ func (u *GroupUpsertBulk) SetCodexModelsManifestConfig(v domain.GroupCodexModels
 func (u *GroupUpsertBulk) UpdateCodexModelsManifestConfig() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateCodexModelsManifestConfig()
+	})
+}
+
+// SetPromptPolicy sets the "prompt_policy" field.
+func (u *GroupUpsertBulk) SetPromptPolicy(v domain.GroupPromptPolicy) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetPromptPolicy(v)
+	})
+}
+
+// UpdatePromptPolicy sets the "prompt_policy" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdatePromptPolicy() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdatePromptPolicy()
 	})
 }
 

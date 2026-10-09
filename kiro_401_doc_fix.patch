@@ -1,0 +1,189 @@
+diff --git a/backend/internal/service/account_test_service.go b/backend/internal/service/account_test_service.go
+index 2e5c91ea..bed5b367 100644
+--- a/backend/internal/service/account_test_service.go
++++ b/backend/internal/service/account_test_service.go
+@@ -39,6 +39,8 @@ const (
+ 	kiroNativeAmzUA    = "aws-sdk-js/1.0.36 KiroIDE-0.12.200"
+ )
+ 
++var refreshKiroAccountTokenForTest = RefreshKiroAccountToken
++
+ // TestEvent represents a SSE event for account testing
+ type TestEvent struct {
+ 	Type     string `json:"type"`
+@@ -212,7 +214,7 @@ func (s *AccountTestService) testKiroAccountConnection(c *gin.Context, account *
+ 
+ 	authToken := strings.TrimSpace(account.GetCredential("access_token"))
+ 	if authToken == "" {
+-		tokenInfo, err := RefreshKiroAccountToken(ctx, account)
++		tokenInfo, err := refreshKiroAccountTokenForTest(ctx, account)
+ 		if err != nil {
+ 			return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to refresh Kiro token: %s", err.Error()))
+ 		}
+@@ -259,6 +261,34 @@ func (s *AccountTestService) testKiroAccountConnection(c *gin.Context, account *
+ 	if err != nil {
+ 		return s.sendErrorAndEnd(c, fmt.Sprintf("Kiro request failed: %s", err.Error()))
+ 	}
++
++	if isKiroBearerAuthFailure(resp.StatusCode) {
++		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
++		_ = resp.Body.Close()
++
++		tokenInfo, refreshErr := refreshKiroAccountTokenForTest(ctx, account)
++		if refreshErr != nil {
++			return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to refresh Kiro token after auth failure: %s", refreshErr.Error()))
++		}
++		authToken = strings.TrimSpace(tokenInfo.AccessToken)
++		if authToken == "" {
++			return s.sendErrorAndEnd(c, "Kiro token refresh returned an empty access token")
++		}
++		account.Credentials = MergeCredentials(account.Credentials, BuildKiroAccountCredentials(tokenInfo))
++		if updateErr := s.accountRepo.Update(ctx, account); updateErr != nil {
++			return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to persist refreshed Kiro token: %s", updateErr.Error()))
++		}
++
++		retryReq, retryErr := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("https://q.%s.amazonaws.com/generateAssistantResponse", region), bytes.NewReader(payloadBytes))
++		if retryErr != nil {
++			return s.sendErrorAndEnd(c, "Failed to create Kiro retry request")
++		}
++		applyKiroNativeTestHeaders(retryReq, authToken, account.GetCredential("machine_id"))
++		resp, err = s.httpUpstream.DoWithTLS(retryReq, proxyURL, account.ID, account.Concurrency, tlsProfile)
++		if err != nil {
++			return s.sendErrorAndEnd(c, fmt.Sprintf("Kiro retry request failed: %s", err.Error()))
++		}
++	}
+ 	defer func() { _ = resp.Body.Close() }()
+ 
+ 	if resp.StatusCode != http.StatusOK {
+@@ -293,6 +323,10 @@ func normalizeKiroTestModelID(modelID string) string {
+ 	return strings.TrimSpace(modelID)
+ }
+ 
++func isKiroBearerAuthFailure(statusCode int) bool {
++	return statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden
++}
++
+ func createKiroTestPayload(modelID string, prompt string, profileARN string) map[string]any {
+ 	payload := map[string]any{
+ 		"conversationState": map[string]any{
+diff --git a/backend/internal/service/account_test_service_kiro_test.go b/backend/internal/service/account_test_service_kiro_test.go
+index c83b2e4b..92a8d66a 100644
+--- a/backend/internal/service/account_test_service_kiro_test.go
++++ b/backend/internal/service/account_test_service_kiro_test.go
+@@ -2,6 +2,7 @@ package service
+ 
+ import (
+ 	"bytes"
++	"context"
+ 	"io"
+ 	"net/http"
+ 	"net/http/httptest"
+@@ -60,3 +61,77 @@ func TestAccountTestService_TestAccountConnection_KiroUsesNativeEndpoint(t *test
+ 	require.Equal(t, "AI_EDITOR", gjson.GetBytes(upstream.lastBody, "conversationState.currentMessage.userInputMessage.origin").String())
+ 	require.Contains(t, rec.Body.String(), `"type":"test_complete"`)
+ }
++
++func TestAccountTestService_TestAccountConnection_KiroRefreshesOnAuthFailure(t *testing.T) {
++	gin.SetMode(gin.TestMode)
++
++	account := Account{
++		ID:          43,
++		Name:        "kiro-oauth",
++		Platform:    PlatformKiro,
++		Type:        AccountTypeOAuth,
++		Status:      StatusActive,
++		Schedulable: true,
++		Concurrency: 1,
++		Credentials: map[string]any{
++			"access_token":  "expired-token",
++			"refresh_token": "refresh-token",
++			"region":        "us-east-1",
++		},
++	}
++	repo := &kiroTestUpdateRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{account}}}
++	upstream := &httpUpstreamRecorder{responses: []*http.Response{
++		{
++			StatusCode: http.StatusUnauthorized,
++			Header:     http.Header{"Content-Type": []string{"application/json"}},
++			Body:       io.NopCloser(bytes.NewReader([]byte(`{"type":"error","error":{"type":"authentication_error","message":"Invalid bearer token"}}`))),
++		},
++		{
++			StatusCode: http.StatusOK,
++			Header:     http.Header{"Content-Type": []string{"application/vnd.amazon.eventstream"}},
++			Body:       io.NopCloser(bytes.NewReader([]byte("eventstream"))),
++		},
++	}}
++	originalRefresh := refreshKiroAccountTokenForTest
++	refreshKiroAccountTokenForTest = func(_ context.Context, _ *Account) (*KiroTokenInfo, error) {
++		return &KiroTokenInfo{
++			AccessToken:  "fresh-token",
++			RefreshToken: "new-refresh-token",
++			ExpiresIn:    3600,
++			ExpiresAt:    1893456000,
++			TokenType:    "Bearer",
++		}, nil
++	}
++	defer func() { refreshKiroAccountTokenForTest = originalRefresh }()
++
++	svc := &AccountTestService{
++		accountRepo:  repo,
++		httpUpstream: upstream,
++	}
++
++	rec := httptest.NewRecorder()
++	c, _ := gin.CreateTestContext(rec)
++	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/43/test", bytes.NewReader(nil))
++
++	err := svc.TestAccountConnection(c, account.ID, "claude-sonnet-4-5-20250929", "", AccountTestModeDefault)
++	require.NoError(t, err)
++
++	require.Len(t, upstream.requests, 2)
++	require.Equal(t, "Bearer expired-token", upstream.requests[0].Header.Get("Authorization"))
++	require.Equal(t, "Bearer fresh-token", upstream.requests[1].Header.Get("Authorization"))
++	require.NotNil(t, repo.updated)
++	require.Equal(t, "fresh-token", repo.updated.GetCredential("access_token"))
++	require.Equal(t, "new-refresh-token", repo.updated.GetCredential("refresh_token"))
++	require.Contains(t, rec.Body.String(), `"type":"test_complete"`)
++}
++
++type kiroTestUpdateRepo struct {
++	stubOpenAIAccountRepo
++	updated *Account
++}
++
++func (r *kiroTestUpdateRepo) Update(_ context.Context, account *Account) error {
++	copied := *account
++	r.updated = &copied
++	return nil
++}
+diff --git a/deploy/README.md b/deploy/README.md
+index dd311721..c46a143e 100644
+--- a/deploy/README.md
++++ b/deploy/README.md
+@@ -29,6 +29,26 @@ This directory contains files for deploying Sub2API on Linux servers.
+ 
+ ## Docker Deployment (Recommended)
+ 
++### Low-Memory Server Update Rules
++
++For small production servers, do not build the frontend/backend image on the server. Build the image in CI and let the server only run/pull the final image.
++
++- Prefer immutable image tags such as `ghcr.io/<owner>/sub2api:sha-<commit>`.
++- Do not run `docker build` on low-memory production servers.
++- Do not overwrite production `.env` files during updates; keep secrets and admin credentials in place.
++- Do not recreate or replace database storage when updating the application image.
++- Pull an image only when switching to a new tag/SHA or when the image is missing locally.
++- If the same image tag is already present, restart with the existing local image instead of pulling again.
++- If direct GHCR pulls are slow or blocked, use a verified registry mirror, then retag to the expected image name before `docker compose up -d`.
++
++Example update flow:
++
++```bash
++IMAGE="ghcr.io/<owner>/sub2api:sha-<commit>"
++docker image inspect "$IMAGE" >/dev/null 2>&1 || docker pull "$IMAGE"
++docker compose up -d --no-build
++```
++
+ ### Method 1: One-Click Deployment (Recommended)
+ 
+ Use the automated preparation script for the easiest setup:

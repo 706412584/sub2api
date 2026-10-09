@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -554,4 +555,103 @@ func TestExtractValidationURL(t *testing.T) {
 			require.Equal(t, tt.expected, got)
 		})
 	}
+}
+
+// ---------------------------------------------------------------------------
+// applyAntigravityQuotaGroups
+// ---------------------------------------------------------------------------
+
+// TestApplyAntigravityQuotaGroups_ConvertsBuckets 验证 retrieveUserQuotaSummary
+// 响应到 UsageInfo.AntigravityQuotaGroups 的换算（remainingFraction → utilization）。
+func TestApplyAntigravityQuotaGroups_ConvertsBuckets(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasSuffix(r.URL.Path, "/v1internal:retrieveUserQuotaSummary") {
+			t.Errorf("URL 路径不匹配: got %s", r.URL.Path)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"groups": [
+				{
+					"displayName": "Gemini Models",
+					"description": "Gemini family",
+					"buckets": [
+						{"bucketId": "gemini-weekly", "window": "weekly", "remainingFraction": 0.75, "resetTime": "2026-01-05T00:00:00Z", "displayName": "Weekly quota"},
+						{"bucketId": "gemini-5h", "window": "5h", "remainingFraction": 0.5, "resetTime": "2026-01-01T05:00:00Z"}
+					]
+				},
+				{
+					"displayName": "Claude and GPT models",
+					"buckets": [
+						{"bucketId": "3p-weekly", "window": "weekly", "remainingFraction": 1.5},
+						{"bucketId": "3p-5h", "window": "5h", "remainingFraction": -0.2}
+					]
+				}
+			]
+		}`))
+	}))
+	defer server.Close()
+
+	// 临时替换 BaseURLs 指向 mock server
+	origURLs := antigravity.BaseURLs
+	antigravity.BaseURLs = []string{server.URL}
+	t.Cleanup(func() { antigravity.BaseURLs = origURLs })
+
+	client, err := antigravity.NewClient("")
+	require.NoError(t, err)
+
+	fetcher := NewAntigravityQuotaFetcher(nil, nil)
+	info := &UsageInfo{}
+	fetcher.applyAntigravityQuotaGroups(context.Background(), client, "token", "proj", info)
+
+	require.Len(t, info.AntigravityQuotaGroups, 2)
+
+	g0 := info.AntigravityQuotaGroups[0]
+	require.Equal(t, "Gemini Models", g0.DisplayName)
+	require.Len(t, g0.Buckets, 2)
+	// 0.75 剩余 → 25% 使用率
+	require.Equal(t, 25, g0.Buckets[0].Utilization)
+	require.Equal(t, "gemini-weekly", g0.Buckets[0].BucketID)
+	require.Equal(t, "weekly", g0.Buckets[0].Window)
+	require.Equal(t, "Weekly quota", g0.Buckets[0].DisplayName)
+	// 0.5 剩余 → 50% 使用率
+	require.Equal(t, 50, g0.Buckets[1].Utilization)
+
+	g1 := info.AntigravityQuotaGroups[1]
+	require.Len(t, g1.Buckets, 2)
+	// 1.5 剩余 → clamp 到 0% 使用率
+	require.Equal(t, 0, g1.Buckets[0].Utilization)
+	// -0.2 剩余 → clamp 到 100% 使用率
+	require.Equal(t, 100, g1.Buckets[1].Utilization)
+}
+
+// TestApplyAntigravityQuotaGroups_FailureKeepsUsageInfo 拉取失败时 best-effort：不报错、不写字段。
+func TestApplyAntigravityQuotaGroups_FailureKeepsUsageInfo(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":"boom"}`))
+	}))
+	defer server.Close()
+
+	origURLs := antigravity.BaseURLs
+	antigravity.BaseURLs = []string{server.URL}
+	t.Cleanup(func() { antigravity.BaseURLs = origURLs })
+
+	client, err := antigravity.NewClient("")
+	require.NoError(t, err)
+
+	fetcher := NewAntigravityQuotaFetcher(nil, nil)
+	info := &UsageInfo{}
+	fetcher.applyAntigravityQuotaGroups(context.Background(), client, "token", "proj", info)
+
+	require.Empty(t, info.AntigravityQuotaGroups, "失败时不应写入分桶配额")
+}
+
+// TestApplyAntigravityQuotaGroups_NilInfo 保护 nil UsageInfo。
+func TestApplyAntigravityQuotaGroups_NilInfo(t *testing.T) {
+	fetcher := NewAntigravityQuotaFetcher(nil, nil)
+	require.NotPanics(t, func() {
+		fetcher.applyAntigravityQuotaGroups(context.Background(), nil, "token", "proj", nil)
+	})
 }

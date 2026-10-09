@@ -1,0 +1,226 @@
+- generic [active] [ref=f3e1]:
+  - generic [ref=f3e35]:
+    - complementary [ref=f3e36]:
+      - generic [ref=f3e37]:
+        - link [ref=f3e38] [cursor=pointer]:
+          - /url: /admin/dashboard
+          - img "Logo" [ref=f3e39]
+        - generic [ref=f3e40]:
+          - link "Sub2API" [ref=f3e41] [cursor=pointer]:
+            - /url: /admin/dashboard
+          - button "v0.1.147" [ref=f3e43] [cursor=pointer]
+      - navigation [ref=f3e48]:
+        - generic [ref=f3e49]:
+          - link "仪表盘" [ref=f3e50] [cursor=pointer]:
+            - /url: /admin/dashboard
+          - link "运维监控" [ref=f3e54] [cursor=pointer]:
+            - /url: /admin/ops
+          - link "用户管理" [ref=f3e58] [cursor=pointer]:
+            - /url: /admin/users
+          - link "分组管理" [ref=f3e62] [cursor=pointer]:
+            - /url: /admin/groups
+          - button "渠道管理" [ref=f3e66] [cursor=pointer]
+          - link "订阅管理" [ref=f3e73] [cursor=pointer]:
+            - /url: /admin/subscriptions
+          - link "账号管理" [ref=f3e77] [cursor=pointer]:
+            - /url: /admin/accounts
+          - link "公告" [ref=f3e81] [cursor=pointer]:
+            - /url: /admin/announcements
+          - link "IP管理" [ref=f3e85] [cursor=pointer]:
+            - /url: /admin/proxies
+          - link "兑换码" [ref=f3e89] [cursor=pointer]:
+            - /url: /admin/redeem
+          - link "优惠码" [ref=f3e93] [cursor=pointer]:
+            - /url: /admin/promo-codes
+          - link "使用记录" [ref=f3e97] [cursor=pointer]:
+            - /url: /admin/usage
+          - link "系统设置" [ref=f3e101] [cursor=pointer]:
+            - /url: /admin/settings
+        - generic [ref=f3e106]:
+          - generic [ref=f3e107]: 我的账户
+          - link "API 密钥" [ref=f3e109] [cursor=pointer]:
+            - /url: /keys
+          - link "使用记录" [ref=f3e113] [cursor=pointer]:
+            - /url: /usage
+          - link "渠道状态" [ref=f3e117] [cursor=pointer]:
+            - /url: /monitor
+          - link "我的订阅" [ref=f3e121] [cursor=pointer]:
+            - /url: /subscriptions
+          - link "兑换" [ref=f3e125] [cursor=pointer]:
+            - /url: /redeem
+          - link "个人资料" [ref=f3e129] [cursor=pointer]:
+            - /url: /profile
+      - generic [ref=f3e133]:
+        - button "深色模式" [ref=f3e134] [cursor=pointer]
+        - button "收起" [ref=f3e138] [cursor=pointer]
+    - generic [ref=f3e142]:
+      - banner [ref=f3e143]:
+        - generic [ref=f3e144]:
+          - generic [ref=f3e146]:
+            - heading "仪表盘" [level=1] [ref=f3e147]
+            - paragraph [ref=f3e148]: 欢迎回来！这是您账户的概览。
+          - generic [ref=f3e149]:
+            - button "公告" [ref=f3e151] [cursor=pointer]
+            - button "🇨🇳 ZH" [ref=f3e155] [cursor=pointer]:
+              - generic [ref=f3e156]: 🇨🇳
+              - generic [ref=f3e157]: ZH
+            - generic [ref=f3e160]: $8888887.40
+            - button "User Menu" [ref=f3e165] [cursor=pointer]:
+              - generic [ref=f3e166]: AD
+              - generic [ref=f3e168]:
+                - generic [ref=f3e169]: admin
+                - generic [ref=f3e170]: admin
+      - main [ref=f3e173]:
+        - generic [ref=f3e174]:
+          - generic [ref=f3e175]:
+            - generic [ref=f3e181]:
+              - paragraph [ref=f3e182]: 余额
+              - paragraph [ref=f3e183]: $8,888,887.40
+              - paragraph [ref=f3e184]: 可用
+            - generic [ref=f3e190]:
+              - paragraph [ref=f3e191]: API 密钥
+              - paragraph [ref=f3e192]: "1"
+              - paragraph [ref=f3e193]: 1 启用
+            - generic [ref=f3e199]:
+              - paragraph [ref=f3e200]: 今日请求
+              - paragraph [ref=f3e201]: "18"
+              - paragraph [ref=f3e202]: "总计: 18"
+            - generic [ref=f3e208]:
+              - paragraph [ref=f3e209]: 今日消费
+              - paragraph [ref=f3e210]: $0.5989 / $0.5989
+              - paragraph [ref=f3e211]: "总计: $0.5989 / $0.5989"
+          - generic [ref=f3e212]:
+            - generic [ref=f3e218]:
+              - paragraph [ref=f3e219]: 今日 Token
+              - paragraph [ref=f3e220]: 601.7K
+              - paragraph [ref=f3e221]: "输入: 155.9K / 输出: 12.2K"
+            - generic [ref=f3e227]:
+              - paragraph [ref=f3e228]: 累计 Token
+              - paragraph [ref=f3e229]: 601.7K
+              - paragraph [ref=f3e230]: "输入: 155.9K / 输出: 12.2K"
+            - generic [ref=f3e236]:
+              - paragraph [ref=f3e237]: 性能指标
+              - generic [ref=f3e238]:
+                - paragraph [ref=f3e239]: "0"
+                - generic [ref=f3e240]: RPM
+              - generic [ref=f3e241]:
+                - paragraph [ref=f3e242]: "0"
+                - generic [ref=f3e243]: TPM
+            - generic [ref=f3e249]:
+              - paragraph [ref=f3e250]: 平均响应
+              - paragraph [ref=f3e251]: 13.77s
+              - paragraph [ref=f3e252]: 平均时间
+          - generic [ref=f3e253]:
+            - generic [ref=f3e254]:
+              - heading "按平台拆分" [level=3] [ref=f3e255]
+              - generic [ref=f3e256]: 1 个平台
+            - generic [ref=f3e258]:
+              - generic [ref=f3e259]:
+                - generic [ref=f3e260]: grok
+                - generic "实际" [ref=f3e261]: $0.5989
+              - generic [ref=f3e262]:
+                - generic [ref=f3e263]:
+                  - generic [ref=f3e264]: 今日消费
+                  - generic [ref=f3e265]: $0.5989
+                - generic [ref=f3e266]:
+                  - generic [ref=f3e267]: 请求
+                  - generic [ref=f3e268]: "18"
+                - generic [ref=f3e269]:
+                  - generic [ref=f3e270]: Token
+                  - generic [ref=f3e271]: 601.7K
+          - generic [ref=f3e272]:
+            - generic [ref=f3e274]:
+              - generic [ref=f3e275]:
+                - generic [ref=f3e276]: "时间范围:"
+                - button "近 7 天" [ref=f3e278] [cursor=pointer]
+              - button "刷新" [ref=f3e286] [cursor=pointer]
+              - generic [ref=f3e287]:
+                - generic [ref=f3e288]: "粒度:"
+                - button "Select option" [ref=f3e291] [cursor=pointer]:
+                  - generic [ref=f3e292]: 按天
+            - generic [ref=f3e296]:
+              - generic [ref=f3e297]:
+                - heading "模型分布" [level=3] [ref=f3e298]
+                - table [ref=f3e303]:
+                  - rowgroup [ref=f3e304]:
+                    - row [ref=f3e305]:
+                      - columnheader "模型" [ref=f3e306]
+                      - columnheader "请求" [ref=f3e307]
+                      - columnheader "Token" [ref=f3e308]
+                      - columnheader "实际" [ref=f3e309]
+                      - columnheader "标准" [ref=f3e310]
+                  - rowgroup [ref=f3e311]:
+                    - row [ref=f3e312]:
+                      - cell "grok-4.5" [ref=f3e313]
+                      - cell "17" [ref=f3e314]
+                      - cell "600.2K" [ref=f3e315]
+                      - cell "$0.5963" [ref=f3e316]
+                      - cell "$0.5963" [ref=f3e317]
+                    - row [ref=f3e318]:
+                      - cell "grok-4.3" [ref=f3e319]
+                      - cell "1" [ref=f3e320]
+                      - cell "1.5K" [ref=f3e321]
+                      - cell "$0.0025" [ref=f3e322]
+                      - cell "$0.0025" [ref=f3e323]
+              - heading "Token 使用趋势" [level=3] [ref=f3e325]
+          - generic [ref=f3e328]:
+            - generic [ref=f3e330]:
+              - generic [ref=f3e331]:
+                - heading "最近使用" [level=2] [ref=f3e332]
+                - generic [ref=f3e333]: 近 7 天
+              - generic [ref=f3e335]:
+                - generic [ref=f3e336]:
+                  - generic [ref=f3e341]:
+                    - paragraph [ref=f3e342]: grok-4.5
+                    - paragraph [ref=f3e343]: 2026/07/10 01:30:55
+                  - generic [ref=f3e344]:
+                    - paragraph [ref=f3e345]: $0.0007 / $0.0007
+                    - paragraph [ref=f3e346]: 163 tokens
+                - generic [ref=f3e347]:
+                  - generic [ref=f3e352]:
+                    - paragraph [ref=f3e353]: grok-4.5
+                    - paragraph [ref=f3e354]: 2026/07/10 01:27:07
+                  - generic [ref=f3e355]:
+                    - paragraph [ref=f3e356]: $0.1015 / $0.1015
+                    - paragraph [ref=f3e357]: 49,827 tokens
+                - generic [ref=f3e358]:
+                  - generic [ref=f3e363]:
+                    - paragraph [ref=f3e364]: grok-4.5
+                    - paragraph [ref=f3e365]: 2026/07/10 01:25:27
+                  - generic [ref=f3e366]:
+                    - paragraph [ref=f3e367]: $0.0009 / $0.0009
+                    - paragraph [ref=f3e368]: 192 tokens
+                - generic [ref=f3e369]:
+                  - generic [ref=f3e374]:
+                    - paragraph [ref=f3e375]: grok-4.3
+                    - paragraph [ref=f3e376]: 2026/07/10 01:24:46
+                  - generic [ref=f3e377]:
+                    - paragraph [ref=f3e378]: $0.0025 / $0.0025
+                    - paragraph [ref=f3e379]: 1,397 tokens
+                - generic [ref=f3e380]:
+                  - generic [ref=f3e385]:
+                    - paragraph [ref=f3e386]: grok-4.5
+                    - paragraph [ref=f3e387]: 2026/07/10 01:24:41
+                  - generic [ref=f3e388]:
+                    - paragraph [ref=f3e389]: $0.0384 / $0.0384
+                    - paragraph [ref=f3e390]: 3,383 tokens
+                - link "查看全部" [ref=f3e391] [cursor=pointer]:
+                  - /url: /usage
+            - generic [ref=f3e395]:
+              - heading "快捷操作" [level=2] [ref=f3e397]
+              - generic [ref=f3e398]:
+                - button [ref=f3e399] [cursor=pointer]:
+                  - generic [ref=f3e403]:
+                    - paragraph [ref=f3e404]: 创建 API 密钥
+                    - paragraph [ref=f3e405]: 生成新的 API 密钥
+                - button [ref=f3e408] [cursor=pointer]:
+                  - generic [ref=f3e412]:
+                    - paragraph [ref=f3e413]: 查看使用记录
+                    - paragraph [ref=f3e414]: 查看详细的使用日志
+                - button [ref=f3e417] [cursor=pointer]:
+                  - generic [ref=f3e421]:
+                    - paragraph [ref=f3e422]: 兑换码
+                    - paragraph [ref=f3e423]: 使用兑换码充值
+  - generic [ref=f3e428]:
+    - paragraph [ref=f3e433]: 登录成功！欢迎回来。
+    - button "Close notification" [ref=f3e434] [cursor=pointer]

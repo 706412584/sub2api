@@ -189,6 +189,18 @@ func (f CompositeModelRouteFunc) Mutate(ctx context.Context, m ent.Mutation) (en
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CompositeModelRouteMutation", m)
 }
 
+// The DynamicProxyPoolFunc type is an adapter to allow the use of ordinary
+// function as DynamicProxyPool mutator.
+type DynamicProxyPoolFunc func(context.Context, *ent.DynamicProxyPoolMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f DynamicProxyPoolFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.DynamicProxyPoolMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.DynamicProxyPoolMutation", m)
+}
+
 // The ErrorPassthroughRuleFunc type is an adapter to allow the use of ordinary
 // function as ErrorPassthroughRule mutator.
 type ErrorPassthroughRuleFunc func(context.Context, *ent.ErrorPassthroughRuleMutation) (ent.Value, error)
@@ -211,6 +223,42 @@ func (f GroupFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.GroupMutation", m)
+}
+
+// The IMBotFunc type is an adapter to allow the use of ordinary
+// function as IMBot mutator.
+type IMBotFunc func(context.Context, *ent.IMBotMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f IMBotFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.IMBotMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.IMBotMutation", m)
+}
+
+// The IMBotChatFunc type is an adapter to allow the use of ordinary
+// function as IMBotChat mutator.
+type IMBotChatFunc func(context.Context, *ent.IMBotChatMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f IMBotChatFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.IMBotChatMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.IMBotChatMutation", m)
+}
+
+// The IMBotMessageFunc type is an adapter to allow the use of ordinary
+// function as IMBotMessage mutator.
+type IMBotMessageFunc func(context.Context, *ent.IMBotMessageMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f IMBotMessageFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.IMBotMessageMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.IMBotMessageMutation", m)
 }
 
 // The IdempotencyRecordFunc type is an adapter to allow the use of ordinary
@@ -319,6 +367,18 @@ func (f ProxyFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ProxyMutation", m)
+}
+
+// The ProxySubscriptionFunc type is an adapter to allow the use of ordinary
+// function as ProxySubscription mutator.
+type ProxySubscriptionFunc func(context.Context, *ent.ProxySubscriptionMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ProxySubscriptionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ProxySubscriptionMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ProxySubscriptionMutation", m)
 }
 
 // The RedeemCodeFunc type is an adapter to allow the use of ordinary

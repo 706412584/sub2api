@@ -35,6 +35,10 @@ func grokBaseURLValidator(account *Account, cfg *config.Config) (xai.BaseURLVali
 		}), nil
 	case AccountTypeAPIKey:
 		return redactedGrokBaseURLValidator(grokOperatorPolicyValidator(cfg)), nil
+	case AccountTypeGrokConsole:
+		// Console 会话账号固定走官方 Console 链路（DPoP + 浏览器头），
+		// 不接受自定义转发 base_url。
+		return redactedGrokBaseURLValidator(xai.ValidateBaseURL), nil
 	default:
 		return nil, fmt.Errorf("unsupported grok account type: %s", account.Type)
 	}

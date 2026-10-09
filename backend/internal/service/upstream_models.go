@@ -15,7 +15,9 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/codebuddy"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
+	kiroprotocol "github.com/Wei-Shaw/sub2api/internal/pkg/kiro"
 )
 
 const (
@@ -740,6 +742,12 @@ func (s *AccountTestService) fetchUpstreamModelList(ctx context.Context, account
 	if s.httpUpstream == nil {
 		return nil, nil, newUpstreamModelSyncConfigError("Upstream HTTP client is not configured", nil)
 	}
+	if account.IsKiro() {
+		return s.fetchKiroUpstreamModels(ctx, account)
+	}
+	if account.IsCodebuddy() {
+		return s.fetchCodebuddyUpstreamModels(ctx, account)
+	}
 
 	req, err := s.buildUpstreamModelsRequest(ctx, account)
 	if err != nil {
@@ -1151,6 +1159,135 @@ func (s *AccountTestService) buildGeminiUpstreamModelsRequest(ctx context.Contex
 	return req, nil
 }
 
+func (s *AccountTestService) fetchKiroUpstreamModels(ctx context.Context, account *Account) ([]string, []byte, error) {
+	credentials := kiroprotocol.Credentials{
+		AccessToken:  strings.TrimSpace(account.GetCredential("access_token")),
+		RefreshToken: strings.TrimSpace(account.GetCredential("refresh_token")),
+		ProfileARN:   strings.TrimSpace(account.GetCredential("profile_arn")),
+		APIKey:       strings.TrimSpace(account.GetCredential("kiro_api_key")),
+		AuthMethod:   strings.TrimSpace(account.GetCredential("auth_method")),
+		APIRegion:    account.GetKiroAPIRegion(),
+		Endpoint:     kiroprotocol.Endpoint(account.GetKiroEndpoint()),
+	}
+	if err := credentials.Validate(); err != nil {
+		return nil, nil, newUpstreamModelSyncConfigError("Invalid Kiro credentials", err)
+	}
+
+	var lastErr error
+	for _, region := range kiroprotocol.RESTRegionCandidates(account.GetKiroAPIRegion()) {
+		request, err := kiroprotocol.BuildAvailableModelsRequest(credentials, kiroprotocol.EndpointOptions{
+			Region:        region,
+			MachineID:     strings.TrimSpace(account.GetCredential("machine_id")),
+			KiroVersion:   "0.7.1",
+			SystemVersion: "windows",
+			NodeVersion:   "20",
+		})
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		request = request.WithContext(ctx)
+		account.ApplyHeaderOverrides(request.Header)
+
+		response, err := s.doUpstreamModelsRequest(request, upstreamModelsProxyURL(account), account)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		body, readErr := io.ReadAll(io.LimitReader(response.Body, resolveModelsListReadLimit(s.cfg)+1))
+		_ = response.Body.Close()
+		if readErr != nil {
+			lastErr = readErr
+			continue
+		}
+		if int64(len(body)) > resolveModelsListReadLimit(s.cfg) {
+			lastErr = fmt.Errorf("response exceeds %d bytes", resolveModelsListReadLimit(s.cfg))
+			continue
+		}
+		if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+			lastErr = fmt.Errorf("upstream model list returned HTTP %d", response.StatusCode)
+			continue
+		}
+
+		var parsed kiroprotocol.ListAvailableModelsResponse
+		if err := json.Unmarshal(body, &parsed); err != nil {
+			lastErr = err
+			continue
+		}
+		modelIDs := make([]string, 0, len(parsed.Models))
+		for _, model := range parsed.Models {
+			modelIDs = append(modelIDs, model.ModelID)
+		}
+		models := dedupeAndSortModelIDs(modelIDs)
+		if len(models) == 0 {
+			lastErr = errors.New("upstream returned no supported models")
+			continue
+		}
+		return models, nil, nil
+	}
+
+	return nil, nil, newUpstreamModelSyncUpstreamError("Failed to request Kiro model list", lastErr)
+}
+
+// fetchCodebuddyUpstreamModels 拉取 CodeBuddy 动态模型接口
+// （GET {chatBase}/console/enterprises/personal/models，取 cli agent ∩ models 交集）。
+//
+// Global 区该接口实测恒 500（上游 APISIX 故障，非凭证/端点问题）——
+// 此处对 5xx 静默回落 StaticModelIDs(RegionGlobal)，避免模型同步任务
+// 把所有 Global 账号刷成 error 状态。CN 区失败则如实上报错误。
+func (s *AccountTestService) fetchCodebuddyUpstreamModels(ctx context.Context, account *Account) ([]string, []byte, error) {
+	credentials := codebuddy.FromCredentialsMap(account.Credentials)
+	if err := credentials.Validate(); err != nil {
+		return nil, nil, newUpstreamModelSyncConfigError("Invalid CodeBuddy credentials", err)
+	}
+	region := codebuddy.RegionForAccountType(account.Type)
+
+	request, err := codebuddy.BuildModelsRequest(credentials, region, codebuddy.EndpointOptions{})
+	if err != nil {
+		return nil, nil, newUpstreamModelSyncUpstreamError("Failed to build CodeBuddy models request", err)
+	}
+	request = request.WithContext(ctx)
+	account.ApplyHeaderOverrides(request.Header)
+
+	resp, err := s.doUpstreamModelsRequest(request, upstreamModelsProxyURL(account), account)
+	if err != nil {
+		return nil, nil, newUpstreamModelSyncUpstreamError("Failed to request CodeBuddy model list", err)
+	}
+	body, readErr := io.ReadAll(io.LimitReader(resp.Body, resolveModelsListReadLimit(s.cfg)+1))
+	_ = resp.Body.Close()
+	if readErr != nil {
+		return nil, nil, newUpstreamModelSyncUpstreamError("Failed to read CodeBuddy model list", readErr)
+	}
+	if int64(len(body)) > resolveModelsListReadLimit(s.cfg) {
+		return nil, nil, newUpstreamModelSyncUpstreamError("CodeBuddy model list response is too large",
+			fmt.Errorf("response exceeds %d bytes", resolveModelsListReadLimit(s.cfg)))
+	}
+
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		// Global 区动态接口恒 500：回落静态表而非报错。
+		if region == codebuddy.RegionGlobal && resp.StatusCode >= 500 {
+			models := codebuddy.StaticModelIDs(region)
+			body, _ := json.Marshal(models)
+			return models, body, nil
+		}
+		return nil, nil, newUpstreamModelSyncUpstreamError(
+			fmt.Sprintf("CodeBuddy model list returned HTTP %d", resp.StatusCode),
+			fmt.Errorf("upstream model list returned HTTP %d", resp.StatusCode),
+		)
+	}
+
+	modelInfos, err := codebuddy.ParseModelsResponse(body)
+	if err != nil {
+		// CN 区偶发信封错误（code!=0）：解析失败按上游错误上报。
+		return nil, nil, newUpstreamModelSyncUpstreamError("CodeBuddy model list response was not valid", err)
+	}
+	models := dedupeAndSortModelIDs(codebuddy.ModelIDs(modelInfos))
+	if len(models) == 0 {
+		return nil, nil, newUpstreamModelSyncUpstreamError("CodeBuddy upstream returned no supported models", nil)
+	}
+	return models, body, nil
+}
+
 func (s *AccountTestService) fetchAntigravityOAuthUpstreamModels(ctx context.Context, account *Account) ([]string, error) {
 	if s.antigravityGatewayService == nil || s.antigravityGatewayService.GetTokenProvider() == nil {
 		return nil, newUpstreamModelSyncConfigError("Antigravity token provider is not configured", nil)
@@ -1165,7 +1302,10 @@ func (s *AccountTestService) fetchAntigravityOAuthUpstreamModels(ctx context.Con
 		return nil, newUpstreamModelSyncConfigError("No Antigravity access token is available", nil)
 	}
 
-	client, err := antigravity.NewClient(upstreamModelsProxyURL(account))
+	client, err := antigravity.NewClientWithEgress(
+		upstreamModelsProxyURL(account),
+		upstreamModelsEgressURL(ctx, account, s.proxyRepo),
+	)
 	if err != nil {
 		return nil, newUpstreamModelSyncConfigError("Failed to configure Antigravity client", err)
 	}
@@ -1201,6 +1341,20 @@ func upstreamModelsProxyURL(account *Account) string {
 		return account.Proxy.URL()
 	}
 	return ""
+}
+
+// upstreamModelsEgressURL 返回账号代理的 egress（链式）代理 URL。
+// sync-upstream 走 antigravity.NewClientWithEgress 而非 httpUpstream，
+// 必须显式接上链式设置，否则配置了 egress 的代理在此路径被绕过。
+func upstreamModelsEgressURL(ctx context.Context, account *Account, repo ProxyRepository) string {
+	if account == nil || account.ProxyID == nil || repo == nil {
+		return ""
+	}
+	proxy, err := repo.GetByID(ctx, *account.ProxyID)
+	if err != nil || proxy == nil {
+		return ""
+	}
+	return proxy.EgressChainURL(ctx, repo)
 }
 
 func buildV1ModelsURL(base string) string {

@@ -338,6 +338,47 @@ sub2api-bmai/
     └── CLAUDE.md            # 本文档
 ```
 
+## 八、IM 机器人（内置聊天 Bot）
+
+管理后台「IM 机器人」页可创建机器人：绑定一个现有 API key（可选模型覆盖/系统提示词），
+手机在 IM 平台私聊机器人即可与网关直接对话（多轮上下文、粘滞调度、计费走网关全链路）。
+
+### 平台凭据获取
+
+| 平台 | 凭据 | 获取方式 |
+|---|---|---|
+| Telegram | `bot_token` | @BotFather → /newbot |
+| 飞书 | `app_id` + `app_secret` | 飞书开放平台建企业自建应用，事件订阅选「使用长连接接收事件」（无需公网） |
+| 钉钉 | `client_id` + `client_secret` | 开放平台建企业内部应用（Stream 模式） |
+| 企业微信 | `bot_id` + `secret` | 管理台「智能机器人」扫码创建 |
+| QQ | `app_id` + `app_secret` | QQ 开放平台建机器人 |
+| Slack | `bot_token`(xoxb-) + `app_token`(xapp-) | 用预填 manifest 建 App，Socket Mode 开启 |
+| 微信 / WhatsApp | 扫码登录 | 非官方协议，有封号风险，暂未开放 |
+
+### 配置项（env）
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `IM_ENABLED` | `false` | IM 子系统总开关 |
+| `IM_BASE_URL` | `http://127.0.0.1:{server.port}` | 网关自调地址；容器/反代部署需显式配置 |
+| `IM_MESSAGE_RETENTION_DAYS` | `90` | 聊天历史保留天数（每日清理） |
+| `IM_MAX_HISTORY_BYTES` | `24576` | 单次请求上下文字节上限 |
+| `IM_PAIRING_CODE_TTL_SECONDS` | `3600` | 配对码有效期 |
+
+### 使用流程
+
+1. 管理后台创建机器人（填平台凭据 + 绑定 API Key）→ 点「测试」验证凭据 → 点「启用」。
+2. 点「配对码」生成 6 位码（60 分钟有效、一次性）；在 IM 里私聊机器人发送该码完成配对。
+3. 私聊即可对话；命令：`/new`（新会话）`/clear`（清上下文）`/status` `/stop` `/model` `/help`。
+4. 计费与用量走绑定 key 的分组全链路，后台「使用记录」里 `session_id` 前缀为 `im:` 的即 IM 会话。
+
+### 注意事项
+
+- **加密密钥**：机器人凭据用 `TOTP_ENCRYPTION_KEY` 加密落库。该 key 未显式配置时（自动生成、重启即换）
+  创建/改凭据会直接被拒绝——先 `openssl rand -hex 32` 生成并固定。
+- **多实例部署**：所有平台长连接只在持 leader 锁的实例上建立（Redis `im:hub:leader`），其余实例不重复拉起。
+- **平台协议风险**：微信（iLink）/WhatsApp 为非官方协议，随时可能失效，独立可禁用。
+
 ## 七、参考资源
 
 - [上游仓库](https://github.com/Wei-Shaw/sub2api)

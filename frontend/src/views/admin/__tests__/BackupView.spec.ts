@@ -181,7 +181,7 @@ describe('admin BackupView', () => {
     const wrapper = mountBackupView()
     await flushPromises()
 
-    expect(wrapper.find('tbody tr td:nth-child(5)').text()).toBe('-')
+    expect(wrapper.find('tbody tr td:nth-child(6)').text()).toBe('-')
     expect(wrapper.findAll('button').some(button => button.text() === 'common.delete')).toBe(false)
   })
 
@@ -289,7 +289,9 @@ describe('admin BackupView', () => {
     const wrapper = mountBackupView()
     await flushPromises()
     expect(wrapper.text()).toContain('admin.backup.archive.badge')
-    expect(wrapper.get('tbody tr td:nth-child(6)').text()).toBe('admin.backup.archive.retainLatest')
+    // 本分支表头含 storage 列（id/status/fileName/storage/size/parts/expiresAt…），
+    // 归档保留信息位于第 7 列。
+    expect(wrapper.get('tbody tr td:nth-child(7)').text()).toBe('admin.backup.archive.retainLatest')
     const button = wrapper.findAll('button').find(button => button.text() === 'common.delete')!
     await button.trigger('click')
     expect(confirm).toHaveBeenCalledWith('admin.backup.archive.deleteConfirm')

@@ -22,6 +22,7 @@ const (
 	PlatformOpenAI      = "openai"
 	PlatformGemini      = "gemini"
 	PlatformAntigravity = "antigravity"
+	PlatformKiro        = "kiro"
 	PlatformGrok        = "grok"
 	// 国产 OpenAI 兼容供应商（经 OpenAI 网关转发，按 Chat Completions 协议）。
 	PlatformKimi     = "kimi"     // Kimi (月之暗面 / Moonshot)
@@ -29,6 +30,8 @@ const (
 	PlatformDeepseek = "deepseek" // DeepSeek
 	PlatformMiniMax  = "minimax"  // MiniMax (M 系列)
 	PlatformTypeSafe = "typesafe" // TypeSafe AI System One (Jev)
+	// CodeBuddy（腾讯）：账号类型决定区域（codebuddy_cn / codebuddy_global），两区模型不互通。
+	PlatformCodebuddy = "codebuddy"
 	// PlatformOpenCodeGo 是 OpenCode 平台（账号类型 Zen 按量 / Go 订阅）。
 	// 值保持 opencode_go 以兼容已落库的账号、分组、配额与 Composite 路由。
 	PlatformOpenCodeGo = "opencode_go"
@@ -62,12 +65,16 @@ const (
 
 // Account type constants
 const (
-	AccountTypeOAuth          = "oauth"           // OAuth类型账号（full scope: profile + inference）
-	AccountTypeSetupToken     = "setup-token"     // Setup Token类型账号（inference only scope）
-	AccountTypeAPIKey         = "apikey"          // API Key类型账号
-	AccountTypeUpstream       = "upstream"        // 上游透传类型账号（通过 Base URL + API Key 连接上游）
-	AccountTypeBedrock        = "bedrock"         // AWS Bedrock 类型账号（通过 SigV4 签名或 API Key 连接 Bedrock，由 credentials.auth_mode 区分）
-	AccountTypeServiceAccount = "service_account" // Google Service Account 类型账号（用于 Vertex AI）
+	AccountTypeOAuth          = "oauth"            // OAuth类型账号（full scope: profile + inference）
+	AccountTypeSetupToken     = "setup-token"      // Setup Token类型账号（inference only scope）
+	AccountTypeAPIKey         = "apikey"           // API Key类型账号
+	AccountTypeUpstream       = "upstream"         // 上游透传类型账号（通过 Base URL + API Key 连接上游）
+	AccountTypeBedrock        = "bedrock"          // AWS Bedrock 类型账号（通过 SigV4 签名或 API Key 连接 Bedrock，由 credentials.auth_mode 区分）
+	AccountTypeServiceAccount = "service_account"  // Google Service Account 类型账号（用于 Vertex AI）
+	AccountTypeGrokConsole    = "grok_console"     // Grok Console 类型账号（DPoP 会话）
+	AccountTypeGrokWeb        = "grok_web"         // Grok Web 类型账号（浏览器会话）
+	AccountTypeCodebuddyCN    = "codebuddy_cn"     // CodeBuddy 国内区（copilot.tencent.com，有签到活动）
+	AccountTypeCodebuddyGlob  = "codebuddy_global" // CodeBuddy 国际区（workbuddy.ai，无签到活动）
 )
 
 // Redeem type constants
@@ -165,6 +172,7 @@ var DefaultAntigravityModelMapping = map[string]string{
 	"gemini-3.7-flash-medium": "gemini-3.7-flash-medium",
 	"gemini-3.7-flash-tiered": "gemini-3.7-flash-tiered",
 	// Gemini 3.8 Flash tiered models
+	// 裸名透传后由网关按 reasoning effort 自动补档位后缀，客户端只需请求裸名。
 	"gemini-3.8-flash":        "gemini-3.8-flash",
 	"gemini-3.8-flash-high":   "gemini-3.8-flash-high",
 	"gemini-3.8-flash-low":    "gemini-3.8-flash-low",

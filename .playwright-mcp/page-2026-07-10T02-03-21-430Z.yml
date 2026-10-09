@@ -1,0 +1,302 @@
+- generic [ref=f6e28]:
+  - complementary [ref=f6e29]:
+    - generic [ref=f6e30]:
+      - link [ref=f6e31] [cursor=pointer]:
+        - /url: /admin/dashboard
+        - img "Logo" [ref=f6e32]
+      - generic [ref=f6e33]:
+        - link "Sub2API" [ref=f6e34] [cursor=pointer]:
+          - /url: /admin/dashboard
+        - button "v0.1.147" [ref=f6e36] [cursor=pointer]
+    - navigation [ref=f6e41]:
+      - generic [ref=f6e42]:
+        - link "仪表盘" [ref=f6e43] [cursor=pointer]:
+          - /url: /admin/dashboard
+        - link "运维监控" [ref=f6e47] [cursor=pointer]:
+          - /url: /admin/ops
+        - link "用户管理" [ref=f6e51] [cursor=pointer]:
+          - /url: /admin/users
+        - link "分组管理" [ref=f6e55] [cursor=pointer]:
+          - /url: /admin/groups
+        - button "渠道管理" [ref=f6e59] [cursor=pointer]
+        - link "订阅管理" [ref=f6e66] [cursor=pointer]:
+          - /url: /admin/subscriptions
+        - link "账号管理" [ref=f6e70] [cursor=pointer]:
+          - /url: /admin/accounts
+        - link "公告" [ref=f6e74] [cursor=pointer]:
+          - /url: /admin/announcements
+        - link "IP管理" [ref=f6e78] [cursor=pointer]:
+          - /url: /admin/proxies
+        - link "兑换码" [ref=f6e82] [cursor=pointer]:
+          - /url: /admin/redeem
+        - link "优惠码" [ref=f6e86] [cursor=pointer]:
+          - /url: /admin/promo-codes
+        - link "使用记录" [ref=f6e90] [cursor=pointer]:
+          - /url: /admin/usage
+        - link "系统设置" [ref=f6e94] [cursor=pointer]:
+          - /url: /admin/settings
+      - generic [ref=f6e99]:
+        - generic [ref=f6e100]: 我的账户
+        - link "API 密钥" [ref=f6e102] [cursor=pointer]:
+          - /url: /keys
+        - link "使用记录" [ref=f6e106] [cursor=pointer]:
+          - /url: /usage
+        - link "渠道状态" [ref=f6e110] [cursor=pointer]:
+          - /url: /monitor
+        - link "我的订阅" [ref=f6e114] [cursor=pointer]:
+          - /url: /subscriptions
+        - link "兑换" [ref=f6e118] [cursor=pointer]:
+          - /url: /redeem
+        - link "个人资料" [ref=f6e122] [cursor=pointer]:
+          - /url: /profile
+    - generic [ref=f6e126]:
+      - button "深色模式" [ref=f6e127] [cursor=pointer]
+      - button "收起" [ref=f6e131] [cursor=pointer]
+  - generic [ref=f6e135]:
+    - banner [ref=f6e136]:
+      - generic [ref=f6e137]:
+        - generic [ref=f6e139]:
+          - heading "账号管理" [level=1] [ref=f6e140]
+          - paragraph [ref=f6e141]: 管理 AI 平台账号和 Cookie
+        - generic [ref=f6e142]:
+          - button "公告" [ref=f6e144] [cursor=pointer]
+          - button "🇨🇳 ZH" [ref=f6e148] [cursor=pointer]:
+            - generic [ref=f6e149]: 🇨🇳
+            - generic [ref=f6e150]: ZH
+          - generic [ref=f6e153]: $8888887.40
+          - button "User Menu" [ref=f6e158] [cursor=pointer]:
+            - generic [ref=f6e159]: AD
+            - generic [ref=f6e161]:
+              - generic [ref=f6e162]: admin
+              - generic [ref=f6e163]: admin
+    - main [ref=f6e166]:
+      - generic [ref=f6e167]:
+        - generic [ref=f6e169]:
+          - generic [ref=f6e170]:
+            - textbox "搜索账号..." [ref=f6e172]
+            - button "Select option" [ref=f6e174] [cursor=pointer]:
+              - generic [ref=f6e175]: 全部平台
+            - button "Select option" [ref=f6e180] [cursor=pointer]:
+              - generic [ref=f6e181]: 全部类型
+            - button "Select option" [ref=f6e186] [cursor=pointer]:
+              - generic [ref=f6e187]: 全部状态
+            - button "Select option" [ref=f6e192] [cursor=pointer]:
+              - generic [ref=f6e193]: 全部Privacy状态
+            - button "Select option" [ref=f6e198] [cursor=pointer]:
+              - generic [ref=f6e199]: 全部分组
+          - generic [ref=f6e203]:
+            - button [ref=f6e204] [cursor=pointer]
+            - button "自动刷新" [ref=f6e208] [cursor=pointer]
+            - button "更多操作" [ref=f6e213] [cursor=pointer]
+            - button "添加账号" [ref=f6e219] [cursor=pointer]
+        - generic [ref=f6e221]:
+          - generic [ref=f6e222]:
+            - generic [ref=f6e223]: 批量编辑账号
+            - button "批量更新" [ref=f6e226] [cursor=pointer]
+          - table [ref=f6e229]:
+            - rowgroup [ref=f6e230]:
+              - row [ref=f6e231]:
+                - columnheader [ref=f6e232]:
+                  - checkbox [ref=f6e233] [cursor=pointer]
+                - columnheader "名称" [ref=f6e234] [cursor=pointer]
+                - columnheader "账号ID" [ref=f6e242] [cursor=pointer]
+                - columnheader "平台/类型" [ref=f6e250]
+                - columnheader "容量" [ref=f6e253]
+                - columnheader "状态" [ref=f6e256] [cursor=pointer]
+                - columnheader "调度" [ref=f6e264] [cursor=pointer]
+                - columnheader "分组" [ref=f6e272]
+                - columnheader "用量窗口" [ref=f6e275]
+                - columnheader "最近使用" [ref=f6e281] [cursor=pointer]
+                - columnheader "创建时间" [ref=f6e289] [cursor=pointer]
+                - columnheader "过期时间" [ref=f6e297] [cursor=pointer]
+                - columnheader "操作" [ref=f6e305]
+            - rowgroup [ref=f6e308]:
+              - row [ref=f6e309]:
+                - cell [ref=f6e310]:
+                  - checkbox [ref=f6e311]
+                - cell "Lwylink上游" [ref=f6e312]
+                - cell "#2" [ref=f6e315]
+                - cell "OpenAI Key Compact Auto" [ref=f6e316]:
+                  - generic [ref=f6e317]:
+                    - generic [ref=f6e320]:
+                      - generic [ref=f6e321]: OpenAI
+                      - generic [ref=f6e325]: Key
+                    - generic "Compact Auto" [ref=f6e329]
+                - cell "0 / 10" [ref=f6e332]:
+                  - generic [ref=f6e334]:
+                    - generic [ref=f6e337]: "0"
+                    - generic [ref=f6e338]: /
+                    - generic [ref=f6e339]: "10"
+                - cell "正常" [ref=f6e340]
+                - cell [ref=f6e344]:
+                  - button "调度已开启" [ref=f6e345] [cursor=pointer]
+                - cell "-" [ref=f6e346]
+                - cell "0 req 0 A $0.00 U $0.00" [ref=f6e347]:
+                  - generic [ref=f6e351]:
+                    - generic [ref=f6e352]: 0 req
+                    - generic [ref=f6e353]: "0"
+                    - generic "账号计费" [ref=f6e354]: A $0.00
+                    - generic "用户扣费" [ref=f6e355]: U $0.00
+                - cell "从未" [ref=f6e356]
+                - cell "2026/07/10 00:17:09" [ref=f6e357]
+                - cell "-" [ref=f6e358]
+                - cell [ref=f6e361]:
+                  - generic [ref=f6e362]:
+                    - button "编辑" [ref=f6e363] [cursor=pointer]
+                    - button "删除" [ref=f6e367] [cursor=pointer]
+                    - button "更多" [ref=f6e371] [cursor=pointer]
+              - row [ref=f6e375]:
+                - cell [ref=f6e376]:
+                  - checkbox [ref=f6e377]
+                - cell "PairleeugIrla@hotmail.com PairleeugIrla@hotmail.com" [ref=f6e378]:
+                  - generic [ref=f6e379]:
+                    - generic [ref=f6e380]: PairleeugIrla@hotmail.com
+                    - generic "PairleeugIrla@hotmail.com" [ref=f6e381]
+                - cell "#1" [ref=f6e382]
+                - cell "Grok OAuth" [ref=f6e383]:
+                  - generic [ref=f6e387]:
+                    - generic [ref=f6e388]: Grok
+                    - generic [ref=f6e392]: OAuth
+                - cell "0 / 3" [ref=f6e396]:
+                  - generic [ref=f6e398]:
+                    - generic [ref=f6e401]: "0"
+                    - generic [ref=f6e402]: /
+                    - generic [ref=f6e403]: "3"
+                - cell "正常" [ref=f6e404]
+                - cell [ref=f6e408]:
+                  - button "调度已开启" [ref=f6e409] [cursor=pointer]
+                - cell "grok" [ref=f6e410]
+                - cell "18 req 601.7K A $0.60 U $0.60 请求 0% Token 0% 状态 200 | 响应头 8小时前 探测 不支持重置" [ref=f6e417]:
+                  - generic [ref=f6e419]:
+                    - generic [ref=f6e421]:
+                      - generic [ref=f6e422]: 18 req
+                      - generic [ref=f6e423]: 601.7K
+                      - generic "账号计费" [ref=f6e424]: A $0.60
+                      - generic "用户扣费" [ref=f6e425]: U $0.60
+                    - generic [ref=f6e427]:
+                      - generic [ref=f6e428]: 请求
+                      - generic [ref=f6e430]: 0%
+                    - generic [ref=f6e432]:
+                      - generic [ref=f6e433]: Token
+                      - generic [ref=f6e435]: 0%
+                    - generic [ref=f6e436]: 状态 200 | 响应头 8小时前
+                    - generic [ref=f6e438]:
+                      - button "探测" [ref=f6e439] [cursor=pointer]
+                      - button "不支持重置" [disabled] [ref=f6e442]
+                - cell "8小时前" [ref=f6e443]
+                - cell "2026/07/09 05:25:16" [ref=f6e444]
+                - cell "-" [ref=f6e445]
+                - cell [ref=f6e448]:
+                  - generic [ref=f6e449]:
+                    - button "编辑" [ref=f6e450] [cursor=pointer]
+                    - button "删除" [ref=f6e454] [cursor=pointer]
+                    - button "更多" [ref=f6e458] [cursor=pointer]
+              - row [ref=f6e462]:
+                - cell [ref=f6e463]:
+                  - checkbox [ref=f6e464]
+                - cell "eve.gujmwzl314@gmail.com eve.gujmwzl314@gmail.com" [ref=f6e465]:
+                  - generic [ref=f6e466]:
+                    - generic [ref=f6e467]: eve.gujmwzl314@gmail.com
+                    - generic "eve.gujmwzl314@gmail.com" [ref=f6e468]
+                - cell "#12" [ref=f6e469]
+                - cell "OpenAI OAuth k12 Fail 支持 Compact" [ref=f6e470]:
+                  - generic [ref=f6e471]:
+                    - generic [ref=f6e473]:
+                      - generic [ref=f6e474]:
+                        - generic [ref=f6e475]: OpenAI
+                        - generic [ref=f6e479]: OAuth
+                      - generic [ref=f6e483]:
+                        - generic [ref=f6e484]: k12
+                        - generic "关闭训练数据共享失败" [ref=f6e486]: Fail
+                    - 'generic "支持 Compact | 最近探测: 2026/07/10 02:15:41" [ref=f6e490]': 支持 Compact
+                - cell "0 / 10" [ref=f6e493]:
+                  - generic [ref=f6e495]:
+                    - generic [ref=f6e498]: "0"
+                    - generic [ref=f6e499]: /
+                    - generic [ref=f6e500]: "10"
+                - cell "正常" [ref=f6e501]
+                - cell [ref=f6e505]:
+                  - button "调度已开启" [ref=f6e506] [cursor=pointer]
+                - cell "-" [ref=f6e507]
+                - cell "5h 72% 3h 32m 7d 26% 6d 15h 查询 次数 重置" [ref=f6e508]:
+                  - generic [ref=f6e510]:
+                    - generic [ref=f6e512]:
+                      - generic [ref=f6e513]: 5h
+                      - generic [ref=f6e516]: 72%
+                      - generic [ref=f6e517]: 3h 32m
+                    - generic [ref=f6e519]:
+                      - generic [ref=f6e520]: 7d
+                      - generic [ref=f6e523]: 26%
+                      - generic [ref=f6e524]: 6d 15h
+                    - generic [ref=f6e526]:
+                      - button "查询" [ref=f6e527] [cursor=pointer]
+                      - button "次数" [ref=f6e530] [cursor=pointer]
+                      - button "重置" [disabled] [ref=f6e533]
+                - cell "从未" [ref=f6e536]
+                - cell "2026/07/10 02:13:51" [ref=f6e537]
+                - cell "-" [ref=f6e538]
+                - cell [ref=f6e541]:
+                  - generic [ref=f6e542]:
+                    - button "编辑" [ref=f6e543] [cursor=pointer]
+                    - button "删除" [ref=f6e547] [cursor=pointer]
+                    - button "更多" [ref=f6e551] [cursor=pointer]
+              - row [ref=f6e555]:
+                - cell [ref=f6e556]:
+                  - checkbox [ref=f6e557]
+                - cell "eveg.ujmwzl314@gmail.com eveg.ujmwzl314@gmail.com" [ref=f6e558]:
+                  - generic [ref=f6e559]:
+                    - generic [ref=f6e560]: eveg.ujmwzl314@gmail.com
+                    - generic "eveg.ujmwzl314@gmail.com" [ref=f6e561]
+                - cell "#11" [ref=f6e562]
+                - cell "OpenAI OAuth k12 Fail Compact Auto" [ref=f6e563]:
+                  - generic [ref=f6e564]:
+                    - generic [ref=f6e566]:
+                      - generic [ref=f6e567]:
+                        - generic [ref=f6e568]: OpenAI
+                        - generic [ref=f6e572]: OAuth
+                      - generic [ref=f6e576]:
+                        - generic [ref=f6e577]: k12
+                        - generic "关闭训练数据共享失败" [ref=f6e579]: Fail
+                    - generic "Compact Auto" [ref=f6e583]
+                - cell "0 / 10" [ref=f6e586]:
+                  - generic [ref=f6e588]:
+                    - generic [ref=f6e591]: "0"
+                    - generic [ref=f6e592]: /
+                    - generic [ref=f6e593]: "10"
+                - cell "正常" [ref=f6e594]
+                - cell [ref=f6e598]:
+                  - button "调度已开启" [ref=f6e599] [cursor=pointer]
+                - cell "-" [ref=f6e600]
+                - cell "5h 43% 3h 31m 7d 13% 6d 14h 查询 次数 重置" [ref=f6e601]:
+                  - generic [ref=f6e603]:
+                    - generic [ref=f6e605]:
+                      - generic [ref=f6e606]: 5h
+                      - generic [ref=f6e609]: 43%
+                      - generic [ref=f6e610]: 3h 31m
+                    - generic [ref=f6e612]:
+                      - generic [ref=f6e613]: 7d
+                      - generic [ref=f6e616]: 13%
+                      - generic [ref=f6e617]: 6d 14h
+                    - generic [ref=f6e619]:
+                      - button "查询" [ref=f6e620] [cursor=pointer]
+                      - button "次数" [ref=f6e623] [cursor=pointer]
+                      - button "重置" [disabled] [ref=f6e626]
+                - cell "从未" [ref=f6e629]
+                - cell "2026/07/10 02:13:51" [ref=f6e630]
+                - cell "-" [ref=f6e631]
+                - cell [ref=f6e634]:
+                  - generic [ref=f6e635]:
+                    - button "编辑" [ref=f6e636] [cursor=pointer]
+                    - button "删除" [ref=f6e640] [cursor=pointer]
+                    - button "更多" [ref=f6e644] [cursor=pointer]
+        - generic [ref=f6e650]:
+          - generic [ref=f6e651]:
+            - paragraph [ref=f6e652]: 显示 1 至 4 共 4 条结果
+            - generic [ref=f6e653]:
+              - generic [ref=f6e654]: "每页:"
+              - button "Select option" [ref=f6e657] [cursor=pointer]:
+                - generic [ref=f6e658]: "20"
+          - navigation "Pagination" [ref=f6e662]:
+            - button "上一页" [disabled] [ref=f6e663]
+            - button "跳转到第 1 页" [ref=f6e666] [cursor=pointer]: "1"
+            - button "下一页" [disabled] [ref=f6e667]
