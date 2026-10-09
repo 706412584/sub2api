@@ -332,9 +332,13 @@ func TestCommandCodeGatewayPassesThroughCatalogProtocols(t *testing.T) {
 		url  string
 		body []byte
 	}
+	var forwardSeq atomic.Int64
 	forward := func(t *testing.T, ingress routingMatrixIngress, model string, catalog map[string][]string) observation {
 		t.Helper()
-		base := fmt.Sprintf("http://cc-%s-%d.example", strings.ReplaceAll(t.Name(), "/", "-"), time.Now().UnixNano())
+		// Windows 时钟粒度 ~15ms：同轮多个 forward 的 UnixNano 可能相同，导致
+		// 全局目录缓存的 key 碰撞、前后 store 相互覆盖（-count>1 时必然触发）。
+		// 用单调序号保证 key 唯一。
+		base := fmt.Sprintf("http://cc-%s-%d.example", strings.ReplaceAll(t.Name(), "/", "-"), forwardSeq.Add(1))
 		account := commandCodeTestAccount(12)
 		account.Credentials["api_base_urls"] = map[string]any{
 			APIProtocolChatCompletions: base + "/provider/v1",
