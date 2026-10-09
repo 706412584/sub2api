@@ -750,6 +750,7 @@
             <span class="block text-sm font-medium text-gray-900 dark:text-white">{{ providerModeLabel(mode, t) }}</span>
           </button>
         </div>
+      </div>
 
       <!-- Grok Console Session Import -->
       <div v-if="form.platform === 'grok' && accountCategory === 'grok_console'" class="space-y-3">

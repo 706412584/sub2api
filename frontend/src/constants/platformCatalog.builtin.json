@@ -29,6 +29,12 @@
       "litellm_provider": "anthropic"
     },
     {
+      "id": "kiro",
+      "display_name": "Kiro",
+      "gateway": "anthropic",
+      "cn_provider": false
+    },
+    {
       "id": "grok",
       "display_name": "Grok",
       "gateway": "openai",
@@ -141,6 +147,12 @@
           }
         ]
       }
+    },
+    {
+      "id": "codebuddy",
+      "display_name": "CodeBuddy",
+      "gateway": "openai",
+      "cn_provider": false
     },
     {
       "id": "opencode_go",
@@ -285,11 +297,13 @@
     "gemini",
     "openai",
     "antigravity",
+    "kiro",
     "grok",
     "kimi",
     "zhipu",
     "deepseek",
     "minimax",
+    "codebuddy",
     "opencode_go",
     "typesafe",
     "command_code",

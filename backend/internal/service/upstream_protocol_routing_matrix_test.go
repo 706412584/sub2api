@@ -293,6 +293,25 @@ func captureRoutingMatrixGolden() routingMatrixGolden {
 // versions reject these accounts before transport, with these exact errors.
 // Only this complete before/after observation is permitted; other no-upstream
 // results and new panics still fail the golden comparison.
+// fork 差异：Grok 的 Anthropic Messages → CC 转发使用 Grok 专属凭证/端点分支
+// （getRequestCredential + rawChatCompletionsURL，OAuth 与 API-key 账号都能正确
+// 达到 xAI），而录制基线的 CC 回退对所有平台走 resolveCCFallbackTarget，对 grok
+// 返回 "missing api_key"。其余观测形态必须完全一致。
+func matchesKnownGrokMessagesCredentialDifference(tc routingMatrixCase, want, got routingObservation) bool {
+	if tc.platform != PlatformGrok || tc.accountType != AccountTypeAPIKey || tc.ingress.name != "messages" {
+		return false
+	}
+	if len(got.Requests) == 0 {
+		return false
+	}
+	for _, up := range got.Requests {
+		if !strings.Contains(up.URL, "/v1/chat/completions") {
+			return false
+		}
+	}
+	return strings.Contains(want.Error, "missing api_key") && want.Status == http.StatusOK
+}
+
 func matchesKnownZhipuNonAPIKeyDifference(tc routingMatrixCase, want, got routingObservation) bool {
 	if tc.platform != PlatformZhipu || tc.apiProtocol != APIProtocolAdaptive || tc.ingress.name != "responses" {
 		return false
@@ -338,6 +357,10 @@ func TestUpstreamProtocolRoutingMatrixMatchesMainGolden(t *testing.T) {
 			knownDifferences++
 			continue
 		}
+		if matchesKnownGrokMessagesCredentialDifference(tc, want, got) {
+			knownDifferences++
+			continue
+		}
 		mismatched++
 		if len(differences) < 12 {
 			differences = append(differences, fmt.Sprintf("%s\nmain: %s\ncurrent: %s", tc.key(), want, got))
@@ -346,5 +369,7 @@ func TestUpstreamProtocolRoutingMatrixMatchesMainGolden(t *testing.T) {
 	require.Zero(t, mismatched, "routing differs from main %s in %d cases:\n%s", golden.SourceRevision, mismatched, strings.Join(differences, "\n"))
 	// 2 account types × 4 modes × 3 probe states × 4 address configurations ×
 	// 2 model spellings. A disappeared or expanded exception requires review.
-	require.Equal(t, 192, knownDifferences, "unexpected change to the declared Zhipu non-API-Key difference")
+	// 192（Zhipu non-API-Key 声明差异）+ 48（fork 的 Grok Messages 凭证分支，见
+// matchesKnownGrokMessagesCredentialDifference）。
+	require.Equal(t, 240, knownDifferences, "unexpected change to the declared routing differences")
 }
