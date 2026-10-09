@@ -1,6 +1,7 @@
 package xai
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -14,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/net/html"
 )
 
 const (
@@ -172,7 +175,7 @@ func (f *ssoDeviceFlow) convert(ctx context.Context) (*TokenResponse, error) {
 		return nil, fmt.Errorf("open xAI device verification page: %w", SSOHTTPError{Status: status})
 	}
 
-	status, finalURL, _, err = f.do(ctx, http.MethodPost, SSOVerifyURL, url.Values{"user_code": {device.UserCode}})
+	status, finalURL, body, err = f.do(ctx, http.MethodPost, SSOVerifyURL, url.Values{"user_code": {device.UserCode}})
 	if err != nil {
 		return nil, err
 	}
@@ -183,19 +186,27 @@ func (f *ssoDeviceFlow) convert(ctx context.Context) (*TokenResponse, error) {
 		return nil, errors.New("xAI device verification did not reach consent page")
 	}
 
-	// consent 页内嵌一个 consent_token 隐藏字段，approve 必须原样回传，
-	// 否则服务端返回 403 "Request could not be verified"。
-	consentToken, err := f.fetchConsentToken(ctx, device.UserCode)
-	if err != nil {
-		return nil, err
-	}
-
-	status, finalURL, _, err = f.do(ctx, http.MethodPost, SSOApproveURL, url.Values{
+	// consent 页内嵌 consent_token（上游 54810f8c8 修复）：优先从 verify 跳转
+	// 响应体直接解析；解析不到再单独拉一次 consent 页（fork 补票兜底）。
+	approval := url.Values{
 		"user_code":      {device.UserCode},
 		"action":         {"allow"},
 		"principal_type": {"User"},
 		"principal_id":   {""},
-		"consent_token":  {consentToken},
+	}
+	if consentToken := ssoConsentToken(body); consentToken != "" {
+		approval.Set("consent_token", consentToken)
+	} else {
+		token, tokenErr := f.fetchConsentToken(ctx, device.UserCode)
+		if tokenErr != nil {
+			return nil, tokenErr
+		}
+		approval.Set("consent_token", token)
+	}
+	consentURL, _ := url.Parse(finalURL) // f.do only returns validated xAI URLs.
+	status, finalURL, _, err = f.do(ctx, http.MethodPost, SSOApproveURL, approval, http.Header{
+		"Origin":  {consentURL.Scheme + "://" + consentURL.Host},
+		"Referer": {finalURL},
 	})
 	if err != nil {
 		return nil, err
@@ -208,6 +219,37 @@ func (f *ssoDeviceFlow) convert(ctx context.Context) (*TokenResponse, error) {
 	}
 
 	return f.pollToken(ctx, device.DeviceCode, time.Duration(device.Interval)*time.Second, time.Duration(device.ExpiresIn)*time.Second)
+}
+
+// xAI binds device approval to a hidden token on the consent page. Keep it in
+// this flow only; older consent pages without the field remain supported.
+func ssoConsentToken(body []byte) string {
+	tokenizer := html.NewTokenizer(bytes.NewReader(body))
+	for {
+		switch tokenizer.Next() {
+		case html.ErrorToken:
+			return ""
+		case html.StartTagToken, html.SelfClosingTagToken:
+			token := tokenizer.Token()
+			if token.Data != "input" {
+				continue
+			}
+			var name, value, inputType string
+			for _, attr := range token.Attr {
+				switch attr.Key {
+				case "name":
+					name = attr.Val
+				case "value":
+					value = attr.Val
+				case "type":
+					inputType = attr.Val
+				}
+			}
+			if name == "consent_token" && strings.EqualFold(inputType, "hidden") {
+				return value
+			}
+		}
+	}
 }
 
 func (f *ssoDeviceFlow) pollToken(ctx context.Context, deviceCode string, interval, expiresIn time.Duration) (*TokenResponse, error) {
@@ -274,7 +316,7 @@ func (f *ssoDeviceFlow) pollToken(ctx context.Context, deviceCode string, interv
 	return nil, errors.New("xAI device flow token polling timed out")
 }
 
-// fetchConsentToken 读取 consent 页并抽出 approve 所需的 consent_token。
+// fetchConsentToken 读取 consent 页并抽出 approve 所需的 consent_token（fork 补票兜底路径）。
 func (f *ssoDeviceFlow) fetchConsentToken(ctx context.Context, userCode string) (string, error) {
 	endpoint := SSOConsentURL + "?user_code=" + url.QueryEscape(userCode)
 	status, _, body, err := f.do(ctx, http.MethodGet, endpoint, nil)
@@ -284,43 +326,18 @@ func (f *ssoDeviceFlow) fetchConsentToken(ctx context.Context, userCode string) 
 	if status < 200 || status >= 400 {
 		return "", fmt.Errorf("open xAI consent page: %w", SSOHTTPError{Status: status})
 	}
-	token := extractConsentToken(string(body))
+	token := ssoConsentToken(body)
 	if token == "" {
 		return "", errors.New("xAI consent page did not contain a consent token")
 	}
 	return token, nil
 }
 
-// extractConsentToken 从 consent 页 HTML 中取出 consent_token 隐藏字段的值。
-// 页面可能同时存在多个 input，这里只匹配 name="consent_token" 的那一个。
-func extractConsentToken(html string) string {
-	const marker = `name="consent_token"`
-	idx := strings.Index(html, marker)
-	if idx < 0 {
-		return ""
-	}
-	rest := html[idx+len(marker):]
-	valueIdx := strings.Index(rest, `value="`)
-	if valueIdx < 0 {
-		return ""
-	}
-	rest = rest[valueIdx+len(`value="`):]
-	end := strings.Index(rest, `"`)
-	if end < 0 {
-		return ""
-	}
-	token := strings.TrimSpace(rest[:end])
-	if token == "" || len(token) > ssoMaxTokenLength {
-		return ""
-	}
-	return token
+func (f *ssoDeviceFlow) do(ctx context.Context, method, endpoint string, form url.Values, headers ...http.Header) (int, string, []byte, error) {
+	return f.doKind(ctx, method, endpoint, form, ssoRequestBrowser, headers...)
 }
 
-func (f *ssoDeviceFlow) do(ctx context.Context, method, endpoint string, form url.Values) (int, string, []byte, error) {
-	return f.doKind(ctx, method, endpoint, form, ssoRequestBrowser)
-}
-
-func (f *ssoDeviceFlow) doKind(ctx context.Context, method, endpoint string, form url.Values, kind ssoRequestKind) (int, string, []byte, error) {
+func (f *ssoDeviceFlow) doKind(ctx context.Context, method, endpoint string, form url.Values, kind ssoRequestKind, headers ...http.Header) (int, string, []byte, error) {
 	if !safeXAIAuthURL(endpoint) {
 		return 0, "", nil, errors.New("xAI OAuth URL is not trusted")
 	}
@@ -344,10 +361,15 @@ func (f *ssoDeviceFlow) doKind(ctx context.Context, method, endpoint string, for
 			request.Header.Set("x-grok-client-surface", ssoDeviceSurface)
 		} else {
 			request.Header.Set("User-Agent", f.userAgent)
-			// approve 端点做 CSRF 校验：缺少 Origin/Referer 时返回 403
-			// "Request could not be verified"，因此浏览器类请求必须带上。
-			request.Header.Set("Origin", strings.TrimRight(SSOAccountsURL, "/"))
-			request.Header.Set("Referer", SSOAccountsURL)
+		}
+		if redirects == 0 {
+			for _, header := range headers {
+				for name, values := range header {
+					for _, value := range values {
+						request.Header.Add(name, value)
+					}
+				}
+			}
 		}
 		if cookie := f.cookieHeader(request.URL); cookie != "" {
 			request.Header.Set("Cookie", cookie)

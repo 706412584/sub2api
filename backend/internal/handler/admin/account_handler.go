@@ -27,6 +27,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/typesafe"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
@@ -58,6 +59,7 @@ type availableModelsCacheInvalidator interface {
 
 // AccountHandler handles admin account management
 type AccountHandler struct {
+	claudeResetCredits      claudeResetReader
 	adminService            service.AdminService
 	oauthService            *service.OAuthService
 	openaiOAuthService      *service.OpenAIOAuthService
@@ -1266,7 +1268,7 @@ func (h *AccountHandler) Update(c *gin.Context) {
 // 网关会按"现状即证据"默认走 Responses。
 func (h *AccountHandler) scheduleOpenAIResponsesProbe(account *service.Account) {
 	if account == nil || account.Type != service.AccountTypeAPIKey ||
-		(account.Platform != service.PlatformOpenAI && !service.IsCNProvider(account.Platform)) {
+		(account.Platform != service.PlatformOpenAI && !account.RoutesProtocolByInbound()) {
 		return
 	}
 	if h.accountTestService == nil {
@@ -3309,34 +3311,38 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 		return
 	}
 
-	// Handle Antigravity accounts: return Claude + Gemini models
+	// Explicit account mappings expose their request-side names to connectivity tests.
 	if account.Platform == service.PlatformAntigravity {
 		// 按账号映射过滤：上游按账号灰度开放档位（例如有的账号 3.8 只有
 		// tiered 没有 low/medium/high），返回全量默认列表会让用户在下拉里
 		// 选到该账号实际不可用的档位，测试连接直接 not in whitelist。
-		mapping := account.GetModelMapping()
-		if len(mapping) == 0 {
+		// 判空必须用存储的原始映射（对齐上游 antigravityAccountTestModels）：
+		// GetModelMapping 会注入裸名透传等兼容别名，空映射账号会被误判为
+		// "有显式映射"而返回别名集合而非默认全量。
+		// 与上游 antigravityAccountTestModels 相同的语义：以存储的原始映射为准
+		// （GetModelMapping 会注入默认映射与裸名透传兼容别名，会把管理员未
+		// 配置的模型混进列表）。
+		rawMapping := account.Credentials["model_mapping"]
+		mappedIDs := mappedModelMappingKeys(rawMapping)
+		if len(mappedIDs) == 0 {
 			response.Success(c, antigravity.DefaultModels())
 			return
 		}
-		defaults := antigravity.DefaultModels()
-		models := make([]antigravity.ClaudeModel, 0, len(mapping))
-		seen := make(map[string]struct{}, len(mapping))
-		for _, dm := range defaults {
-			if _, ok := mapping[dm.ID]; ok {
-				models = append(models, dm)
-				seen[dm.ID] = struct{}{}
-			}
+		sort.Strings(mappedIDs)
+		defaultByID := make(map[string]antigravity.ClaudeModel)
+		for _, model := range antigravity.DefaultModels() {
+			defaultByID[model.ID] = model
 		}
-		// 映射里存在但默认列表没有的模型（上游同步回来的新档位等）原样列出
-		for requestedModel := range mapping {
-			if _, ok := seen[requestedModel]; ok {
+		models := make([]antigravity.ClaudeModel, 0, len(mappedIDs))
+		for _, id := range mappedIDs {
+			if model, ok := defaultByID[id]; ok {
+				models = append(models, model)
 				continue
 			}
 			models = append(models, antigravity.ClaudeModel{
-				ID:          requestedModel,
+				ID:          id,
 				Type:        "model",
-				DisplayName: requestedModel,
+				DisplayName: id,
 				CreatedAt:   "",
 			})
 		}
@@ -3458,6 +3464,12 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 		return
 	}
 
+	// TypeSafe accounts serve only the native System One model.
+	if account.IsTypeSafe() {
+		response.Success(c, []claude.Model{{ID: typesafe.JevLatestModel, Type: "model", DisplayName: typesafe.JevLatestModel}})
+		return
+	}
+
 	// Handle Claude/Anthropic accounts
 	// For OAuth and Setup-Token accounts: return default models
 	if account.IsOAuth() {
@@ -3497,6 +3509,26 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 	}
 
 	response.Success(c, models)
+}
+
+// mappedModelMappingKeys 返回存储的原始 model_mapping 的非空白键（排序后）。
+func mappedModelMappingKeys(rawMapping any) []string {
+	var mappedIDs []string
+	switch mapping := rawMapping.(type) {
+	case map[string]any:
+		for id := range mapping {
+			if strings.TrimSpace(id) != "" {
+				mappedIDs = append(mappedIDs, id)
+			}
+		}
+	case map[string]string:
+		for id := range mapping {
+			if strings.TrimSpace(id) != "" {
+				mappedIDs = append(mappedIDs, id)
+			}
+		}
+	}
+	return mappedIDs
 }
 
 // SyncUpstreamModels handles syncing live supported models from an account's upstream.

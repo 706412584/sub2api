@@ -41,20 +41,20 @@ func TestApplyCLIBillingHeaders(t *testing.T) {
 	require.Equal(t, "Bearer token", req.Header.Get("Authorization"))
 	require.Equal(t, CLITokenAuthValue, req.Header.Get(CLITokenAuthHeader))
 	require.Equal(t, CLIClientVersion, req.Header.Get(CLIClientVersionHeader))
-	require.Equal(t, FormatCLIUserAgent(CLIClientVersion), req.UserAgent())
+	require.Equal(t, CLIUserAgent(CLIClientVersion), req.UserAgent())
+	require.Equal(t, "interactive", req.Header.Get("x-grok-client-mode"))
 }
 
 func TestEffectiveCLIClientVersionUsesResolver(t *testing.T) {
-	SetCLIClientVersionResolver(func() string { return "0.2.200" })
+	SetCLIClientVersionResolver(func() string { return "1.0.60" })
 	t.Cleanup(func() { SetCLIClientVersionResolver(nil) })
 
-	require.Equal(t, "0.2.200", EffectiveCLIClientVersion())
+	require.Equal(t, "1.0.60", EffectiveCLIClientVersion())
 
 	req, err := http.NewRequest(http.MethodGet, BuildBillingURL(false), nil)
 	require.NoError(t, err)
 	ApplyCLIBillingHeaders(req, "tok")
-	require.Equal(t, "0.2.200", req.Header.Get(CLIClientVersionHeader))
-	require.Equal(t, "grok-pager/0.2.200 grok-shell/0.2.200 (macos; aarch64)", req.UserAgent())
+	require.Equal(t, "1.0.60", req.Header.Get(CLIClientVersionHeader))
 
 	SetCLIClientVersionResolver(nil)
 	require.Equal(t, CLIClientVersion, EffectiveCLIClientVersion())

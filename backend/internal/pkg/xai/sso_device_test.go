@@ -28,6 +28,11 @@ type ssoDeviceFakeClient struct {
 
 func (c *ssoDeviceFakeClient) Do(req *http.Request) (*http.Response, error) {
 	c.cookieHeaders = append(c.cookieHeaders, req.Header.Get("Cookie"))
+	// approve 之外的请求不应带 Origin/Referer（仅 approve 走 CSRF 头）。
+	if req.URL.String() != SSOApproveURL {
+		require.Empty(c.t, req.Header.Get("Origin"))
+		require.Empty(c.t, req.Header.Get("Referer"))
+	}
 	// consent 页会先被 verify 的 303 跟随到 /consent（无查询串），随后再显式请求
 	// 带 user_code 的地址，两种形式都要接受。
 	if strings.HasPrefix(req.URL.Path, "/oauth2/device/consent") {
@@ -67,10 +72,13 @@ func (c *ssoDeviceFakeClient) Do(req *http.Request) (*http.Response, error) {
 		return ssoDeviceResponse(http.StatusFound, http.Header{"Location": {"/oauth2/device/consent"}}, ``), nil
 	case SSOApproveURL:
 		require.Equal(c.t, http.MethodPost, req.Method)
+		require.Equal(c.t, "https://auth.x.ai", req.Header.Get("Origin"))
+		require.Equal(c.t, "https://auth.x.ai/oauth2/device/consent", req.Header.Get("Referer"))
 		values := readSSODeviceForm(c.t, req)
 		require.Equal(c.t, "USER-1", values.Get("user_code"))
 		require.Equal(c.t, "allow", values.Get("action"))
 		require.Equal(c.t, "User", values.Get("principal_type"))
+		require.Equal(c.t, "consent-jwt-token", values.Get("consent_token"))
 		c.approveForm = values
 		c.approveOrigin = req.Header.Get("Origin")
 		c.approveRefer = req.Header.Get("Referer")
@@ -111,13 +119,30 @@ func TestConvertSSOToBuildCompletesDeviceFlow(t *testing.T) {
 	require.Contains(t, client.cookieHeaders[0], "sso-rw=sso-token")
 	require.Contains(t, client.cookieHeaders[len(client.cookieHeaders)-1], "session=web-session")
 	require.Contains(t, client.cookieHeaders[len(client.cookieHeaders)-1], "csrf=csrf-token")
+	for _, cookie := range client.cookieHeaders {
+		require.NotContains(t, cookie, "consent-jwt-token")
+	}
 
 	// approve 必须回传 consent 页的 consent_token，否则上游 403。
 	require.Equal(t, "consent-jwt-token", client.approveForm.Get("consent_token"))
-	// approve 必须带 Origin/Referer 通过 CSRF 校验，否则上游 403
-	// "Request could not be verified"。
-	require.Equal(t, "https://accounts.x.ai", client.approveOrigin)
-	require.Equal(t, "https://accounts.x.ai/", client.approveRefer)
+	// approve 必须带 Origin/Referer 通过 CSRF 校验（动态取自 consent 页 URL）。
+	require.Equal(t, "https://auth.x.ai", client.approveOrigin)
+	require.Equal(t, "https://auth.x.ai/oauth2/device/consent", client.approveRefer)
+}
+
+func TestSSOConsentToken(t *testing.T) {
+	for _, tc := range []struct {
+		name, body, want string
+	}{
+		{"legacy page", `<html>consent</html>`, ""},
+		{"encoded hidden value", `<input value='a&amp;b&#43;c' name='consent_token' type='hidden'>`, "a&b+c"},
+		{"case insensitive HTML", `<INPUT TYPE="HIDDEN" NAME="consent_token" VALUE="token"/>`, "token"},
+		{"ignore script and visible fields", `<script>"<input type='hidden' name='consent_token' value='fake'>"</script><input name='consent_token' value='visible'><input type='hidden' name='user_code' value='user'><input type='hidden' name='consent_token' value='real'>`, "real"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, ssoConsentToken([]byte(tc.body)))
+		})
+	}
 }
 
 // consent 页缺少 consent_token 时必须明确失败，而不是发出一个必然 403 的 approve。
@@ -131,16 +156,6 @@ func TestConvertSSOToBuildRequiresConsentToken(t *testing.T) {
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "consent token")
-}
-
-func TestExtractConsentToken(t *testing.T) {
-	html := `<form action="https://auth.x.ai/oauth2/device/approve" method="POST">` +
-		`<input type="hidden" name="user_code" value="ABC-123"/>` +
-		`<input type="hidden" name="consent_token" value="tok-1"/>` +
-		`</form>`
-	require.Equal(t, "tok-1", extractConsentToken(html))
-	require.Equal(t, "", extractConsentToken(`<html>no token here</html>`))
-	require.Equal(t, "", extractConsentToken(`name="consent_token"`))
 }
 
 func TestNormalizeSSOTokenAcceptsCookieHeader(t *testing.T) {

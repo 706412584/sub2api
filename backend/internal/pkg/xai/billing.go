@@ -17,8 +17,10 @@ const (
 	CLITokenAuthValue      = "xai-grok-cli"
 	CLIClientVersionHeader = "x-grok-client-version"
 	// CLIClientVersion is the compile-time fallback when no process resolver is wired.
+	// The service layer wires ResolveGrokCLIClientVersion (settings > env > pinned),
+	// so one bump here covers OAuth traffic and billing probes together.
 	// Keep in sync with service.GrokCLIPinnedStableVersion / https://x.ai/cli/stable.
-	CLIClientVersion = "0.2.120"
+	CLIClientVersion = "1.0.46"
 
 	BillingWeeklyPath  = "/billing?format=credits"
 	BillingMonthlyPath = "/billing"
@@ -184,7 +186,8 @@ func ApplyCLIBillingHeaders(req *http.Request, accessToken string) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(CLITokenAuthHeader, CLITokenAuthValue)
 	req.Header.Set(CLIClientVersionHeader, version)
-	req.Header.Set("User-Agent", FormatCLIUserAgent(version))
+	req.Header.Set("User-Agent", CLIUserAgent(version))
+	req.Header.Set("x-grok-client-mode", CLIClientMode)
 }
 
 // ParseBillingPayload unmarshals a billing API response body.

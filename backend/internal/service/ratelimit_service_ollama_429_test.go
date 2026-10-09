@@ -395,7 +395,15 @@ func TestOllamaProbeCallback_StaleLongDoesNotOverrideNewShort(t *testing.T) {
 	require.Equal(t, 1, scheduler.count())
 
 	// An admin / newer policy re-arms the account to a fresh SHORT cooldown.
+	// Windows 时钟粒度可达 ~15ms，time.Now().Add(5s) 可能与 handle429 刚写入的
+	// fallback shortReset 完全相等，使 CAS 的 resetMatch 意外通过。基于当前值偏移
+	// 1ms 保证与调度时捕获的 expectedResetAt 必不相等（仍远短于 7d，语义不变）。
 	newShort := time.Now().Add(5 * time.Second)
+	if cur := repo.currentReset(acct.ID); cur != nil && !newShort.After(*cur) {
+		newShort = cur.Add(time.Millisecond)
+	} else if cur != nil && newShort.Equal(*cur) {
+		newShort = cur.Add(time.Millisecond)
+	}
 	repo.mutate(acct.ID, func(a *Account) { a.RateLimitResetAt = ollama429TimePtr(newShort) })
 
 	// The old async result reports a long 7d reset; it must not override.
