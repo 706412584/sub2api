@@ -69,22 +69,6 @@ func normalizeOpenCodeGoModelID(model string) string {
 	return model
 }
 
-
-func openCodeGoNativeProtocol(account *Account, model string) string {
-	if account == nil {
-		return APIProtocolChatCompletions
-	}
-	// 上游 v0.2.15 重构：OpenCode 属按模型分流平台，协议解析统一走
-	// resolveModelRoutedProtocolFor（profile 内置规则 + 账号 protocol_rules +
-	// 模型目录），fork 旧的 ResolveOpenCodeGoUpstreamProtocol 语义由其覆盖。
-	switch proto := account.resolveModelRoutedProtocolFor(model, "", nil); proto {
-	case APIProtocolAnthropic, APIProtocolResponses:
-		return proto
-	default:
-		return APIProtocolChatCompletions
-	}
-}
-
 // IsOpenCodeUnsupportedModel 判断请求的模型是否属于 OpenCode 专有协议端点模型。
 // 官方 Zen 上 gemini-* 仅走 Google SDK 专属端点 /zen/v1/models/<id>，
 // jev-* 仅走 SystemOne 专属端点 /zen/v1/systemone，

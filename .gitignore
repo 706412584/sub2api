@@ -178,3 +178,4 @@ frontend/pnpm-lock.yaml.local
 *.heapprofile
 .test/
 .playwright-mcp/
+*.merge-bak

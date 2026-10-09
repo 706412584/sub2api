@@ -48,7 +48,11 @@ func RegisterGatewayRoutes(
 
 	isOpenAIResponsesCompatibleGatewayPlatform := func(c *gin.Context) bool {
 		// openai、grok 与多协议 API Key 供应商经 OpenAI 网关转发（平台清单）。
-		return domain.UsesOpenAIGateway(getGroupPlatform(c))
+		// CodeBuddy 虽登记为 openai 网关族（请求形状 CC），但转发走专用
+		// CodebuddyGatewayService（GatewayHandler 内 IsCodebuddy() 分派），
+		// OpenAI 网关链路没有其分支，此处必须排除，避免改道。
+		platform := getGroupPlatform(c)
+		return platform != service.PlatformCodebuddy && domain.UsesOpenAIGateway(platform)
 	}
 	countTokensHandler := func(c *gin.Context) {
 		switch platform := getGroupPlatform(c); {

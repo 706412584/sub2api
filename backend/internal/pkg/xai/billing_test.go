@@ -59,7 +59,6 @@ func TestEffectiveCLIClientVersionUsesResolver(t *testing.T) {
 	SetCLIClientVersionResolver(nil)
 	require.Equal(t, CLIClientVersion, EffectiveCLIClientVersion())
 }
-}
 
 func TestBuildBillingSummaryWeeklyAndMonthly(t *testing.T) {
 	t.Parallel()

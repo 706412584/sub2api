@@ -370,6 +370,6 @@ func TestUpstreamProtocolRoutingMatrixMatchesMainGolden(t *testing.T) {
 	// 2 account types × 4 modes × 3 probe states × 4 address configurations ×
 	// 2 model spellings. A disappeared or expanded exception requires review.
 	// 192（Zhipu non-API-Key 声明差异）+ 48（fork 的 Grok Messages 凭证分支，见
-// matchesKnownGrokMessagesCredentialDifference）。
+	// matchesKnownGrokMessagesCredentialDifference）。
 	require.Equal(t, 240, knownDifferences, "unexpected change to the declared routing differences")
 }

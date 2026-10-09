@@ -47,7 +47,6 @@ func (c *ssoDeviceFakeClient) Do(req *http.Request) (*http.Response, error) {
 			`<input type="hidden" name="consent_token" value="consent-jwt-token"/>`+
 			`</form></html>`), nil
 	}
-	}
 	switch req.URL.String() {
 	case SSOAccountsURL:
 		require.Equal(c.t, http.MethodGet, req.Method)
@@ -126,10 +125,9 @@ func TestConvertSSOToBuildCompletesDeviceFlow(t *testing.T) {
 
 	// approve 必须回传 consent 页的 consent_token，否则上游 403。
 	require.Equal(t, "consent-jwt-token", client.approveForm.Get("consent_token"))
-	// approve 必须带 Origin/Referer 通过 CSRF 校验，否则上游 403
-	// "Request could not be verified"。
-	require.Equal(t, "https://accounts.x.ai", client.approveOrigin)
-	require.Equal(t, "https://accounts.x.ai/", client.approveRefer)
+	// approve 必须带 Origin/Referer 通过 CSRF 校验（动态取自 consent 页 URL）。
+	require.Equal(t, "https://auth.x.ai", client.approveOrigin)
+	require.Equal(t, "https://auth.x.ai/oauth2/device/consent", client.approveRefer)
 }
 
 func TestSSOConsentToken(t *testing.T) {
