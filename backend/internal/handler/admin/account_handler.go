@@ -3531,48 +3531,6 @@ func mappedModelMappingKeys(rawMapping any) []string {
 	return mappedIDs
 }
 
-// antigravityAccountTestModels uses the stored mapping rather than GetModelMapping,
-// which supplies defaults and compatibility aliases that the administrator did not configure.
-func antigravityAccountTestModels(rawMapping any) []antigravity.ClaudeModel {
-	var mappedIDs []string
-	switch mapping := rawMapping.(type) {
-	case map[string]any:
-		for id := range mapping {
-			if strings.TrimSpace(id) != "" {
-				mappedIDs = append(mappedIDs, id)
-			}
-		}
-	case map[string]string:
-		for id := range mapping {
-			if strings.TrimSpace(id) != "" {
-				mappedIDs = append(mappedIDs, id)
-			}
-		}
-	}
-	if len(mappedIDs) == 0 {
-		return antigravity.DefaultModels()
-	}
-
-	sort.Strings(mappedIDs)
-	defaultByID := make(map[string]antigravity.ClaudeModel)
-	for _, model := range antigravity.DefaultModels() {
-		defaultByID[model.ID] = model
-	}
-	models := make([]antigravity.ClaudeModel, 0, len(mappedIDs))
-	for _, id := range mappedIDs {
-		if model, ok := defaultByID[id]; ok {
-			models = append(models, model)
-			continue
-		}
-		models = append(models, antigravity.ClaudeModel{
-			ID:          id,
-			Type:        "model",
-			DisplayName: id,
-		})
-	}
-	return models
-}
-
 // SyncUpstreamModels handles syncing live supported models from an account's upstream.
 // POST /api/v1/admin/accounts/:id/models/sync-upstream
 func (h *AccountHandler) SyncUpstreamModels(c *gin.Context) {

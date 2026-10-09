@@ -810,4 +810,3 @@ func TestAccountHandlerGetAvailableModels_TypeSafeOnlyReturnsJev(t *testing.T) {
 		require.Equal(t, "jev-latest", resp.Data[0].ID)
 	}
 }
-
