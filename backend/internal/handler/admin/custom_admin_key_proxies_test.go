@@ -62,7 +62,7 @@ func TestScopedProxyReadBoundedPaginationAndProjection(t *testing.T) {
 	} {
 		t.Run(tc.query, func(t *testing.T) {
 			svc := &scopedProxyReadTestService{}
-			h := NewProxyHandler(svc)
+			h := NewProxyHandler(svc, nil)
 			r := gin.New()
 			r.Use(func(c *gin.Context) {
 				c.Request = c.Request.WithContext(adminaccess.WithPrincipal(c.Request.Context(), &adminaccess.Principal{Policy: adminaccess.Policy{GlobalPermissions: []string{"proxies.read"}}}))
@@ -104,7 +104,7 @@ func TestScopedProxyReadBoundedPaginationAndProjection(t *testing.T) {
 func TestScopedProxyReadRejectsLargeIDBatchAndRequiresPermission(t *testing.T) {
 	for _, allowed := range []bool{false, true} {
 		svc := &scopedProxyReadTestService{}
-		h := NewProxyHandler(svc)
+		h := NewProxyHandler(svc, nil)
 		r := gin.New()
 		p := &adminaccess.Principal{}
 		if allowed {
@@ -167,7 +167,7 @@ func TestScopedProxyAllSamplesOnlyWithoutPagination(t *testing.T) {
 	} {
 		t.Run(tc.path+tc.query, func(t *testing.T) {
 			svc := &scopedProxySampleTestService{}
-			h := NewProxyHandler(svc)
+			h := NewProxyHandler(svc, nil)
 			r := gin.New()
 			r.Use(func(c *gin.Context) {
 				c.Request = c.Request.WithContext(adminaccess.WithPrincipal(c.Request.Context(), &adminaccess.Principal{Policy: adminaccess.Policy{GlobalPermissions: []string{"proxies.read"}}}))

@@ -28,17 +28,18 @@ func newSessionIDUsageLog(sessionID *string) *service.UsageLog {
 	}
 }
 
-// TestPrepareUsageLogInsert_SessionIDArgWiring pins the session_id column to the
-// arg slice / arg-type table so the five INSERT column lists stay in sync. session_id
-// is immediately before native_compaction_v2; created_at is always last.
+// TestPrepareUsageLogInsert_SessionIDArgWiring 确保所有 INSERT 参数表保持同步；
+// 尾部依次为 session_id、native_compaction_v2、30m/12h 缓存 token、created_at。
 func TestPrepareUsageLogInsert_SessionIDArgWiring(t *testing.T) {
+	require.Len(t, usageLogInsertArgTypes, 65, "参数表必须包含 session_id、native_compaction_v2 和 30m/12h 缓存 token")
+
 	sessionID := "sess-persisted-123"
 	prepared := prepareUsageLogInsert(newSessionIDUsageLog(&sessionID))
 
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes),
 		"prepared args must match the arg-type table length")
 
-	// created_at is last; native_compaction_v2 is penultimate; session_id precedes it.
+	// session_id 紧邻 native_compaction_v2，后面保留新增缓存字段。
 	sessionArg := prepared.args[len(prepared.args)-5]
 	ns, ok := sessionArg.(sql.NullString)
 	require.True(t, ok, "session_id arg should be a sql.NullString, got %T", sessionArg)
@@ -81,15 +82,15 @@ func TestPrepareUsageLogInsert_RequestedReasoningEffortArgWiring(t *testing.T) {
 	})
 
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
-	require.Equal(t, "text", usageLogInsertArgTypes[48], "requested_reasoning_effort must follow reasoning_effort")
-	require.Equal(t, "text", usageLogInsertArgTypes[47], "reasoning_effort arg type must stay text")
+	require.Equal(t, "text", usageLogInsertArgTypes[49], "requested_reasoning_effort must follow reasoning_effort")
+	require.Equal(t, "text", usageLogInsertArgTypes[48], "reasoning_effort arg type must stay text")
 
-	forwardedArg, ok := prepared.args[47].(sql.NullString)
+	forwardedArg, ok := prepared.args[48].(sql.NullString)
 	require.True(t, ok)
 	require.True(t, forwardedArg.Valid)
 	require.Equal(t, forwarded, forwardedArg.String)
 
-	requestedArg, ok := prepared.args[48].(sql.NullString)
+	requestedArg, ok := prepared.args[49].(sql.NullString)
 	require.True(t, ok)
 	require.True(t, requestedArg.Valid)
 	require.Equal(t, requested, requestedArg.String)

@@ -1,0 +1,35 @@
+- generic [ref=f1e1]:
+  - generic [ref=f1e4]:
+    - generic [ref=f1e5]:
+      - link "SpaceXAI account home link" [ref=f1e6] [cursor=pointer]:
+        - /url: /
+        - img [ref=f1e7]
+      - button "您正在登录 账户管理" [ref=f1e13] [cursor=pointer]:
+        - generic [ref=f1e14]:
+          - text: 您正在登录
+          - generic [ref=f1e15]: 账户管理
+          - img [ref=f1e17]
+    - generic [ref=f1e21]:
+      - generic [ref=f1e55]:
+        - heading "使用您的邮箱登录" [level=1] [ref=f1e56]
+        - generic [ref=f1e58]:
+          - generic [ref=f1e59]: 邮箱
+          - textbox [active] [ref=f1e61]
+          - paragraph [ref=f1e62]
+        - generic [ref=f1e63]:
+          - button "下一步" [ref=f1e64] [cursor=pointer]
+          - button "返回" [ref=f1e65] [cursor=pointer]
+      - paragraph [ref=f1e47]:
+        - text: 没有账户？
+        - link "注册" [ref=f1e48] [cursor=pointer]:
+          - /url: /sign-up
+    - paragraph [ref=f1e51]:
+      - text: 继续即表示您同意 xAI 的
+      - link "服务条款" [ref=f1e52] [cursor=pointer]:
+        - /url: https://x.ai/legal/terms-of-service-enterprise
+      - text: 和
+      - link "隐私政策" [ref=f1e53] [cursor=pointer]:
+        - /url: https://x.ai/privacy-policy
+      - text: 。
+  - region "Notifications alt+T"
+  - alert [ref=f1e54]

@@ -111,7 +111,7 @@ const antigravityModels = [
   'gemini-3.1-pro-low',
   'gemini-pro-agent',
   'gemini-3-pro-image',
-  // Gemini 3.6 / 3.7 / 3.8 Flash 系列
+  // Gemini 3.6 / 3.7 / 3.8 分档系列：裸名由网关按 reasoning effort 自动选档。
   'gemini-3.6-flash',
   'gemini-3.6-flash-low',
   'gemini-3.6-flash-medium',
@@ -233,6 +233,27 @@ const yiModels = [
   'yi-medium', 'yi-medium-200k',
   'yi-spark', 'yi-vision',
   'yi-1.5-34b-chat', 'yi-1.5-9b-chat', 'yi-1.5-6b-chat'
+]
+
+// CodeBuddy（两区静态表并集，准入由后端区域归属判定；自定义模型透传上游）
+const codebuddyModels = [
+  'auto',
+  'glm-5.3',
+  'glm-5.2',
+  'glm-5.1',
+  'glm-5v-turbo',
+  'kimi-k2.7',
+  'kimi-k2.6',
+  'kimi-k2.5',
+  'minimax-m3',
+  'hy3',
+  'hy3-preview',
+  'hy3-preview-agent',
+  'hy4-preview',
+  'hy4-preview-x',
+  'deepseek-v4-pro',
+  'deepseek-v4-flash',
+  'deepseek-v4.1-flash'
 ]
 
 // Moonshot/Kimi
@@ -534,6 +555,7 @@ export function getModelsByPlatform(platform: string): string[] {
     case 'grok': return xaiModels
     case 'cohere': return cohereModels
     case 'yi': return yiModels
+    case 'codebuddy': return codebuddyModels
     case 'moonshot':
     case 'kimi': return moonshotModels
     case 'opencode_go': return [

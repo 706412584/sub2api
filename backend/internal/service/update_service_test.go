@@ -3,8 +3,12 @@
 package service
 
 import (
+	"archive/zip"
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -31,13 +35,16 @@ type updateServiceGitHubClientStub struct {
 	release        *GitHubRelease
 	recentReleases []*GitHubRelease
 	recentErr      error
+	lastRepo       string
 }
 
-func (s *updateServiceGitHubClientStub) FetchLatestRelease(context.Context, string) (*GitHubRelease, error) {
+func (s *updateServiceGitHubClientStub) FetchLatestRelease(_ context.Context, repo string) (*GitHubRelease, error) {
+	s.lastRepo = repo
 	return s.release, nil
 }
 
-func (s *updateServiceGitHubClientStub) FetchRecentReleases(context.Context, string, int) ([]*GitHubRelease, error) {
+func (s *updateServiceGitHubClientStub) FetchRecentReleases(_ context.Context, repo string, _ int) ([]*GitHubRelease, error) {
+	s.lastRepo = repo
 	return s.recentReleases, s.recentErr
 }
 
@@ -47,6 +54,34 @@ func (s *updateServiceGitHubClientStub) DownloadFile(context.Context, string, st
 
 func (s *updateServiceGitHubClientStub) FetchChecksumFile(context.Context, string) ([]byte, error) {
 	panic("FetchChecksumFile should not be called when no update is available")
+}
+
+func TestResolveUpdateGitHubRepoDefaultAndOverride(t *testing.T) {
+	t.Setenv("UPDATE_GITHUB_REPO", "")
+	require.Equal(t, defaultUpdateGitHubRepo, resolveUpdateGitHubRepo())
+
+	t.Setenv("UPDATE_GITHUB_REPO", "Wei-Shaw/sub2api")
+	require.Equal(t, "Wei-Shaw/sub2api", resolveUpdateGitHubRepo())
+
+	t.Setenv("UPDATE_GITHUB_REPO", "https://github.com/706412584/sub2api/")
+	require.Equal(t, "706412584/sub2api", resolveUpdateGitHubRepo())
+
+	t.Setenv("UPDATE_GITHUB_REPO", "not-a-repo")
+	require.Equal(t, defaultUpdateGitHubRepo, resolveUpdateGitHubRepo())
+}
+
+func TestUpdateServiceUsesConfiguredGitHubRepo(t *testing.T) {
+	t.Setenv("UPDATE_GITHUB_REPO", "example-owner/example-repo")
+	client := &updateServiceGitHubClientStub{
+		release: &GitHubRelease{TagName: "v0.1.200", Name: "v0.1.200"},
+	}
+	svc := NewUpdateService(&updateServiceCacheStub{}, client, "0.1.100", "release")
+
+	info, err := svc.CheckUpdate(context.Background(), true)
+	require.NoError(t, err)
+	require.Equal(t, "0.1.200", info.LatestVersion)
+	require.True(t, info.HasUpdate)
+	require.Equal(t, "example-owner/example-repo", client.lastRepo)
 }
 
 func TestUpdateServicePerformUpdateNoUpdateReturnsSentinel(t *testing.T) {
@@ -184,4 +219,121 @@ func TestUpdateServiceRollbackToVersionAcceptsVPrefix(t *testing.T) {
 	require.Error(t, err)
 	require.NotErrorIs(t, err, ErrRollbackVersionNotAllowed)
 	require.Contains(t, err.Error(), "no compatible release found")
+}
+
+func TestExtractBinaryFromZipFindsExe(t *testing.T) {
+	dir := t.TempDir()
+	zipPath := filepath.Join(dir, "sub2api_0.1.166_windows_amd64.zip")
+	dest := filepath.Join(dir, "sub2api")
+
+	zf, err := os.Create(zipPath)
+	require.NoError(t, err)
+	zw := zip.NewWriter(zf)
+	w, err := zw.Create("sub2api.exe")
+	require.NoError(t, err)
+	_, err = w.Write([]byte("MZ-fake-binary"))
+	require.NoError(t, err)
+	// also add junk file
+	_, err = zw.Create("README.md")
+	require.NoError(t, err)
+	require.NoError(t, zw.Close())
+	require.NoError(t, zf.Close())
+
+	err = extractBinaryFromZip(zipPath, dest, 1024*1024)
+	require.NoError(t, err)
+	data, err := os.ReadFile(dest)
+	require.NoError(t, err)
+	require.Equal(t, "MZ-fake-binary", string(data))
+}
+
+func TestIsPlatformFullArchive(t *testing.T) {
+	require.True(t, isPlatformFullArchive("sub2api_0.1.167_windows_amd64.zip", "windows_amd64"))
+	require.True(t, isPlatformFullArchive("sub2api_0.1.167_linux_amd64.tar.gz", "linux_amd64"))
+	require.False(t, isPlatformFullArchive("sub2api_0.1.165_to_0.1.167_windows_amd64.hdiff", "windows_amd64"))
+	require.False(t, isPlatformFullArchive("sub2api_0.1.165_to_0.1.167_windows_amd64.patch.json", "windows_amd64"))
+	require.False(t, isPlatformFullArchive("hpatchz_windows_amd64.exe", "windows_amd64"))
+	require.False(t, isPlatformFullArchive("windows-patch-checksums.txt", "windows_amd64"))
+	require.False(t, isPlatformFullArchive("checksums.txt", "windows_amd64"))
+}
+
+func TestWindowsPatchMetaMatches(t *testing.T) {
+	meta := windowsPatchMeta{
+		From: "0.1.165", To: "0.1.167", OS: runtime.GOOS, Arch: runtime.GOARCH,
+		BaseSHA256: "aaa", ResultSHA256: "bbb",
+	}
+	require.True(t, windowsPatchMetaMatches(meta, "0.1.165", "0.1.167"))
+	require.False(t, windowsPatchMetaMatches(meta, "0.1.166", "0.1.167"))
+	require.False(t, windowsPatchMetaMatches(meta, "0.1.165", "0.1.168"))
+	meta.OS = "not-" + runtime.GOOS
+	require.False(t, windowsPatchMetaMatches(meta, "0.1.165", "0.1.167"))
+}
+
+func TestFindDeltaPatchAssets(t *testing.T) {
+	assets := []Asset{
+		{Name: "sub2api_0.1.167_windows_amd64.zip", DownloadURL: "https://github.com/x/y/full.zip", Size: 34_000_000},
+		{Name: "sub2api_0.1.165_to_0.1.167_windows_amd64.hdiff", DownloadURL: "https://github.com/x/y/p.hdiff", Size: 6_000_000},
+		{Name: "sub2api_0.1.165_to_0.1.167_windows_amd64.patch.json", DownloadURL: "https://github.com/x/y/p.json", Size: 400},
+		{Name: "hpatchz_windows_amd64.exe", DownloadURL: "https://github.com/x/y/hpatchz.exe", Size: 500_000},
+		{Name: "checksums.txt", DownloadURL: "https://github.com/x/y/checksums.txt", Size: 500},
+	}
+	meta, patch, hpatch, full := findDeltaPatchAssets(assets, "0.1.165", "0.1.167", "windows_amd64")
+	require.NotNil(t, meta)
+	require.NotNil(t, patch)
+	require.NotNil(t, hpatch)
+	require.NotNil(t, full)
+	require.Equal(t, "sub2api_0.1.167_windows_amd64.zip", full.Name)
+
+	meta, patch, hpatch, full = findDeltaPatchAssets(assets, "0.1.160", "0.1.167", "windows_amd64")
+	require.Nil(t, meta)
+	require.Nil(t, patch)
+	require.NotNil(t, hpatch)
+	require.NotNil(t, full)
+
+	// Linux platform token: patch assets must be named linux_amd64 (no .exe hpatchz).
+	linuxAssets := []Asset{
+		{Name: "sub2api_0.1.167_linux_amd64.tar.gz", DownloadURL: "https://github.com/x/y/linux-full.tar.gz", Size: 34_000_000},
+		{Name: "sub2api_0.1.165_to_0.1.167_linux_amd64.hdiff", DownloadURL: "https://github.com/x/y/linux-p.hdiff", Size: 3_000_000},
+		{Name: "sub2api_0.1.165_to_0.1.167_linux_amd64.patch.json", DownloadURL: "https://github.com/x/y/linux-p.json", Size: 400},
+		{Name: "hpatchz_linux_amd64", DownloadURL: "https://github.com/x/y/hpatchz-linux", Size: 900_000},
+		{Name: "checksums.txt", DownloadURL: "https://github.com/x/y/checksums.txt", Size: 500},
+	}
+	meta, patch, hpatch, full = findDeltaPatchAssets(linuxAssets, "0.1.165", "0.1.167", "linux_amd64")
+	require.NotNil(t, meta)
+	require.NotNil(t, patch)
+	require.NotNil(t, hpatch)
+	require.NotNil(t, full)
+	require.Equal(t, "sub2api_0.1.167_linux_amd64.tar.gz", full.Name)
+	require.Equal(t, "hpatchz_linux_amd64", hpatch.Name)
+}
+
+// TestCompareVersionsForkSuffix 钉死 fork 版本线的比较语义。
+// 线上事故：v0.1.190-fork.2 发布后，运行 v0.1.189 的部署检测不到更新——
+// GoReleaser prerelease:auto 把带 semver 后缀的 tag 标成 prerelease，
+// /releases/latest 排除它；且旧 compareVersions 丢弃后缀，
+// fork.1 → fork.2 的线内升级也判不出。
+func TestCompareVersionsForkSuffix(t *testing.T) {
+	cases := []struct {
+		current, latest string
+		want            int
+		desc            string
+	}{
+		// 服务器实测场景：v0.1.189 vs v0.1.190-fork.2 → 必须检出更新
+		{"0.1.189", "0.1.190-fork.2", -1, "189 应升级到 190-fork.2"},
+		{"v0.1.189", "v0.1.190-fork.2", -1, "带 v 前缀同样检出"},
+		// fork 线内升级
+		{"0.1.190-fork.1", "0.1.190-fork.2", -1, "fork.1 应升级到 fork.2"},
+		{"0.1.190-fork.2", "0.1.190-fork.1", 1, "fork.2 高于 fork.1"},
+		{"0.1.190-fork.2", "0.1.190-fork.2", 0, "相同版本"},
+		// 同号：无后缀（上游正式版）> fork 后缀
+		{"0.1.190-fork.2", "0.1.190", -1, "fork.2 低于上游同号正式版"},
+		{"0.1.190", "0.1.190-fork.2", 1, "上游正式版高于 fork.2"},
+		// 常规比较不受影响
+		{"0.1.190-fork.2", "0.2.0", -1, "fork.2 低于上游 0.2.0"},
+		{"0.1.188", "0.1.189", -1, "普通版本升级"},
+		{"0.1.190-fork.2", "0.1.191", -1, "fork 低于更新的上游版本"},
+	}
+	for _, tc := range cases {
+		got := compareVersions(tc.current, tc.latest)
+		require.Equal(t, tc.want, got, "compare(%q, %q): %s", tc.current, tc.latest, tc.desc)
+	}
 }

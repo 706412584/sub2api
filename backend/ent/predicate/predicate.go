@@ -51,11 +51,23 @@ type ChannelMonitorRequestTemplate func(*sql.Selector)
 // CompositeModelRoute is the predicate function for compositemodelroute builders.
 type CompositeModelRoute func(*sql.Selector)
 
+// DynamicProxyPool is the predicate function for dynamicproxypool builders.
+type DynamicProxyPool func(*sql.Selector)
+
 // ErrorPassthroughRule is the predicate function for errorpassthroughrule builders.
 type ErrorPassthroughRule func(*sql.Selector)
 
 // Group is the predicate function for group builders.
 type Group func(*sql.Selector)
+
+// IMBot is the predicate function for imbot builders.
+type IMBot func(*sql.Selector)
+
+// IMBotChat is the predicate function for imbotchat builders.
+type IMBotChat func(*sql.Selector)
+
+// IMBotMessage is the predicate function for imbotmessage builders.
+type IMBotMessage func(*sql.Selector)
 
 // IdempotencyRecord is the predicate function for idempotencyrecord builders.
 type IdempotencyRecord func(*sql.Selector)
@@ -83,6 +95,9 @@ type PromoCodeUsage func(*sql.Selector)
 
 // Proxy is the predicate function for proxy builders.
 type Proxy func(*sql.Selector)
+
+// ProxySubscription is the predicate function for proxysubscription builders.
+type ProxySubscription func(*sql.Selector)
 
 // RedeemCode is the predicate function for redeemcode builders.
 type RedeemCode func(*sql.Selector)

@@ -35,6 +35,7 @@ func TestPluginPackageInstallerInstallUnsignedDevelopmentPackage(t *testing.T) {
 	info, statErr := os.Stat(installation.BinaryPath)
 	require.NoError(t, statErr)
 	if runtime.GOOS != "windows" {
+		// Windows 文件系统不存储 POSIX 执行位，os.Stat 恒不返回 0o100。
 		assert.NotZero(t, info.Mode()&0o100)
 	}
 	assert.Contains(t, installation.InstallPath, filepath.Join("installed", "com.example.openai-transport"))

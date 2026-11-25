@@ -289,7 +289,7 @@ func (s *OpenAIGatewayService) SelectAccountForTokenCount(
 // NormalizeOpenAICompatiblePlatform 保留走 OpenAI 网关的平台（openai、grok 与多协议
 // API Key 供应商，见平台清单）的原值，其他值一律归一为 openai。调度器据此对账号与请求做精确平台匹配：
 // kimi 分组请求只命中 kimi 账号，语义与 openai/grok 一致。
-// （upstream 曾将本函数改为未导出 normalizeOpenAICompatiblePlatform，本分支的
+// （upstream 曾将本函数改为未导出 NormalizeOpenAICompatiblePlatform，本分支的
 // handler 调度入口仍需导出，保持导出名。）
 func NormalizeOpenAICompatiblePlatform(platform string) string {
 	if domain.UsesOpenAIGateway(platform) {
@@ -330,6 +330,32 @@ func (e openAINoAvailableSelectionError) Error() string {
 
 func (e openAINoAvailableSelectionError) Unwrap() error {
 	return ErrNoAvailableAccounts
+}
+
+// grokReasoningFilteredError wraps ErrGrokReasoningFiltered. It is distinct
+// from the generic no-available-accounts error so handlers can emit a 502
+// instead of 503 when the entire pool was excluded by the enforce gate.
+type grokReasoningFilteredError struct {
+	message string
+}
+
+func (e grokReasoningFilteredError) Error() string {
+	return e.message
+}
+
+func (e grokReasoningFilteredError) Unwrap() error {
+	return ErrGrokReasoningFiltered
+}
+
+func newGrokReasoningFilteredError(requestedModel string, details string) error {
+	message := "all Grok accounts filtered by reasoning visibility enforcement"
+	if requestedModel != "" {
+		message = fmt.Sprintf("all Grok accounts supporting model: %s filtered by reasoning visibility enforcement", requestedModel)
+	}
+	if details != "" {
+		message += " (" + details + ")"
+	}
+	return grokReasoningFilteredError{message: message}
 }
 
 // openAICompactSupportTier classifies an OpenAI-compatible account by compact capability.

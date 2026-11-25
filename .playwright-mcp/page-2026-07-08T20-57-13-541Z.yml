@@ -1,0 +1,241 @@
+- generic [active] [ref=f3e1]:
+  - generic [ref=f3e151]:
+    - complementary [ref=f3e152]:
+      - generic [ref=f3e153]:
+        - img "Logo" [ref=f3e155]
+        - generic [ref=f3e156]:
+          - generic [ref=f3e157]: Sub2API
+          - button "v0.1.137" [ref=f3e159] [cursor=pointer]:
+            - generic [ref=f3e160]: v0.1.137
+      - navigation [ref=f3e161]:
+        - generic [ref=f3e162]:
+          - link "仪表盘" [ref=f3e163] [cursor=pointer]:
+            - /url: /admin/dashboard
+            - img [ref=f3e164]
+            - generic [ref=f3e166]: 仪表盘
+          - link "运维监控" [ref=f3e167] [cursor=pointer]:
+            - /url: /admin/ops
+            - img [ref=f3e168]
+            - generic [ref=f3e170]: 运维监控
+          - link "用户管理" [ref=f3e171] [cursor=pointer]:
+            - /url: /admin/users
+            - img [ref=f3e172]
+            - generic [ref=f3e174]: 用户管理
+          - link "分组管理" [ref=f3e175] [cursor=pointer]:
+            - /url: /admin/groups
+            - img [ref=f3e176]
+            - generic [ref=f3e178]: 分组管理
+          - button "渠道管理" [ref=f3e179] [cursor=pointer]:
+            - img [ref=f3e180]
+            - generic [ref=f3e182]:
+              - generic [ref=f3e183]: 渠道管理
+              - img [ref=f3e184]
+          - link "订阅管理" [ref=f3e186] [cursor=pointer]:
+            - /url: /admin/subscriptions
+            - img [ref=f3e187]
+            - generic [ref=f3e189]: 订阅管理
+          - link "账号管理" [ref=f3e190] [cursor=pointer]:
+            - /url: /admin/accounts
+            - img [ref=f3e191]
+            - generic [ref=f3e193]: 账号管理
+          - link "公告" [ref=f3e194] [cursor=pointer]:
+            - /url: /admin/announcements
+            - img [ref=f3e195]
+            - generic [ref=f3e197]: 公告
+          - link "IP管理" [ref=f3e198] [cursor=pointer]:
+            - /url: /admin/proxies
+            - img [ref=f3e199]
+            - generic [ref=f3e201]: IP管理
+          - link "兑换码" [ref=f3e202] [cursor=pointer]:
+            - /url: /admin/redeem
+            - img [ref=f3e203]
+            - generic [ref=f3e205]: 兑换码
+          - link "优惠码" [ref=f3e206] [cursor=pointer]:
+            - /url: /admin/promo-codes
+            - img [ref=f3e207]
+            - generic [ref=f3e209]: 优惠码
+          - link "使用记录" [ref=f3e210] [cursor=pointer]:
+            - /url: /admin/usage
+            - img [ref=f3e211]
+            - generic [ref=f3e213]: 使用记录
+          - link "系统设置" [ref=f3e214] [cursor=pointer]:
+            - /url: /admin/settings
+            - img [ref=f3e215]
+            - generic [ref=f3e218]: 系统设置
+        - generic [ref=f3e219]:
+          - generic [ref=f3e221]: 我的账户
+          - link "API 密钥" [ref=f3e222] [cursor=pointer]:
+            - /url: /keys
+            - img [ref=f3e223]
+            - generic [ref=f3e225]: API 密钥
+          - link "使用记录" [ref=f3e226] [cursor=pointer]:
+            - /url: /usage
+            - img [ref=f3e227]
+            - generic [ref=f3e229]: 使用记录
+          - link "渠道状态" [ref=f3e230] [cursor=pointer]:
+            - /url: /monitor
+            - img [ref=f3e231]
+            - generic [ref=f3e233]: 渠道状态
+          - link "我的订阅" [ref=f3e234] [cursor=pointer]:
+            - /url: /subscriptions
+            - img [ref=f3e235]
+            - generic [ref=f3e237]: 我的订阅
+          - link "兑换" [ref=f3e238] [cursor=pointer]:
+            - /url: /redeem
+            - img [ref=f3e239]
+            - generic [ref=f3e241]: 兑换
+          - link "个人资料" [ref=f3e242] [cursor=pointer]:
+            - /url: /profile
+            - img [ref=f3e243]
+            - generic [ref=f3e245]: 个人资料
+      - generic [ref=f3e246]:
+        - button "深色模式" [ref=f3e247] [cursor=pointer]:
+          - img [ref=f3e248]
+          - generic [ref=f3e250]: 深色模式
+        - button "收起" [ref=f3e251] [cursor=pointer]:
+          - img [ref=f3e252]
+          - generic [ref=f3e254]: 收起
+    - generic [ref=f3e255]:
+      - banner [ref=f3e256]:
+        - generic [ref=f3e257]:
+          - generic [ref=f3e259]:
+            - heading "仪表盘" [level=1] [ref=f3e260]
+            - paragraph [ref=f3e261]: 欢迎回来！这是您账户的概览。
+          - generic [ref=f3e262]:
+            - button "公告" [ref=f3e264] [cursor=pointer]:
+              - img [ref=f3e265]
+            - button "🇨🇳 ZH" [ref=f3e268] [cursor=pointer]:
+              - generic [ref=f3e269]: 🇨🇳
+              - generic [ref=f3e270]: ZH
+              - img [ref=f3e271]
+            - generic [ref=f3e273]:
+              - img [ref=f3e274]
+              - generic [ref=f3e276]: $0.00
+            - button "User Menu" [ref=f3e278] [cursor=pointer]:
+              - generic [ref=f3e280]: AD
+              - generic [ref=f3e281]:
+                - generic [ref=f3e282]: admin
+                - generic [ref=f3e283]: admin
+              - img [ref=f3e284]
+      - main [ref=f3e286]:
+        - generic [ref=f3e287]:
+          - generic [ref=f3e288]:
+            - generic [ref=f3e290]:
+              - img [ref=f3e292]
+              - generic [ref=f3e294]:
+                - paragraph [ref=f3e295]: 余额
+                - paragraph [ref=f3e296]: $0.00
+                - paragraph [ref=f3e297]: 可用
+            - generic [ref=f3e299]:
+              - img [ref=f3e301]
+              - generic [ref=f3e303]:
+                - paragraph [ref=f3e304]: API 密钥
+                - paragraph [ref=f3e305]: "0"
+                - paragraph [ref=f3e306]: 0 启用
+            - generic [ref=f3e308]:
+              - img [ref=f3e310]
+              - generic [ref=f3e312]:
+                - paragraph [ref=f3e313]: 今日请求
+                - paragraph [ref=f3e314]: "0"
+                - paragraph [ref=f3e315]: "总计: 0"
+            - generic [ref=f3e317]:
+              - img [ref=f3e319]
+              - generic [ref=f3e321]:
+                - paragraph [ref=f3e322]: 今日消费
+                - paragraph [ref=f3e323]: $0.0000 / $0.0000
+                - paragraph [ref=f3e324]: "总计: $0.0000 / $0.0000"
+          - generic [ref=f3e325]:
+            - generic [ref=f3e327]:
+              - img [ref=f3e329]
+              - generic [ref=f3e331]:
+                - paragraph [ref=f3e332]: 今日 Token
+                - paragraph [ref=f3e333]: "0"
+                - paragraph [ref=f3e334]: "输入: 0 / 输出: 0"
+            - generic [ref=f3e336]:
+              - img [ref=f3e338]
+              - generic [ref=f3e340]:
+                - paragraph [ref=f3e341]: 累计 Token
+                - paragraph [ref=f3e342]: "0"
+                - paragraph [ref=f3e343]: "输入: 0 / 输出: 0"
+            - generic [ref=f3e345]:
+              - img [ref=f3e347]
+              - generic [ref=f3e349]:
+                - paragraph [ref=f3e350]: 性能指标
+                - generic [ref=f3e351]:
+                  - paragraph [ref=f3e352]: "0"
+                  - generic [ref=f3e353]: RPM
+                - generic [ref=f3e354]:
+                  - paragraph [ref=f3e355]: "0"
+                  - generic [ref=f3e356]: TPM
+            - generic [ref=f3e358]:
+              - img [ref=f3e360]
+              - generic [ref=f3e362]:
+                - paragraph [ref=f3e363]: 平均响应
+                - paragraph [ref=f3e364]: 0ms
+                - paragraph [ref=f3e365]: 平均时间
+          - generic [ref=f3e366]:
+            - generic [ref=f3e368]:
+              - generic [ref=f3e369]:
+                - generic [ref=f3e370]: "时间范围:"
+                - button "7月2日 - 7月8日" [ref=f3e372] [cursor=pointer]:
+                  - img [ref=f3e374]
+                  - generic [ref=f3e376]: 7月2日 - 7月8日
+                  - img [ref=f3e378]
+              - button "刷新" [ref=f3e380] [cursor=pointer]
+              - generic [ref=f3e381]:
+                - generic [ref=f3e382]: "粒度:"
+                - button "Select option" [ref=f3e385] [cursor=pointer]:
+                  - generic [ref=f3e386]: 按天
+                  - img [ref=f3e388]
+            - generic [ref=f3e390]:
+              - generic [ref=f3e391]:
+                - heading "模型分布" [level=3] [ref=f3e392]
+                - generic [ref=f3e393]:
+                  - generic [ref=f3e395]: 暂无数据
+                  - table [ref=f3e397]:
+                    - rowgroup [ref=f3e398]:
+                      - row "模型 请求 Token 实际 标准" [ref=f3e399]:
+                        - columnheader "模型" [ref=f3e400]
+                        - columnheader "请求" [ref=f3e401]
+                        - columnheader "Token" [ref=f3e402]
+                        - columnheader "实际" [ref=f3e403]
+                        - columnheader "标准" [ref=f3e404]
+                    - rowgroup
+              - generic [ref=f3e405]:
+                - heading "Token 使用趋势" [level=3] [ref=f3e406]
+                - generic [ref=f3e407]: 暂无数据
+          - generic [ref=f3e408]:
+            - generic [ref=f3e410]:
+              - generic [ref=f3e411]:
+                - heading "最近使用" [level=2] [ref=f3e412]
+                - generic [ref=f3e413]: 近 7 天
+              - generic [ref=f3e416]:
+                - img [ref=f3e418]
+                - heading "暂无使用记录" [level=3] [ref=f3e420]
+                - paragraph [ref=f3e421]: 开始使用 API 后，您的使用历史将显示在这里。
+            - generic [ref=f3e423]:
+              - heading "快捷操作" [level=2] [ref=f3e425]
+              - generic [ref=f3e426]:
+                - button "创建 API 密钥 生成新的 API 密钥" [ref=f3e427] [cursor=pointer]:
+                  - img [ref=f3e429]
+                  - generic [ref=f3e431]:
+                    - paragraph [ref=f3e432]: 创建 API 密钥
+                    - paragraph [ref=f3e433]: 生成新的 API 密钥
+                  - img [ref=f3e434]
+                - button "查看使用记录 查看详细的使用日志" [ref=f3e436] [cursor=pointer]:
+                  - img [ref=f3e438]
+                  - generic [ref=f3e440]:
+                    - paragraph [ref=f3e441]: 查看使用记录
+                    - paragraph [ref=f3e442]: 查看详细的使用日志
+                  - img [ref=f3e443]
+                - button "兑换码 使用兑换码充值" [ref=f3e445] [cursor=pointer]:
+                  - img [ref=f3e447]
+                  - generic [ref=f3e449]:
+                    - paragraph [ref=f3e450]: 兑换码
+                    - paragraph [ref=f3e451]: 使用兑换码充值
+                  - img [ref=f3e452]
+  - generic [ref=f3e456]:
+    - img [ref=f3e458]
+    - paragraph [ref=f3e461]: 登录成功！欢迎回来。
+    - button "Close notification" [ref=f3e462] [cursor=pointer]:
+      - img [ref=f3e463]

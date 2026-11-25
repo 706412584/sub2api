@@ -20,13 +20,25 @@ import (
 )
 
 const (
-	SSOBuildScope        = "openid profile email offline_access grok-cli:access api:access conversations:read conversations:write"
+	// SSOBuildScope 必须包含 workspaces:read/workspaces:write：Grok Build 的
+	// 官方 wire contract（grok-shell / grok2api 0.2.111）要求这两个 scope，
+	// 缺失时拿到的 access token 不具备 Build 能力。
+	SSOBuildScope        = "openid profile email offline_access grok-cli:access api:access conversations:read conversations:write workspaces:read workspaces:write"
 	SSOAccountsURL       = "https://accounts.x.ai/"
 	SSODeviceURL         = OAuthIssuer + "/oauth2/device/code"
 	SSOVerifyURL         = OAuthIssuer + "/oauth2/device/verify"
 	SSOApproveURL        = OAuthIssuer + "/oauth2/device/approve"
+	SSOConsentURL        = SSOAccountsURL + "oauth2/device/consent"
 	SSOTokenURL          = OAuthIssuer + "/oauth2/token"
 	SSOConversionTimeout = 90 * time.Second
+
+	// ssoDeviceReferrer 标记本次 device flow 来自 Grok Build 客户端。
+	ssoDeviceReferrer = "grok-build"
+	// ssoDeviceUserAgent 是 device/code 与 token 端点使用的 CLI 标识；
+	// 浏览器类端点（verify/consent/approve）改用 ssoDefaultUA。
+	ssoDeviceUserAgent = "grok-shell/0.2.111 (linux; x86_64)"
+	ssoDeviceVersion   = "0.2.111"
+	ssoDeviceSurface   = "ui"
 
 	ssoMaxAuthBody     = 2 << 20
 	ssoMaxTokenLength  = 16 << 10
@@ -59,6 +71,18 @@ type ssoDeviceFlow struct {
 	cookieJar http.CookieJar
 	sleep     func(context.Context, time.Duration) error
 }
+
+// ssoRequestKind 决定请求使用的头部集合：
+//   - device API（device/code、token）用 CLI 标识 + x-grok-client-* 头；
+//   - 浏览器类端点（verify/consent/approve）用浏览器 UA，并且必须带
+//     Origin/Referer —— 服务端对 approve 做 CSRF 校验，缺失时返回 403
+//     "Request could not be verified"。
+type ssoRequestKind int
+
+const (
+	ssoRequestBrowser ssoRequestKind = iota
+	ssoRequestDeviceAPI
+)
 
 func ConvertSSOToBuild(ctx context.Context, ssoToken string, opts *SSODeviceOptions) (*TokenResponse, error) {
 	ssoToken = NormalizeSSOToken(ssoToken)
@@ -112,10 +136,11 @@ func (f *ssoDeviceFlow) convert(ctx context.Context) (*TokenResponse, error) {
 		return nil, fmt.Errorf("validate Grok Web SSO: %w", SSOHTTPError{Status: status})
 	}
 
-	status, _, body, err := f.do(ctx, http.MethodPost, SSODeviceURL, url.Values{
+	status, _, body, err := f.doKind(ctx, http.MethodPost, SSODeviceURL, url.Values{
 		"client_id": {DefaultClientID},
 		"scope":     {SSOBuildScope},
-	})
+		"referrer":  {ssoDeviceReferrer},
+	}, ssoRequestDeviceAPI)
 	if err != nil {
 		return nil, err
 	}
@@ -161,6 +186,8 @@ func (f *ssoDeviceFlow) convert(ctx context.Context) (*TokenResponse, error) {
 		return nil, errors.New("xAI device verification did not reach consent page")
 	}
 
+	// consent 页内嵌 consent_token（上游 54810f8c8 修复）：优先从 verify 跳转
+	// 响应体直接解析；解析不到再单独拉一次 consent 页（fork 补票兜底）。
 	approval := url.Values{
 		"user_code":      {device.UserCode},
 		"action":         {"allow"},
@@ -169,6 +196,12 @@ func (f *ssoDeviceFlow) convert(ctx context.Context) (*TokenResponse, error) {
 	}
 	if consentToken := ssoConsentToken(body); consentToken != "" {
 		approval.Set("consent_token", consentToken)
+	} else {
+		token, tokenErr := f.fetchConsentToken(ctx, device.UserCode)
+		if tokenErr != nil {
+			return nil, tokenErr
+		}
+		approval.Set("consent_token", token)
 	}
 	consentURL, _ := url.Parse(finalURL) // f.do only returns validated xAI URLs.
 	status, finalURL, _, err = f.do(ctx, http.MethodPost, SSOApproveURL, approval, http.Header{
@@ -228,11 +261,11 @@ func (f *ssoDeviceFlow) pollToken(ctx context.Context, deviceCode string, interv
 		if err := f.sleep(ctx, interval); err != nil {
 			return nil, err
 		}
-		status, _, body, err := f.do(ctx, http.MethodPost, SSOTokenURL, url.Values{
+		status, _, body, err := f.doKind(ctx, http.MethodPost, SSOTokenURL, url.Values{
 			"grant_type":  {"urn:ietf:params:oauth:grant-type:device_code"},
 			"client_id":   {DefaultClientID},
 			"device_code": {deviceCode},
-		})
+		}, ssoRequestDeviceAPI)
 		if err != nil {
 			return nil, err
 		}
@@ -283,7 +316,28 @@ func (f *ssoDeviceFlow) pollToken(ctx context.Context, deviceCode string, interv
 	return nil, errors.New("xAI device flow token polling timed out")
 }
 
+// fetchConsentToken 读取 consent 页并抽出 approve 所需的 consent_token（fork 补票兜底路径）。
+func (f *ssoDeviceFlow) fetchConsentToken(ctx context.Context, userCode string) (string, error) {
+	endpoint := SSOConsentURL + "?user_code=" + url.QueryEscape(userCode)
+	status, _, body, err := f.do(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return "", err
+	}
+	if status < 200 || status >= 400 {
+		return "", fmt.Errorf("open xAI consent page: %w", SSOHTTPError{Status: status})
+	}
+	token := ssoConsentToken(body)
+	if token == "" {
+		return "", errors.New("xAI consent page did not contain a consent token")
+	}
+	return token, nil
+}
+
 func (f *ssoDeviceFlow) do(ctx context.Context, method, endpoint string, form url.Values, headers ...http.Header) (int, string, []byte, error) {
+	return f.doKind(ctx, method, endpoint, form, ssoRequestBrowser, headers...)
+}
+
+func (f *ssoDeviceFlow) doKind(ctx context.Context, method, endpoint string, form url.Values, kind ssoRequestKind, headers ...http.Header) (int, string, []byte, error) {
 	if !safeXAIAuthURL(endpoint) {
 		return 0, "", nil, errors.New("xAI OAuth URL is not trusted")
 	}
@@ -301,7 +355,13 @@ func (f *ssoDeviceFlow) do(ctx context.Context, method, endpoint string, form ur
 		}
 		request.Header.Set("Accept", "application/json, text/html;q=0.9, */*;q=0.8")
 		request.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
-		request.Header.Set("User-Agent", f.userAgent)
+		if kind == ssoRequestDeviceAPI {
+			request.Header.Set("User-Agent", ssoDeviceUserAgent)
+			request.Header.Set("x-grok-client-version", ssoDeviceVersion)
+			request.Header.Set("x-grok-client-surface", ssoDeviceSurface)
+		} else {
+			request.Header.Set("User-Agent", f.userAgent)
+		}
 		if redirects == 0 {
 			for _, header := range headers {
 				for name, values := range header {

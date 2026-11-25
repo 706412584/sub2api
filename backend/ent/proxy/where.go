@@ -120,6 +120,11 @@ func BackupProxyID(v int64) predicate.Proxy {
 	return predicate.Proxy(sql.FieldEQ(FieldBackupProxyID, v))
 }
 
+// EgressProxyID applies equality check predicate on the "egress_proxy_id" field. It's identical to EgressProxyIDEQ.
+func EgressProxyID(v int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldEQ(FieldEgressProxyID, v))
+}
+
 // ExpiryWarnDays applies equality check predicate on the "expiry_warn_days" field. It's identical to ExpiryWarnDaysEQ.
 func ExpiryWarnDays(v int) predicate.Proxy {
 	return predicate.Proxy(sql.FieldEQ(FieldExpiryWarnDays, v))
@@ -848,6 +853,56 @@ func BackupProxyIDIsNil() predicate.Proxy {
 // BackupProxyIDNotNil applies the NotNil predicate on the "backup_proxy_id" field.
 func BackupProxyIDNotNil() predicate.Proxy {
 	return predicate.Proxy(sql.FieldNotNull(FieldBackupProxyID))
+}
+
+// EgressProxyIDEQ applies the EQ predicate on the "egress_proxy_id" field.
+func EgressProxyIDEQ(v int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldEQ(FieldEgressProxyID, v))
+}
+
+// EgressProxyIDNEQ applies the NEQ predicate on the "egress_proxy_id" field.
+func EgressProxyIDNEQ(v int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldNEQ(FieldEgressProxyID, v))
+}
+
+// EgressProxyIDIn applies the In predicate on the "egress_proxy_id" field.
+func EgressProxyIDIn(vs ...int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldIn(FieldEgressProxyID, vs...))
+}
+
+// EgressProxyIDNotIn applies the NotIn predicate on the "egress_proxy_id" field.
+func EgressProxyIDNotIn(vs ...int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldNotIn(FieldEgressProxyID, vs...))
+}
+
+// EgressProxyIDGT applies the GT predicate on the "egress_proxy_id" field.
+func EgressProxyIDGT(v int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldGT(FieldEgressProxyID, v))
+}
+
+// EgressProxyIDGTE applies the GTE predicate on the "egress_proxy_id" field.
+func EgressProxyIDGTE(v int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldGTE(FieldEgressProxyID, v))
+}
+
+// EgressProxyIDLT applies the LT predicate on the "egress_proxy_id" field.
+func EgressProxyIDLT(v int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldLT(FieldEgressProxyID, v))
+}
+
+// EgressProxyIDLTE applies the LTE predicate on the "egress_proxy_id" field.
+func EgressProxyIDLTE(v int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldLTE(FieldEgressProxyID, v))
+}
+
+// EgressProxyIDIsNil applies the IsNil predicate on the "egress_proxy_id" field.
+func EgressProxyIDIsNil() predicate.Proxy {
+	return predicate.Proxy(sql.FieldIsNull(FieldEgressProxyID))
+}
+
+// EgressProxyIDNotNil applies the NotNil predicate on the "egress_proxy_id" field.
+func EgressProxyIDNotNil() predicate.Proxy {
+	return predicate.Proxy(sql.FieldNotNull(FieldEgressProxyID))
 }
 
 // ExpiryWarnDaysEQ applies the EQ predicate on the "expiry_warn_days" field.

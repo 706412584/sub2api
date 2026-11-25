@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
@@ -60,6 +61,17 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 	}
 	if len(body) == 0 {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Request body is empty")
+		return
+	}
+
+	// 在安全审计、模型映射和会话粘性前应用分组提示词策略。
+	body, blocked, err := applyGroupPromptPolicy(apiKey, body, domain.GroupPromptPolicyEndpointChatCompletions)
+	if err != nil {
+		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to apply group prompt policy")
+		return
+	}
+	if blocked {
+		h.errorResponse(c, http.StatusForbidden, "permission_error", "Request blocked by group prompt policy")
 		return
 	}
 

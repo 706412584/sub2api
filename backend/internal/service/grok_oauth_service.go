@@ -16,10 +16,11 @@ import (
 const grokDefaultAccessTokenTTL = 6 * time.Hour
 
 type GrokOAuthService struct {
-	sessionStore *xai.SessionStore
-	proxyRepo    ProxyRepository
-	oauthClient  GrokOAuthClient
-	config       *config.Config
+	sessionStore   *xai.SessionStore
+	proxyRepo      ProxyRepository
+	oauthClient    GrokOAuthClient
+	settingService *SettingService
+	config         *config.Config
 }
 
 func NewGrokOAuthService(proxyRepo ProxyRepository, oauthClient GrokOAuthClient, configs ...*config.Config) *GrokOAuthService {
@@ -57,6 +58,14 @@ func (s *GrokOAuthService) GetCapabilities() GrokOAuthCapabilities {
 
 func (s *GrokOAuthService) passwordAuthEnabled() bool {
 	return s.config != nil && s.config.Gateway.Grok.PasswordAuthEnabled
+}
+
+// SetSettingService injects settings for optional refresh via ops proxy.
+func (s *GrokOAuthService) SetSettingService(settingService *SettingService) {
+	if s == nil {
+		return
+	}
+	s.settingService = settingService
 }
 
 type GrokAuthURLResult struct {
@@ -135,6 +144,9 @@ type GrokTokenInfo struct {
 	TeamID            string `json:"team_id,omitempty"`
 	SubscriptionTier  string `json:"subscription_tier,omitempty"`
 	EntitlementStatus string `json:"entitlement_status,omitempty"`
+	// BotFlagSource 是从 access token 的 JWT claims（bot_flag_source/bfs）提取的风控标记。
+	// 0 表示正常，1/2 表示被风控。
+	BotFlagSource int `json:"bot_flag_source,omitempty"`
 }
 
 // GrokPasswordLoginResult is an ephemeral password-login outcome.
@@ -316,9 +328,24 @@ func (s *GrokOAuthService) RefreshAccountToken(ctx context.Context, account *Acc
 		return nil, infraerrors.New(http.StatusBadRequest, "GROK_OAUTH_INVALID_ACCOUNT_TYPE", "account is not an OAuth account")
 	}
 
-	proxyURL, err := s.proxyURL(ctx, account.ProxyID)
-	if err != nil {
-		return nil, err
+	proxyURL := ""
+	usedOps := false
+	if s.settingService != nil {
+		if opsURL, forceDirect, ok, err := s.settingService.ResolveGrokOpsProxyURL(ctx, true); err == nil && ok {
+			usedOps = true
+			if forceDirect {
+				proxyURL = ""
+			} else {
+				proxyURL = opsURL
+			}
+		}
+	}
+	if !usedOps {
+		var err error
+		proxyURL, err = s.proxyURL(ctx, account.ProxyID)
+		if err != nil {
+			return nil, err
+		}
 	}
 	refreshToken := account.GetCredential("refresh_token")
 	if strings.TrimSpace(refreshToken) == "" {
@@ -412,6 +439,7 @@ func (s *GrokOAuthService) tokenInfoFromResponse(tokenResp *xai.TokenResponse, c
 	}
 	applyGrokTokenClaims(info, tokenResp.IDToken, false)
 	applyGrokTokenClaims(info, tokenResp.AccessToken, true)
+	info.BotFlagSource = extractGrokBotFlagSource(xai.DecodeJWTClaims(tokenResp.AccessToken))
 	if existing != nil {
 		if info.Email == "" {
 			if email, _ := existing["email"].(string); email != "" {

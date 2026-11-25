@@ -1,0 +1,21 @@
+[Unit]
+Description=Sub2API Subscription Sidecar A
+After=network-online.target sub2api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sub2api
+Group=sub2api
+WorkingDirectory=/opt/sub2api/subscription-sidecar
+EnvironmentFile=-/etc/sub2api/subscription-sidecar.env
+ExecStart=/opt/sub2api/subscription-sidecar/subscription-sidecar
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

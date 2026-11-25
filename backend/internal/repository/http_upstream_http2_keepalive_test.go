@@ -61,17 +61,25 @@ func TestEnableHTTP2KeepAlive_EnablesPingHealthCheck(t *testing.T) {
 
 // long_stream_h2 模式构建的 Transport 必须带上 H2 PING 健康探测，从源头剔除死连接。
 func TestBuildUpstreamTransport_LongStreamH2_EnablesPingHealthCheck(t *testing.T) {
-	tr, err := buildUpstreamTransport(http2KeepAliveTestPoolSettings(), nil, upstreamProtocolModeLongStreamH2)
+	tr, err := buildUpstreamTransport(http2KeepAliveTestPoolSettings(), nil, upstreamProtocolModeLongStreamH2, "")
 	require.NoError(t, err)
 	require.True(t, tr.ForceAttemptHTTP2, "long_stream_h2 必须启用 HTTP/2")
 	requireHTTP2Configured(t, tr, "long_stream_h2 必须显式配置 http2 以启用 ReadIdleTimeout")
+}
+
+// openai_h2 模式构建的 Transport 必须带上 H2 PING 健康探测，从源头剔除死连接。
+func TestBuildUpstreamTransport_OpenAIH2_EnablesPingHealthCheck(t *testing.T) {
+	tr, err := buildUpstreamTransport(http2KeepAliveTestPoolSettings(), nil, upstreamProtocolModeOpenAIH2, "")
+	require.NoError(t, err)
+	require.True(t, tr.ForceAttemptHTTP2, "openai_h2 必须启用 HTTP/2")
+	requireHTTP2Configured(t, tr, "openai_h2 必须显式配置 http2 以启用 ReadIdleTimeout")
 }
 
 // 默认、Grok 和显式 H1 模式不应主动启用 HTTP/2 保活，避免影响其他平台的传输策略。
 func TestBuildUpstreamTransport_NonHTTP2_NotEagerlyConfigured(t *testing.T) {
 	for _, mode := range []string{upstreamProtocolModeDefault, upstreamProtocolModeGrok, upstreamProtocolModeOpenAIH1, upstreamProtocolModeOpenAIH1Fallback} {
 		t.Run(mode, func(t *testing.T) {
-			tr, err := buildUpstreamTransport(http2KeepAliveTestPoolSettings(), nil, mode)
+			tr, err := buildUpstreamTransport(http2KeepAliveTestPoolSettings(), nil, mode, "")
 			require.NoError(t, err)
 			require.Nil(t, tr.Protocols, "非 H2 模式不应主动配置 http2 keepalive")
 			require.Nil(t, tr.TLSNextProto["h2"], "非 H2 模式不应主动配置 http2 keepalive")
@@ -99,7 +107,7 @@ func TestBuildUpstreamTransport_NegotiatesExpectedProtocol(t *testing.T) {
 		{upstreamProtocolModeOpenAIH1Fallback, 1},
 	} {
 		t.Run(tc.mode, func(t *testing.T) {
-			tr, err := buildUpstreamTransport(http2KeepAliveTestPoolSettings(), nil, tc.mode)
+			tr, err := buildUpstreamTransport(http2KeepAliveTestPoolSettings(), nil, tc.mode, "")
 			require.NoError(t, err)
 			defer tr.CloseIdleConnections()
 			roots := x509.NewCertPool()
@@ -126,7 +134,7 @@ func TestBuildUpstreamTransport_HTTP2_WithHTTPProxy_EnablesKeepAlive(t *testing.
 	require.NoError(t, err)
 	for _, mode := range []string{upstreamProtocolModeOpenAIH2, upstreamProtocolModeLongStreamH2} {
 		t.Run(mode, func(t *testing.T) {
-			tr, err := buildUpstreamTransport(http2KeepAliveTestPoolSettings(), proxyURL, mode)
+			tr, err := buildUpstreamTransport(http2KeepAliveTestPoolSettings(), proxyURL, mode, "")
 			require.NoError(t, err)
 			require.True(t, tr.ForceAttemptHTTP2)
 			requireHTTP2Configured(t, tr, "经代理的 H2 模式也必须启用 http2 keepalive")

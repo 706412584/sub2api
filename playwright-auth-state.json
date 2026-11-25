@@ -1,0 +1,13 @@
+{
+  "url": "http://127.0.0.1:18080/login",
+  "keys": [
+    "payment_enabled_cached",
+    "account-hidden-columns-version",
+    "ops_query_mode_default_cached",
+    "ops_monitoring_enabled_cached",
+    "account-table-sort",
+    "admin_guide_1_admin_v4_interactive",
+    "ops_realtime_monitoring_enabled_cached"
+  ],
+  "token": null
+}

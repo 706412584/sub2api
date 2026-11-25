@@ -586,6 +586,7 @@ export interface Group {
   max_reasoning_effort?: string // Anthropic/OpenAI reasoning ceiling; empty means unlimited
   max_reasoning_effort_over_limit?: string // downgrade (default) or deny when over the ceiling
   reasoning_effort_mappings?: ReasoningEffortMapping[]
+  prompt_policy?: GroupPromptPolicy
   is_exclusive: boolean
   status: 'active' | 'inactive'
   subscription_type: SubscriptionType
@@ -627,16 +628,48 @@ export interface Group {
   claude_code_only: boolean
   fallback_group_id: number | null
   fallback_group_id_on_invalid_request: number | null
+  // 分组默认代理：账号入组未指定代理时自动绑定
+  default_proxy_id: number | null
   // OpenAI Messages 调度开关（用户侧需要此字段判断是否展示 Claude Code 教程）
   allow_messages_dispatch?: boolean
   // OpenAI Live 接口开关
   allow_live: boolean
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
+  grok_messages_protocol?: GrokMessagesProtocol
+  grok_reasoning_visibility_mode?: string
+  grok_reasoning_probe_ttl_sec?: number
+  grok_reasoning_quarantine_sec?: number
   require_oauth_only: boolean
   require_privacy_set: boolean
   created_at: string
   updated_at: string
+}
+
+
+export type GrokMessagesProtocol = 'chat_completions' | 'responses'
+
+export type GroupPromptPolicyEndpoint = 'chat_completions' | 'messages' | 'responses'
+export type GroupPromptPolicyTarget = 'system' | 'instructions' | 'message_text'
+export type GroupPromptPolicyMode = 'replace' | 'block' | 'prepend' | 'append'
+export type GroupPromptPolicyMatchKind = 'literal' | 'regex'
+
+export interface GroupPromptPolicyRule {
+  enabled: boolean
+  endpoints: GroupPromptPolicyEndpoint[]
+  targets: GroupPromptPolicyTarget[]
+  mode: GroupPromptPolicyMode
+  match: {
+    kind: GroupPromptPolicyMatchKind
+    value: string
+    case_sensitive: boolean
+  }
+  value: string
+}
+
+export interface GroupPromptPolicy {
+  enabled: boolean
+  rules: GroupPromptPolicyRule[]
 }
 
 export interface AdminGroup extends Group {
@@ -672,6 +705,7 @@ export interface AdminGroup extends Group {
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
   model_allowlist?: ModelAllowlist
   codex_models_manifest_config?: CodexModelsManifestConfig
+  grok_messages_protocol?: GrokMessagesProtocol
 
   // 分组排序
   sort_order: number
@@ -854,6 +888,7 @@ export interface CreateGroupRequest {
   claude_code_only?: boolean
   fallback_group_id?: number | null
   fallback_group_id_on_invalid_request?: number | null
+  default_proxy_id?: number | null
   mcp_xml_inject?: boolean
   supported_model_scopes?: string[]
   model_allowlist?: ModelAllowlist
@@ -862,12 +897,16 @@ export interface CreateGroupRequest {
   allow_live?: boolean
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
+  grok_messages_protocol?: GrokMessagesProtocol
+  grok_reasoning_probe_ttl_sec?: number
+  grok_reasoning_quarantine_sec?: number
   model_routing?: Record<string, number[]> | null
   model_routing_enabled?: boolean
   rpm_limit?: number
   max_reasoning_effort?: string
   max_reasoning_effort_over_limit?: string
   reasoning_effort_mappings?: ReasoningEffortMapping[]
+  prompt_policy?: GroupPromptPolicy
   require_oauth_only?: boolean
   require_privacy_set?: boolean
   // 从指定分组复制账号
@@ -923,6 +962,7 @@ export interface UpdateGroupRequest {
   claude_code_only?: boolean
   fallback_group_id?: number | null
   fallback_group_id_on_invalid_request?: number | null
+  default_proxy_id?: number | null
   mcp_xml_inject?: boolean
   supported_model_scopes?: string[]
   model_allowlist?: ModelAllowlist
@@ -931,12 +971,16 @@ export interface UpdateGroupRequest {
   allow_live?: boolean
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
+  grok_messages_protocol?: GrokMessagesProtocol
+  grok_reasoning_probe_ttl_sec?: number
+  grok_reasoning_quarantine_sec?: number
   model_routing?: Record<string, number[]> | null
   model_routing_enabled?: boolean
   rpm_limit?: number
   max_reasoning_effort?: string
   max_reasoning_effort_over_limit?: string
   reasoning_effort_mappings?: ReasoningEffortMapping[]
+  prompt_policy?: GroupPromptPolicy
   require_oauth_only?: boolean
   require_privacy_set?: boolean
   copy_accounts_from_group_ids?: number[]
@@ -945,13 +989,35 @@ export interface UpdateGroupRequest {
 // ==================== Account & Proxy Types ====================
 
 /** 前端内置专属界面（图标、配色、表单等）的平台。 */
-export type KnownAccountPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kimi' | 'zhipu' | 'deepseek' | 'minimax' | 'opencode_go' | 'typesafe' | 'command_code' | 'cline'
+export type KnownAccountPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kiro' | 'codebuddy' | 'kimi' | 'zhipu' | 'deepseek' | 'minimax' | 'opencode_go' | 'typesafe' | 'command_code' | 'cline'
 /**
  * 账号平台：内置平台，或后端平台清单中新登记的平台（任意字符串）。
  * `string & {}` 保留内置平台的字面量补全。
  */
 export type AccountPlatform = KnownAccountPlatform | (string & {})
-export type AccountType = 'oauth' | 'setup-token' | 'apikey' | 'upstream' | 'bedrock' | 'service_account'
+export type AccountType = 'oauth' | 'setup-token' | 'apikey' | 'upstream' | 'bedrock' | 'service_account' | 'builder-id' | 'grok_console' | 'grok_web'
+
+// Grok Console / Web 会话导入与状态
+export interface GrokSessionInput {
+  sso_token: string
+  sso_rw_token?: string
+  cf_clearance?: string
+  browser_user_agent: string
+  proxy_id: number
+}
+
+export interface GrokSessionStatus {
+  configured: boolean
+  status?: string
+  bound_proxy_id?: number | null
+  updated_at?: string
+  web_tier?: string
+  last_error_code?: string
+  last_error_at?: string
+  has_sso?: boolean
+  has_cf_clearance?: boolean
+  has_browser_ua?: boolean
+}
 export type OAuthAddMethod = 'oauth' | 'setup-token'
 export type ProxyProtocol = 'http' | 'https' | 'socks5' | 'socks5h'
 
@@ -988,8 +1054,41 @@ export interface Proxy {
   quality_checked?: number
   expires_at: string | null
   fallback_mode: 'none' | 'proxy' | 'direct'
-  backup_proxy_id?: number | null
-  expiry_warn_days: number
+	backup_proxy_id?: number | null
+	egress_proxy_id?: number | null
+	expiry_warn_days: number
+  created_at: string
+  updated_at: string
+}
+
+export interface DynamicProxyPool {
+  id: number
+  name: string
+  enabled: boolean
+  source_type: string
+  subscription_id: number | null
+  extract_url: string
+  protocol: string
+  auth_mode: string
+  username: string
+  password: string
+  response_format: string
+  line_separator: string
+  ip_field_path: string
+  port_field_path: string
+  refresh_interval_sec: number
+  ip_duration_sec: number
+  extract_count: number
+  min_alive: number
+  health_check_interval_sec: number
+  name_prefix: string
+  last_extract_at: string | null
+  last_extract_status: string
+  last_extract_error: string
+  alive_count: number
+  grok_reasoning_check_enabled: boolean
+  grok_reasoning_check_account_id: number | null
+  grok_reasoning_check_interval_sec: number
   created_at: string
   updated_at: string
 }
@@ -1009,6 +1108,29 @@ export interface ProxyQualityCheckItem {
   latency_ms?: number
   message?: string
   cf_ray?: string
+}
+
+export interface GrokReasoningProbeRequest {
+  account_id: number
+  confirm_quota_cost: boolean
+}
+
+export interface GrokReasoningProbeResult {
+  proxy_id: number
+  account_id: number
+  account_name?: string
+  model: string
+  http_status: number
+  latency_ms: number
+  stream_completed: boolean
+  has_visible_reasoning: boolean
+  visible_reasoning_chars: number
+  has_encrypted_reasoning: boolean
+  reasoning_tokens: number
+  output_tokens?: number
+  status: 'visible' | 'encrypted_only' | 'no_reasoning' | 'error'
+  message: string
+  probed_at: number
 }
 
 export interface ProxyQualityCheckResult {
@@ -1272,9 +1394,10 @@ export interface Account {
   platform: AccountPlatform
   type: AccountType
   // 后端响应里 credentials 已脱敏：access_token / refresh_token / id_token /
-  // api_key / session_key / cookie / aws_secret_access_key / aws_session_token /
+  // api_key / kiro_api_key / session_key / cookie / aws_secret_access_key / aws_session_token /
   // service_account_json / service_account / private_key 不会出现，
-  // 改为通过 credentials_status.has_<key> 暴露存在性。
+  // 改为通过 credentials_status.has_<key> 暴露存在性（如 has_api_key / has_kiro_api_key）。
+  // Kiro API Key 账号 credentials 可能含：endpoint / auth_region / api_region / auth_method / region。
   credentials?: Record<string, unknown>
   credentials_status?: Record<string, boolean>
   ollama_cloud_usage?: OllamaCloudUsageState
@@ -1456,13 +1579,25 @@ export interface AntigravityQuotaWindow {
 export interface AntigravityQuotaGroup {
   key: string // bucket prefix: 'gemini' or '3p' (Claude and GPT)
   name: string
+  display_name?: string
   description?: string
   windows: AntigravityQuotaWindow[]
+  buckets: AntigravityQuotaBucket[]
 }
 
 export interface AntigravityModelQuota {
   utilization: number // 使用率 0-100
   reset_time: string  // 重置时间 ISO8601
+}
+
+// Antigravity 分桶配额（retrieveUserQuotaSummary，weekly + 5h 双窗口）
+export interface AntigravityQuotaBucket {
+  bucket_id: string // 如 "gemini-weekly" / "gemini-5h" / "3p-weekly" / "3p-5h"
+  window: string    // "weekly" / "5h"
+  utilization: number // 使用率 0-100
+  reset_time?: string
+  display_name?: string
+  description?: string
 }
 
 export interface GrokQuotaWindow {
@@ -1508,6 +1643,16 @@ export interface GrokBillingSummary {
   failed_windows?: string[]
 }
 
+export interface KiroUsageInfo {
+  subscription_title?: string
+  current_usage: number
+  usage_limit: number
+  next_reset_at?: string | null
+  email?: string
+  overage_enabled?: boolean | null
+  overage_capable?: boolean | null
+}
+
 export interface AccountUsageInfo {
   source?: 'passive' | 'active'
   updated_at: string | null
@@ -1523,7 +1668,7 @@ export interface AccountUsageInfo {
   gemini_pro_minute?: UsageProgress | null
   gemini_flash_minute?: UsageProgress | null
   antigravity_quota?: Record<string, AntigravityModelQuota> | null
-  // Per-group 5-hour and weekly windows (retrieveUserQuotaSummary); every model of a group shares them.
+  // 同模型组共享的 5 小时与周配额窗口。
   antigravity_quota_groups?: AntigravityQuotaGroup[] | null
   grok_request_quota?: GrokQuotaWindow | null
   grok_token_quota?: GrokQuotaWindow | null
@@ -1539,6 +1684,13 @@ export interface AccountUsageInfo {
   grok_local_usage_7d?: WindowStats | null
   grok_local_usage_monthly?: WindowStats | null
   grok_billing?: GrokBillingSummary | null
+  console_usage?: {
+    quotas: Array<{ kind: string; limit: number; used: number; remaining: number }>
+    fetched_at: string
+  } | null
+  kiro?: KiroUsageInfo | null
+  // CodeBuddy 账号当前可花费积分余额（billing meter 聚合）
+  codebuddy_credit_remain?: number | null
   subscription_tier?: string
   subscription_tier_raw?: string
   ai_credits?: Array<{
@@ -1686,6 +1838,7 @@ export interface CreateProxyRequest {
   expires_at?: number | null   // unix 秒；null/0 = 永不过期
   fallback_mode?: 'none' | 'proxy' | 'direct'
   backup_proxy_id?: number | null
+  egress_proxy_id?: number | null
   expiry_warn_days?: number
 }
 
@@ -1700,6 +1853,7 @@ export interface UpdateProxyRequest {
   expires_at?: number | null   // unix 秒；null/0 = 永不过期
   fallback_mode?: 'none' | 'proxy' | 'direct'
   backup_proxy_id?: number | null
+  egress_proxy_id?: number | null
   expiry_warn_days?: number
 }
 
@@ -1844,6 +1998,8 @@ export interface UsageLog {
   output_tokens: number
   cache_creation_tokens: number
   cache_read_tokens: number
+  /** Upstream reasoning/thinking tokens; 0 means unknown/not reported. */
+  reasoning_tokens: number
   cache_creation_5m_tokens: number
   cache_creation_1h_tokens: number
   cache_creation_30m_tokens?: number
@@ -2582,3 +2738,65 @@ export type {
   PlatformQuotaWindow,
   PlatformQuotasResponse,
 } from '@/api/admin/users'
+
+// ==================== IM Bots ====================
+
+export interface IMBotCredentialField {
+  key: string
+  label: string
+  secret?: boolean
+  placeholder?: string
+  required?: boolean
+}
+
+export interface IMPlatform {
+  platform: string
+  available: boolean
+  credential_fields: IMBotCredentialField[]
+}
+
+export interface IMBot {
+  id: number
+  name: string
+  platform: string
+  api_key_id: number
+  model_override: string
+  system_prompt: string
+  status: 'enabled' | 'disabled' | 'error'
+  max_concurrency: number
+  history_max_messages: number
+  pairing_enabled: boolean
+  last_error: string
+  created_at: string
+  updated_at: string
+}
+
+export interface IMBotChat {
+  id: number
+  bot_id: number
+  chat_id: string
+  platform_user_id: string
+  display_name: string
+  session_uuid: string
+  model_override: string
+  status: 'active' | 'blocked'
+  paired_at: string
+  last_message_at: string | null
+}
+
+export interface IMBotMessage {
+  id: number
+  chat_id: number
+  bot_id: number
+  role: 'user' | 'assistant'
+  content: string
+  request_id: string
+  created_at: string
+}
+
+export interface IMBotPairCode {
+  code: string
+  expires_at: string
+  /** scan-to-pair deep link (e.g. https://t.me/<bot>?start=<code>); empty when the platform has no public handle */
+  pair_url: string
+}

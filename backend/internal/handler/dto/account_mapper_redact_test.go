@@ -59,20 +59,19 @@ func TestAccountFromServiceShallow_RedactsSensitiveCredentials(t *testing.T) {
 }
 
 func TestAccountFromServiceShallow_RedactsOllamaCloudManagedExtra(t *testing.T) {
-	snapshot := map[string]any{
-		"status":          service.OllamaCloudUsageStatusOK,
-		"last_attempt_at": "2026-07-22T12:00:00Z",
-		"next_refresh_at": "2026-07-22T13:00:00Z",
-		"data":            map[string]any{"plan": "Pro"},
-	}
 	src := &service.Account{
 		ID: 9, Platform: service.PlatformOpenAI, Type: service.AccountTypeAPIKey,
 		Credentials: map[string]any{"base_url": "https://ollama.com", "api_key": "secret-key"},
 		Extra: map[string]any{
 			service.OllamaCloudUsageSessionExtraKey:     "ciphertext-secret",
 			service.OllamaCloudUsageAutoRefreshExtraKey: true,
-			service.OllamaCloudUsageSnapshotExtraKey:    snapshot,
-			"ordinary":                                  "kept",
+			service.OllamaCloudUsageSnapshotExtraKey: map[string]any{
+				"status":          service.OllamaCloudUsageStatusOK,
+				"last_attempt_at": "2026-07-22T12:00:00Z",
+				"next_refresh_at": "2026-07-22T13:00:00Z",
+				"data":            map[string]any{"plan": "Pro"},
+			},
+			"ordinary": "kept",
 		},
 	}
 

@@ -51,7 +51,7 @@ func TestGrokOAuthClientExchangeAndRefreshUseFormFields(t *testing.T) {
 	t.Setenv(xai.EnvAllowUnsafeURLOverrides, "true")
 	t.Setenv(xai.EnvTokenURL, server.URL)
 
-	client := NewGrokOAuthClient()
+	client := NewGrokOAuthClient(nil)
 	exchanged, err := client.ExchangeCode(context.Background(), "auth-code", "verifier", "http://127.0.0.1:56121/callback", "", "client-id")
 	require.NoError(t, err)
 	require.Equal(t, "exchange-access", exchanged.AccessToken)
@@ -85,7 +85,7 @@ func TestGrokOAuthClientRefreshForbiddenClassifiesOnlyExplicitEntitlement(t *tes
 			t.Setenv(xai.EnvAllowUnsafeURLOverrides, "true")
 			t.Setenv(xai.EnvTokenURL, server.URL)
 
-			client := NewGrokOAuthClient()
+			client := NewGrokOAuthClient(nil)
 			_, err := client.RefreshToken(context.Background(), "refresh-token", "", "client-id")
 			require.Error(t, err)
 			require.Contains(t, strings.ToUpper(err.Error()), tt.wantReason)
@@ -102,7 +102,7 @@ func TestGrokOAuthClientStatusErrorRedactsSensitiveResponseBody(t *testing.T) {
 	t.Setenv(xai.EnvAllowUnsafeURLOverrides, "true")
 	t.Setenv(xai.EnvTokenURL, server.URL)
 
-	client := NewGrokOAuthClient()
+	client := NewGrokOAuthClient(nil)
 	_, err := client.RefreshToken(context.Background(), "refresh-secret", "", "client-id")
 	require.Error(t, err)
 
@@ -131,6 +131,6 @@ func TestNewGrokOAuthClient_UnvalidatedTokenURLFallsBackToDefault(t *testing.T) 
 	t.Setenv(xai.EnvAllowUnsafeURLOverrides, "")
 	t.Setenv(xai.EnvTokenURL, "https://evil.example/oauth/token")
 
-	client := NewGrokOAuthClient().(*grokOAuthClient)
+	client := NewGrokOAuthClient(nil).(*grokOAuthClient)
 	require.Equal(t, xai.DefaultTokenURL, client.tokenURL)
 }

@@ -35,10 +35,18 @@ exceptions:
     mitigation: "Proxy configuration not user-controlled; upgrade when axios releases fix"
     expires_on: "2026-07-10"
     owner: "security@your-domain"
+  - package: postcss
+    advisory: "GHSA-6g55-p6wh-862q"
+    severity: high
+    reason: "PostCSS is a build-time dep (Tailwind/Vite); attacker-controlled sourceMappingURL not present in our CSS pipeline"
+    mitigation: "No user-supplied CSS processed at runtime; plan pin/upgrade postcss when fixed release is available"
+    expires_on: "2026-10-24"
+    owner: "security@your-domain"
+
   - package: nanoid
     advisory: "GHSA-2v37-7h3g-55p8"
     severity: high
-    reason: "Custom generator with size=0 not used; all nanoid calls use default size or positive values"
-    mitigation: "No zero-size custom generators in codebase; upgrade when nanoid releases fix"
-    expires_on: "2026-10-13"
+    reason: "nanoid size=0 infinite loop only with custom alphabet generators; we use default nanoid via Vite/build tooling, no user-controlled size=0 generation"
+    mitigation: "Not used with attacker-controlled size; upgrade when fixed 3.x release is available"
+    expires_on: "2026-12-31"
     owner: "security@your-domain"

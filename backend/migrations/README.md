@@ -7,8 +7,13 @@ This directory contains SQL migration files for database schema changes. The mig
 ## Migration File Naming
 
 Format: `NNN_description.sql`
-- `NNN`: Sequential number (e.g., 001, 002, 003)
+- `NNN`: Sort prefix used for execution order (e.g., 001, 002, 003)
 - `description`: Brief description in snake_case
+
+The migration runner identifies an applied migration by its full filename, not by
+its numeric prefix. Parallel branches may therefore converge with the same sort
+prefix; do not rename or delete an already-applied file. New migrations should
+still use a descriptive filename and the next available prefix where practical.
 
 Example: `017_add_gemini_tier_id.sql`
 

@@ -40,11 +40,13 @@ const (
 	PlatformOpenAI      = domain.PlatformOpenAI
 	PlatformGemini      = domain.PlatformGemini
 	PlatformAntigravity = domain.PlatformAntigravity
+	PlatformKiro        = domain.PlatformKiro
 	PlatformGrok        = domain.PlatformGrok
 	PlatformKimi        = domain.PlatformKimi
 	PlatformZhipu       = domain.PlatformZhipu
 	PlatformDeepseek    = domain.PlatformDeepseek
 	PlatformMiniMax     = domain.PlatformMiniMax
+	PlatformCodebuddy   = domain.PlatformCodebuddy
 	PlatformOpenCodeGo  = domain.PlatformOpenCodeGo
 	PlatformTypeSafe    = domain.PlatformTypeSafe
 )

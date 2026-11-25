@@ -3,6 +3,7 @@ package admin
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -118,6 +119,100 @@ func setupAccountListRouter() (*gin.Engine, *stubAdminService) {
 	handler := NewAccountHandler(adminSvc, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	router.GET("/api/v1/admin/accounts", handler.List)
 	return router, adminSvc
+}
+
+func TestNormalizeBatchTestAccountIDs(t *testing.T) {
+	t.Run("rejects empty input", func(t *testing.T) {
+		_, err := normalizeBatchTestAccountIDs(nil)
+		require.EqualError(t, err, "account_ids is required")
+	})
+
+	t.Run("deduplicates while preserving order", func(t *testing.T) {
+		ids, err := normalizeBatchTestAccountIDs([]int64{3, 1, 3, 2, 1})
+		require.NoError(t, err)
+		require.Equal(t, []int64{3, 1, 2}, ids)
+	})
+
+	t.Run("rejects invalid IDs", func(t *testing.T) {
+		_, err := normalizeBatchTestAccountIDs([]int64{1, 0})
+		require.EqualError(t, err, "account_ids must contain positive IDs")
+	})
+
+	t.Run("accepts exactly the limit", func(t *testing.T) {
+		requested := make([]int64, batchTestAccountsMax)
+		for i := range requested {
+			requested[i] = int64(i + 1)
+		}
+		ids, err := normalizeBatchTestAccountIDs(requested)
+		require.NoError(t, err)
+		require.Len(t, ids, batchTestAccountsMax)
+	})
+
+	t.Run("rejects too many unique IDs", func(t *testing.T) {
+		requested := make([]int64, batchTestAccountsMax+1)
+		for i := range requested {
+			requested[i] = int64(i + 1)
+		}
+		_, err := normalizeBatchTestAccountIDs(requested)
+		require.EqualError(t, err, "account_ids cannot exceed 100 unique IDs")
+	})
+}
+
+func TestBatchTestProxyOverrideAndSchedule(t *testing.T) {
+	proxyID := int64(31)
+	otherProxyID := int64(37)
+	openaiAccount := &service.Account{ID: 1, Platform: service.PlatformOpenAI, ProxyID: &proxyID}
+	grokAccount := &service.Account{ID: 2, Platform: service.PlatformGrok, ProxyID: &otherProxyID}
+	directAccount := &service.Account{ID: 3, Platform: service.PlatformOpenAI, ProxyID: nil}
+
+	t.Run("nil override keeps bound proxy", func(t *testing.T) {
+		override, err := resolveBatchTestProxyOverride(context.Background(), nil, nil)
+		require.NoError(t, err)
+		require.Nil(t, override)
+	})
+
+	t.Run("zero override forces direct", func(t *testing.T) {
+		zero := int64(0)
+		override, err := resolveBatchTestProxyOverride(context.Background(), nil, &zero)
+		require.NoError(t, err)
+		require.NotNil(t, override)
+		require.True(t, override.ForceDirect)
+		require.Nil(t, override.Proxy)
+	})
+
+	t.Run("compact only when all accounts are openai", func(t *testing.T) {
+		mode, err := resolveBatchTestMode(service.AccountTestModeCompact, []*service.Account{openaiAccount, directAccount})
+		require.NoError(t, err)
+		require.Equal(t, service.AccountTestModeCompact, mode)
+
+		_, err = resolveBatchTestMode(service.AccountTestModeCompact, []*service.Account{openaiAccount, grokAccount})
+		require.EqualError(t, err, "compact mode is only supported when all selected accounts are OpenAI")
+	})
+
+	t.Run("grok defaults to serial interval", func(t *testing.T) {
+		concurrency, intervalMs, err := resolveBatchTestSchedule([]*service.Account{openaiAccount, grokAccount}, nil, nil)
+		require.NoError(t, err)
+		require.Equal(t, batchTestGrokDefaultConcurrency, concurrency)
+		require.Equal(t, batchTestGrokDefaultIntervalMs, intervalMs)
+
+		concurrency, intervalMs, err = resolveBatchTestSchedule([]*service.Account{openaiAccount}, nil, nil)
+		require.NoError(t, err)
+		require.Equal(t, batchTestDefaultConcurrency, concurrency)
+		require.Equal(t, batchTestDefaultIntervalMs, intervalMs)
+
+		overrideConcurrency := 3
+		overrideInterval := 1500
+		concurrency, intervalMs, err = resolveBatchTestSchedule([]*service.Account{grokAccount}, &overrideConcurrency, &overrideInterval)
+		require.NoError(t, err)
+		require.Equal(t, 3, concurrency)
+		require.Equal(t, 1500, intervalMs)
+	})
+}
+
+func TestDefaultAccountPoolProbeSettingsDisabled(t *testing.T) {
+	settings := service.DefaultAccountPoolProbeSettings()
+	require.NotNil(t, settings)
+	require.False(t, settings.Enabled)
 }
 
 func TestAccountHandlerListIncludesCreatedAt(t *testing.T) {

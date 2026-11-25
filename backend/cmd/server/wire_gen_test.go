@@ -92,9 +92,13 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		nil, // grokOAuth
 		nil, // openAIGateway
 		nil, // scheduledTestRunner
+		nil, // accountPoolProbe
+		nil, // codebuddyMaintenance
 		nil, // backupSvc
 		nil, // paymentOrderExpiry
 		nil, // channelMonitorRunner
+		nil, // proxySubscriptionRunner
+		nil, // dynamicProxyPoolRunner
 		nil, // channelMonitorV2Aggregator
 		nil, // quotaFlusher
 		nil, // upstreamBillingProbe
@@ -104,6 +108,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		nil, // openAIAutoReset
 		nil, // promptAudit
 		nil, // pluginManager
+		nil, // imHub
 	)
 
 	require.NotPanics(t, func() {

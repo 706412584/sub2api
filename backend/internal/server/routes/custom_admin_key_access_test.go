@@ -354,7 +354,7 @@ func TestScopedAdminProxyReadPermissionAndBoundedRoutes(t *testing.T) {
 			auth := middleware.NewAdminAuthMiddleware(nil, users, settings, nil)
 			svc := &scopedRouteProxyOptions{}
 			r := gin.New()
-			RegisterAdminRoutes(r.Group("/api/v1"), &handler.Handlers{Admin: &handler.AdminHandlers{Proxy: adminhandler.NewProxyHandler(svc)}}, auth, middleware.AuditLogMiddleware(func(c *gin.Context) { c.Next() }), middleware.StepUpAuthMiddleware(func(c *gin.Context) { c.Next() }), nil, nil)
+			RegisterAdminRoutes(r.Group("/api/v1"), &handler.Handlers{Admin: &handler.AdminHandlers{Proxy: adminhandler.NewProxyHandler(svc, nil)}}, auth, middleware.AuditLogMiddleware(func(c *gin.Context) { c.Next() }), middleware.StepUpAuthMiddleware(func(c *gin.Context) { c.Next() }), nil, nil)
 			for _, path := range []string{"/api/v1/admin/proxies", "/api/v1/admin/proxies/all"} {
 				req := httptest.NewRequest("GET", path+"?page=2&page_size=20000", nil)
 				req.Header.Set("x-api-key", key)

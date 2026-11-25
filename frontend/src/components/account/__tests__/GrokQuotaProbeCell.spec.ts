@@ -35,6 +35,8 @@ describe('GrokQuotaProbeCell', () => {
     queryQuota.mockResolvedValue({
       source: 'hybrid_probe',
       billing: { period_type: 'weekly', usage_percent: null },
+      snapshot: { status_code: 402, headers_observed: false, updated_at: '2026-07-23T00:00:00Z' },
+      status_code: 402,
       headers_observed: false,
       reset_supported: false,
       fetched_at: 1,
@@ -46,6 +48,7 @@ describe('GrokQuotaProbeCell', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('upstream returned 402 for probe model "grok-4.5"')
+    expect(wrapper.find('.text-amber-600').exists()).toBe(true)
     expect(wrapper.emitted('probed')?.[0]?.[0]).toMatchObject({
       billing: { period_type: 'weekly', usage_percent: null },
       probe_error: 'upstream returned 402 for probe model "grok-4.5"'

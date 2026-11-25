@@ -33,7 +33,12 @@
     >
       {{ summary }}
     </div>
-    <div v-if="error" class="truncate text-[10px] text-red-600 dark:text-red-400" :title="error">
+    <div
+      v-if="error"
+      class="truncate text-[10px]"
+      :class="probeWarning ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'"
+      :title="error"
+    >
       {{ truncatedError }}
     </div>
   </div>
@@ -78,6 +83,11 @@ const extractErrorMessage = (e: unknown): string => {
     t('common.error')
   )
 }
+
+const probeWarning = computed(() => {
+  const status = data.value?.snapshot?.status_code ?? data.value?.status_code
+  return status === 402 || status === 429 || status === 502
+})
 
 const summary = computed(() => {
   if (props.compact || !data.value) return ''

@@ -81,6 +81,68 @@
         />
       </div>
 
+      <div class="space-y-1.5">
+        <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+          {{ t('admin.accounts.testProxyOverride') }}
+        </label>
+        <input
+          v-model="proxySearch"
+          type="search"
+          class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-dark-500 dark:bg-dark-800 dark:text-gray-100"
+          :placeholder="t('admin.accounts.testProxyOverrideSearch')"
+          :disabled="status === 'connecting' || loadingProxies"
+        />
+        <div class="max-h-36 overflow-y-auto rounded-lg border border-gray-200 p-2 dark:border-dark-500">
+          <div class="flex flex-wrap gap-2">
+            <button
+              type="button"
+              class="rounded-full border px-2.5 py-1 text-xs transition"
+              :class="overrideProxyId === null
+                ? 'border-blue-500 bg-blue-600 text-white dark:border-blue-400 dark:bg-blue-500'
+                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100 dark:border-dark-500 dark:bg-dark-800 dark:text-gray-300 dark:hover:bg-dark-700'"
+              :disabled="status === 'connecting'"
+              @click="overrideProxyId = null"
+            >
+              {{ t('admin.accounts.testProxyOverrideKeepBound') }}
+            </button>
+            <button
+              type="button"
+              class="rounded-full border px-2.5 py-1 text-xs transition"
+              :class="overrideProxyId === NO_PROXY_ID
+                ? 'border-blue-500 bg-blue-600 text-white dark:border-blue-400 dark:bg-blue-500'
+                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100 dark:border-dark-500 dark:bg-dark-800 dark:text-gray-300 dark:hover:bg-dark-700'"
+              :disabled="status === 'connecting'"
+              @click="overrideProxyId = NO_PROXY_ID"
+            >
+              {{ t('admin.accounts.testProxyOverrideDirect') }}
+            </button>
+            <button
+              v-for="proxy in filteredProxyCatalog"
+              :key="proxy.id"
+              type="button"
+              class="rounded-full border px-2.5 py-1 text-xs transition"
+              :class="overrideProxyId === proxy.id
+                ? 'border-blue-500 bg-blue-600 text-white dark:border-blue-400 dark:bg-blue-500'
+                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100 dark:border-dark-500 dark:bg-dark-800 dark:text-gray-300 dark:hover:bg-dark-700'"
+              :disabled="status === 'connecting'"
+              @click="overrideProxyId = proxy.id"
+            >
+              {{ proxy.name || t('admin.accounts.testProxyLabel', { id: proxy.id }) }}
+              <span class="ml-1 opacity-80">#{{ proxy.id }}</span>
+            </button>
+          </div>
+          <p v-if="loadingProxies" class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            {{ t('common.loading') }}...
+          </p>
+          <p v-else-if="proxyLoadError" class="mt-2 text-xs text-red-500">
+            {{ proxyLoadError }}
+          </p>
+        </div>
+        <p class="text-xs text-gray-500 dark:text-gray-400">
+          {{ t('admin.accounts.testProxyOverrideHint') }}
+        </p>
+      </div>
+
       <div v-if="supportsPromptInput" class="space-y-1.5">
         <TextArea
           v-model="testPrompt"
@@ -191,6 +253,12 @@
             {{ line.text }}
           </div>
 
+          <!-- Streaming Thinking -->
+          <div v-if="streamingThinking" class="whitespace-pre-wrap text-violet-300">
+            <span class="mr-1 text-[10px] uppercase tracking-wide text-violet-400/80">thinking</span>
+            {{ streamingThinking }}<span class="animate-pulse">_</span>
+          </div>
+
           <!-- Streaming Content -->
           <div v-if="streamingContent" class="text-green-400">
             {{ streamingContent }}<span class="animate-pulse">_</span>
@@ -203,6 +271,7 @@
           >
             <Icon name="check" size="sm" :stroke-width="2" />
             <span>{{ t('admin.accounts.testCompleted') }}</span>
+            <span v-if="latencyMs > 0" class="text-xs text-gray-400">{{ latencyMs }} ms</span>
           </div>
           <div
             v-else-if="status === 'error'"
@@ -375,7 +444,7 @@ import { useClipboard } from '@/composables/useClipboard'
 import { buildApiUrl } from '@/api/client'
 import { ADMIN_UI_REQUEST_HEADER } from '@/api/adminUIRequest'
 import { adminAPI } from '@/api/admin'
-import type { Account, ClaudeModel } from '@/types'
+import type { Account, ClaudeModel, Proxy } from '@/types'
 
 const { t } = useI18n()
 const { copyToClipboard } = useClipboard()
@@ -403,6 +472,8 @@ const terminalRef = ref<HTMLElement | null>(null)
 const status = ref<'idle' | 'connecting' | 'success' | 'error'>('idle')
 const outputLines = ref<OutputLine[]>([])
 const streamingContent = ref('')
+const streamingThinking = ref('')
+const latencyMs = ref(0)
 const errorMessage = ref('')
 const availableModels = ref<ClaudeModel[]>([])
 const selectedModelId = ref('')
@@ -414,6 +485,28 @@ const generatedAudios = ref<PreviewMedia[]>([])
 const generatedVideos = ref<PreviewMedia[]>([])
 const previewImageUrl = ref('')
 const testMode = ref<'default' | 'compact'>('default')
+/** null = keep bound; 0 = force direct; >0 = temporary override from IP management */
+const overrideProxyId = ref<number | null>(null)
+const proxyCatalog = ref<Proxy[]>([])
+const proxySearch = ref('')
+const loadingProxies = ref(false)
+const proxyLoadError = ref('')
+const NO_PROXY_ID = 0
+const filteredProxyCatalog = computed(() => {
+  const q = proxySearch.value.trim().toLowerCase()
+  const list = [...proxyCatalog.value].sort((a, b) => {
+    const an = (a.name || '').toLowerCase()
+    const bn = (b.name || '').toLowerCase()
+    if (an !== bn) return an.localeCompare(bn)
+    return a.id - b.id
+  })
+  if (!q) return list
+  return list.filter((proxy) => {
+    const hay = `${proxy.name || ''} ${proxy.host || ''} #${proxy.id}`.toLowerCase()
+    return hay.includes(q)
+  })
+})
+
 const grokTestMode = ref<'text' | 'image' | 'video' | 'search' | 'tts' | 'stt' | 'realtime'>('text')
 const uploadImageDataURL = ref('')
 const uploadImagePreview = ref('')
@@ -651,7 +744,10 @@ const promptInputHint = computed(() => {
 })
 
 const testModeSummary = computed(() => {
-  if (isGrokAccount.value) {
+  if (overrideProxyId.value !== null) {
+      /* injected */
+    }
+    if (isGrokAccount.value) {
     switch (grokTestMode.value) {
       case 'video':
         return t('admin.accounts.videoTestMode')
@@ -675,7 +771,10 @@ const testModeSummary = computed(() => {
 
 const canStartTest = computed(() => {
   if (status.value === 'connecting') return false
-  if (isGrokAccount.value) {
+  if (overrideProxyId.value !== null) {
+      /* injected */
+    }
+    if (isGrokAccount.value) {
     if (
       grokTestMode.value === 'search' ||
       grokTestMode.value === 'tts' ||
@@ -739,9 +838,11 @@ watch(
     if (newVal && props.account) {
       testPrompt.value = ''
       testMode.value = 'default'
+      overrideProxyId.value = null
+      proxySearch.value = ''
       grokTestMode.value = 'text'
       resetState()
-      await loadAvailableModels()
+      await Promise.all([loadAvailableModels(), loadProxyCatalog()])
       if (isGrokAccount.value) {
         pickDefaultModelForMode()
         applyDefaultPromptForMode()
@@ -790,10 +891,34 @@ const loadAvailableModels = async () => {
   }
 }
 
+const loadProxyCatalog = async () => {
+  loadingProxies.value = true
+  proxyLoadError.value = ''
+  try {
+    const proxies = await adminAPI.proxies.getAllWithCount()
+    proxyCatalog.value = Array.isArray(proxies) ? proxies : []
+    if (
+      overrideProxyId.value !== null &&
+      overrideProxyId.value !== NO_PROXY_ID &&
+      !proxyCatalog.value.some((proxy) => proxy.id === overrideProxyId.value)
+    ) {
+      overrideProxyId.value = null
+    }
+  } catch (error) {
+    console.error('Failed to load proxies for account test:', error)
+    proxyCatalog.value = []
+    proxyLoadError.value = t('admin.accounts.testProxyOverrideLoadFailed')
+  } finally {
+    loadingProxies.value = false
+  }
+}
+
 const resetState = () => {
   status.value = 'idle'
   outputLines.value = []
   streamingContent.value = ''
+  streamingThinking.value = ''
+  latencyMs.value = 0
   errorMessage.value = ''
   generatedImages.value = []
   generatedAudios.value = []
@@ -832,7 +957,10 @@ const startTest = async () => {
   status.value = 'connecting'
   addLine(t('admin.accounts.startingTestForAccount', { name: props.account.name }), 'text-blue-400')
   addLine(t('admin.accounts.testAccountTypeLabel', { type: props.account.type }), 'text-gray-400')
-  if (isGrokAccount.value) {
+  if (overrideProxyId.value !== null) {
+      /* injected */
+    }
+    if (isGrokAccount.value) {
     const modeLabel =
       grokTestModeOptions.value.find((o) => o.value === grokTestMode.value)?.label || grokTestMode.value
     addLine(t('admin.accounts.grok.selectedTestMode', { mode: modeLabel }), 'text-gray-400')
@@ -850,12 +978,16 @@ const startTest = async () => {
       mode?: string
       image_data_url?: string
       audio_data_url?: string
+      override_proxy_id?: number | null
     } = {
       model_id: showModelSelect.value ? selectedModelId.value : '',
       prompt: supportsPromptInput.value ? testPrompt.value.trim() : ''
     }
     if (isOpenAIAccount.value) {
       requestBody.mode = testMode.value
+    }
+    if (overrideProxyId.value !== null) {
+      requestBody.override_proxy_id = overrideProxyId.value
     }
     if (isGrokAccount.value) {
       // Always send explicit Grok mode. search/tts/stt/realtime are standalone
@@ -948,8 +1080,32 @@ const handleEvent = (event: {
   audio_url?: string
   video_url?: string
   mime_type?: string
+  latency_ms?: number
+  proxy_name?: string
+  proxy_url?: string
+  egress_ip?: string
+  egress_latency_ms?: number
+  egress_error?: string
 }) => {
+  if (typeof event.latency_ms === 'number' && event.latency_ms > 0) {
+    latencyMs.value = event.latency_ms
+  }
   switch (event.type) {
+    case 'proxy_info': {
+      const proxyName = event.proxy_name || event.proxy_url
+      if (proxyName) {
+        addLine(t('admin.accounts.usingProxy', { name: proxyName }), 'text-purple-400')
+      } else {
+        addLine(t('admin.accounts.testDirect'), 'text-gray-500')
+      }
+      if (event.egress_ip) {
+        addLine(t('admin.accounts.usingEgressIP', { ip: event.egress_ip, ms: event.egress_latency_ms || 0 }), 'text-cyan-400')
+      } else if (event.egress_error) {
+        addLine(t('admin.accounts.egressProbeFailed', { error: event.egress_error }), 'text-red-400')
+      }
+      break
+    }
+
     case 'test_start':
       addLine(t('admin.accounts.connectedToApi'), 'text-green-400')
       if (event.model) {
@@ -979,8 +1135,20 @@ const handleEvent = (event: {
       addLine(t('admin.accounts.response'), 'text-yellow-400')
       break
 
+    case 'thinking':
+      if (event.text) {
+        streamingThinking.value += event.text
+        scrollToBottom()
+      }
+      break
+
     case 'content':
       if (event.text) {
+        // Flush thinking before first content so order is preserved in the log.
+        if (streamingThinking.value) {
+          addLine(streamingThinking.value, 'text-violet-300')
+          streamingThinking.value = ''
+        }
         streamingContent.value += event.text
         scrollToBottom()
       }
@@ -1024,9 +1192,16 @@ const handleEvent = (event: {
 
     case 'test_complete':
       // Move streaming content to output lines
+      if (streamingThinking.value) {
+        addLine(streamingThinking.value, 'text-violet-300')
+        streamingThinking.value = ''
+      }
       if (streamingContent.value) {
         addLine(streamingContent.value, 'text-green-300')
         streamingContent.value = ''
+      }
+      if (latencyMs.value > 0) {
+        addLine(t('admin.accounts.testLatency', { ms: latencyMs.value }), 'text-gray-400')
       }
       if (event.success) {
         status.value = 'success'
@@ -1039,9 +1214,16 @@ const handleEvent = (event: {
     case 'error':
       status.value = 'error'
       errorMessage.value = event.error || t('common.unknownError')
+      if (streamingThinking.value) {
+        addLine(streamingThinking.value, 'text-violet-300')
+        streamingThinking.value = ''
+      }
       if (streamingContent.value) {
         addLine(streamingContent.value, 'text-green-300')
         streamingContent.value = ''
+      }
+      if (latencyMs.value > 0) {
+        addLine(t('admin.accounts.testLatency', { ms: latencyMs.value }), 'text-gray-400')
       }
       break
   }

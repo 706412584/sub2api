@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
@@ -71,6 +72,13 @@ func (s *adminServiceImpl) CreateProxy(ctx context.Context, input *CreateProxyIn
 	if input.ExpiryWarnDays < 0 {
 		return nil, infraerrors.BadRequest("PROXY_WARN_DAYS_INVALID", "expiry_warn_days must be >= 0")
 	}
+	if err := s.validateEgressProxy(ctx, 0, input.EgressProxyID); err != nil {
+		return nil, err
+	}
+	// Managed prefix reserved for embedded subscription sync.
+	if strings.HasPrefix(strings.TrimSpace(input.Name), ManagedProxyNamePrefix) {
+		return nil, infraerrors.BadRequest("PROXY_NAME_RESERVED", "proxy name prefix sidecar- is reserved for subscription-managed proxies")
+	}
 
 	proxy := &Proxy{
 		Name:           input.Name,
@@ -83,6 +91,7 @@ func (s *adminServiceImpl) CreateProxy(ctx context.Context, input *CreateProxyIn
 		ExpiresAt:      input.ExpiresAt,
 		FallbackMode:   mode,
 		BackupProxyID:  input.BackupProxyID,
+		EgressProxyID:  input.EgressProxyID,
 		ExpiryWarnDays: input.ExpiryWarnDays,
 	}
 	if err := s.proxyRepo.Create(ctx, proxy); err != nil {
@@ -100,6 +109,13 @@ func (s *adminServiceImpl) UpdateProxy(ctx context.Context, id int64, input *Upd
 	// 校验：backup_proxy_id 不能是自身
 	if input.BackupProxyID != nil && *input.BackupProxyID == id {
 		return nil, infraerrors.BadRequest("PROXY_BACKUP_SELF", "backup proxy cannot be itself")
+	}
+	// 校验：egress_proxy_id 不能是自身（避免循环代理）
+	if input.EgressProxyID != nil && *input.EgressProxyID == id {
+		return nil, infraerrors.BadRequest("PROXY_EGRESS_SELF", "egress proxy cannot be itself")
+	}
+	if err := s.validateEgressProxy(ctx, id, input.EgressProxyID); err != nil {
+		return nil, err
 	}
 	proxy, err := s.proxyRepo.GetByID(ctx, id)
 	if err != nil {
@@ -123,6 +139,11 @@ func (s *adminServiceImpl) UpdateProxy(ctx context.Context, id int64, input *Upd
 	}
 
 	if input.Name != "" {
+		// Manual rename into managed prefix is not allowed.
+		if strings.HasPrefix(strings.TrimSpace(input.Name), ManagedProxyNamePrefix) &&
+			!strings.HasPrefix(proxy.Name, ManagedProxyNamePrefix) {
+			return nil, infraerrors.BadRequest("PROXY_NAME_RESERVED", "proxy name prefix sidecar- is reserved for subscription-managed proxies")
+		}
 		proxy.Name = input.Name
 	}
 	if input.Protocol != "" {
@@ -148,6 +169,9 @@ func (s *adminServiceImpl) UpdateProxy(ctx context.Context, id int64, input *Upd
 	}
 	proxy.FallbackMode = mode
 	proxy.BackupProxyID = backupID
+	if input.EgressProxyID != nil || input.ClearEgressID {
+		proxy.EgressProxyID = input.EgressProxyID
+	}
 	if input.ExpiryWarnDays != nil {
 		proxy.ExpiryWarnDays = *input.ExpiryWarnDays
 	}
@@ -156,6 +180,42 @@ func (s *adminServiceImpl) UpdateProxy(ctx context.Context, id int64, input *Upd
 		return nil, err
 	}
 	return proxy, nil
+}
+
+const maxEgressProxyChainDepth = 1
+
+func (s *adminServiceImpl) validateEgressProxy(ctx context.Context, proxyID int64, egressID *int64) error {
+	if egressID == nil {
+		return nil
+	}
+	if *egressID <= 0 || *egressID == proxyID {
+		return infraerrors.BadRequest("PROXY_EGRESS_INVALID", "egress proxy is invalid")
+	}
+
+	visited := make(map[int64]struct{}, maxEgressProxyChainDepth+1)
+	if proxyID > 0 {
+		visited[proxyID] = struct{}{}
+	}
+	currentID := *egressID
+	for depth := 0; depth < maxEgressProxyChainDepth; depth++ {
+		if _, exists := visited[currentID]; exists {
+			return infraerrors.BadRequest("PROXY_EGRESS_CYCLE", "egress proxy chain contains a cycle")
+		}
+		visited[currentID] = struct{}{}
+
+		proxy, err := s.proxyRepo.GetByID(ctx, currentID)
+		if err != nil {
+			return infraerrors.BadRequest("PROXY_EGRESS_NOT_FOUND", "egress proxy not found")
+		}
+		if !proxy.IsActive() {
+			return infraerrors.BadRequest("PROXY_EGRESS_INACTIVE", "egress proxy must be active")
+		}
+		if proxy.EgressProxyID == nil {
+			return nil
+		}
+		currentID = *proxy.EgressProxyID
+	}
+	return infraerrors.BadRequest("PROXY_EGRESS_TOO_DEEP", "egress proxy chain is too deep")
 }
 
 func (s *adminServiceImpl) DeleteProxy(ctx context.Context, id int64) error {

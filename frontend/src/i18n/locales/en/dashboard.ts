@@ -378,6 +378,7 @@ export default {
 	  modelVariant: 'Possible version variant',
 	  modelMismatch: 'Different model',
     reasoningEffort: 'Reasoning Effort',
+    reasoningTokens: 'Reasoning',
     requestedReasoningEffort: 'Requested reasoning effort',
     endpoint: 'Endpoint',
     endpointDistribution: 'Endpoint Distribution',

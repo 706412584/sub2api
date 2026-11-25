@@ -23,9 +23,25 @@ func RedactCredentials(in map[string]any) (out map[string]any, status map[string
 			}
 			continue
 		}
-		out[k] = v
+		out[k] = redactCredentialValue(v)
 	}
 	return out, status
+}
+
+func redactCredentialValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		redacted, _ := RedactCredentials(typed)
+		return redacted
+	case []any:
+		redacted := make([]any, len(typed))
+		for i, item := range typed {
+			redacted[i] = redactCredentialValue(item)
+		}
+		return redacted
+	default:
+		return value
+	}
 }
 
 // isCredentialValuePresent 判断值是否"存在且非零"。空字符串、nil、false 均视为未配置；

@@ -47,12 +47,13 @@ func (f *AntigravityQuotaFetcher) CanFetch(account *Account) bool {
 	return accessToken != ""
 }
 
-// FetchQuota 获取 Antigravity 账户额度信息
+// FetchQuota 获取 Antigravity 账户额度信息。
+// egressURL 非空时走链式代理，保证配置了 egress 的代理不绕过链式设置。
 func (f *AntigravityQuotaFetcher) FetchQuota(ctx context.Context, account *Account, proxyURL string) (*QuotaResult, error) {
 	accessToken := account.GetCredential("access_token")
 	projectID := account.GetCredential("project_id")
 
-	client, err := antigravity.NewClient(proxyURL)
+	client, err := antigravity.NewClientWithEgress(proxyURL, f.GetEgressChainURL(ctx, account))
 	if err != nil {
 		return nil, fmt.Errorf("create antigravity client failed: %w", err)
 	}
@@ -93,13 +94,8 @@ func (f *AntigravityQuotaFetcher) FetchQuota(ctx context.Context, account *Accou
 	// 转换为 UsageInfo
 	usageInfo := f.buildUsageInfo(modelsResp, tierRaw, tierNormalized, loadResp)
 
-	// The per-group 5-hour and weekly windows. Not on the critical path: without them the
-	// per-model figures above are shown as before.
-	if summary, err := client.RetrieveUserQuotaSummaryFromURL(ctx, baseURL, accessToken, projectID); err != nil {
-		slog.Warn("failed to fetch antigravity quota summary", "account_id", account.ID, "error", err)
-	} else {
-		usageInfo.AntigravityQuotaGroups = buildAntigravityQuotaGroups(summary)
-	}
+	// 配额与转发使用同一端点；失败不影响主配额结果。
+	f.applyAntigravityQuotaGroups(ctx, client, accessToken, projectID, usageInfo, baseURL)
 
 	return &QuotaResult{
 		UsageInfo: usageInfo,
@@ -122,6 +118,30 @@ func (f *AntigravityQuotaFetcher) fetchSubscriptionTier(ctx context.Context, cli
 	raw = loadResp.GetTier() // 已有方法：paidTier > currentTier
 	normalized = normalizeTier(raw)
 	return raw, normalized, loadResp
+}
+
+// applyAntigravityQuotaSummary 拉取 retrieveUserQuotaSummary 分桶配额并写入 UsageInfo。
+// best-effort：失败只记日志，不影响主配额结果（与 fetchSubscriptionTier 同模式）。
+func (f *AntigravityQuotaFetcher) applyAntigravityQuotaGroups(ctx context.Context, client *antigravity.Client, accessToken, projectID string, usageInfo *UsageInfo, baseURLs ...string) {
+	if usageInfo == nil {
+		return
+	}
+	var summary *antigravity.UserQuotaSummaryResponse
+	var err error
+	if len(baseURLs) > 0 {
+		summary, err = client.RetrieveUserQuotaSummaryFromURL(ctx, baseURLs[0], accessToken, projectID)
+	} else {
+		summary, err = client.RetrieveUserQuotaSummary(ctx, accessToken, projectID, resolveModelsListReadLimit(f.cfg))
+	}
+	if err != nil {
+		slog.Warn("failed to fetch antigravity quota summary", "error", err)
+		return
+	}
+	if summary == nil || len(summary.Groups) == 0 {
+		return
+	}
+
+	usageInfo.AntigravityQuotaGroups = buildAntigravityQuotaGroups(summary)
 }
 
 // normalizeTier 将原始 tier 字符串归一化为 FREE/PRO/ULTRA/UNKNOWN
@@ -233,7 +253,7 @@ func buildAntigravityQuotaGroups(summary *antigravity.QuotaSummaryResponse) []*A
 		if len(group.Buckets) == 0 {
 			continue
 		}
-		out := &AntigravityQuotaGroup{Name: group.DisplayName, Description: group.Description}
+		out := &AntigravityQuotaGroup{Name: group.DisplayName, DisplayName: group.DisplayName, Description: group.Description}
 		for _, bucket := range group.Buckets {
 			if out.Key == "" {
 				if i := strings.LastIndex(bucket.BucketID, "-"); i > 0 {
@@ -243,7 +263,13 @@ func buildAntigravityQuotaGroups(summary *antigravity.QuotaSummaryResponse) []*A
 			used := (1.0 - bucket.RemainingFraction) * 100
 			if used < 0 {
 				used = 0
+			} else if used > 100 {
+				used = 100
 			}
+			out.Buckets = append(out.Buckets, &AntigravityQuotaBucket{
+				BucketID: bucket.BucketID, Window: bucket.Window, Utilization: int(used),
+				ResetTime: bucket.ResetTime, DisplayName: bucket.DisplayName, Description: bucket.Description,
+			})
 			window := &AntigravityQuotaWindow{Window: bucket.Window, Utilization: used}
 			if bucket.ResetTime != "" {
 				if resetAt, err := time.Parse(time.RFC3339, bucket.ResetTime); err == nil {
@@ -278,6 +304,19 @@ func (f *AntigravityQuotaFetcher) GetProxyURL(ctx context.Context, account *Acco
 		return ""
 	}
 	return proxy.URL()
+}
+
+// GetEgressChainURL 获取账户代理的 egress（链式）代理 URL，
+// 未配置或链无效时返回空串。
+func (f *AntigravityQuotaFetcher) GetEgressChainURL(ctx context.Context, account *Account) string {
+	if account.ProxyID == nil || f.proxyRepo == nil {
+		return ""
+	}
+	proxy, err := f.proxyRepo.GetByID(ctx, *account.ProxyID)
+	if err != nil || proxy == nil {
+		return ""
+	}
+	return proxy.EgressChainURL(ctx, f.proxyRepo)
 }
 
 // classifyForbiddenType 根据 403 响应体判断禁止类型

@@ -119,6 +119,13 @@ func (s *OpenAIGatewayService) handleOpenAIUpstreamTransportError(ctx context.Co
 		return err
 	}
 	safeErr := sanitizeUpstreamErrorMessage(err.Error())
+	platform := ""
+	clientMessage := ""
+	if account.Platform == PlatformGrok {
+		platform = PlatformGrok
+		clientMessage = "Upstream request failed"
+		safeErr = clientMessage
+	}
 	setOpsUpstreamError(c, 0, safeErr, "")
 	appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
 		ProxyID:            opsUpstreamProxyID(account),
@@ -155,8 +162,10 @@ func (s *OpenAIGatewayService) handleOpenAIUpstreamTransportError(ctx context.Co
 	}
 
 	return &UpstreamFailoverError{
-		StatusCode:   http.StatusBadGateway,
-		ResponseBody: openAITransportFailoverBody,
+		StatusCode:    http.StatusBadGateway,
+		ResponseBody:  openAITransportFailoverBody,
+		Platform:      platform,
+		ClientMessage: clientMessage,
 	}
 }
 

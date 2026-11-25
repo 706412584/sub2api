@@ -16,49 +16,17 @@ import (
 const quotaSummaryBodyLimit = 1 << 20
 
 // QuotaSummaryBucket is one quota window of a group, e.g. "gemini-5h" or "gemini-weekly".
-type QuotaSummaryBucket struct {
-	BucketID          string  `json:"bucketId"`
-	DisplayName       string  `json:"displayName,omitempty"`
-	Window            string  `json:"window"` // "5h" or "weekly"
-	ResetTime         string  `json:"resetTime,omitempty"`
-	RemainingFraction float64 `json:"remainingFraction"`
-}
+type QuotaSummaryBucket = UserQuotaBucket
 
 // QuotaSummaryGroup is a set of models that share their quota windows.
-type QuotaSummaryGroup struct {
-	DisplayName string               `json:"displayName"`
-	Description string               `json:"description,omitempty"`
-	Buckets     []QuotaSummaryBucket `json:"buckets"`
-}
+type QuotaSummaryGroup = UserQuotaGroup
 
 // QuotaSummaryResponse is the retrieveUserQuotaSummary response.
 //
 // Unlike fetchAvailableModels, which reports one fraction per model (whichever window is
 // tighter), this reports every window of every group, so the 5-hour and the weekly limit can
 // be told apart. Within a group all models share both windows.
-type QuotaSummaryResponse struct {
-	Groups      []QuotaSummaryGroup `json:"groups"`
-	Description string              `json:"description,omitempty"`
-}
-
-// RetrieveUserQuotaSummary reads the account's per-group 5-hour and weekly quota windows,
-// falling back across BaseURLs like FetchAvailableModels.
-func (c *Client) RetrieveUserQuotaSummary(ctx context.Context, accessToken, projectID string) (*QuotaSummaryResponse, error) {
-	var lastErr error
-	for urlIdx, baseURL := range BaseURLs {
-		summary, status, err := c.retrieveUserQuotaSummary(ctx, baseURL, accessToken, projectID)
-		if err == nil {
-			DefaultURLAvailability.MarkSuccess(baseURL)
-			return summary, nil
-		}
-		lastErr = err
-		if urlIdx < len(BaseURLs)-1 && shouldFallbackToNextURL(nil, status) {
-			continue
-		}
-		return nil, err
-	}
-	return nil, lastErr
-}
+type QuotaSummaryResponse = UserQuotaSummaryResponse
 
 // RetrieveUserQuotaSummaryFromURL reads the quota summary from one endpoint, without fallback.
 func (c *Client) RetrieveUserQuotaSummaryFromURL(ctx context.Context, baseURL, accessToken, projectID string) (*QuotaSummaryResponse, error) {

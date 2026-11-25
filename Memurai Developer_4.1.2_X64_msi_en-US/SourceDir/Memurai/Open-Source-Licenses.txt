@@ -1,0 +1,14 @@
+Open Source Software and Open Source Software Licenses 
+
+The Memurai Developer Software provided under this Agreement is derived from both Redis and from a fork by Microsoft Open Technologies.
+
+Subject to Section 2 of this Agreement, which shall control and prevail with respect to all of the following licenses, you agree to abide by the terms and conditions of said licenses:
+
+1. The Redis license, as set forth at: https://github.com/antirez/redis/blob/unstable/COPYING
+2. The Microsoft Open Technologies license, as set forth at: https://github.com/MicrosoftArchive/redis/blob/3.0/license.txt
+3. The following additional four licenses, as set forth at:
+   a) https://github.com/MicrosoftArchive/redis/blob/3.0/deps/hiredis/COPYING
+   b) https://github.com/MicrosoftArchive/redis/blob/3.0/deps/jemalloc-win/LICENSE
+   c) https://github.com/MicrosoftArchive/redis/blob/3.0/deps/jemalloc-win/COPYING
+   d) https://github.com/MicrosoftArchive/redis/blob/3.0/deps/lua/COPYRIGHT
+

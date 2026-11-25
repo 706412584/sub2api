@@ -100,3 +100,20 @@ func TestIsGeminiReasoningModel_IncludesProAgent(t *testing.T) {
 		t.Fatal("did not expect gemini-2.5-flash to be recognized as a Gemini reasoning model")
 	}
 }
+
+// 分档模型的裸名不是 reasoning 模型，带档位后缀的才是。
+func TestIsGeminiReasoningModel_TieredFlashVariants(t *testing.T) {
+	t.Parallel()
+
+	for _, base := range []string{"gemini-3.6-flash", "gemini-3.8-flash"} {
+		if IsGeminiReasoningModel(base) {
+			t.Fatalf("expected %q not to be treated as a reasoning model", base)
+		}
+		for _, tier := range []string{"low", "medium", "high", "tiered"} {
+			id := base + "-" + tier
+			if !IsGeminiReasoningModel(id) {
+				t.Fatalf("expected %q to be treated as a reasoning model", id)
+			}
+		}
+	}
+}

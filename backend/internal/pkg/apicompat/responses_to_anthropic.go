@@ -222,10 +222,12 @@ type ResponsesEventToAnthropicState struct {
 	CurrentToolHadDelta       bool
 	currentToolArgsBuffer     *strings.Builder
 	currentToolArgsValidation *streamStringBytes
+	HasToolCall               bool
+	CurrentOutputIndex        int
+	CurrentOutputSet          bool
 	// PendingThinkingSignature is filled from reasoning.encrypted_content and
 	// emitted as signature_delta before the thinking block is closed.
 	PendingThinkingSignature string
-	HasToolCall              bool
 
 	// XAIServerSideSearch is set by callers whose upstream is xAI. A
 	// custom_tool_call that IsServerSideSearchCall then never becomes a tool_use
@@ -404,6 +406,8 @@ func resToAnthHandleOutputItemAdded(evt *ResponsesStreamEvent, state *ResponsesE
 		idx := state.ContentBlockIndex
 		state.OutputIndexToBlockIdx[evt.OutputIndex] = idx
 		state.ContentBlockOpen = true
+		state.CurrentOutputIndex = evt.OutputIndex
+		state.CurrentOutputSet = true
 		state.CurrentBlockType = "tool_use"
 		state.CurrentToolName = evt.Item.Name
 		state.CurrentToolArgs = ""
@@ -431,6 +435,8 @@ func resToAnthHandleOutputItemAdded(evt *ResponsesStreamEvent, state *ResponsesE
 		idx := state.ContentBlockIndex
 		state.OutputIndexToBlockIdx[evt.OutputIndex] = idx
 		state.ContentBlockOpen = true
+		state.CurrentOutputIndex = evt.OutputIndex
+		state.CurrentOutputSet = true
 		state.CurrentBlockType = "thinking"
 		state.PendingThinkingSignature = strings.TrimSpace(evt.Item.EncryptedContent)
 
@@ -474,6 +480,8 @@ func resToAnthEmitText(text string, part responsesTextPart, state *ResponsesEven
 
 		idx := state.ContentBlockIndex
 		state.ContentBlockOpen = true
+		state.CurrentOutputIndex = part.OutputIndex
+		state.CurrentOutputSet = true
 		state.CurrentBlockType = "text"
 
 		events = append(events, AnthropicStreamEvent{
@@ -536,19 +544,25 @@ func resToAnthHandleTextDone(evt *ResponsesStreamEvent, state *ResponsesEventToA
 	if state.MessageStopSent {
 		// The message is already terminated; a late payload cannot be delivered
 		// without emitting a content block after message_stop.
-		return resToAnthHandleBlockDone(state)
+		return resToAnthHandleBlockDone(evt, state)
 	}
 
 	events := resToAnthRecoverText(evt.Text, resToAnthTextPartOf(evt), state)
-	return append(events, resToAnthHandleBlockDone(state)...)
+	return append(events, resToAnthHandleBlockDone(evt, state)...)
 }
 
 func resToAnthHandleFuncArgsDelta(evt *ResponsesStreamEvent, state *ResponsesEventToAnthropicState) []AnthropicStreamEvent {
-	if evt.Delta == "" {
+	if evt.Delta == "" || state.CurrentBlockType != "tool_use" {
+		return nil
+	}
+	// Production streams set CurrentOutputSet when opening a block. Preserve the
+	// helper's legacy mapped-index contract for isolated callers that construct
+	// state directly without an active output owner.
+	if state.CurrentOutputSet && !currentBlockMatchesOutput(evt, state) {
 		return nil
 	}
 
-	if state.CurrentBlockType == "tool_use" && state.CurrentToolName == "Read" {
+	if state.CurrentToolName == "Read" {
 		previousArgs := state.CurrentToolArgs
 		state.CurrentToolArgs = appendStreamString(&state.currentToolArgsBuffer, state.CurrentToolArgs, evt.Delta)
 		if state.CurrentToolHadDelta || !json.Valid(appendStreamStringBytes(&state.currentToolArgsValidation, previousArgs, state.CurrentToolArgs, evt.Delta)) {
@@ -571,14 +585,11 @@ func resToAnthHandleFuncArgsDelta(evt *ResponsesStreamEvent, state *ResponsesEve
 		}}
 	}
 
-	if state.CurrentBlockType == "tool_use" {
-		state.CurrentToolHadDelta = true
-	}
-
 	blockIdx, ok := state.OutputIndexToBlockIdx[evt.OutputIndex]
 	if !ok {
 		return nil
 	}
+	state.CurrentToolHadDelta = true
 
 	return []AnthropicStreamEvent{{
 		Type:  "content_block_delta",
@@ -591,11 +602,8 @@ func resToAnthHandleFuncArgsDelta(evt *ResponsesStreamEvent, state *ResponsesEve
 }
 
 func resToAnthHandleFuncArgsDone(evt *ResponsesStreamEvent, state *ResponsesEventToAnthropicState) []AnthropicStreamEvent {
-	if !state.ContentBlockOpen {
+	if state.CurrentBlockType != "tool_use" || !currentBlockMatchesOutput(evt, state) {
 		return nil
-	}
-	if state.CurrentBlockType != "tool_use" {
-		return resToAnthHandleBlockDone(state)
 	}
 
 	raw := evt.Arguments
@@ -656,11 +664,15 @@ func resToAnthHandleReasoningDelta(evt *ResponsesStreamEvent, state *ResponsesEv
 	}}
 }
 
-func resToAnthHandleBlockDone(state *ResponsesEventToAnthropicState) []AnthropicStreamEvent {
-	if !state.ContentBlockOpen {
+func resToAnthHandleBlockDone(evt *ResponsesStreamEvent, state *ResponsesEventToAnthropicState) []AnthropicStreamEvent {
+	if !state.ContentBlockOpen || !currentBlockMatchesOutput(evt, state) {
 		return nil
 	}
 	return closeCurrentBlock(state)
+}
+
+func currentBlockMatchesOutput(evt *ResponsesStreamEvent, state *ResponsesEventToAnthropicState) bool {
+	return evt != nil && state.CurrentOutputSet && state.CurrentOutputIndex == evt.OutputIndex
 }
 
 func resToAnthHandleOutputItemDone(evt *ResponsesStreamEvent, state *ResponsesEventToAnthropicState) []AnthropicStreamEvent {
@@ -684,7 +696,7 @@ func resToAnthHandleOutputItemDone(evt *ResponsesStreamEvent, state *ResponsesEv
 		}
 	}
 
-	if state.ContentBlockOpen {
+	if state.ContentBlockOpen && currentBlockMatchesOutput(evt, state) {
 		return closeCurrentBlock(state)
 	}
 	return nil
@@ -854,6 +866,7 @@ func closeCurrentBlock(state *ResponsesEventToAnthropicState) []AnthropicStreamE
 		state.PendingThinkingSignature = ""
 	}
 	state.ContentBlockOpen = false
+	state.CurrentOutputSet = false
 	state.ContentBlockIndex++
 	state.CurrentToolName = ""
 	state.CurrentToolArgs = ""

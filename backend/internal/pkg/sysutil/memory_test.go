@@ -1,9 +1,12 @@
 package sysutil
 
 import (
+	"errors"
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -84,13 +87,19 @@ func TestCgroupMemoryLimit(t *testing.T) {
 		self := filepath.Join(t.TempDir(), "cgroup")
 		writeFile(t, filepath.Join(parent, "outside", "memory.max"), "1073741824\n")
 		writeFile(t, filepath.Join(root, "memory.max"), "max\n")
-		require.NoError(t, os.Symlink(filepath.Join(parent, "outside"), filepath.Join(root, "link")))
-
 		writeFile(t, self, "0::/../outside\n")
 		require.Zero(t, cgroupMemoryLimit(root, self))
 
-		writeFile(t, self, "0::/link\n")
-		require.Zero(t, cgroupMemoryLimit(root, self))
+		t.Run("symlink", func(t *testing.T) {
+			if err := os.Symlink(filepath.Join(parent, "outside"), filepath.Join(root, "link")); err != nil {
+				if runtime.GOOS == "windows" && (os.IsPermission(err) || errors.Is(err, syscall.Errno(1314))) {
+					t.Skipf("当前 Windows 用户无创建符号链接权限：%v", err)
+				}
+				require.NoError(t, err)
+			}
+			writeFile(t, self, "0::/link\n")
+			require.Zero(t, cgroupMemoryLimit(root, self))
+		})
 	})
 
 	t.Run("unavailable", func(t *testing.T) {

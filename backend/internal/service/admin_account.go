@@ -531,6 +531,9 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 		}
 	}
 
+	if err := ValidateKiroAccountCredentials(input.Platform, input.Type, input.Credentials); err != nil {
+		return nil, err
+	}
 	// 校验并规范化请求头覆写配置（header 名小写化、格式检查）
 	if err := NormalizeHeaderOverrideCredentials(input.Credentials); err != nil {
 		return nil, err
@@ -547,6 +550,12 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 	account, err := buildAccountForCreate(input, accountExtra)
 	if err != nil {
 		return nil, err
+	}
+	// 未显式指定代理时，从入组的 default_proxy_id 继承（按 groupIDs 顺序取第一个非空）
+	if account.ProxyID == nil && len(groupIDs) > 0 {
+		if pid := s.resolveDefaultProxyFromGroups(ctx, groupIDs); pid != nil {
+			account.ProxyID = pid
+		}
 	}
 	if err := s.ValidateAccountGroupBindings(ctx, groupIDs); err != nil {
 		return nil, err
@@ -669,6 +678,9 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 		// 敏感子键采用"incoming 没提供就保留"的合并语义：前端响应已脱敏，
 		// 全对象 PUT 编辑时不会再带回 token，避免覆盖时清空已有凭证。
 		account.Credentials = MergePreservingSensitiveCreds(account.Credentials, input.Credentials)
+		if err := ValidateKiroAccountCredentials(account.Platform, account.Type, account.Credentials); err != nil {
+			return nil, err
+		}
 		// 校验并规范化请求头覆写配置（header 名小写化、格式检查）
 		if err := NormalizeHeaderOverrideCredentials(account.Credentials); err != nil {
 			return nil, err
@@ -682,6 +694,9 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	// 放在 credentials 分支之外：只改账号类型（不带 credentials）的更新同样要拦，
 	// 否则 api_key 账号改成 OAuth 后会把带变量的覆写值留在 OAuth 账号上。
 	if err := ValidateHeaderOverrideVariableUsage(account.Type, account.Credentials); err != nil {
+		return nil, err
+	}
+	if err := ValidateKiroAccountCredentials(account.Platform, account.Type, account.Credentials); err != nil {
 		return nil, err
 	}
 	// Extra 使用 map：需要区分“未提供(nil)”与“显式清空({})”。
@@ -958,6 +973,20 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 		if err := s.accountRepo.BindGroups(ctx, account.ID, *input.GroupIDs); err != nil {
 			return nil, err
 		}
+		// 入组且未显式改代理、账号当前无代理时，继承分组默认代理
+		if input.ProxyID == nil && account.ProxyID == nil && !account.IsCredentialShadow() {
+			if pid := s.resolveDefaultProxyFromGroups(ctx, *input.GroupIDs); pid != nil {
+				zeroClear := *pid
+				account.ProxyID = &zeroClear
+				account.Proxy = nil
+				if err := s.accountRepo.Update(ctx, account); err != nil {
+					return nil, err
+				}
+				if err := s.propagateProxyToShadows(ctx, id, account.ProxyID); err != nil {
+					return nil, err
+				}
+			}
+		}
 	}
 
 	// 重新查询以确保返回完整数据（包括正确的 Proxy 关联对象）
@@ -1014,7 +1043,7 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 	delete(input.Extra, OpenCodeGoUsageSnapshotExtraKey)
 
 	if len(input.AccountIDs) == 0 && input.Filters != nil {
-		accountIDs, err := s.resolveBulkUpdateTargetIDs(ctx, input.Filters)
+		accountIDs, err := s.ResolveBulkUpdateTargetIDs(ctx, input.Filters)
 		if err != nil {
 			return nil, err
 		}
@@ -1289,7 +1318,7 @@ func upstreamBillingProbeIdentity(account *Account) map[string]any {
 	return identity
 }
 
-func (s *adminServiceImpl) resolveBulkUpdateTargetIDs(ctx context.Context, filters *BulkUpdateAccountFilters) ([]int64, error) {
+func (s *adminServiceImpl) ResolveBulkUpdateTargetIDs(ctx context.Context, filters *BulkUpdateAccountFilters) ([]int64, error) {
 	if filters == nil {
 		return nil, nil
 	}
@@ -1819,14 +1848,15 @@ func (s *adminServiceImpl) EnsureAntigravityPrivacy(ctx context.Context, account
 
 	projectID, _ := account.Credentials["project_id"].(string)
 
-	var proxyURL string
+	var proxyURL, egressURL string
 	if account.ProxyID != nil {
 		if p, err := s.proxyRepo.GetByID(ctx, *account.ProxyID); err == nil && p != nil {
 			proxyURL = p.URL()
+			egressURL = p.EgressChainURL(ctx, s.proxyRepo)
 		}
 	}
 
-	mode := setAntigravityPrivacy(ctx, token, projectID, proxyURL)
+	mode := setAntigravityPrivacy(ctx, token, projectID, proxyURL, egressURL)
 	if mode == "" {
 		return ""
 	}
@@ -1852,14 +1882,15 @@ func (s *adminServiceImpl) ForceAntigravityPrivacy(ctx context.Context, account 
 
 	projectID, _ := account.Credentials["project_id"].(string)
 
-	var proxyURL string
+	var proxyURL, egressURL string
 	if account.ProxyID != nil {
 		if p, err := s.proxyRepo.GetByID(ctx, *account.ProxyID); err == nil && p != nil {
 			proxyURL = p.URL()
+			egressURL = p.EgressChainURL(ctx, s.proxyRepo)
 		}
 	}
 
-	mode := setAntigravityPrivacy(ctx, token, projectID, proxyURL)
+	mode := setAntigravityPrivacy(ctx, token, projectID, proxyURL, egressURL)
 	if mode == "" {
 		return ""
 	}
@@ -1870,4 +1901,20 @@ func (s *adminServiceImpl) ForceAntigravityPrivacy(ctx context.Context, account 
 	}
 	applyAntigravityPrivacyMode(account, mode)
 	return mode
+}
+
+// resolveDefaultProxyFromGroups returns the first non-nil DefaultProxyID among groups (order preserved).
+func (s *adminServiceImpl) resolveDefaultProxyFromGroups(ctx context.Context, groupIDs []int64) *int64 {
+	if s.groupRepo == nil || len(groupIDs) == 0 {
+		return nil
+	}
+	for _, gid := range groupIDs {
+		g, err := s.groupRepo.GetByIDLite(ctx, gid)
+		if err != nil || g == nil || g.DefaultProxyID == nil || *g.DefaultProxyID <= 0 {
+			continue
+		}
+		pid := *g.DefaultProxyID
+		return &pid
+	}
+	return nil
 }

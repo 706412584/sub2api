@@ -4,7 +4,7 @@
  */
 
 import { apiClient } from '../client'
-import type { GrokBillingSummary, GrokQuotaWindow, WindowStats } from '@/types'
+import type { GrokBillingSummary, GrokQuotaWindow, WindowStats, GrokSessionInput, GrokSessionStatus } from '@/types'
 
 export type { GrokBillingSummary, GrokQuotaWindow } from '@/types'
 
@@ -215,6 +215,61 @@ export async function authorizePassword(
   return data
 }
 
+// ==================== Grok Console / Web Session ====================
+// 会话材料（SSO / cf_clearance）只随导入请求发送一次；状态接口永不回显原值。
+
+const GROK_SESSION_TIMEOUT_MS = 30_000
+
+export async function saveConsoleSession(
+  accountId: number,
+  payload: GrokSessionInput
+): Promise<GrokSessionStatus> {
+  const { data } = await apiClient.post<GrokSessionStatus>(
+    `/admin/accounts/${accountId}/grok-console-session`,
+    payload,
+    { timeout: GROK_SESSION_TIMEOUT_MS }
+  )
+  return data
+}
+
+export async function deleteConsoleSession(accountId: number): Promise<void> {
+  await apiClient.delete(`/admin/accounts/${accountId}/grok-console-session`, {
+    timeout: GROK_SESSION_TIMEOUT_MS
+  })
+}
+
+export async function getConsoleSessionStatus(accountId: number): Promise<GrokSessionStatus> {
+  const { data } = await apiClient.get<GrokSessionStatus>(
+    `/admin/accounts/${accountId}/grok-console-session/status`
+  )
+  return data
+}
+
+export async function saveWebSession(
+  accountId: number,
+  payload: GrokSessionInput
+): Promise<GrokSessionStatus> {
+  const { data } = await apiClient.post<GrokSessionStatus>(
+    `/admin/accounts/${accountId}/grok-web-session`,
+    payload,
+    { timeout: GROK_SESSION_TIMEOUT_MS }
+  )
+  return data
+}
+
+export async function deleteWebSession(accountId: number): Promise<void> {
+  await apiClient.delete(`/admin/accounts/${accountId}/grok-web-session`, {
+    timeout: GROK_SESSION_TIMEOUT_MS
+  })
+}
+
+export async function getWebSessionStatus(accountId: number): Promise<GrokSessionStatus> {
+  const { data } = await apiClient.get<GrokSessionStatus>(
+    `/admin/accounts/${accountId}/grok-web-session/status`
+  )
+  return data
+}
+
 export default {
   generateAuthUrl,
   getCapabilities,
@@ -225,4 +280,10 @@ export default {
   createFromSSO,
   validateSSOToken,
   authorizePassword,
+  saveConsoleSession,
+  deleteConsoleSession,
+  getConsoleSessionStatus,
+  saveWebSession,
+  deleteWebSession,
+  getWebSessionStatus,
 }

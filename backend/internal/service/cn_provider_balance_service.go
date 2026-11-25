@@ -84,6 +84,9 @@ func NewCNProviderBalanceService(
 
 // QueryBalance 探测指定 payg 账号的余额并落 Extra 快照。
 func (s *CNProviderBalanceService) QueryBalance(ctx context.Context, accountID int64) (*CNProviderBalanceResult, error) {
+	if s == nil || s.accountRepo == nil || s.httpUpstream == nil {
+		return nil, infraerrors.New(http.StatusInternalServerError, "CN_BALANCE_NOT_CONFIGURED", "cn provider balance service is not configured")
+	}
 	account, err := s.loadPayGAccount(ctx, accountID)
 	if err != nil {
 		return nil, err
