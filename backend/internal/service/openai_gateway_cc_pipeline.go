@@ -278,6 +278,9 @@ func (s *OpenAIGatewayService) sendCCUpstreamRequest(
 	if account.ProxyID != nil && account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
+	turnLimitRetry.bind(upstreamReq, func(probe *http.Request) (*http.Response, error) {
+		return s.doOpenAIUpstream(probe, proxyURL, account)
+	})
 	resp, err := s.doOpenAIUpstream(upstreamReq, proxyURL, account)
 	if err != nil {
 		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)

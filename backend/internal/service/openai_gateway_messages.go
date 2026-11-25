@@ -500,6 +500,9 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 				return nil, fmt.Errorf("build grok retry request: %w", err)
 			}
 		}
+		turnLimitRetry.bind(upstreamReq, func(probe *http.Request) (*http.Response, error) {
+			return s.doOpenAIUpstream(probe, proxyURL, account)
+		})
 		resp, err = s.doOpenAIUpstream(upstreamReq, proxyURL, account)
 		if err != nil {
 			return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)

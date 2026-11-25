@@ -431,6 +431,11 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 		// 记录本次实际发送的 wire body；只有请求成功后才写回 ParsedRequest，避免 400 retry 基于已签名 CCH 再改写。
 		lastWireBody = wireBody
 
+		// 让超限恢复复用当前已鉴权的请求模板生成一次模型摘要；未触发时完全不额外发请求。
+		turnLimitRetry.bind(upstreamReq, func(probe *http.Request) (*http.Response, error) {
+			return s.httpUpstream.DoWithTLS(probe, proxyURL, account.ID, account.Concurrency, tlsProfile)
+		})
+
 		// 发送请求
 		resp, err = s.httpUpstream.DoWithTLS(upstreamReq, proxyURL, account.ID, account.Concurrency, tlsProfile)
 		if err != nil {

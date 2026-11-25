@@ -1088,6 +1088,9 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		}
 
 		// Send request
+		turnLimitRetry.bind(upstreamReq, func(probe *http.Request) (*http.Response, error) {
+			return s.doOpenAIUpstream(probe, proxyURL, account)
+		})
 		upstreamStart := time.Now()
 		resp, err := s.doOpenAIUpstream(upstreamReq, proxyURL, account)
 		SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())

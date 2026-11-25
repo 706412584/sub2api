@@ -145,6 +145,9 @@ func (s *GatewayService) ForwardAsResponses(
 		if err != nil {
 			return nil, fmt.Errorf("build upstream request: %w", err)
 		}
+		turnLimitRetry.bind(upstreamReq, func(probe *http.Request) (*http.Response, error) {
+			return s.httpUpstream.DoWithTLS(probe, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
+		})
 		resp, err = s.httpUpstream.DoWithTLS(upstreamReq, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 		if err != nil {
 			if resp != nil && resp.Body != nil {

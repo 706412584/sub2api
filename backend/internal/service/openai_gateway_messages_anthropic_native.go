@@ -165,6 +165,9 @@ func (s *OpenAIGatewayService) sendNativeAnthropicUpstream(
 		if err != nil {
 			return nil, wireBody, err
 		}
+		turnLimitRetry.bind(request, func(probe *http.Request) (*http.Response, error) {
+			return s.doOpenAIUpstream(probe, proxyURL, account)
+		})
 		resp, err := s.doOpenAIUpstream(request, proxyURL, account)
 		if err != nil {
 			if resp != nil && resp.Body != nil {
