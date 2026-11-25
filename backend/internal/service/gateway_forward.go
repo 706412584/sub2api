@@ -419,6 +419,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 	lastWireBody := body
 	retryStart := time.Now()
 	retriedRotatedToken := false
+	turnLimitRetry := turnLimitState(c, startTime)
 	for attempt := 1; attempt <= maxRetryAttempts; attempt++ {
 		// 构建上游请求（每次重试需要重新构建，因为请求体需要重新读取）
 		upstreamCtx, releaseUpstreamCtx := detachStreamUpstreamContext(ctx, reqStream)
@@ -457,6 +458,14 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 			if readErr == nil {
 				_ = resp.Body.Close()
 
+				if attempt < maxRetryAttempts {
+					if retryBody, ok := turnLimitRetry.prepare(ctx, c, resp.StatusCode, body, respBody); ok {
+						if err := replaceBody(retryBody); err != nil {
+							return nil, err
+						}
+						continue
+					}
+				}
 				if s.shouldRectifySignatureError(ctx, account, respBody, reqModel) {
 					appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
 						ProxyID:            opsUpstreamProxyID(account),

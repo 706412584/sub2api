@@ -221,6 +221,7 @@ func (s *OpenAIGatewayService) sendCCUpstreamRequest(
 	userAgent string,
 	grokCacheIdentity string,
 ) (*http.Response, error) {
+	turnLimitRetry := turnLimitState(c, time.Now())
 	// DeepSeek thinking mode 要求历史 assistant 回传 reasoning_content。
 	// Responses→CC 回退在加密-only / 缺 reasoning item 且缓存未命中时会漏掉该
 	// 字段，上游 400 "The `reasoning_content` in the thinking mode must be
@@ -281,7 +282,11 @@ func (s *OpenAIGatewayService) sendCCUpstreamRequest(
 	if err != nil {
 		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
 	}
-	return resp, nil
+	resp, _, err = turnLimitRetry.recoverResponse(ctx, c, resp, body, func(retryBody []byte) (*http.Response, []byte, error) {
+		retryResp, retryErr := s.sendCCUpstreamRequest(ctx, c, account, targetURL, retryBody, stream, bearerToken, userAgent, grokCacheIdentity)
+		return retryResp, retryBody, retryErr
+	})
+	return resp, err
 }
 
 // ccStreamScanState 是 scanCCStream 返回的读取状态快照。

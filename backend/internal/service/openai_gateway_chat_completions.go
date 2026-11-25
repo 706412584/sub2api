@@ -379,6 +379,7 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 	}
 
 	// 6. Build upstream request
+	turnLimitRetry := turnLimitState(c, startTime)
 	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
 	cancelUpstream := func() {}
 	if clientStream {
@@ -408,6 +409,26 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 	resp, err := s.doOpenAIUpstream(upstreamReq, proxyURL, account)
 	if err != nil {
 		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
+	}
+	resp, responsesBody, err = turnLimitRetry.recoverResponse(ctx, c, resp, responsesBody, func(retryBody []byte) (*http.Response, []byte, error) {
+		retryReq, buildErr := s.buildUpstreamRequest(upstreamCtx, c, account, retryBody, token, true, promptCacheKey, false)
+		if buildErr != nil {
+			return nil, retryBody, fmt.Errorf("build turn-limit retry request: %w", buildErr)
+		}
+		if sessionID := upstreamReq.Header.Get("session_id"); sessionID != "" {
+			retryReq.Header.Set("session_id", sessionID)
+		}
+		retryResp, retryErr := s.doOpenAIUpstream(retryReq, proxyURL, account)
+		if retryErr != nil {
+			if retryResp != nil && retryResp.Body != nil {
+				_ = retryResp.Body.Close()
+			}
+			return nil, retryBody, s.handleOpenAIUpstreamTransportError(ctx, c, account, retryErr, false)
+		}
+		return retryResp, retryBody, nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	defer func() {
 		cancelUpstream()

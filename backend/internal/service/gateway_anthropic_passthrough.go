@@ -94,6 +94,7 @@ func (s *GatewayService) forwardAnthropicAPIKeyPassthroughWithInput(
 
 	var resp *http.Response
 	retryStart := time.Now()
+	turnLimitRetry := turnLimitState(c, input.StartTime)
 	for attempt := 1; attempt <= maxRetryAttempts; attempt++ {
 		upstreamCtx, releaseUpstreamCtx := detachStreamUpstreamContext(ctx, input.RequestStream)
 		upstreamReq, wireBody, err := s.buildUpstreamRequestAnthropicAPIKeyPassthrough(upstreamCtx, c, account, input.Body, token)
@@ -120,7 +121,19 @@ func (s *GatewayService) forwardAnthropicAPIKeyPassthroughWithInput(
 			})
 		}
 
-		// 透传分支禁止 400 请求体降级重试（该重试会改写请求体）
+		if attempt < maxRetryAttempts {
+			if retryBody, ok := turnLimitRetry.prepareResponse(ctx, c, resp, wireBody); ok {
+				input.Body = retryBody
+				if input.Parsed != nil {
+					if err := input.Parsed.ReplaceBody(retryBody); err != nil {
+						return nil, err
+					}
+				}
+				continue
+			}
+		}
+
+		// 除明确的会话容量拒绝外，透传仍禁止 400 请求体降级重试。
 		if resp.StatusCode >= 400 && resp.StatusCode != 400 && s.shouldRetryUpstreamError(account, resp.StatusCode) {
 			if attempt < maxRetryAttempts {
 				elapsed := time.Since(retryStart)

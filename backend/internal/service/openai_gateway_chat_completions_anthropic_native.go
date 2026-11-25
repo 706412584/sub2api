@@ -115,16 +115,9 @@ func (s *OpenAIGatewayService) forwardChatCompletionsViaNativeAnthropic(
 		proxyURL = account.Proxy.URL()
 	}
 
-	upstreamCtx, releaseUpstreamCtx := detachStreamUpstreamContext(ctx, reqStream)
-	upstreamReq, forwardedBody, err := s.buildNativeAnthropicUpstreamRequest(upstreamCtx, c, account, anthropicBody, apiKey, targetURL, body)
-	releaseUpstreamCtx()
+	resp, forwardedBody, err := s.sendNativeAnthropicUpstream(ctx, c, account, anthropicBody, apiKey, targetURL, proxyURL, reqStream, startTime, body)
 	if err != nil {
-		return nil, fmt.Errorf("build upstream request: %w", err)
-	}
-
-	resp, err := s.doOpenAIUpstream(upstreamReq, proxyURL, account)
-	if err != nil {
-		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, true)
+		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 

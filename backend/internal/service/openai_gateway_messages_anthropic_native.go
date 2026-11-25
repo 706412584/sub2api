@@ -101,16 +101,9 @@ func (s *OpenAIGatewayService) forwardAnthropicViaNativeAnthropicEndpoint(
 		proxyURL = account.Proxy.URL()
 	}
 
-	upstreamCtx, releaseUpstreamCtx := detachStreamUpstreamContext(ctx, clientStream)
-	upstreamReq, _, err := s.buildNativeAnthropicUpstreamRequest(upstreamCtx, c, account, body, apiKey, targetURL)
-	releaseUpstreamCtx()
+	resp, _, err := s.sendNativeAnthropicUpstream(ctx, c, account, body, apiKey, targetURL, proxyURL, clientStream, startTime)
 	if err != nil {
 		return nil, err
-	}
-
-	resp, err := s.doOpenAIUpstream(upstreamReq, proxyURL, account)
-	if err != nil {
-		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, true)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -158,6 +151,34 @@ func resolveMappedUpstreamModel(account *Account, body []byte, defaultMappedMode
 	original := strings.TrimSpace(gjson.GetBytes(body, "model").String())
 	billing := resolveOpenAIForwardModel(account, original, defaultMappedModel)
 	return normalizeOpenAIModelForUpstream(account, billing)
+}
+
+func (s *OpenAIGatewayService) sendNativeAnthropicUpstream(
+	ctx context.Context, c *gin.Context, account *Account, body []byte,
+	apiKey, targetURL, proxyURL string, stream bool, started time.Time, sessionBodies ...[]byte,
+) (*http.Response, []byte, error) {
+	turnLimitRetry := turnLimitState(c, started)
+	send := func(requestBody []byte) (*http.Response, []byte, error) {
+		upstreamCtx, release := detachStreamUpstreamContext(ctx, stream)
+		request, wireBody, err := s.buildNativeAnthropicUpstreamRequest(upstreamCtx, c, account, requestBody, apiKey, targetURL, sessionBodies...)
+		release()
+		if err != nil {
+			return nil, wireBody, err
+		}
+		resp, err := s.doOpenAIUpstream(request, proxyURL, account)
+		if err != nil {
+			if resp != nil && resp.Body != nil {
+				_ = resp.Body.Close()
+			}
+			return nil, wireBody, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, true)
+		}
+		return resp, wireBody, nil
+	}
+	resp, wireBody, err := send(body)
+	if err != nil {
+		return nil, wireBody, err
+	}
+	return turnLimitRetry.recoverResponse(ctx, c, resp, wireBody, send)
 }
 
 func (s *OpenAIGatewayService) buildNativeAnthropicUpstreamRequest(

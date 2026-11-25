@@ -130,6 +130,7 @@ func (s *GatewayService) ForwardAsChatCompletions(
 	var upstreamReq *http.Request
 	var forwardedBody []byte
 	var resp *http.Response
+	turnLimitRetry := turnLimitState(c, startTime)
 	for retriedRotatedToken := false; ; {
 		upstreamCtx, releaseUpstreamCtx := detachStreamUpstreamContext(ctx, reqStream)
 		upstreamReq, forwardedBody, err = s.buildUpstreamRequest(upstreamCtx, c, account, anthropicBody, token, tokenType, mappedModel, reqStream, shouldMimicClaudeCode)
@@ -145,6 +146,10 @@ func (s *GatewayService) ForwardAsChatCompletions(
 			return nil, s.handleUpstreamTransportError(ctx, c, account, err, OpsUpstreamErrorEvent{
 				UpstreamURL: safeUpstreamURL(upstreamReq.URL.String()),
 			})
+		}
+		if retryBody, ok := turnLimitRetry.prepareResponse(ctx, c, resp, anthropicBody); ok {
+			anthropicBody = retryBody
+			continue
 		}
 		if resp.StatusCode == http.StatusUnauthorized && !retriedRotatedToken {
 			if rotatedToken := s.rotatedClaudeAccessToken(ctx, account, token); rotatedToken != "" {

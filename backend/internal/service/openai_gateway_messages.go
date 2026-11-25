@@ -34,6 +34,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	defaultMappedModel string,
 	grokMessagesProtocol ...string,
 ) (*OpenAIForwardResult, error) {
+	turnLimitRetry := turnLimitState(c, time.Now())
 	// 工具 Schema 清洗必须先于所有分流：下游每条路径（原生 Anthropic 直通、
 	// Chat Completions 转换、Responses 转换）都会把 tools 原样带给上游，而
 	// xAI / Moonshot 等严格校验方会因 input_schema 里的 required:null 或
@@ -533,6 +534,23 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 			zap.Bool("cache_identity_present", strings.TrimSpace(grokCacheIdentity) != ""),
 			zap.String("upstream_error_preview", truncateOpenAIWSLogValue(string(respBody), 240)),
 		)
+	}
+	resp, responsesBody, err = turnLimitRetry.recoverResponse(ctx, c, resp, responsesBody, func(retryBody []byte) (*http.Response, []byte, error) {
+		retryReq, buildErr := buildRequest(retryBody)
+		if buildErr != nil {
+			return nil, retryBody, buildErr
+		}
+		retryResp, retryErr := s.doOpenAIUpstream(retryReq, proxyURL, account)
+		if retryErr != nil {
+			if retryResp != nil && retryResp.Body != nil {
+				_ = retryResp.Body.Close()
+			}
+			return nil, retryBody, s.handleOpenAIUpstreamTransportError(ctx, c, account, retryErr, false)
+		}
+		return retryResp, retryBody, nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
