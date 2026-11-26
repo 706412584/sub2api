@@ -243,7 +243,8 @@ func isForcedUsageBillingRequestID(requestID string) bool {
 		strings.HasPrefix(id, "grok-video:") ||
 		strings.HasPrefix(id, "grok_audio:") ||
 		strings.HasPrefix(id, "grok_realtime:") ||
-		strings.HasPrefix(id, GeminiCachedContentUsageRequestIDPrefix)
+		strings.HasPrefix(id, GeminiCachedContentUsageRequestIDPrefix) ||
+		strings.HasPrefix(id, turnLimitSummaryRequestIDPrefix)
 }
 
 // StableGrokAudioBillingRequestID is the durable usage_logs / dedup key for one
@@ -784,7 +785,9 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 
 	// 调度成功清零（阶段 B）：CodeBuddy 请求成功即证明恢复，累计成功统计并按需
 	// 清退避计数器；关闭态/非 CodeBuddy 零操作。
-	s.recordCodebuddySchedulerSuccess(ctx, account)
+	if !strings.HasPrefix(result.RequestID, turnLimitSummaryRequestIDPrefix) {
+		s.recordCodebuddySchedulerSuccess(ctx, account)
+	}
 
 	// 强制缓存计费：将 input_tokens 转为 cache_read_input_tokens
 	// 用于粘性会话切换时的特殊计费处理

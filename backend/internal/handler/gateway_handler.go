@@ -958,6 +958,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			} else {
 				result, err = h.gatewayService.Forward(requestCtx, c, account, attemptParsedReq)
 			}
+			h.submitTurnLimitSummaryUsage(c, currentAPIKey, account, currentSubscription, channelMapping, reqModel, pricingAt)
 
 			// 兜底释放串行锁（正常情况已通过回调提前释放）
 			if queueRelease != nil {

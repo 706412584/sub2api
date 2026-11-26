@@ -111,9 +111,19 @@ func TestGatewayTurnLimitPassthroughRecovery(t *testing.T) {
 			// 主请求用量与摘要用量分别核算：摘要只用于恢复，不混入主响应 token。
 			require.Equal(t, 7, result.Usage.InputTokens)
 			require.Equal(t, 3, result.Usage.OutputTokens)
-			summaryUsage := turnLimitState(c, time.Now()).usage
-			require.Equal(t, 11, summaryUsage.InputTokens)
-			require.Equal(t, 5, summaryUsage.OutputTokens)
+			summary := TakeTurnLimitSummaryUsage(c)
+			require.NotNil(t, summary)
+			require.Equal(t, 11, summary.Usage.InputTokens)
+			require.Equal(t, 5, summary.Usage.OutputTokens)
+			require.Equal(t, "claude-sonnet-4-6", summary.Model)
+			require.Equal(t, "/v1/messages", summary.UpstreamEndpoint)
+			require.Equal(t, HashUsageRequestPayload(upstream.bodies[1]), summary.RequestPayloadHash)
+			require.True(t, strings.HasPrefix(summary.RequestID, turnLimitSummaryRequestIDPrefix))
+			require.LessOrEqual(t, len(summary.RequestID), 64)
+			require.Positive(t, summary.Duration)
+			require.Nil(t, TakeTurnLimitSummaryUsage(c), "摘要只能提交一次")
+			require.True(t, turnLimitState(c, time.Now()).tried, "取走用量不能恢复摘要机会")
+			require.Nil(t, turnLimitState(c, time.Now()).summarize)
 
 			require.Less(t, len(upstream.bodies[2]), len(upstream.bodies[0]))
 			require.Contains(t, string(upstream.bodies[2]), "工具曾失败，随后读取成功")
@@ -127,6 +137,80 @@ func TestGatewayTurnLimitPassthroughRecovery(t *testing.T) {
 			require.NotContains(t, recorder.Body.String(), "session_turn_limit_exceeded")
 		})
 	}
+}
+
+func TestReadTurnLimitSummaryPreservesBillableUsageOnFailure(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		body string
+		want OpenAIUsage
+	}{
+		{
+			name: "anthropic_cache_buckets",
+			body: "data: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":11,\"cache_read_input_tokens\":7,\"cache_creation_input_tokens\":5,\"cache_creation\":{\"ephemeral_5m_input_tokens\":2,\"ephemeral_1h_input_tokens\":3}}}}\n\n" +
+				"data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"max_tokens\"},\"usage\":{\"output_tokens\":9}}\n\n",
+			want: OpenAIUsage{InputTokens: 23, OutputTokens: 9, CacheReadInputTokens: 7, CacheCreationInputTokens: 5, CacheCreation5mTokens: 2, CacheCreation1hTokens: 3, cacheCreationInputTokensPresent: true},
+		},
+		{
+			name: "responses_failed",
+			body: "data: {\"type\":\"response.failed\",\"response\":{\"status\":\"failed\",\"usage\":{\"input_tokens\":13,\"output_tokens\":4}}}\n\n",
+			want: OpenAIUsage{InputTokens: 13, OutputTokens: 4},
+		},
+		{
+			name: "chat_tool_then_usage",
+			body: "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"id\":\"bad\"}]},\"finish_reason\":\"tool_calls\"}]}\n\n" +
+				"data: {\"choices\":[],\"usage\":{\"prompt_tokens\":17,\"completion_tokens\":6}}\n\n",
+			want: OpenAIUsage{InputTokens: 17, OutputTokens: 6},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(tc.body))}
+			_, usage, ok := readTurnLimitSummary(resp)
+			require.False(t, ok)
+			require.Equal(t, tc.want, usage)
+		})
+	}
+}
+
+func TestTurnLimitSummaryUsageSnapshot(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	var previousID string
+	for _, status := range []int{http.StatusOK, http.StatusInternalServerError} {
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+		require.Nil(t, TakeTurnLimitSummaryUsage(c))
+		_, exists := c.Get(turnLimitRetryKey)
+		require.False(t, exists, "未触发恢复不能创建状态")
+		body := turnLimitMessagesBody(t, 101, false)
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "https://upstream.test/v1/messages", strings.NewReader(string(body)))
+		require.NoError(t, err)
+		state := turnLimitState(c, time.Now())
+		state.bind(req, func(*http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: status, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"content":[{"type":"tool_use"}],"stop_reason":"tool_use","usage":{"input_tokens":11,"output_tokens":5,"cache_read_input_tokens":7,"cache_creation_input_tokens":5,"cache_creation":{"ephemeral_5m_input_tokens":2,"ephemeral_1h_input_tokens":3}}}`))}, nil
+		})
+		_, recovered := state.prepare(context.Background(), c, http.StatusBadRequest, body, []byte(`{"error":{"code":"session_turn_limit_exceeded"}}`))
+		require.False(t, recovered, "非法摘要不能用于恢复，但已观测用量仍须结算")
+		summary := TakeTurnLimitSummaryUsage(c)
+		require.NotNil(t, summary)
+		require.NotEqual(t, previousID, summary.RequestID, "不同实际摘要调用独立计费")
+		previousID = summary.RequestID
+		usage := summary.ForwardResult().Usage
+		require.Equal(t, 11, usage.InputTokens)
+		require.Equal(t, 5, usage.OutputTokens)
+		require.Equal(t, 7, usage.CacheReadInputTokens)
+		require.Equal(t, 5, usage.CacheCreationInputTokens)
+		require.Equal(t, 2, usage.CacheCreation5mTokens)
+		require.Equal(t, 3, usage.CacheCreation1hTokens)
+		require.Nil(t, TakeTurnLimitSummaryUsage(c))
+		state.bind(req, nil)
+		require.Nil(t, state.summarize, "failover 不能重新绑定已消耗的摘要机会")
+	}
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	state := turnLimitState(c, time.Now())
+	state.summary = &TurnLimitSummaryUsage{RequestID: "unused"}
+	state.summarize = turnLimitTestSummarizer("unused", OpenAIUsage{})
+	require.Nil(t, TakeTurnLimitSummaryUsage(c), "零用量不入账")
+	require.Nil(t, state.summarize)
 }
 
 func TestTurnLimitPlanRebuildProtocols(t *testing.T) {

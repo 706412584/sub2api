@@ -843,6 +843,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 			}()
 			return h.gatewayService.Forward(c.Request.Context(), c, account, attemptBody)
 		}()
+		h.submitTurnLimitSummaryUsage(c, apiKey, account, subscription, channelMapping, reqModel, pricingAt)
 		if h.handleForwardRequestBodyMemoryOverload(c, err, streamStarted) {
 			return
 		}
@@ -1461,6 +1462,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 				grokMessagesProtocol...,
 			)
 		}()
+		h.submitTurnLimitSummaryUsage(c, apiKey, account, subscription, channelMappingMsg, reqModel, pricingAt)
 		var cyberBlockBodyMsg []byte
 		if service.GetOpsCyberPolicy(c) != nil {
 			cyberBlockBodyMsg = body

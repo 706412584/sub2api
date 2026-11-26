@@ -340,6 +340,7 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 		} else {
 			result, err = h.gatewayService.ForwardAsResponses(requestCtx, c, account, forwardBody, parsedReq)
 		}
+		h.submitTurnLimitSummaryUsage(c, apiKey, account, subscription, channelMapping, reqModel, pricingAt)
 
 		if accountReleaseFunc != nil {
 			accountReleaseFunc()

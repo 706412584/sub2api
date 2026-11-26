@@ -25,6 +25,17 @@ func TestResolveUsageBillingRequestID_ClientWinsOverPlainUpstream(t *testing.T) 
 	require.Equal(t, "client:client-shared-id", got)
 }
 
+func TestResolveUsageBillingRequestID_TurnLimitSummaryIsSeparate(t *testing.T) {
+	t.Parallel()
+	for _, key := range []ctxkey.Key{ctxkey.ClientRequestID, ctxkey.RequestID} {
+		ctx := context.WithValue(context.Background(), key, "shared-id")
+		id := turnLimitSummaryRequestIDPrefix + generateRequestID()
+		require.Equal(t, id, resolveUsageBillingRequestID(ctx, id))
+		require.NotEqual(t, id, resolveUsageBillingRequestID(ctx, "upstream-main"))
+		require.Equal(t, resolveUsageBillingRequestID(ctx, id), resolveUsageBillingRequestID(ctx, id), "重复结算复用同一事件键")
+	}
+}
+
 func TestIsForcedUsageBillingRequestID(t *testing.T) {
 	t.Parallel()
 	require.True(t, isForcedUsageBillingRequestID("web_search:x"))

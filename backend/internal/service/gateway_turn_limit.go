@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -28,11 +29,60 @@ const (
 	turnLimitSummaryInputBytes = 4 * 1024 * 1024
 )
 
+const turnLimitSummaryRequestIDPrefix = "turn_limit_summary:"
+
+// TurnLimitSummaryUsage 是一次实际摘要调用的独立账务快照，不持有请求正文或鉴权信息。
+type TurnLimitSummaryUsage struct {
+	RequestID          string
+	Model              string
+	UpstreamEndpoint   string
+	RequestPayloadHash string
+	Usage              OpenAIUsage
+	Duration           time.Duration
+}
+
+// ForwardResult 将总输入口径转换为 Claude 的互斥计费桶，主请求用量不受影响。
+func (u *TurnLimitSummaryUsage) ForwardResult() *ForwardResult {
+	tokens := u.Usage.billingUsageTokens()
+	return &ForwardResult{
+		RequestID: u.RequestID, Model: u.Model, UpstreamModel: u.Model,
+		Stream: true, Duration: u.Duration,
+		Usage: ClaudeUsage{
+			InputTokens: tokens.InputTokens, OutputTokens: tokens.OutputTokens,
+			CacheReadInputTokens: tokens.CacheReadTokens, CacheCreationInputTokens: tokens.CacheCreationTokens,
+			CacheCreation5mTokens: tokens.CacheCreation5mTokens, CacheCreation1hTokens: tokens.CacheCreation1hTokens,
+		},
+	}
+}
+
 type turnLimitRetryState struct {
 	started   time.Time
 	tried     bool
 	summarize func(context.Context, []byte) (string, OpenAIUsage, bool)
-	usage     OpenAIUsage
+	summary   *TurnLimitSummaryUsage
+}
+
+// TakeTurnLimitSummaryUsage 在本次 Forward 返回后同步取走，不能推迟到 worker 或换号后。
+func TakeTurnLimitSummaryUsage(c *gin.Context) *TurnLimitSummaryUsage {
+	if c == nil {
+		return nil
+	}
+	value, _ := c.Get(turnLimitRetryKey)
+	state, ok := value.(*turnLimitRetryState)
+	if !ok {
+		return nil
+	}
+	state.summarize = nil
+	summary := state.summary
+	state.summary = nil
+	if summary == nil {
+		return nil
+	}
+	tokens := summary.Usage.billingUsageTokens()
+	if tokens.InputTokens+tokens.OutputTokens+tokens.CacheReadTokens+tokens.CacheCreationTokens+tokens.ImageOutputTokens <= 0 {
+		return nil
+	}
+	return summary
 }
 
 func turnLimitState(c *gin.Context, started time.Time) *turnLimitRetryState {
@@ -91,8 +141,12 @@ func (s *turnLimitRetryState) prepare(ctx context.Context, c *gin.Context, statu
 		stopClientCancel = context.AfterFunc(c.Request.Context(), cancel)
 	}
 	defer stopClientCancel()
-	summary, usage, ok := s.summarize(summaryCtx, plan.history)
-	addOpenAIUsage(&s.usage, usage)
+	summarize := s.summarize
+	s.summarize = nil
+	summary, usage, ok := summarize(summaryCtx, plan.history)
+	if s.summary != nil {
+		s.summary.Usage = usage
+	}
 	if !ok || summaryCtx.Err() != nil || !s.active(ctx, c) {
 		slog.Warn("gateway_turn_limit_summary_failed", "error_code", turnLimitErrorCode)
 		return nil, false
@@ -138,6 +192,9 @@ const turnLimitSummaryInstructions = `你负责生成编程会话交接摘要，
 
 // 摘要复用已完成鉴权和路由的请求模板，避免经过会写客户端错误的重试闭包。
 func (s *turnLimitRetryState) bind(request *http.Request, send func(*http.Request) (*http.Response, error)) {
+	if s.tried {
+		return
+	}
 	s.summarize = func(ctx context.Context, history []byte) (string, OpenAIUsage, bool) {
 		body, err := buildTurnLimitSummaryRequest(request, history)
 		if err != nil {
@@ -152,14 +209,22 @@ func (s *turnLimitRetryState) bind(request *http.Request, send func(*http.Reques
 		for _, key := range []string{"Content-Length", "Content-Encoding", "Idempotency-Key", "X-Idempotency-Key"} {
 			probe.Header.Del(key)
 		}
+		started := time.Now()
+		s.summary = &TurnLimitSummaryUsage{
+			RequestID: turnLimitSummaryRequestIDPrefix + generateRequestID(),
+			Model:     gjson.GetBytes(body, "model").String(), UpstreamEndpoint: request.URL.Path,
+			RequestPayloadHash: HashUsageRequestPayload(body),
+		}
+		defer func() { s.summary.Duration = time.Since(started) }()
 		resp, err := send(probe)
 		if resp != nil && resp.Body != nil {
 			defer func() { _ = resp.Body.Close() }()
 		}
-		if err != nil || resp == nil || resp.Body == nil || resp.StatusCode != http.StatusOK {
+		if resp == nil || resp.Body == nil {
 			return "", OpenAIUsage{}, false
 		}
-		return readTurnLimitSummary(resp)
+		text, usage, ok := readTurnLimitSummary(resp)
+		return text, usage, ok && err == nil && resp.StatusCode == http.StatusOK
 	}
 }
 
@@ -198,6 +263,7 @@ func buildTurnLimitSummaryRequest(request *http.Request, history []byte) ([]byte
 func readTurnLimitSummary(resp *http.Response) (string, OpenAIUsage, bool) {
 	var text strings.Builder
 	var usage OpenAIUsage
+	var anthropicUsage ClaudeUsage
 	complete, invalid := false, false
 	consume := func(body []byte) {
 		if !gjson.ValidBytes(body) {
@@ -205,6 +271,29 @@ func readTurnLimitSummary(resp *http.Response) (string, OpenAIUsage, bool) {
 			return
 		}
 		v := parseRawJSONView(body)
+		usageSource := v
+		if v.Get("type").String() == "message_start" {
+			usageSource = v.Get("message")
+		} else if response := v.Get("response"); response.IsObject() {
+			usageSource = response
+		}
+		if u := usageSource.Get("usage"); u.Exists() {
+			anthropic := strings.HasPrefix(v.Get("type").String(), "message_") ||
+				usageSource.Get("type").String() == "message" || usageSource.Get("content").Exists() || usageSource.Get("stop_reason").Exists()
+			if anthropic {
+				var parsed apicompat.AnthropicUsage
+				if json.Unmarshal([]byte(u.Raw), &parsed) == nil {
+					mergeAnthropicUsage(&anthropicUsage, parsed)
+					usage = claudeUsageToOpenAIUsage(&anthropicUsage)
+				}
+			} else if parsed, ok := openAIUsageFromGJSON(u); ok {
+				usage = parsed
+			}
+		}
+		// 文本失效后继续有界读取用量尾帧，但不继续保留摘要内容。
+		if invalid {
+			return
+		}
 		if v.Get("error").Exists() || v.Get("type").String() == "error" {
 			invalid = true
 			return
@@ -237,8 +326,8 @@ func readTurnLimitSummary(resp *http.Response) (string, OpenAIUsage, bool) {
 		if v.Get("type").String() == "message_start" {
 			v = v.Get("message")
 		}
-		if v.Get("type").String() == "response.completed" || v.Get("type").String() == "response.done" {
-			v = v.Get("response")
+		if response := v.Get("response"); response.IsObject() {
+			v = response
 		}
 		if status := v.Get("status").String(); status != "" {
 			complete = status == "completed"
@@ -272,25 +361,6 @@ func readTurnLimitSummary(resp *http.Response) (string, OpenAIUsage, bool) {
 			complete = stop == "end_turn"
 			invalid = invalid || stop != "end_turn"
 		}
-		if u := v.Get("usage"); u.Exists() {
-			if u.Get("prompt_tokens").Exists() || u.Get("input_tokens_details").Exists() || v.Get("object").Exists() || v.Get("status").Exists() {
-				if parsed, ok := openAIUsageFromGJSON(u); ok {
-					usage = parsed
-				}
-			} else {
-				parsed := parseClaudeUsageFromResponseBody([]byte(`{"usage":` + u.Raw + `}`))
-				if u.Get("input_tokens").Exists() {
-					usage.InputTokens = parsed.InputTokens
-					usage.CacheReadInputTokens = parsed.CacheReadInputTokens
-					usage.CacheCreationInputTokens = parsed.CacheCreationInputTokens
-					usage.CacheCreation5mTokens = parsed.CacheCreation5mTokens
-					usage.CacheCreation1hTokens = parsed.CacheCreation1hTokens
-				}
-				if u.Get("output_tokens").Exists() {
-					usage.OutputTokens = parsed.OutputTokens
-				}
-			}
-		}
 	}
 	limited := io.LimitReader(resp.Body, 1024*1024+1)
 	if strings.Contains(resp.Header.Get("Content-Type"), "text/event-stream") {
@@ -306,8 +376,8 @@ func readTurnLimitSummary(resp *http.Response) (string, OpenAIUsage, bool) {
 				continue
 			}
 			consume([]byte(data))
-			if invalid || text.Len() > turnLimitSummaryBytes {
-				break
+			if text.Len() > turnLimitSummaryBytes {
+				invalid = true
 			}
 		}
 		if scanner.Err() != nil {
