@@ -98,7 +98,7 @@ func (s *CodebuddyGatewayService) sendChat(
 	// 记录本次实际使用的协议端点，供 GetUpstreamEndpoint / 用量日志读取。
 	SetActualOpenAIUpstreamEndpoint(c, "/v1/chat/completions")
 	req = req.WithContext(WithHTTPUpstreamProfile(ctx, HTTPUpstreamProfileOpenAI))
-	account.ApplyHeaderOverrides(req.Header)
+	account.ApplyHeaderOverrides(req.Context(), req.Header)
 
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {
@@ -423,7 +423,7 @@ func (s *CodebuddyGatewayService) FetchCreditRemain(ctx context.Context, account
 		return 0, err
 	}
 	req = req.WithContext(WithHTTPUpstreamProfile(ctx, HTTPUpstreamProfileOpenAI))
-	account.ApplyHeaderOverrides(req.Header)
+	account.ApplyHeaderOverrides(req.Context(), req.Header)
 
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {

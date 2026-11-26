@@ -79,7 +79,7 @@ func (r *CodebuddyTokenRefresher) refreshToken(ctx context.Context, account *Acc
 		return nil, err
 	}
 	req = req.WithContext(WithHTTPUpstreamProfile(ctx, HTTPUpstreamProfileOpenAI))
-	account.ApplyHeaderOverrides(req.Header)
+	account.ApplyHeaderOverrides(req.Context(), req.Header)
 
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {

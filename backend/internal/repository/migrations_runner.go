@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -64,6 +65,8 @@ const usageLogsEffectiveRequestedModelIndex = "idx_usage_logs_effective_requeste
 const usageLogsEffectiveUpstreamModelIndex = "idx_usage_logs_effective_upstream_model_created"
 const usageLogsUpstreamRequestIDIndexMigration = "233_add_usage_log_upstream_request_id_index_notx.sql"
 const usageLogsUpstreamRequestIDIndex = "idx_usage_logs_upstream_request_id"
+const usageLogsAPIKeyCostIndexMigration = "249_add_usage_logs_api_key_cost_index_notx.sql"
+const usageLogsAPIKeyCostIndex = "idx_usage_logs_api_key_created_cost"
 
 type migrationChecksumCompatibilityRule struct {
 	fileChecksum       string
@@ -340,8 +343,8 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 			return fmt.Errorf("begin migration %s: %w", name, err)
 		}
 
-		// 执行迁移 SQL
-		if _, err := tx.ExecContext(ctx, content); err != nil {
+		// 历史文件及入库 checksum 保持不变，只跳过已被 242 明确移除的两类旧平台约束。
+		if _, err := tx.ExecContext(ctx, platformMigrationExecutionSQL(fsys, name, checksum, content)); err != nil {
 			_ = tx.Rollback()
 			return fmt.Errorf("apply migration %s: %w", name, err)
 		}
@@ -360,6 +363,34 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 	}
 
 	return nil
+}
+
+// 旧平台列表会在 242 执行前拒绝已存在的本地/上游新增平台行；保留渠道探测等其他 SQL。
+var supersededPlatformConstraintSQL = regexp.MustCompile(`(?is)ALTER\s+TABLE\s+(?:user_platform_quotas|composite_model_routes)\s+ADD\s+CONSTRAINT\s+(?:user_platform_quotas_platform_check|composite_model_routes_target_platform_check)\s+CHECK\s*\(\s*(?:platform|target_platform)\s+IN\s*\([^)]*\)\s*\)\s*;`)
+
+func platformMigrationExecutionSQL(fsys fs.FS, name, checksum, content string) string {
+	known := map[string]string{
+		"224_user_platform_quotas_add_cn_providers.sql":             "0d23687d918bd8c730ff70b225a9578d9bd32909c29645998c99fcf0dcc302ef",
+		"227_composite_routes_add_cn_providers.sql":                 "ff6e3323b4bcb195a4f11bfa9b1b22286e77169f551b5c4294ab3d31828d8ff8",
+		"236_add_minimax_platform.sql":                              "2af2d10184f337b4a06a3c499efbbe9c68377f726b73a945fd8079fcc8768e51",
+		"237_user_platform_quotas_add_codebuddy.sql":                "fa5fef7b5dc501f780d0070f604ac34ff51e5738438d566449870436da019991",
+		"238_opencode_go_platform.sql":                              "5c4aececec663f542c55a235d02458fdbcf682315fd62c8fe80c88c9a06cb9db",
+		"238_platform_check_constraints_union.sql":                  "d8cbcc6604dda6b768d6a16b5d7ef720d1e6e6bef3add2b90e29859f528cb5b5",
+		"241_add_typesafe_platform.sql":                             "b6559525bf8d0b5d7c617e7415944f0d1fae8c408e9131ace84139795f66dcd2",
+		"241_platform_check_constraints_union_with_opencode_go.sql": "9f54b815bae7c8d9d651d9d3da0b89a68554d5790807bcdfeafdb71fff62234d",
+	}
+	if expected, ok := known[name]; !ok || checksum != expected {
+		return content
+	}
+	drop, err := fs.ReadFile(fsys, "242_drop_platform_check_constraints.sql")
+	if err != nil {
+		return content
+	}
+	sum := sha256.Sum256([]byte(strings.TrimSpace(string(drop))))
+	if hex.EncodeToString(sum[:]) != "a7725f31f637208d200e0f37d5270e9f263743d99fa9e4f1bb9a7387e8be5a61" {
+		return content
+	}
+	return supersededPlatformConstraintSQL.ReplaceAllString(content, "")
 }
 
 type migrationConnection interface {
@@ -388,6 +419,8 @@ func prepareNonTransactionalMigration(ctx context.Context, db migrationConnectio
 		return nil
 	case usageLogsUpstreamRequestIDIndexMigration:
 		return dropInvalidIndexIfPresent(ctx, db, usageLogsUpstreamRequestIDIndex)
+	case usageLogsAPIKeyCostIndexMigration:
+		return dropInvalidIndexIfPresent(ctx, db, usageLogsAPIKeyCostIndex)
 	default:
 		return nil
 	}

@@ -42,10 +42,11 @@ func (s *OpenAIGatewayService) forwardChatCompletionsViaNativeAnthropic(
 	defaultMappedModel string,
 ) (*OpenAIForwardResult, error) {
 	startTime := time.Now()
+	SetActualOpenAIUpstreamEndpoint(c, "/v1/messages")
 
 	// 1. Parse Chat Completions request
 	var ccReq apicompat.ChatCompletionsRequest
-	if err := json.Unmarshal(body, &ccReq); err != nil {
+	if err := parseChatRequestForBridge(body, account.Platform, &ccReq); err != nil {
 		writeChatCompletionsError(c, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
 		return nil, fmt.Errorf("parse chat completions request: %w", err)
 	}
@@ -57,7 +58,7 @@ func (s *OpenAIGatewayService) forwardChatCompletionsViaNativeAnthropic(
 	clientStream := ccReq.Stream
 
 	// 2. Convert CC → Responses → Anthropic (chained conversion)
-	responsesReq, err := apicompat.ChatCompletionsToResponses(&ccReq)
+	responsesReq, err := chatCompletionsToResponses(s.cfg, &ccReq)
 	if err != nil {
 		writeChatCompletionsError(c, http.StatusBadRequest, "invalid_request_error", "Failed to convert request")
 		return nil, fmt.Errorf("convert chat completions to responses: %w", err)
@@ -93,6 +94,7 @@ func (s *OpenAIGatewayService) forwardChatCompletionsViaNativeAnthropic(
 	if err != nil {
 		return nil, fmt.Errorf("marshal anthropic request: %w", err)
 	}
+	anthropicBody = withChatCompletionsMetadataUserID(body, anthropicBody)
 
 	// 与 /v1/messages 直通路径相同的 pre-filter。
 	anthropicBody = StripEmptyTextBlocks(anthropicBody)
@@ -113,16 +115,9 @@ func (s *OpenAIGatewayService) forwardChatCompletionsViaNativeAnthropic(
 		proxyURL = account.Proxy.URL()
 	}
 
-	upstreamCtx, releaseUpstreamCtx := detachStreamUpstreamContext(ctx, reqStream)
-	upstreamReq, forwardedBody, err := s.buildNativeAnthropicUpstreamRequest(upstreamCtx, c, account, anthropicBody, apiKey, targetURL, body)
-	releaseUpstreamCtx()
+	resp, forwardedBody, err := s.sendNativeAnthropicUpstream(ctx, c, account, anthropicBody, apiKey, targetURL, proxyURL, reqStream, startTime, body)
 	if err != nil {
-		return nil, fmt.Errorf("build upstream request: %w", err)
-	}
-
-	resp, err := s.doOpenAIUpstream(upstreamReq, proxyURL, account)
-	if err != nil {
-		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, true)
+		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -164,13 +159,15 @@ func (s *OpenAIGatewayService) handleCCBufferedFromNativeAnthropic(
 		maxLineSize = s.cfg.Gateway.MaxLineSize
 	}
 	scanner.Buffer(make([]byte, 0, 64*1024), maxLineSize)
+	scanner.Split(newBoundedSSESplit(s.cfg, maxLineSize, nil))
 
 	var finalResp *apicompat.AnthropicResponse
 	var usage ClaudeUsage
 
 	// 读间隔上限：上游挂住 SSE 时中止组装（缓冲路径尚未提交响应头，可回 502）。
-	streamInterval := s.anthropicNativeStreamInterval()
-	pump := newAnthropicNativeLinePump(scanner, streamInterval)
+	streamInterval := anthropicNativeStreamInterval(s.cfg)
+	pump := newAnthropicNativeLinePump(scanner, streamInterval, s.cfg)
+	streamStatus := &anthropicCompatStream{body: resp.Body}
 	defer pump.stop()
 
 	logReadErr := func(err error) {
@@ -198,6 +195,7 @@ func (s *OpenAIGatewayService) handleCCBufferedFromNativeAnthropic(
 				return onIdle()
 			}
 			logReadErr(rerr)
+			streamStatus.readErr = rerr
 			break
 		}
 		// SSE 规范允许 `event:xxx`（冒号后无空格）：Kimi 等 Anthropic 兼容上游
@@ -212,6 +210,7 @@ func (s *OpenAIGatewayService) handleCCBufferedFromNativeAnthropic(
 				return onIdle()
 			}
 			logReadErr(rerr)
+			streamStatus.readErr = rerr
 			break
 		}
 		payload, ok := extractOpenAISSEDataLine(dataLine)
@@ -222,6 +221,11 @@ func (s *OpenAIGatewayService) handleCCBufferedFromNativeAnthropic(
 		var event apicompat.AnthropicStreamEvent
 		if err := json.Unmarshal([]byte(payload), &event); err != nil {
 			continue
+		}
+
+		streamStatus.observe(&event, payload)
+		if streamStatus.upstreamErrType != "" {
+			break
 		}
 
 		if event.Type == "message_start" && event.Message != nil {
@@ -254,19 +258,22 @@ func (s *OpenAIGatewayService) handleCCBufferedFromNativeAnthropic(
 		}
 	}
 
+	if failure := streamStatus.failure(); failure != nil {
+		_ = resp.Body.Close()
+		writeChatCompletionsError(c, http.StatusBadGateway, "server_error", failure.message)
+		return &OpenAIForwardResult{
+			RequestID: requestID, UpstreamHeaders: resp.Header, Usage: claudeUsageToOpenAIUsage(&usage),
+			Model: originalModel, BillingModel: billingModel, UpstreamModel: upstreamModel,
+			UpstreamEndpoint: "/v1/messages", ReasoningEffort: reasoningEffort, Duration: time.Since(startTime),
+		}, failure.err
+	}
+
 	if finalResp == nil {
 		writeChatCompletionsError(c, http.StatusBadGateway, "server_error", "Upstream stream ended without a response")
 		return nil, fmt.Errorf("upstream stream ended without response")
 	}
 
-	if usage.InputTokens > 0 || usage.OutputTokens > 0 {
-		finalResp.Usage = apicompat.AnthropicUsage{
-			InputTokens:              usage.InputTokens,
-			OutputTokens:             usage.OutputTokens,
-			CacheCreationInputTokens: usage.CacheCreationInputTokens,
-			CacheReadInputTokens:     usage.CacheReadInputTokens,
-		}
-	}
+	normalizeAnthropicEventUsageForResponses(&apicompat.AnthropicStreamEvent{Message: finalResp}, usage)
 
 	responsesResp := apicompat.AnthropicToResponsesResponse(finalResp)
 	ccResp := apicompat.ResponsesToChatCompletions(responsesResp, originalModel)
@@ -335,6 +342,7 @@ func (s *OpenAIGatewayService) handleCCStreamingFromNativeAnthropic(
 		maxLineSize = s.cfg.Gateway.MaxLineSize
 	}
 	scanner.Buffer(make([]byte, 0, 64*1024), maxLineSize)
+	scanner.Split(newBoundedSSESplit(s.cfg, maxLineSize, nil))
 
 	resultWithUsage := func() *OpenAIForwardResult {
 		return &OpenAIForwardResult{
@@ -356,8 +364,9 @@ func (s *OpenAIGatewayService) handleCCStreamingFromNativeAnthropic(
 	// 读间隔上限：上游挂住 SSE（不发数据也不断连）时结束排水。上游 ctx 为
 	// WithoutCancel 且 http.Client 无整体 Timeout，无此界限则客户端断开后
 	// scanner.Scan() 永久阻塞（见 anthropic native pump 文件注释）。
-	streamInterval := s.anthropicNativeStreamInterval()
-	pump := newAnthropicNativeLinePump(scanner, streamInterval)
+	streamInterval := anthropicNativeStreamInterval(s.cfg)
+	pump := newAnthropicNativeLinePump(scanner, streamInterval, s.cfg)
+	streamStatus := &anthropicCompatStream{body: resp.Body}
 	defer pump.stop()
 
 	logReadErr := func(err error) {
@@ -389,7 +398,7 @@ func (s *OpenAIGatewayService) handleCCStreamingFromNativeAnthropic(
 		if err != nil {
 			return false
 		}
-		out := string(reverseToolNamesIfPresent(c, []byte(sse)))
+		out := reverseToolNamesIfPresentString(c, sse)
 		if _, err := fmt.Fprint(c.Writer, out); err != nil {
 			clientDisconnected = true
 			return false
@@ -443,6 +452,7 @@ func (s *OpenAIGatewayService) handleCCStreamingFromNativeAnthropic(
 				return onIdle()
 			}
 			logReadErr(rerr)
+			streamStatus.readErr = rerr
 			break
 		}
 		if _, ok := extractOpenAISSEEventLine(line); !ok {
@@ -456,6 +466,7 @@ func (s *OpenAIGatewayService) handleCCStreamingFromNativeAnthropic(
 			}
 			// EOF / 读错误：事件行后流终止，进入 finalize。
 			logReadErr(rerr)
+			streamStatus.readErr = rerr
 			break
 		}
 		payload, ok := extractOpenAISSEDataLine(dataLine)
@@ -468,6 +479,11 @@ func (s *OpenAIGatewayService) handleCCStreamingFromNativeAnthropic(
 			continue
 		}
 
+		streamStatus.observe(&event, payload)
+		if streamStatus.upstreamErrType != "" {
+			break
+		}
+
 		// Forward received usage regardless of the client stream_options.
 		// The intermediate Responses converter synthesizes usage even when absent.
 		ccState.IncludeUsage = ccState.IncludeUsage || anthropicChatStreamHasUsage(&event, payload)
@@ -477,7 +493,19 @@ func (s *OpenAIGatewayService) handleCCStreamingFromNativeAnthropic(
 		}
 	}
 
-	// Finalize both state machines（客户端已断开时仍执行，保证 usage 汇总完整）。
+	if failure := streamStatus.failure(); failure != nil {
+		_ = resp.Body.Close()
+		if !clientDisconnected {
+			writeAnthropicCompatCCStreamFailure(c, failure)
+		}
+		return resultWithUsage(), failure.err
+	}
+
+	if clientDisconnected {
+		return resultWithUsage(), nil
+	}
+
+	// Finalize only after the upstream has supplied a terminal event.
 	finalResEvents := apicompat.FinalizeAnthropicResponsesStream(anthState)
 	for _, resEvt := range finalResEvents {
 		ccChunks := apicompat.ResponsesEventToChatChunks(&resEvt, ccState)

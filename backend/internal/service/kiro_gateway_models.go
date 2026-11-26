@@ -150,7 +150,7 @@ func (s *KiroGatewayService) doREST(ctx context.Context, account *Account, req *
 		tlsProfile = s.tlsFPProfileService.ResolveTLSProfile(account)
 	}
 	req = req.WithContext(ctx)
-	account.ApplyHeaderOverrides(req.Header)
+	account.ApplyHeaderOverrides(withoutHeaderOverrideRequestScope(req.Context()), req.Header)
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, tlsProfile)
 	if err != nil {
 		return nil, 0, err

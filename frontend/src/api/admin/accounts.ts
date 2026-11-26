@@ -30,6 +30,7 @@ import type {
   OllamaCloudUsageState,
   GrokMediaEligibilityMode,
   GrokMediaEligibilityState,
+  GrokModelDiagnostics,
   OpenCodeGoUsageSettings,
   OpenCodeGoUsageState
 } from '@/types'
@@ -612,6 +613,8 @@ export interface SyncUpstreamModelsResult {
   models: string[]
   metadata?: Record<string, UpstreamModelMetadata>
   warnings?: UpstreamModelSyncWarning[]
+  discovery_source?: 'upstream' | 'configured_fallback'
+  grok_model_diagnostics?: GrokModelDiagnostics
 }
 
 export interface UpstreamModelSyncWarning {
@@ -1355,6 +1358,23 @@ export async function probeUpstreamBilling(id: number): Promise<UpstreamBillingP
   return data
 }
 
+export type UpstreamGroupSource = { account_id: number } | {
+  platform: string
+  base_url: string
+  api_key: string
+  proxy_id?: number | null
+}
+
+export async function previewUpstreamGroup(source: UpstreamGroupSource, signal?: AbortSignal) {
+  const { data } = await apiClient.post<{ group_name?: string; group_description?: string }>(
+    '/admin/accounts/upstream-billing-probe/group-preview', source, { signal }
+  )
+  const fields: { name?: string; notes?: string } = {}
+  if (data.group_name?.trim()) fields.name = data.group_name
+  if (data.group_description?.trim()) fields.notes = data.group_description
+  return fields
+}
+
 export async function probeUpstreamBillingBatch(accountIds: number[]): Promise<UpstreamBillingProbeResult[]> {
   const { data } = await apiClient.post<{ results: UpstreamBillingProbeResult[] }>(
     '/admin/accounts/upstream-billing-probe/batch',
@@ -1509,6 +1529,7 @@ export const accountsAPI = {
   updateUpstreamBillingProbeSettings,
   setUpstreamBillingProbeEnabled,
   probeUpstreamBilling,
+  previewUpstreamGroup,
   probeUpstreamBillingBatch,
   getOllamaCloudUsageSettings,
   updateOllamaCloudUsageSettings,

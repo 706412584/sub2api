@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/Wei-Shaw/sub2api/migrations"
 	"github.com/stretchr/testify/require"
@@ -16,6 +17,39 @@ import (
 //
 // 历史上 9 条规则曾用「文件原始字节」的哈希填写，因与 runner 口径不一致而长期失效，
 // 本测试防止再次引入同类回归。
+func TestPlatformMigrationExecutionPreservesHistoryAndOtherConstraints(t *testing.T) {
+	names := []string{
+		"224_user_platform_quotas_add_cn_providers.sql",
+		"227_composite_routes_add_cn_providers.sql",
+		"236_add_minimax_platform.sql",
+		"237_user_platform_quotas_add_codebuddy.sql",
+		"238_opencode_go_platform.sql",
+		"238_platform_check_constraints_union.sql",
+		"241_add_typesafe_platform.sql",
+		"241_platform_check_constraints_union_with_opencode_go.sql",
+	}
+	for _, name := range names {
+		t.Run(name, func(t *testing.T) {
+			raw, err := migrations.FS.ReadFile(name)
+			require.NoError(t, err)
+			content := strings.TrimSpace(string(raw))
+			sum := sha256.Sum256([]byte(content))
+			checksum := hex.EncodeToString(sum[:])
+			executable := platformMigrationExecutionSQL(migrations.FS, name, checksum, content)
+			require.NotEqual(t, content, executable)
+			require.NotRegexp(t, `(?i)ADD\s+CONSTRAINT\s+(user_platform_quotas_platform_check|composite_model_routes_target_platform_check)`, executable)
+			if strings.Contains(content, "ADD CONSTRAINT channel_monitors_provider_check") {
+				require.Contains(t, executable, "ADD CONSTRAINT channel_monitors_provider_check")
+			}
+			require.Equal(t, content, platformMigrationExecutionSQL(migrations.FS, name, "unknown", content))
+			require.Equal(t, content, platformMigrationExecutionSQL(fstest.MapFS{}, name, checksum, content))
+			changedDrop := fstest.MapFS{"242_drop_platform_check_constraints.sql": &fstest.MapFile{Data: []byte("SELECT 1;")}}
+			require.Equal(t, content, platformMigrationExecutionSQL(changedDrop, name, checksum, content))
+			require.Equal(t, content, platformMigrationExecutionSQL(migrations.FS, "999_other.sql", checksum, content))
+		})
+	}
+}
+
 func TestChecksumRulesMatchRunnerAlgorithm(t *testing.T) {
 	require.NotEmpty(t, migrationChecksumCompatibilityRules)
 

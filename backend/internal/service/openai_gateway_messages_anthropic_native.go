@@ -31,7 +31,8 @@ import (
 
 // forwardAnthropicViaNativeAnthropicEndpoint 将 Anthropic Messages 请求零转换
 // 直通到国产供应商的原生 Anthropic 端点。仅做模型名映射与少量 body 清洗
-// （空文本块 / web-search 历史块），协议本身不转换。
+// （空文本块 / web-search 历史块），协议本身不转换。对 DeepSeek 官方账号补齐
+// tool_use 历史的单个空格占位 thinking 块（thinking 模式下缺 thinking 会被上游 400）。
 func (s *OpenAIGatewayService) forwardAnthropicViaNativeAnthropicEndpoint(
 	ctx context.Context,
 	c *gin.Context,
@@ -40,6 +41,7 @@ func (s *OpenAIGatewayService) forwardAnthropicViaNativeAnthropicEndpoint(
 	defaultMappedModel string,
 ) (*OpenAIForwardResult, error) {
 	startTime := time.Now()
+	SetActualOpenAIUpstreamEndpoint(c, "/v1/messages")
 
 	originalModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())
 	if originalModel == "" {
@@ -76,6 +78,12 @@ func (s *OpenAIGatewayService) forwardAnthropicViaNativeAnthropicEndpoint(
 	body = StripEmptyTextBlocks(body)
 	body = FilterWebSearchHistoryBlocks(body, upstreamModel)
 
+	// thinking 模式下 DeepSeek 要求工具续接历史回传 thinking 块；缺失时上游
+	// 自动恢复失败会返回 400。仅对 DeepSeek 官方账号、thinking 启用时生效。
+	if shouldRepairDeepSeekAnthropicThinking(account, body) {
+		body = ensureDeepSeekAnthropicThinkingBlocks(body)
+	}
+
 	logger.LegacyPrintf("service.gateway", "[CN Anthropic 直通] account=%d(%s) platform=%s model=%s upstream=%s stream=%v",
 		account.ID, account.Name, account.Platform, originalModel, upstreamModel, clientStream)
 
@@ -93,16 +101,9 @@ func (s *OpenAIGatewayService) forwardAnthropicViaNativeAnthropicEndpoint(
 		proxyURL = account.Proxy.URL()
 	}
 
-	upstreamCtx, releaseUpstreamCtx := detachStreamUpstreamContext(ctx, clientStream)
-	upstreamReq, _, err := s.buildNativeAnthropicUpstreamRequest(upstreamCtx, c, account, body, apiKey, targetURL)
-	releaseUpstreamCtx()
+	resp, _, err := s.sendNativeAnthropicUpstream(ctx, c, account, body, apiKey, targetURL, proxyURL, clientStream, startTime)
 	if err != nil {
 		return nil, err
-	}
-
-	resp, err := s.doOpenAIUpstream(upstreamReq, proxyURL, account)
-	if err != nil {
-		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, true)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -150,6 +151,37 @@ func resolveMappedUpstreamModel(account *Account, body []byte, defaultMappedMode
 	original := strings.TrimSpace(gjson.GetBytes(body, "model").String())
 	billing := resolveOpenAIForwardModel(account, original, defaultMappedModel)
 	return normalizeOpenAIModelForUpstream(account, billing)
+}
+
+func (s *OpenAIGatewayService) sendNativeAnthropicUpstream(
+	ctx context.Context, c *gin.Context, account *Account, body []byte,
+	apiKey, targetURL, proxyURL string, stream bool, started time.Time, sessionBodies ...[]byte,
+) (*http.Response, []byte, error) {
+	turnLimitRetry := turnLimitState(c, started)
+	send := func(requestBody []byte) (*http.Response, []byte, error) {
+		upstreamCtx, release := detachStreamUpstreamContext(ctx, stream)
+		request, wireBody, err := s.buildNativeAnthropicUpstreamRequest(upstreamCtx, c, account, requestBody, apiKey, targetURL, sessionBodies...)
+		release()
+		if err != nil {
+			return nil, wireBody, err
+		}
+		turnLimitRetry.bind(request, func(probe *http.Request) (*http.Response, error) {
+			return s.doOpenAIUpstream(probe, proxyURL, account)
+		})
+		resp, err := s.doOpenAIUpstream(request, proxyURL, account)
+		if err != nil {
+			if resp != nil && resp.Body != nil {
+				_ = resp.Body.Close()
+			}
+			return nil, wireBody, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, true)
+		}
+		return resp, wireBody, nil
+	}
+	resp, wireBody, err := send(body)
+	if err != nil {
+		return nil, wireBody, err
+	}
+	return turnLimitRetry.recoverResponse(ctx, c, resp, wireBody, send)
 }
 
 func (s *OpenAIGatewayService) buildNativeAnthropicUpstreamRequest(
@@ -219,7 +251,7 @@ func (s *OpenAIGatewayService) buildNativeAnthropicUpstreamRequest(
 	applyOpenCodeUpstreamUserAgent(account, targetURL, req.Header)
 
 	// 账号级请求头覆写（最终生效，覆盖上面所有来源的同名头）
-	account.ApplyHeaderOverrides(req.Header)
+	account.ApplyHeaderOverrides(req.Context(), req.Header)
 	filterSonnet55ToolsetBetaHeader(req.Header, body, gjson.GetBytes(body, "model").String())
 	payloads := append([][]byte{body}, sessionBodies...)
 	applyOpenCodeSessionHeader(c, account, targetURL, req.Header, payloads...)
@@ -276,16 +308,19 @@ func (s *OpenAIGatewayService) handleNativeAnthropicBufferedResponse(
 	c.Data(resp.StatusCode, contentType, body)
 
 	return &OpenAIForwardResult{
-		RequestID:        resp.Header.Get("x-request-id"),
-		UpstreamHeaders:  resp.Header,
-		Usage:            claudeUsageToOpenAIUsage(usage),
-		Model:            originalModel,
-		BillingModel:     billingModel,
-		UpstreamModel:    upstreamModel,
-		UpstreamEndpoint: "/v1/messages",
-		Stream:           false,
-		ReasoningEffort:  reasoningEffort,
-		Duration:         time.Since(startTime),
+		RequestID:                     resp.Header.Get("x-request-id"),
+		UpstreamHeaders:               resp.Header,
+		Usage:                         claudeUsageToOpenAIUsage(usage),
+		Model:                         originalModel,
+		BillingModel:                  billingModel,
+		UpstreamModel:                 upstreamModel,
+		UpstreamResponseModel:         observedUpstreamResponseModel(c),
+		UpstreamResponseModelConflict: observedUpstreamResponseModelConflict(c),
+		UpstreamResponseServiceTier:   observedUpstreamResponseServiceTier(c),
+		UpstreamEndpoint:              "/v1/messages",
+		Stream:                        false,
+		ReasoningEffort:               reasoningEffort,
+		Duration:                      time.Since(startTime),
 	}, nil
 }
 
@@ -347,6 +382,7 @@ func (s *OpenAIGatewayService) handleNativeAnthropicStreamingResponse(
 	}
 	scanBuf := getSSEScannerBuf64K()
 	scanner.Buffer(scanBuf[:0], maxLineSize)
+	scanner.Split(newBoundedSSESplit(s.cfg, maxLineSize, nil))
 
 	type scanEvent struct {
 		line string
@@ -354,11 +390,16 @@ func (s *OpenAIGatewayService) handleNativeAnthropicStreamingResponse(
 	}
 	events := make(chan scanEvent, 16)
 	done := make(chan struct{})
+	queueBudget := newSSEQueueBudget(s.cfg)
 	sendEvent := func(ev scanEvent) bool {
+		if !queueBudget.acquire(len(ev.line), done) {
+			return false
+		}
 		select {
 		case events <- ev:
 			return true
 		case <-done:
+			queueBudget.release(len(ev.line))
 			return false
 		}
 	}
@@ -424,6 +465,9 @@ func (s *OpenAIGatewayService) handleNativeAnthropicStreamingResponse(
 	for {
 		select {
 		case ev, ok := <-events:
+			if ok {
+				queueBudget.release(len(ev.line))
+			}
 			if !ok {
 				if !clientDisconnected {
 					flusher.Flush()
@@ -474,7 +518,7 @@ func (s *OpenAIGatewayService) handleNativeAnthropicStreamingResponse(
 			}
 
 			if !clientDisconnected {
-				restored := string(reverseToolNamesIfPresent(c, []byte(line)))
+				restored := reverseToolNamesIfPresentString(c, line)
 				if _, err := io.WriteString(w, restored); err != nil {
 					clientDisconnected = true
 					logger.LegacyPrintf("service.gateway", "[CN Anthropic 直通] Client disconnected during streaming, continue draining upstream for usage: account=%d", account.ID)
@@ -550,18 +594,21 @@ func (s *OpenAIGatewayService) nativeAnthropicStreamResult(
 		usage = &ClaudeUsage{}
 	}
 	return &OpenAIForwardResult{
-		RequestID:        resp.Header.Get("x-request-id"),
-		UpstreamHeaders:  resp.Header,
-		Usage:            claudeUsageToOpenAIUsage(usage),
-		Model:            originalModel,
-		BillingModel:     billingModel,
-		UpstreamModel:    upstreamModel,
-		UpstreamEndpoint: "/v1/messages",
-		Stream:           true,
-		ReasoningEffort:  reasoningEffort,
-		Duration:         time.Since(startTime),
-		FirstTokenMs:     firstTokenMs,
-		ClientDisconnect: clientDisconnect,
+		RequestID:                     resp.Header.Get("x-request-id"),
+		UpstreamHeaders:               resp.Header,
+		Usage:                         claudeUsageToOpenAIUsage(usage),
+		Model:                         originalModel,
+		BillingModel:                  billingModel,
+		UpstreamModel:                 upstreamModel,
+		UpstreamResponseModel:         observedUpstreamResponseModel(c),
+		UpstreamResponseModelConflict: observedUpstreamResponseModelConflict(c),
+		UpstreamResponseServiceTier:   observedUpstreamResponseServiceTier(c),
+		UpstreamEndpoint:              "/v1/messages",
+		Stream:                        true,
+		ReasoningEffort:               reasoningEffort,
+		Duration:                      time.Since(startTime),
+		FirstTokenMs:                  firstTokenMs,
+		ClientDisconnect:              clientDisconnect,
 	}
 }
 
@@ -574,9 +621,12 @@ func claudeUsageToOpenAIUsage(u *ClaudeUsage) OpenAIUsage {
 		return OpenAIUsage{}
 	}
 	return OpenAIUsage{
-		InputTokens:              u.InputTokens + u.CacheCreationInputTokens + u.CacheReadInputTokens,
-		OutputTokens:             u.OutputTokens,
-		CacheCreationInputTokens: u.CacheCreationInputTokens,
-		CacheReadInputTokens:     u.CacheReadInputTokens,
+		InputTokens:                     u.InputTokens + u.CacheCreationInputTokens + u.CacheReadInputTokens,
+		OutputTokens:                    u.OutputTokens,
+		CacheCreationInputTokens:        u.CacheCreationInputTokens,
+		CacheCreation5mTokens:           u.CacheCreation5mTokens,
+		CacheCreation1hTokens:           u.CacheCreation1hTokens,
+		CacheReadInputTokens:            u.CacheReadInputTokens,
+		cacheCreationInputTokensPresent: u.cacheCreationInputTokensPresent,
 	}
 }

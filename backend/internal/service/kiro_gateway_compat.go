@@ -178,7 +178,7 @@ func (s *KiroGatewayService) executeAndCollect(ctx context.Context, account *Acc
 		}
 	}
 	req = req.WithContext(ctx)
-	account.ApplyHeaderOverrides(req.Header)
+	account.ApplyHeaderOverrides(req.Context(), req.Header)
 
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {

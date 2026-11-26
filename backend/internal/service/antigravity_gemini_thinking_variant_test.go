@@ -77,9 +77,7 @@ func TestResolveGeminiThinkingVariant(t *testing.T) {
 		{"only -high exists: low request degrades to high", map[string]string{
 			"gemini-3.5-flash-high": "gemini-3.5-flash-high",
 		}, "gemini-3.5-flash", budget("1000"), "gemini-3.5-flash-high", true},
-		// 本分支刻意不自动补齐档位变体（只透传裸名，见 account.go resolveModelMapping）：
-		// 上游按账号灰度开放档位，补齐会让自动选档选到上游 404 的模型名。
-		// 因此 low 请求只会落到映射里真实存在的档位。
+		// 上游按账号灰度开放档位，只从真实映射中选档。
 		{"no variant injection: low request degrades to the mapping's real tier", catalog, "gemini-3.6-flash", budget("1000"), "gemini-3.6-flash-high", true},
 		{"already suffixed: untouched", catalog, "gemini-3.8-flash-low", budget("-1"), "", false},
 		{"bare name explicitly mapped: untouched", catalog, "gemini-2.5-flash", budget("-1"), "", false},
@@ -92,16 +90,22 @@ func TestResolveGeminiThinkingVariant(t *testing.T) {
 		{"variant value is itself a mapping target", map[string]string{
 			"gemini-3.8-flash-high": "gemini-3.8-flash-tiered",
 		}, "gemini-3.8-flash", budget("-1"), "gemini-3.8-flash-tiered", true},
-		{"user-written bare identity passthrough: respected", map[string]string{
+		// 前端持久化的裸名自映射仍解析到真实档位，不补造上游未开放的 -low。
+		{"persisted default bare identity resolves only configured variants", map[string]string{
 			"gemini-3.8-flash":      "gemini-3.8-flash",
 			"gemini-3.8-flash-high": "gemini-3.8-flash-high",
-		}, "gemini-3.8-flash", budget("1000"), "", false},
-		{"runtime-injected bare passthrough (not in credentials): still resolved", map[string]string{
-			// resolveModelMapping 会补 gemini-3.7-flash → gemini-3.7-flash 的默认透传，
-			// 但 credentials 里没有这条，应当继续推导变体。
+		}, "gemini-3.8-flash", budget("1000"), "gemini-3.8-flash-high", true},
+		{"bare identity passthrough resolves a configured variant outside the default passthroughs", map[string]string{
+			"gemini-3.5-flash":      "gemini-3.5-flash",
+			"gemini-3.5-flash-high": "gemini-3.5-flash-high",
+		}, "gemini-3.5-flash", budget("1000"), "gemini-3.5-flash-high", true},
+		{"wildcard mapping does not fabricate variants for non-tiered bare model", map[string]string{
+			"gemini-2.5*": "gemini-2.5-flash",
+		}, "gemini-2.5-flash", budget("-1"), "", false},
+		{"bare model absent from whitelist: configured variant still resolved", map[string]string{
 			"gemini-3.7-flash-medium": "gemini-3.7-flash-medium",
 		}, "gemini-3.7-flash", budget("4000"), "gemini-3.7-flash-medium", true},
-		// 空 credentials 映射 → 走 DefaultAntigravityModelMapping，其中同样只有带后缀的 3.8 flash
+		// 空 credentials 映射保留默认目录兼容行为。
 		{"empty mapping falls back to default catalog", map[string]string{}, "gemini-3.8-flash", budget("-1"), "gemini-3.8-flash-high", true},
 	}
 	for _, tt := range tests {

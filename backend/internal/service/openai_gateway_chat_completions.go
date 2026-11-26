@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -21,20 +23,55 @@ import (
 	"go.uber.org/zap"
 )
 
-// cursorResponsesUnsupportedFields are top-level Responses API parameters that
-// Codex upstreams reject with "Unsupported parameter: ...". They must be
-// stripped when forwarding a raw client body through the Responses-shape
-// short-circuit in ForwardAsChatCompletions (see isResponsesShape branch).
-// The normal Chat Completions → Responses conversion path is unaffected
-// because ChatCompletionsRequest has no fields for these parameters — unknown
-// fields are dropped naturally by json.Unmarshal. Kept semantically in sync
-// with the list in openai_gateway_service.go:2034 used by the /v1/responses
-// passthrough path.
+// The Responses-shaped shortcut forwards a raw body. Strip fields that the
+// typed Chat Completions → Responses conversion omits for this upstream.
 var cursorResponsesUnsupportedFields = []string{
 	"prompt_cache_retention",
 	"safety_identifier",
 	"metadata",
 	"stream_options",
+	"stop",
+}
+
+// Kimi Chat can append function declarations to the conversation in system
+// messages. Responses and Anthropic use a request-level tool list for the
+// current generation. Native Chat forwarding keeps the declarations in place.
+func parseChatRequestForBridge(body []byte, platform string, req *apicompat.ChatCompletionsRequest) error {
+	if platform != PlatformKimi {
+		return json.Unmarshal(body, req)
+	}
+	var wire struct {
+		*apicompat.ChatCompletionsRequest
+		Messages []struct {
+			apicompat.ChatMessage
+			Tools json.RawMessage `json:"tools"`
+		} `json:"messages"`
+	}
+	wire.ChatCompletionsRequest = req
+	if err := json.Unmarshal(body, &wire); err != nil {
+		return err
+	}
+	req.Messages = make([]apicompat.ChatMessage, 0, len(wire.Messages))
+	for i, msg := range wire.Messages {
+		if msg.Role != "system" || msg.Tools == nil {
+			req.Messages = append(req.Messages, msg.ChatMessage)
+			continue
+		}
+		if msg.Content != nil {
+			return fmt.Errorf("messages[%d]: Kimi system tools cannot be used with content", i)
+		}
+		var tools []apicompat.ChatTool
+		if err := json.Unmarshal(msg.Tools, &tools); err != nil {
+			return fmt.Errorf("messages[%d].tools: %w", i, err)
+		}
+		for j, tool := range tools {
+			if tool.Type != "function" || tool.Function == nil || strings.TrimSpace(tool.Function.Name) == "" {
+				return fmt.Errorf("messages[%d].tools[%d]: expected a named function", i, j)
+			}
+		}
+		req.Tools = append(req.Tools, tools...)
+	}
+	return nil
 }
 
 // ForwardAsChatCompletions accepts a Chat Completions request body, converts it
@@ -156,7 +193,10 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 
 	// 1. Parse Chat Completions request
 	var chatReq apicompat.ChatCompletionsRequest
-	if err := json.Unmarshal(body, &chatReq); err != nil {
+	if err := parseChatRequestForBridge(body, account.Platform, &chatReq); err != nil {
+		if account.Platform == PlatformKimi {
+			writeChatCompletionsError(c, http.StatusBadRequest, "invalid_request_error", err.Error())
+		}
 		return nil, fmt.Errorf("parse chat completions request: %w", err)
 	}
 	originalModel := chatReq.Model
@@ -166,7 +206,7 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 	// derive a stable seed from the final upstream model family.
 	billingModel := resolveOpenAIForwardModel(account, originalModel, defaultMappedModel)
 	upstreamModel := normalizeOpenAIModelForUpstream(account, billingModel)
-	if err := validateGPT61SolCompatRequest(body, upstreamModel); err != nil {
+	if err := validateGPT61CompatRequest(body, upstreamModel); err != nil {
 		writeChatCompletionsError(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return nil, err
 	}
@@ -232,7 +272,7 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 		// Normal path: convert Chat Completions → Responses.
 		// ChatCompletionsToResponses always sets Stream=true (upstream always streams).
 		chatReq.Model = upstreamModel
-		responsesReq, err = apicompat.ChatCompletionsToResponses(&chatReq)
+		responsesReq, err = chatCompletionsToResponses(s.cfg, &chatReq)
 		if err != nil {
 			return nil, fmt.Errorf("convert chat completions to responses: %w", err)
 		}
@@ -242,6 +282,9 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 		if err != nil {
 			return nil, fmt.Errorf("marshal responses request: %w", err)
 		}
+		// responsesReq lives until billing after the stream; only its scalar
+		// fields are read from here on, so drop the body-sized input.
+		responsesReq.Input = nil
 	}
 
 	logFields := []zap.Field{
@@ -286,7 +329,7 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 		} else if promptCacheKey != "" {
 			reqBody["prompt_cache_key"] = promptCacheKey
 		}
-		applyCodexAccountIdentityClientMetadataMap(reqBody, codexAccountIdentitySource(c, account), getAPIKeyIDFromContext(c))
+		applyCodexAccountIdentityClientMetadataMap(reqBody, codexAccountIdentitySource(c, account), getAPIKeyIDFromContext(c), codexClientSessionID(c))
 		responsesBody, err = json.Marshal(reqBody)
 		if err != nil {
 			return nil, fmt.Errorf("remarshal after codex transform: %w", err)
@@ -336,6 +379,7 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 	}
 
 	// 6. Build upstream request
+	turnLimitRetry := turnLimitState(c, startTime)
 	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
 	cancelUpstream := func() {}
 	if clientStream {
@@ -362,9 +406,32 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 	if account.ProxyID != nil && account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
+	turnLimitRetry.bind(upstreamReq, func(probe *http.Request) (*http.Response, error) {
+		return s.doOpenAIUpstream(probe, proxyURL, account)
+	})
 	resp, err := s.doOpenAIUpstream(upstreamReq, proxyURL, account)
 	if err != nil {
 		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
+	}
+	resp, responsesBody, err = turnLimitRetry.recoverResponse(ctx, c, resp, responsesBody, func(retryBody []byte) (*http.Response, []byte, error) {
+		retryReq, buildErr := s.buildUpstreamRequest(upstreamCtx, c, account, retryBody, token, true, promptCacheKey, false)
+		if buildErr != nil {
+			return nil, retryBody, fmt.Errorf("build turn-limit retry request: %w", buildErr)
+		}
+		if sessionID := upstreamReq.Header.Get("session_id"); sessionID != "" {
+			retryReq.Header.Set("session_id", sessionID)
+		}
+		retryResp, retryErr := s.doOpenAIUpstream(retryReq, proxyURL, account)
+		if retryErr != nil {
+			if retryResp != nil && retryResp.Body != nil {
+				_ = retryResp.Body.Close()
+			}
+			return nil, retryBody, s.handleOpenAIUpstreamTransportError(ctx, c, account, retryErr, false)
+		}
+		return retryResp, retryBody, nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	defer func() {
 		cancelUpstream()
@@ -373,7 +440,7 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 
 	// 8. Handle error response with failover
 	if resp.StatusCode >= 400 {
-		respBody, upstreamMsg := s.readOpenAIUpstreamError(resp)
+		respBody, upstreamMsg, completeErrorBody := s.readOpenAIUpstreamErrorWithCompleteness(resp)
 		if !agentIdentityTaskRecoveryWasTried(ctx) && s.isAgentIdentityAccount(ctx, account) && isAgentIdentityTaskInvalidHTTPResponse(resp.StatusCode, respBody) {
 			expectedTaskID := account.GetCredential("task_id")
 			if err := s.recoverAgentIdentityTask(ctx, account, expectedTaskID); err != nil {
@@ -390,7 +457,24 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 				zap.Int("upstream_status", resp.StatusCode),
 				zap.String("upstream_message", upstreamMsg),
 			)
-			return s.forwardAsRawChatCompletions(ctx, c, account, body, defaultMappedModel)
+			return s.forwardAsRawChatCompletionsWithStartTime(ctx, c, account, body, defaultMappedModel, startTime)
+		}
+		responsesMode, _ := account.Extra[openai_compat.ExtraKeyResponsesMode].(string)
+		if account.IsOpenAIApiKey() &&
+			openai_compat.NormalizeResponsesSupportMode(responsesMode) == openai_compat.ResponsesSupportModeAuto &&
+			openai_compat.ResolveResponsesSupport(account.Extra) == openai_compat.ResponsesSupportYes &&
+			!isResponsesShape &&
+			(ctx == nil || ctx.Err() == nil) &&
+			(c.Request == nil || c.Request.Context().Err() == nil) &&
+			!IsResponseCommitted(c) &&
+			!c.Writer.Written() &&
+			completeErrorBody &&
+			isConvertedResponsesInputStringRejection(resp.StatusCode, respBody) {
+			logger.L().Info("openai chat_completions: structured Responses input rejected, falling back to raw chat completions",
+				zap.Int64("account_id", account.ID),
+				zap.Int("upstream_status", resp.StatusCode),
+			)
+			return s.forwardAsRawChatCompletionsWithStartTime(ctx, c, account, body, defaultMappedModel, startTime)
 		}
 		if foErr := s.failoverOpenAIUpstreamHTTPError(ctx, c, account, resp, respBody, upstreamMsg, upstreamModel); foErr != nil {
 			return nil, foErr
@@ -442,6 +526,155 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 	}
 
 	return result, handleErr
+}
+
+var responsesInputStringValidationError = regexp.MustCompile(`^['"]loc['"]\s*:\s*\(\s*['"]body['"]\s*,\s*['"]input['"]\s*,\s*['"]str['"]\s*\)$`)
+var responsesStringValidationMessage = regexp.MustCompile(`^['"]msg['"]\s*:\s*['"]Input should be a valid string['"]$`)
+var responsesStringValidationType = regexp.MustCompile(`^['"]type['"]\s*:\s*['"]string_type['"]$`)
+var responsesValidationErrors = regexp.MustCompile(`(?s)^([1-9][0-9]*) validation errors?(?: for [^\r\n:]+)?:\s*(\[.*\])$`)
+var responsesInvalidInputTypeMessage = regexp.MustCompile(`(?i)^(?:Invalid type for ['"]input['"]:\s*)?Expected a string(?: for input)?, but got an (?:array|object) instead\.?$`)
+
+func isResponsesInputStringValidationMessage(message string) bool {
+	match := responsesValidationErrors.FindStringSubmatch(strings.TrimSpace(message))
+	if match == nil {
+		return false
+	}
+	entries, ok := splitResponsesValidationFields(match[2][1 : len(match[2])-1])
+	count, err := strconv.Atoi(match[1])
+	if !ok || err != nil || count != len(entries) {
+		return false
+	}
+	matched := false
+	for _, entry := range entries {
+		if !strings.HasPrefix(entry, "{") || !strings.HasSuffix(entry, "}") {
+			return false
+		}
+		fields, ok := splitResponsesValidationFields(entry[1 : len(entry)-1])
+		if !ok {
+			return false
+		}
+		location, message, stringType := false, false, false
+		keys := make(map[string]bool, len(fields))
+		for _, field := range fields {
+			key, value, found := strings.Cut(field, ":")
+			key = strings.TrimSpace(key)
+			if !found || len(key) < 3 || (key[0] != '\'' && key[0] != '"') || key[len(key)-1] != key[0] || strings.TrimSpace(value) == "" || keys[key[1:len(key)-1]] {
+				return false
+			}
+			keys[key[1:len(key)-1]] = true
+			location = location || responsesInputStringValidationError.MatchString(field)
+			message = message || responsesStringValidationMessage.MatchString(field)
+			stringType = stringType || responsesStringValidationType.MatchString(field)
+		}
+		matched = matched || (location && message && stringType)
+	}
+	return matched
+}
+
+func splitResponsesValidationFields(value string) ([]string, bool) {
+	var fields []string
+	var brackets []byte
+	var quote byte
+	escaped := false
+	start := 0
+	for index := 0; index < len(value); index++ {
+		character := value[index]
+		if quote != 0 {
+			if escaped {
+				escaped = false
+			} else if character == '\\' {
+				escaped = true
+			} else if character == quote {
+				quote = 0
+			}
+			continue
+		}
+		switch character {
+		case '\'', '"':
+			quote = character
+		case '{', '[', '(':
+			brackets = append(brackets, character)
+		case '}', ']', ')':
+			if len(brackets) == 0 {
+				return nil, false
+			}
+			opening := brackets[len(brackets)-1]
+			if (character == '}' && opening != '{') || (character == ']' && opening != '[') || (character == ')' && opening != '(') {
+				return nil, false
+			}
+			brackets = brackets[:len(brackets)-1]
+		case ',':
+			if len(brackets) == 0 {
+				field := strings.TrimSpace(value[start:index])
+				if field == "" {
+					return nil, false
+				}
+				fields = append(fields, field)
+				start = index + 1
+			}
+		}
+	}
+	if quote != 0 || len(brackets) != 0 {
+		return nil, false
+	}
+	if field := strings.TrimSpace(value[start:]); field != "" {
+		fields = append(fields, field)
+	}
+	return fields, len(fields) > 0
+}
+
+func isConvertedResponsesInputStringRejection(status int, responseBody []byte) bool {
+	if status != http.StatusBadRequest || !json.Valid(responseBody) {
+		return false
+	}
+	envelope := gjson.ParseBytes(responseBody)
+	for _, object := range []gjson.Result{envelope, envelope.Get("error")} {
+		if !object.IsObject() {
+			return false
+		}
+		keys := make(map[string]bool)
+		unambiguous := true
+		object.ForEach(func(key, value gjson.Result) bool {
+			name := key.String()
+			if keys[name] {
+				unambiguous = false
+				return false
+			}
+			keys[name] = true
+			switch name {
+			case "usage", "output", "output_text", "choices", "tool_calls", "response", "status", "incomplete_details":
+				unambiguous = false
+			case "code":
+				code := strings.ToLower(strings.TrimSpace(value.String()))
+				unambiguous = code == "" || code == "invalid_type" || code == "invalid_request_error"
+			case "param":
+				param := strings.ToLower(strings.TrimSpace(value.String()))
+				unambiguous = param == "" || param == "input"
+			case "type":
+				errorType := strings.ToLower(strings.TrimSpace(value.String()))
+				unambiguous = errorType == "" || errorType == "invalid_type" || errorType == "invalid_request_error"
+			}
+			return unambiguous
+		})
+		if !unambiguous {
+			return false
+		}
+	}
+	message := gjson.GetBytes(responseBody, "error.message").String()
+	if isResponsesInputStringValidationMessage(message) {
+		return true
+	}
+	code := strings.ToLower(strings.TrimSpace(gjson.GetBytes(responseBody, "error.code").String()))
+	typ := strings.ToLower(strings.TrimSpace(gjson.GetBytes(responseBody, "error.type").String()))
+	if code != "invalid_type" && typ != "invalid_type" {
+		return false
+	}
+	param := strings.ToLower(strings.TrimSpace(gjson.GetBytes(responseBody, "error.param").String()))
+	if param != "input" {
+		return false
+	}
+	message = strings.ToLower(strings.TrimSpace(message))
+	return responsesInvalidInputTypeMessage.MatchString(message)
 }
 
 func normalizeResponsesRequestServiceTier(req *apicompat.ResponsesRequest) {
@@ -511,7 +744,7 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 ) (*OpenAIForwardResult, error) {
 	requestID := resp.Header.Get("x-request-id")
 
-	finalResponse, usage, acc, err := s.readOpenAICompatBufferedTerminal(resp, c, "openai chat_completions buffered", requestID)
+	finalResponse, usage, acc, priorModels, err := s.readOpenAICompatBufferedTerminal(resp, c, account, "openai chat_completions buffered", requestID)
 	if err != nil {
 		return nil, s.newOpenAICompatBufferedReadFailoverError(c, account, resp, requestID, err)
 	}
@@ -524,6 +757,7 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 	if observer == nil {
 		observer = beginUpstreamResponseModelObservation(c)
 	}
+	priorModels.apply(observer)
 	observer.Observe(finalResponse.Model, true)
 	observer.ObserveServiceTier(finalResponse.ServiceTier, true)
 	if strings.TrimSpace(finalResponse.Status) == "failed" {
@@ -673,6 +907,7 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 
 	state := apicompat.NewResponsesEventToChatState()
 	state.Model = originalModel
+	state.XAIServerSideSearch = account != nil && account.IsGrok()
 	// 网关作为计费链路的一环，不能把下游 usage 输出绑定到客户端是否显式请求。
 	// raw Chat Completions 直转路径已经强制透出 usage，这里保持同样行为，避免级联代理计费为 0。
 	state.IncludeUsage = true
@@ -751,6 +986,7 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 		}
 		if countSearch {
 			searchCount += countGrokNativeSearchCallsInSSEDataDedup([]byte(payload), streamSearchSeen)
+			searchCount = grokSearchCountWithTerminalUsage(searchCount, []byte(payload))
 		}
 
 		var event apicompat.ResponsesStreamEvent
@@ -817,6 +1053,7 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 				streamFailoverErr = s.newOpenAIStreamFailoverErrorWithModel(c, account, false, requestID, payloadBytes, message, upstreamModel, resp.Header)
 				return true
 			}
+			s.handleOpenAIStreamTerminalAccountSideEffects(c, account, payloadBytes, message, resp.Header, upstreamModel)
 			message = s.recordOpenAIStreamUpstreamError(c, account, false, requestID, "http_error", payloadBytes, message)
 			defaultStatus, defaultErrType, defaultMsg := http.StatusBadGateway, "upstream_error", message
 			// 统一走语义状态推断 + body 归一化（与 /v1/responses 路径一致），
@@ -1073,11 +1310,16 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 	done := make(chan struct{})
 	var lastReadAt int64
 	atomic.StoreInt64(&lastReadAt, time.Now().UnixNano())
+	queueBudget := newSSEQueueBudget(s.cfg)
 	sendEvent := func(ev scanEvent) bool {
+		if !queueBudget.acquire(len(ev.line), done) {
+			return false
+		}
 		select {
 		case events <- ev:
 			return true
 		case <-done:
+			queueBudget.release(len(ev.line))
 			return false
 		}
 	}
@@ -1110,6 +1352,9 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 	for {
 		select {
 		case ev, ok := <-events:
+			if ok {
+				queueBudget.release(len(ev.line))
+			}
 			if !ok {
 				if frame, ok := parser.Finish(); ok {
 					if strings.TrimSpace(frame.Data) == "[DONE]" {

@@ -79,12 +79,7 @@ func accountHasAntigravityPaidTier(account *Account) bool {
 	if !ok {
 		return false
 	}
-	switch strings.ToLower(strings.TrimSpace(planType)) {
-	case "pro", "ultra":
-		return true
-	default:
-		return false
-	}
+	return antigravity.IsPaidPlanType(planType)
 }
 
 // smartRetryAction 智能重试的处理结果
@@ -668,8 +663,12 @@ urlFallbackLoop:
 						continue
 					}
 
-					// 重试用尽，标记账户限流
-					p.handleError(p.ctx, p.prefix, p.account, resp.StatusCode, resp.Header, respBody, p.requestedModel, p.groupID, p.sessionHash, p.isStickySession)
+					// 重试用尽，标记账户限流（无原因的 429 每个请求最多冷却一个账号）
+					if isBareAntigravity429(resp.StatusCode, respBody) && !claimBare429Cooldown(p.c, p.account.ID) {
+						logger.LegacyPrintf("service.antigravity_gateway", "%s status=%d bare_429_cooldown_skipped account=%d (this request already cooled another account; the request is the likely cause)", p.prefix, resp.StatusCode, p.account.ID)
+					} else {
+						p.handleError(p.ctx, p.prefix, p.account, resp.StatusCode, resp.Header, respBody, p.requestedModel, p.groupID, p.sessionHash, p.isStickySession)
+					}
 					logger.LegacyPrintf("service.antigravity_gateway", "%s status=%d rate_limited base_url=%s body=%s", p.prefix, resp.StatusCode, baseURL, truncateForLog(respBody, 200))
 					resp = &http.Response{
 						StatusCode: resp.StatusCode,
@@ -712,7 +711,7 @@ urlFallbackLoop:
 
 				// INTERNAL 500 渐进惩罚：3 次重试全部命中特定 500 时递增计数器并惩罚
 				if allAttemptsInternal500 && isAntigravityInternalServerError(resp.StatusCode, respBody) {
-					s.handleInternal500RetryExhausted(p.ctx, p.prefix, p.account)
+					s.handleInternal500ForModel(p.ctx, p.prefix, p.account, resolveFinalAntigravityModelKey(p.ctx, p.account, p.requestedModel))
 				}
 
 				// 其他 4xx 错误或重试用尽，直接返回
@@ -876,10 +875,12 @@ func sleepAntigravityBackoffWithContext(ctx context.Context, attempt int) bool {
 	}
 }
 
-// isSingleAccountRetry 检查 context 中是否设置了单账号退避重试标记
+// isSingleAccountRetry 检查是否处于单账号退避重试模式：显式标记优先，否则使用请求挂载的延迟判定。
 func isSingleAccountRetry(ctx context.Context) bool {
-	v, _ := SingleAccountRetryFromContext(ctx)
-	return v
+	if v, ok := SingleAccountRetryFromContext(ctx); ok {
+		return v
+	}
+	return singleAccountRetryProbeResult(ctx)
 }
 
 // setModelRateLimitByModelName 使用官方模型 ID 设置模型级限流
@@ -980,7 +981,7 @@ func (s *AntigravityGatewayService) setAntigravityModelRateLimits(ctx context.Co
 	if account == nil || repo == nil {
 		return false
 	}
-	keys := antigravityModelRateLimitKeys(modelName)
+	keys := antigravityModelRateLimitKeys(account, modelName)
 	if len(keys) == 0 {
 		return false
 	}

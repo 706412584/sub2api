@@ -400,7 +400,7 @@ func (s *CodebuddyMaintenanceRunner) doMaintenanceRequest(ctx context.Context, a
 		return nil, nil, errors.New("codebuddy maintenance: http upstream is not configured")
 	}
 	req = req.WithContext(ctx)
-	account.ApplyHeaderOverrides(req.Header)
+	account.ApplyHeaderOverrides(req.Context(), req.Header)
 
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {

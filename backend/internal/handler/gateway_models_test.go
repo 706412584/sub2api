@@ -23,6 +23,82 @@ type gatewayModelsAccountRepoStub struct {
 	byGroup map[int64][]service.Account
 }
 
+func TestGatewayModelsAnthropicLongContextVariants(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	const groupID int64 = 8880
+	for _, test := range []struct {
+		name          string
+		platform      string
+		mapping       map[string]any
+		metadata      map[string]service.UpstreamModelMetadata
+		allowlist     []string
+		routing       map[string][]int64
+		otherAccounts []service.Account
+		wantVariants  []string
+		absent        []string
+	}{
+		{name: "mapped target and threshold", mapping: map[string]any{"public": "upstream", "short": "short", "max-only": "max-only"},
+			metadata:     map[string]service.UpstreamModelMetadata{"upstream": {ContextWindow: 900_000}, "short": {ContextWindow: 899_999}, "max-only": {MaxContextWindow: 1_000_000}, "hidden": {ContextWindow: 1_000_000}},
+			wantVariants: []string{"public[1m]"}, absent: []string{"upstream", "upstream[1m]", "hidden", "hidden[1m]", "short[1m]", "max-only[1m]", claude.DefaultModels[0].ID}},
+		{name: "wildcard mappings are not concrete variants", mapping: map[string]any{"public*": "upstream"},
+			metadata: map[string]service.UpstreamModelMetadata{"upstream": {ContextWindow: 1_000_000}}, absent: []string{"public*[1m]"}},
+		{name: "source metadata cannot override mapped target", mapping: map[string]any{"public": "short"},
+			metadata: map[string]service.UpstreamModelMetadata{"public": {ContextWindow: 1_000_000}, "short": {ContextWindow: 200_000}}, absent: []string{"public[1m]"}},
+		{name: "no duplicate suffix", mapping: map[string]any{"public": "upstream", "public[1m]": "upstream", "other[1M]": "upstream"},
+			metadata: map[string]service.UpstreamModelMetadata{"upstream": {ContextWindow: 1_000_000}}, wantVariants: []string{"public[1m]", "other[1M]"}, absent: []string{"public[1m][1m]", "other[1M][1m]"}},
+		{name: "allowlist filters variants", mapping: map[string]any{"public": "upstream", "private": "upstream"},
+			metadata: map[string]service.UpstreamModelMetadata{"upstream": {ContextWindow: 1_000_000}}, allowlist: []string{"public"}, absent: []string{"public[1m]", "private", "private[1m]"}},
+		{name: "allowlist can select variant", mapping: map[string]any{"public": "upstream"},
+			metadata: map[string]service.UpstreamModelMetadata{"upstream": {ContextWindow: 1_000_000}}, allowlist: []string{"public[1m]"}, wantVariants: []string{"public[1m]"}, absent: []string{"public"}},
+		{name: "routing excludes metadata account", mapping: map[string]any{"public": "upstream"},
+			metadata: map[string]service.UpstreamModelMetadata{"upstream": {ContextWindow: 1_000_000}}, routing: map[string][]int64{"public": {2}}, absent: []string{"public[1m]"}},
+		{name: "routing includes metadata account", mapping: map[string]any{"public": "upstream"},
+			metadata: map[string]service.UpstreamModelMetadata{"upstream": {ContextWindow: 1_000_000}}, routing: map[string][]int64{"pub*": {1}}, wantVariants: []string{"public[1m]"}},
+		{name: "non-Anthropic listing", platform: service.PlatformOpenAI, mapping: map[string]any{"public": "upstream"},
+			metadata: map[string]service.UpstreamModelMetadata{"upstream": {ContextWindow: 1_000_000}}, absent: []string{"public[1m]"}},
+		{name: "unmapped defaults", metadata: map[string]service.UpstreamModelMetadata{claude.DefaultModels[0].ID: {ContextWindow: 1_000_000}, "hidden": {ContextWindow: 1_000_000}},
+			wantVariants: []string{claude.DefaultModels[0].ID + "[1m]"}, absent: []string{"hidden", "hidden[1m]"}},
+		{name: "other platform account metadata", mapping: map[string]any{"public": "upstream"},
+			otherAccounts: []service.Account{{ID: 2, Platform: service.PlatformOpenAI, Extra: map[string]any{service.UpstreamModelMetadataExtraKey: service.UpstreamModelMetadataSnapshot{Models: map[string]service.UpstreamModelMetadata{"upstream": {ContextWindow: 1_000_000}}}}}}, absent: []string{"public[1m]"}},
+		{name: "unsupported model metadata", mapping: map[string]any{"public": "upstream"},
+			otherAccounts: []service.Account{{ID: 2, Platform: service.PlatformAnthropic, Credentials: map[string]any{"model_mapping": map[string]any{"private": "private"}}, Extra: map[string]any{service.UpstreamModelMetadataExtraKey: service.UpstreamModelMetadataSnapshot{Models: map[string]service.UpstreamModelMetadata{"public": {ContextWindow: 1_000_000}}}}}}, absent: []string{"public[1m]"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			platform := test.platform
+			if platform == "" {
+				platform = service.PlatformAnthropic
+			}
+			account := service.Account{ID: 1, Platform: platform, Type: service.AccountTypeOAuth, Credentials: map[string]any{"model_mapping": test.mapping}}
+			account.SetUpstreamModelMetadataSnapshot(service.UpstreamModelMetadataSnapshot{Models: test.metadata})
+			outsideAccount := service.Account{ID: 3, Platform: service.PlatformAnthropic}
+			outsideAccount.SetUpstreamModelMetadataSnapshot(service.UpstreamModelMetadataSnapshot{Models: map[string]service.UpstreamModelMetadata{"upstream": {ContextWindow: 1_000_000}}})
+			h := newGatewayModelsHandlerForTest(&gatewayModelsAccountRepoStub{byGroup: map[int64][]service.Account{
+				groupID: append([]service.Account{account}, test.otherAccounts...), groupID + 1: {outsideAccount},
+			}})
+			rec := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(rec)
+			ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+			ctx.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{Group: &service.Group{
+				ID: groupID, Platform: platform,
+				ModelAllowlist:      service.GroupModelAllowlist{Enabled: test.allowlist != nil, Models: test.allowlist},
+				ModelRoutingEnabled: test.routing != nil, ModelRouting: test.routing,
+			}})
+			h.Models(ctx)
+			require.Equal(t, http.StatusOK, rec.Code)
+			var response gatewayModelsResponseForTest
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response))
+			ids := modelIDsForTest(response.Data)
+			for _, variant := range test.wantVariants {
+				require.Contains(t, ids, variant)
+			}
+			for _, absent := range test.absent {
+				require.NotContains(t, ids, absent)
+			}
+			require.Len(t, mergeModelIDs(ids, nil), len(ids))
+		})
+	}
+}
+
 type gatewayModelsRouteRepoStub struct {
 	service.CompositeModelRouteRepository
 	routes []service.CompositeModelRoute
@@ -324,6 +400,12 @@ func TestGatewayModels_UnmappedOpenAIAccountsSupplementMappedModels(t *testing.T
 			Credentials: map[string]any{"model_mapping": map[string]any{alias: "gpt-5.6-sol"}},
 		},
 	}
+	subscriptionDefaults := make([]string, 0)
+	for _, model := range openai.DefaultModelIDs() {
+		if model != "gpt-5.5" {
+			subscriptionDefaults = append(subscriptionDefaults, model)
+		}
+	}
 	tests := []struct {
 		name     string
 		accounts []service.Account
@@ -333,7 +415,7 @@ func TestGatewayModels_UnmappedOpenAIAccountsSupplementMappedModels(t *testing.T
 		{
 			name:     "unmapped parent and Spark shadow retain defaults and aliases",
 			accounts: accounts,
-			want:     append(openai.DefaultModelIDs(), alias),
+			want:     append(append([]string{}, subscriptionDefaults...), alias),
 		},
 		{
 			name:     "unmapped API key account also contributes defaults",
@@ -343,7 +425,7 @@ func TestGatewayModels_UnmappedOpenAIAccountsSupplementMappedModels(t *testing.T
 		{
 			name:     "unmapped accounts alone retain default response shape",
 			accounts: accounts[:1],
-			want:     openai.DefaultModelIDs(),
+			want:     subscriptionDefaults,
 		},
 		{
 			name:     "custom list can select defaults and aliases",
@@ -372,7 +454,7 @@ func TestGatewayModels_UnmappedOpenAIAccountsSupplementMappedModels(t *testing.T
 				Credentials: map[string]any{"model_mapping": map[string]any{"stale-model": "stale-model"}},
 				Extra:       map[string]any{"openai_passthrough": true},
 			}}, accounts[1:]...),
-			want: append(openai.DefaultModelIDs(), alias),
+			want: append(append([]string{}, subscriptionDefaults...), alias),
 		},
 		{
 			name:     "unmapped accounts from another platform do not add defaults",
@@ -553,7 +635,7 @@ func TestGatewayModels_GeminiGroupFallsBackToGeminiModels(t *testing.T) {
 	var got gatewayModelsResponseForTest
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 	require.Equal(t, "list", got.Object)
-	require.Contains(t, modelIDsForTest(got.Data), "gemini-2.5-flash")
+	require.Contains(t, modelIDsForTest(got.Data), "gemini-3.5-flash")
 	require.NotContains(t, modelIDsForTest(got.Data), "claude-sonnet-4-6")
 }
 
@@ -1434,6 +1516,60 @@ func modelIDsForTest(models []gatewayModelItemForTest) []string {
 		ids = append(ids, model.ID)
 	}
 	return ids
+}
+
+func TestGatewayModels_AntigravityExplicitMappingAppearsInBothCatalogs(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	const groupID int64 = 93
+	mapping := map[string]any{
+		"gemini-3.8-flash":         "gemini-3.8-flash-high",
+		"gemini-3.8-flash-high":    "gemini-3.8-flash-high",
+		"claude-opus-4-6-thinking": "claude-opus-4-6-thinking",
+		"gemini-pro-agent":         "gemini-pro-agent",
+	}
+	for _, platform := range []string{service.PlatformAntigravity, service.PlatformComposite, service.PlatformGemini} {
+		t.Run(platform, func(t *testing.T) {
+			h := newGatewayModelsHandlerForTest(&gatewayModelsAccountRepoStub{
+				byGroup: map[int64][]service.Account{groupID: {{
+					ID: 25, Platform: service.PlatformAntigravity,
+					Extra:       map[string]any{"mixed_scheduling": true},
+					Credentials: map[string]any{"model_mapping": mapping},
+				}}},
+			})
+			want := []string{"gemini-3.8-flash", "gemini-3.8-flash-high", "gemini-pro-agent", "claude-opus-4-6-thinking"}
+			if platform == service.PlatformGemini {
+				want = want[:3]
+			}
+			for _, codex := range []bool{false, true} {
+				rec := httptest.NewRecorder()
+				c, _ := gin.CreateTestContext(rec)
+				c.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+				c.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{
+					Group: &service.Group{ID: groupID, Platform: platform},
+				})
+				var ids []string
+				if codex {
+					h.CodexModels(c)
+					var got codexModelsResponseForTest
+					require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+					for _, model := range got.Models {
+						ids = append(ids, model.Slug)
+					}
+				} else {
+					h.Models(c)
+					var got gatewayModelsResponseForTest
+					require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+					ids = modelIDsForTest(got.Data)
+				}
+				require.Equal(t, http.StatusOK, rec.Code)
+				// 显式条目必须同时出现在两种目录；默认透传补齐的条目不锁定。
+				require.Subset(t, ids, want, "codex=%t", codex)
+				if platform == service.PlatformGemini {
+					require.NotContains(t, ids, "claude-opus-4-6-thinking", "codex=%t", codex)
+				}
+			}
+		})
+	}
 }
 
 // gemini 分组混合调度：组内 antigravity 账号的 gemini-* 映射也应出现在 /v1/models，

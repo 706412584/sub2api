@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -57,8 +58,14 @@ func (f *AntigravityQuotaFetcher) FetchQuota(ctx context.Context, account *Accou
 		return nil, fmt.Errorf("create antigravity client failed: %w", err)
 	}
 
-	// 调用 API 获取配额
-	modelsResp, modelsRaw, err := client.FetchAvailableModels(ctx, accessToken, projectID, resolveModelsListReadLimit(f.cfg))
+	baseURL := resolveAntigravityForwardBaseURL(account)
+	if baseURL == "" {
+		return nil, errors.New("no antigravity base url configured")
+	}
+
+	// Query the same endpoint that receives forwarded requests for this account (daily for
+	// paid tiers, prod otherwise), because Google accounts quota separately per endpoint.
+	modelsResp, modelsRaw, err := client.FetchAvailableModelsFromURL(ctx, baseURL, accessToken, projectID, resolveModelsListReadLimit(f.cfg))
 	if err != nil {
 		// 403 Forbidden: 不报错，返回 is_forbidden 标记
 		var forbiddenErr *antigravity.ForbiddenError
@@ -87,8 +94,8 @@ func (f *AntigravityQuotaFetcher) FetchQuota(ctx context.Context, account *Accou
 	// 转换为 UsageInfo
 	usageInfo := f.buildUsageInfo(modelsResp, tierRaw, tierNormalized, loadResp)
 
-	// 追加 retrieveUserQuotaSummary 分桶配额（weekly + 5h 双窗口，best-effort 不阻塞）
-	f.applyAntigravityQuotaGroups(ctx, client, accessToken, projectID, usageInfo)
+	// 配额与转发使用同一端点；失败不影响主配额结果。
+	f.applyAntigravityQuotaGroups(ctx, client, accessToken, projectID, usageInfo, baseURL)
 
 	return &QuotaResult{
 		UsageInfo: usageInfo,
@@ -115,11 +122,17 @@ func (f *AntigravityQuotaFetcher) fetchSubscriptionTier(ctx context.Context, cli
 
 // applyAntigravityQuotaSummary 拉取 retrieveUserQuotaSummary 分桶配额并写入 UsageInfo。
 // best-effort：失败只记日志，不影响主配额结果（与 fetchSubscriptionTier 同模式）。
-func (f *AntigravityQuotaFetcher) applyAntigravityQuotaGroups(ctx context.Context, client *antigravity.Client, accessToken, projectID string, usageInfo *UsageInfo) {
+func (f *AntigravityQuotaFetcher) applyAntigravityQuotaGroups(ctx context.Context, client *antigravity.Client, accessToken, projectID string, usageInfo *UsageInfo, baseURLs ...string) {
 	if usageInfo == nil {
 		return
 	}
-	summary, err := client.RetrieveUserQuotaSummary(ctx, accessToken, projectID, resolveModelsListReadLimit(f.cfg))
+	var summary *antigravity.UserQuotaSummaryResponse
+	var err error
+	if len(baseURLs) > 0 {
+		summary, err = client.RetrieveUserQuotaSummaryFromURL(ctx, baseURLs[0], accessToken, projectID)
+	} else {
+		summary, err = client.RetrieveUserQuotaSummary(ctx, accessToken, projectID, resolveModelsListReadLimit(f.cfg))
+	}
 	if err != nil {
 		slog.Warn("failed to fetch antigravity quota summary", "error", err)
 		return
@@ -128,32 +141,7 @@ func (f *AntigravityQuotaFetcher) applyAntigravityQuotaGroups(ctx context.Contex
 		return
 	}
 
-	groups := make([]*AntigravityQuotaGroup, 0, len(summary.Groups))
-	for _, g := range summary.Groups {
-		buckets := make([]*AntigravityQuotaBucket, 0, len(g.Buckets))
-		for _, b := range g.Buckets {
-			utilization := int((1.0 - b.RemainingFraction) * 100)
-			if utilization < 0 {
-				utilization = 0
-			} else if utilization > 100 {
-				utilization = 100
-			}
-			buckets = append(buckets, &AntigravityQuotaBucket{
-				BucketID:    b.BucketID,
-				Window:      b.Window,
-				Utilization: utilization,
-				ResetTime:   b.ResetTime,
-				DisplayName: b.DisplayName,
-				Description: b.Description,
-			})
-		}
-		groups = append(groups, &AntigravityQuotaGroup{
-			DisplayName: g.DisplayName,
-			Description: g.Description,
-			Buckets:     buckets,
-		})
-	}
-	usageInfo.AntigravityQuotaGroups = groups
+	usageInfo.AntigravityQuotaGroups = buildAntigravityQuotaGroups(summary)
 }
 
 // normalizeTier 将原始 tier 字符串归一化为 FREE/PRO/ULTRA/UNKNOWN
@@ -251,6 +239,59 @@ func (f *AntigravityQuotaFetcher) buildUsageInfo(modelsResp *antigravity.FetchAv
 	}
 
 	return info
+}
+
+// buildAntigravityQuotaGroups turns a quota summary into display groups, each with its
+// windows ordered 5h then weekly. Returns nil when there is nothing to show.
+func buildAntigravityQuotaGroups(summary *antigravity.QuotaSummaryResponse) []*AntigravityQuotaGroup {
+	if summary == nil {
+		return nil
+	}
+	windowOrder := map[string]int{"5h": 0, "weekly": 1}
+	var groups []*AntigravityQuotaGroup
+	for _, group := range summary.Groups {
+		if len(group.Buckets) == 0 {
+			continue
+		}
+		out := &AntigravityQuotaGroup{Name: group.DisplayName, DisplayName: group.DisplayName, Description: group.Description}
+		for _, bucket := range group.Buckets {
+			if out.Key == "" {
+				if i := strings.LastIndex(bucket.BucketID, "-"); i > 0 {
+					out.Key = bucket.BucketID[:i]
+				}
+			}
+			used := (1.0 - bucket.RemainingFraction) * 100
+			if used < 0 {
+				used = 0
+			} else if used > 100 {
+				used = 100
+			}
+			out.Buckets = append(out.Buckets, &AntigravityQuotaBucket{
+				BucketID: bucket.BucketID, Window: bucket.Window, Utilization: int(used),
+				ResetTime: bucket.ResetTime, DisplayName: bucket.DisplayName, Description: bucket.Description,
+			})
+			window := &AntigravityQuotaWindow{Window: bucket.Window, Utilization: used}
+			if bucket.ResetTime != "" {
+				if resetAt, err := time.Parse(time.RFC3339, bucket.ResetTime); err == nil {
+					window.ResetsAt = &resetAt
+				}
+			}
+			out.Windows = append(out.Windows, window)
+		}
+		sort.SliceStable(out.Windows, func(i, j int) bool {
+			oi, iok := windowOrder[out.Windows[i].Window]
+			oj, jok := windowOrder[out.Windows[j].Window]
+			if !iok {
+				oi = len(windowOrder)
+			}
+			if !jok {
+				oj = len(windowOrder)
+			}
+			return oi < oj
+		})
+		groups = append(groups, out)
+	}
+	return groups
 }
 
 // GetProxyURL 获取账户的代理 URL

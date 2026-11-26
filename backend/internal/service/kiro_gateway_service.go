@@ -136,7 +136,7 @@ func (s *KiroGatewayService) Forward(ctx context.Context, c *gin.Context, accoun
 		return nil, s.writeClaudeError(c, http.StatusBadRequest, "invalid_request_error", "Failed to build Kiro request")
 	}
 	req = req.WithContext(ctx)
-	account.ApplyHeaderOverrides(req.Header)
+	account.ApplyHeaderOverrides(req.Context(), req.Header)
 
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {
